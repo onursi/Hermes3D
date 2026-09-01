@@ -23,6 +23,37 @@ import {
 export type AgentStatus = "idle" | "running" | "error";
 export type FocusFilter = "all" | "running" | "approvals";
 
+// Finer-grained status for the Frontdoor/Agent-HQ UI, layered on top of the
+// existing coarse `AgentStatus` (idle/running/error) rather than replacing
+// it — every existing call site keyed off `status` keeps working unchanged.
+export type AgentFineStatus =
+  | "idle"
+  | "routing"
+  | "working"
+  | "tool_call"
+  | "waiting_approval"
+  | "done"
+  | "error";
+
+// One entry per routing.* event, kept as a flat rolling log (capped) so the
+// Live-Activity panel and Frontdoor-Flow panel can render a real timeline
+// without re-deriving it from the raw gateway event stream.
+export type RoutingLogEntry = {
+  id: string;
+  runId: string;
+  event: "received" | "classified" | "selected" | "started" | "completed" | "failed";
+  at: number;
+  sessionKey: string;
+  category?: string | null;
+  targetAgentId?: string | null;
+  targetProfile?: string | null;
+  targetModel?: string | null;
+  reason?: string | null;
+  status?: string | null;
+  durationMs?: number | null;
+  textPreview?: string | null;
+};
+
 export type AgentStoreSeed = {
   agentId: string;
   name: string;
@@ -76,6 +107,15 @@ export type AgentState = AgentStoreSeed & {
   sessionEpoch?: number;
   lastHistoryRequestRevision?: number | null;
   lastAppliedHistoryRequestId?: string | null;
+  // Agent-HQ additions (2026-08-31) — all optional/additive, populated from
+  // routing.* events by runtimeRoutingEventWorkflow.ts. Nothing existing
+  // reads or depends on these, so they default to null/idle everywhere.
+  provider?: string | null;
+  fineStatus?: AgentFineStatus;
+  lastToolCall?: string | null;
+  routingCategory?: string | null;
+  routingReason?: string | null;
+  routingReceivedAt?: number | null;
 };
 
 export const buildNewSessionAgentPatch = (agent: AgentState): Partial<AgentState> => {
@@ -119,6 +159,7 @@ export type AgentStoreState = {
   selectedAgentId: string | null;
   loading: boolean;
   error: string | null;
+  routingLog: RoutingLogEntry[];
 };
 
 type Action =
@@ -132,16 +173,19 @@ type Action =
   | { type: "removeQueuedMessage"; agentId: string; index: number }
   | { type: "shiftQueuedMessage"; agentId: string; expectedMessage?: string }
   | { type: "markActivity"; agentId: string; at?: number }
-  | { type: "selectAgent"; agentId: string | null };
+  | { type: "selectAgent"; agentId: string | null }
+  | { type: "appendRoutingLog"; entry: RoutingLogEntry };
 
 const initialState: AgentStoreState = {
   agents: [],
   selectedAgentId: null,
   loading: false,
   error: null,
+  routingLog: [],
 };
 
 const MAX_AGENT_TRANSCRIPT_ENTRIES = 600;
+const MAX_ROUTING_LOG_ENTRIES = 200;
 
 const areStringArraysEqual = (left: string[], right: string[]): boolean => {
   if (left.length !== right.length) return false;
@@ -255,6 +299,12 @@ const createRuntimeAgentState = (
     lastAppliedHistoryRequestId: sameSessionKey
       ? (existing?.lastAppliedHistoryRequestId ?? null)
       : null,
+    provider: sameSessionKey ? (existing?.provider ?? null) : null,
+    fineStatus: sameSessionKey ? (existing?.fineStatus ?? "idle") : "idle",
+    lastToolCall: sameSessionKey ? (existing?.lastToolCall ?? null) : null,
+    routingCategory: sameSessionKey ? (existing?.routingCategory ?? null) : null,
+    routingReason: sameSessionKey ? (existing?.routingReason ?? null) : null,
+    routingReceivedAt: sameSessionKey ? (existing?.routingReceivedAt ?? null) : null,
   };
 };
 
@@ -274,6 +324,29 @@ const reducer = (state: AgentStoreState, action: Action): AgentStoreState => {
               agents.some((agent) => agent.agentId === state.selectedAgentId)
           ? state.selectedAgentId
           : agents[0]?.agentId ?? null;
+      // Fixed 2026-08-30: createRuntimeAgentState() always returns a brand-new
+      // object (spread), so `agents` was a fresh array reference on every
+      // hydrateAgents call even when nothing actually changed. Several
+      // useEffects elsewhere key off `state.agents` by reference, and a
+      // real (non-demo) backend re-hydrates on every poll/event — so an
+      // unconditionally-new array reference here turned those into a live
+      // "Maximum update depth exceeded" loop once real data (not just an
+      // idle demo seed) started flowing. Bail out to the existing `state`
+      // when the hydration is a true no-op so React's reference-equality
+      // bail-out actually stops the cascade at the source, rather than
+      // depending on every consumer downstream getting its own dependency
+      // array exactly right.
+      const isNoopHydration =
+        selectedAgentId === state.selectedAgentId &&
+        !state.loading &&
+        state.error === null &&
+        agents.length === state.agents.length &&
+        agents.every(
+          (agent, index) =>
+            state.agents[index]?.agentId === agent.agentId &&
+            JSON.stringify(state.agents[index]) === JSON.stringify(agent)
+        );
+      if (isNoopHydration) return state;
       return {
         ...state,
         agents,
@@ -286,12 +359,23 @@ const reducer = (state: AgentStoreState, action: Action): AgentStoreState => {
       return { ...state, error: action.error, loading: false };
     case "setLoading":
       return { ...state, loading: action.loading };
-    case "updateAgent":
-      return {
-        ...state,
-        agents: state.agents.map((agent) => {
-          if (agent.agentId !== action.agentId) return agent;
-          const patch = action.patch;
+    case "updateAgent": {
+      // Same reference-equality bail-out philosophy as hydrateAgents above
+      // (2026-08-30 fix), applied here too (2026-08-31): the Frontdoor
+      // Router can fire several updateAgent patches for the same agent
+      // within a few hundred ms (received/classified/selected/started),
+      // and some pre-existing useEffects elsewhere in this file key off
+      // `state.agents` by reference. A patch that doesn't actually change
+      // anything (e.g. re-affirming the same fineStatus) still produced a
+      // brand-new agents array before this fix, which was enough to tip a
+      // couple of those effects into a real "Maximum update depth
+      // exceeded" loop once routing made updateAgent fire that rapidly.
+      // Bailing out per-agent (and for the whole array when nothing in it
+      // actually changed) stops that at the source.
+      let anyAgentChanged = false;
+      const nextAgents = state.agents.map((agent) => {
+        if (agent.agentId !== action.agentId) return agent;
+        const patch = action.patch;
           const nextSessionKey = (patch.sessionKey ?? agent.sessionKey).trim();
           const sessionKeyChanged = nextSessionKey !== agent.sessionKey.trim();
           const patchHasTranscriptEntries = Array.isArray(patch.transcriptEntries);
@@ -300,7 +384,14 @@ const reducer = (state: AgentStoreState, action: Action): AgentStoreState => {
 
           const existingEntries = ensureTranscriptEntries(agent);
           const base: AgentState = { ...agent, ...patch };
-          let nextEntries: TranscriptEntry[] = existingEntries;
+          // Default to the agent's own array reference (not existingEntries,
+          // which ensureTranscriptEntries() always re-slices into a fresh
+          // array even when nothing changed) — otherwise the no-op check
+          // below would see a "changed" transcriptEntries reference on
+          // every single patch, even ones that never touch the transcript.
+          let nextEntries: TranscriptEntry[] = Array.isArray(agent.transcriptEntries)
+            ? agent.transcriptEntries
+            : existingEntries;
           if (Array.isArray(base.transcriptEntries)) {
             nextEntries = base.transcriptEntries as TranscriptEntry[];
           }
@@ -344,7 +435,7 @@ const reducer = (state: AgentStoreState, action: Action): AgentStoreState => {
             ? nextTranscriptSequenceCounter(base.transcriptSequenceCounter, nextEntries)
             : (base.transcriptSequenceCounter ?? agent.transcriptSequenceCounter ?? 0);
 
-          return {
+          const nextAgent: AgentState = {
             ...base,
             outputLines: nextOutputLines,
             transcriptEntries: nextEntries,
@@ -357,8 +448,17 @@ const reducer = (state: AgentStoreState, action: Action): AgentStoreState => {
                   ? (agent.sessionEpoch ?? 0) + 1
                   : (agent.sessionEpoch ?? 0),
           };
-        }),
-      };
+
+          const isNoopPatch = (Object.keys(nextAgent) as Array<keyof AgentState>).every(
+            (key) => Object.is(agent[key], nextAgent[key])
+          );
+          if (isNoopPatch) return agent;
+          anyAgentChanged = true;
+          return nextAgent;
+      });
+      if (!anyAgentChanged) return state;
+      return { ...state, agents: nextAgents };
+    }
     case "removeAgent": {
       const nextAgents = state.agents.filter((agent) => agent.agentId !== action.agentId);
       const selectedAgentId =
@@ -529,6 +629,22 @@ const reducer = (state: AgentStoreState, action: Action): AgentStoreState => {
               ),
       };
     }
+    case "appendRoutingLog": {
+      // De-dupe on id: bridge.js reconnects/retries can in principle
+      // redeliver the same routing.* event, and the log is meant to be a
+      // clean one-entry-per-event timeline, not a raw wire replay.
+      if (state.routingLog.some((entry) => entry.id === action.entry.id)) {
+        return state;
+      }
+      const next = [...state.routingLog, action.entry];
+      return {
+        ...state,
+        routingLog:
+          next.length > MAX_ROUTING_LOG_ENTRIES
+            ? next.slice(next.length - MAX_ROUTING_LOG_ENTRIES)
+            : next,
+      };
+    }
     default:
       return state;
   }
@@ -543,6 +659,7 @@ type AgentStoreContextValue = {
   hydrateAgents: (agents: AgentStoreSeed[], selectedAgentId?: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  appendRoutingLog: (entry: RoutingLogEntry) => void;
 };
 
 const AgentStoreContext = createContext<AgentStoreContextValue | null>(null);
@@ -567,9 +684,14 @@ export const AgentStoreProvider = ({ children }: { children: ReactNode }) => {
     [dispatch]
   );
 
+  const appendRoutingLog = useCallback(
+    (entry: RoutingLogEntry) => dispatch({ type: "appendRoutingLog", entry }),
+    [dispatch]
+  );
+
   const value = useMemo(
-    () => ({ state, dispatch, hydrateAgents, setLoading, setError }),
-    [dispatch, hydrateAgents, setError, setLoading, state]
+    () => ({ state, dispatch, hydrateAgents, setLoading, setError, appendRoutingLog }),
+    [dispatch, hydrateAgents, setError, setLoading, state, appendRoutingLog]
   );
 
   return (
@@ -584,6 +706,14 @@ export const useAgentStore = () => {
   }
   return ctx;
 };
+
+export const getRecentRoutingLog = (
+  state: AgentStoreState,
+  limit = 50
+): RoutingLogEntry[] =>
+  limit >= state.routingLog.length
+    ? state.routingLog
+    : state.routingLog.slice(state.routingLog.length - limit);
 
 export const getSelectedAgent = (state: AgentStoreState): AgentState | null => {
   if (!state.selectedAgentId) return null;

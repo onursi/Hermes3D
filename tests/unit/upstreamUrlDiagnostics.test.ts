@@ -53,6 +53,17 @@ describe("upstream gateway URL diagnostics", () => {
     expect(
       buildGatewayWarnings({ gatewayUrl: local, adapterType: "hermes-agent" }),
     ).not.toContainEqual(expect.stringContaining("dashboard"));
+
+    // Fixed 2026-08-30: `hermes serve` can bind its JSON-RPC gateway on the
+    // same port historically used for the OpenAI-compatible HTTP API (8642
+    // here) — the hermes-agent adapter connects straight to it on purpose,
+    // same as the dashboard-port and JSON-RPC-path cases above. This rule
+    // was the one sibling missing the `!targetsHermesAgent` guard, so it
+    // fired even for a correctly configured hermes-agent target.
+    const openaiPort = "http://localhost:8642";
+    expect(codesFor(openaiPort)).toContain("hermes_openai_api_port");
+    expect(inspectUpstreamGatewayUrl(openaiPort, "hermes-agent")).toEqual([]);
+    expect(inspectUpstreamGatewayUrlFromDoctor(openaiPort, "hermes-agent")).toEqual([]);
   });
 
   it("still warns the hermes-agent adapter about a non-TLS tailnet port", () => {

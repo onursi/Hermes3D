@@ -100,7 +100,17 @@ export const isSameSessionKey = (a: string, b: string) => {
 };
 
 const CONNECT_FAILED_CLOSE_CODE = 4008;
-const GATEWAY_CONNECT_TIMEOUT_MS = 13_000;
+// 2026-08-31 (isolated Hermes3D test copy only): settled on 25_000ms as the
+// permanent value, down from a 60_000ms testing accommodation used on
+// 2026-08-30 while this machine was under heavy, unrelated system load
+// (other dev servers, MCP tools, a Codex session). The connection itself
+// reliably succeeds in well under 1s (verified repeatedly via a plain
+// WebSocket script against the same endpoint) — the original 13_000ms
+// default was tight enough that ordinary load spikes on a shared dev
+// machine could still trip it. 25s keeps a real hang from stalling the UI
+// for a full minute while giving genuine headroom over the sub-second
+// happy path.
+const GATEWAY_CONNECT_TIMEOUT_MS = 25_000;
 
 const parseConnectFailedCloseReason = (
   reason: string
@@ -922,7 +932,7 @@ export const useGatewayConnection = (
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
           await client.connect({
-            gatewayUrl: resolveStudioProxyGatewayUrl(),
+            gatewayUrl: resolveStudioProxyGatewayUrl(gatewayUrl, selectedAdapterType),
             token,
             authScopeKey: gatewayUrl,
             clientName: resolveGatewayClientName(),

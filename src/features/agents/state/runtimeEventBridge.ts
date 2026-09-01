@@ -144,6 +144,7 @@ export type GatewayEventKind =
   | "summary-refresh"
   | "runtime-chat"
   | "runtime-agent"
+  | "runtime-routing"
   | "ignore";
 
 const REASONING_STREAM_NAME_HINTS = ["reason", "think", "analysis", "trace"];
@@ -152,7 +153,30 @@ export const classifyGatewayEventKind = (event: string): GatewayEventKind => {
   if (event === "presence" || event === "heartbeat") return "summary-refresh";
   if (event === "chat") return "runtime-chat";
   if (event === "agent") return "runtime-agent";
+  if (event.startsWith("routing.")) return "runtime-routing";
   return "ignore";
+};
+
+// Frontdoor Router events (server/hermes-agent/frontdoor-router.js +
+// bridge.js). One flat payload shape covers all six routing.* events —
+// each event only fills in the fields relevant to it, the rest stay
+// undefined. See runtimeRoutingEventWorkflow.ts for how this maps to
+// agent/log state.
+export type RoutingEventPayload = {
+  runId: string;
+  sessionKey: string;
+  source?: string;
+  textPreview?: string;
+  category?: string;
+  reason?: string;
+  targetAgentId?: string;
+  targetProfile?: string;
+  targetModel?: string;
+  startedAtMs?: number;
+  endedAtMs?: number;
+  durationMs?: number;
+  status?: string;
+  error?: string;
 };
 
 export const isReasoningRuntimeAgentStream = (stream: string): boolean => {

@@ -88,7 +88,19 @@ export const inspectUpstreamGatewayUrl = (
     });
   }
 
-  if (port === HERMES_OPENAI_API_PORT) {
+  // Fixed 2026-08-30: this check was missing the same `!targetsHermesAgent`
+  // guard its two siblings above already have. `hermes serve` binds its
+  // JSON-RPC gateway (/api/ws) on the SAME port the OpenAI-compatible HTTP
+  // API historically defaulted to (8642 here) — Studio's embedded
+  // hermes-agent bridge (server/gateway-proxy.js) translates in-process and
+  // connects straight to that gateway, so this port is exactly right for a
+  // hermes-agent target. Verified against a live `hermes serve --port 8642`:
+  // real hello-ok, real agent profiles, a real completed chat turn — while
+  // /v1/models on the same port 404s, confirming no OpenAI-compatible API is
+  // actually there. The finding was firing unconditionally and blocking a
+  // working connection behind a scary (wrong, for this adapter type) red
+  // error box.
+  if (!targetsHermesAgent && port === HERMES_OPENAI_API_PORT) {
     findings.push({
       code: "hermes_openai_api_port",
       severity: "error",

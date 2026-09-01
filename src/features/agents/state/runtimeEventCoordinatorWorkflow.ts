@@ -1,4 +1,4 @@
-import type { AgentState } from "@/features/agents/state/store";
+import type { AgentState, RoutingLogEntry } from "@/features/agents/state/store";
 import type { TranscriptAppendMeta } from "@/features/agents/state/transcript";
 import {
   dedupeRunLines,
@@ -42,6 +42,7 @@ export type RuntimeEventCoordinatorState = {
 
 export type RuntimeCoordinatorDispatchAction =
   | { type: "updateAgent"; agentId: string; patch: Partial<AgentState> }
+  | { type: "appendRoutingLog"; entry: RoutingLogEntry }
   | {
       type: "appendOutput";
       agentId: string;

@@ -340,6 +340,13 @@ export const planRuntimeAgentEvent = (
           timestampMs: nowMs,
         });
       }
+      // Agent-HQ: surface the tool name in the chat panel header (see
+      // AgentChatPanel.tsx's meta row) so an operator can see what an
+      // agent is doing without opening the transcript.
+      commands.push({
+        kind: "queueAgentPatch",
+        patch: { lastToolCall: name },
+      });
       return { commands };
     }
 

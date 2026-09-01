@@ -120,7 +120,12 @@ export const inspectUpstreamGatewayUrl = (rawUrl, adapterType = "") => {
     });
   }
 
-  if (port === HERMES_OPENAI_API_PORT) {
+  // Fixed 2026-08-30: mirrors the same fix in
+  // src/lib/gateway/upstreamUrlDiagnostics.ts — see that file for the full
+  // rationale. This check was missing the `!targetsHermesAgent` guard its
+  // two siblings above already have, so it fired even for a correctly
+  // configured hermes-agent target.
+  if (!targetsHermesAgent && port === HERMES_OPENAI_API_PORT) {
     findings.push({
       code: "hermes_openai_api_port",
       severity: "error",

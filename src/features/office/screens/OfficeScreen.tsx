@@ -132,6 +132,8 @@ import {
   HQSidebar,
   type HQSidebarTab,
 } from "@/features/office/components/HQSidebar";
+import { FrontdoorFlowPanel } from "@/features/office/components/panels/FrontdoorFlowPanel";
+import { LiveActivityPanel } from "@/features/office/components/panels/LiveActivityPanel";
 import { CompanyBuilderModal } from "@/features/company-builder/components/CompanyBuilderModal";
 import {
   buildGenerateCompanyPlanPrompt,
@@ -1140,11 +1142,19 @@ export function OfficeScreen({
   }, [state.agents]);
   useEffect(() => {
     const now = Date.now();
-    setDanceUntilByAgentId((previous) =>
-      Object.fromEntries(
-        Object.entries(previous).filter(([, until]) => until > now),
-      ),
-    );
+    setDanceUntilByAgentId((previous) => {
+      const entries = Object.entries(previous);
+      const filtered = entries.filter(([, until]) => until > now);
+      // Object.fromEntries() always allocates a fresh object, even when the
+      // filter removed nothing — without this length check, this fired on
+      // every single state.agents reference change (which, per
+      // danceUntilByAgentId being a dependency of the officeAnimationState
+      // memo below, extends the same "Maximum update depth exceeded" chain
+      // fixed for officeTriggerState above), regardless of whether any
+      // dance timer had actually expired.
+      if (filtered.length === entries.length) return previous;
+      return Object.fromEntries(filtered);
+    });
   }, [state.agents]);
   useEffect(() => {
     return () => {
@@ -2461,7 +2471,19 @@ export function OfficeScreen({
     if (agentsLoaded && !shouldRecoverFromPlaceholder) return;
     if (shouldRecoverFromPlaceholder) demoPlaceholderReloadRef.current = true;
     void loadAgents({ forceSettings: true });
-  }, [agentsLoaded, loadAgents, state.agents, status]);
+    // Depend on the two primitives this effect actually reads (length + first
+    // id), not the `state.agents` array itself. `hydrateAgents` always
+    // returns a brand-new array reference (see reducer, no equality check),
+    // so depending on the array here re-fires this effect on every hydration
+    // — including the one this effect's own `loadAgents()` call causes —
+    // which never terminates once `agentsLoaded` fails to settle to `true`
+    // (e.g. a bootstrap call cancelled mid-flight by a connection-epoch
+    // bump). Real fleets never match the length-1/MAIN_AGENT_ID placeholder
+    // shape, so this only changes re-trigger *timing*, not behavior.
+    // Fixed 2026-08-30: root cause of "Maximum update depth exceeded" when
+    // connecting a real (non-demo) backend such as hermes-agent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentsLoaded, loadAgents, state.agents.length, state.agents[0]?.agentId, status]);
 
   useEffect(() => {
     if (status !== "connected") return;
@@ -2730,12 +2752,24 @@ export function OfficeScreen({
   }, [agentsLoaded, loadAgents, status]);
 
   useEffect(() => {
-    setOfficeTriggerState((previous) =>
-      reconcileOfficeAnimationTriggerState({
+    setOfficeTriggerState((previous) => {
+      const next = reconcileOfficeAnimationTriggerState({
         state: previous,
         agents: state.agents,
-      }),
-    );
+      });
+      // reconcileOfficeAnimationTriggerState() always builds fresh hold-map
+      // objects, even when nothing about the actual trigger data changed —
+      // so without this equality check, this effect produced a brand-new
+      // officeTriggerState reference on every single state.agents change.
+      // That cascades into the officeAnimationState memo below (which also
+      // keys off officeTriggerState), and under several agent updates in
+      // quick succession — e.g. the Frontdoor Router's
+      // received/classified/selected/started sequence during connect — was
+      // enough to tip this into a real "Maximum update depth exceeded"
+      // loop. Same reference-equality bail-out already used for
+      // hydrateAgents/updateAgent in state/store.tsx.
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    });
   }, [state.agents]);
 
   useEffect(() => {
@@ -2924,8 +2958,21 @@ export function OfficeScreen({
     enabled: runtimeSupportsSkills,
     agents: state.agents,
   });
-  const animationNowMs = Date.now();
-  const officeAnimationState = useMemo(() => {
+  // Was a bare `Date.now()` computed on every render, which meant the
+  // officeAnimationState memo below (and the officeAgents memo further
+  // down, which also depends on it) never actually memoized — every render
+  // for any reason (a chat delta, a routing update, anything) rebuilt all
+  // of their hold-map objects with fresh references. That churn cascades
+  // through several state.agents-keyed effects and, combined with the
+  // Frontdoor Router's tighter burst of updateAgent calls, was enough to
+  // tip this into a real "Maximum update depth exceeded" loop. Tying it to
+  // the existing clockTick heartbeat (already the intended 2s pacing for
+  // time-based UI updates, see the setInterval above) keeps this cheap and
+  // referentially stable between ticks without adding a new timer or
+  // changing animation behavior — holds are already only ever compared at
+  // that same 2s grain.
+  const animationNowMs = useMemo(() => Date.now(), [clockTick]);
+  const rawOfficeAnimationState = useMemo(() => {
     const base = buildOfficeAnimationState({
       state: officeTriggerState,
       agents: state.agents,
@@ -2972,6 +3019,29 @@ export function OfficeScreen({
     skillTriggers.movementTargetByAgentId,
     state.agents,
   ]);
+  // Several of the pieces folded into rawOfficeAnimationState above (most
+  // notably skillTriggers.movementTargetByAgentId, which useOfficeSkillTriggers
+  // rebuilds as a fresh object on every state.agents change regardless of
+  // whether any trigger actually differs) don't carry their own reference
+  // stability. Rather than chase equality guards through every upstream
+  // producer individually, stabilize once here: officeAnimationState only
+  // gets a new reference when its actual (JSON-comparable, function-free)
+  // content changes. This is what finally stopped the residual "Maximum
+  // update depth exceeded" loop the officeTriggerState/danceUntilByAgentId/
+  // animationNowMs fixes above didn't fully cover on their own.
+  const officeAnimationStateRef = useRef(rawOfficeAnimationState);
+  const officeAnimationStateJsonRef = useRef<string>(
+    JSON.stringify(rawOfficeAnimationState)
+  );
+  const officeAnimationState = useMemo(() => {
+    const nextJson = JSON.stringify(rawOfficeAnimationState);
+    if (nextJson === officeAnimationStateJsonRef.current) {
+      return officeAnimationStateRef.current;
+    }
+    officeAnimationStateJsonRef.current = nextJson;
+    officeAnimationStateRef.current = rawOfficeAnimationState;
+    return rawOfficeAnimationState;
+  }, [rawOfficeAnimationState]);
   const {
     deskHoldByAgentId,
     githubHoldByAgentId,
@@ -4933,6 +5003,16 @@ export function OfficeScreen({
               agents={state.agents}
               standup={standupController}
             />
+          }
+          activityPanel={
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="max-h-[46%] shrink-0 overflow-hidden border-b border-cyan-500/10">
+                <FrontdoorFlowPanel routingLog={state.routingLog} agents={state.agents} />
+              </div>
+              <div className="min-h-0 flex-1">
+                <LiveActivityPanel routingLog={state.routingLog} agents={state.agents} />
+              </div>
+            </div>
           }
           analyticsPanel={
             <AnalyticsPanel

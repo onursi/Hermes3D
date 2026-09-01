@@ -6,7 +6,9 @@ import {
   resolveAssistantCompletionTimestamp,
   type AgentEventPayload,
   type ChatEventPayload,
+  type RoutingEventPayload,
 } from "@/features/agents/state/runtimeEventBridge";
+import { planRuntimeRoutingEvent } from "@/features/agents/state/runtimeRoutingEventWorkflow";
 import { decideSummaryRefreshEvent } from "@/features/agents/state/runtimeEventPolicy";
 import { isClosedRun } from "@/features/agents/state/runtimeTerminalWorkflow";
 import {
@@ -441,6 +443,33 @@ export function createGatewayRuntimeEventHandler(
     executeCoordinatorEffects(reduced.effects);
   };
 
+  // Frontdoor Router events (routing.received/classified/selected/started/
+  // completed/failed). Unlike chat/agent, these are one-shot structured
+  // facts, not a delta stream — no run-tracking/race-condition bookkeeping
+  // needed, so this bypasses the coordinator entirely and dispatches
+  // directly.
+  const handleRoutingEvent = (eventName: string, payload: RoutingEventPayload) => {
+    if (!payload?.runId) return;
+    const agentsSnapshot = deps.getAgents();
+    const callerAgentId = payload.sessionKey
+      ? findAgentBySessionKey(agentsSnapshot, payload.sessionKey)
+      : null;
+
+    const { logEntry, agentPatches } = planRuntimeRoutingEvent({
+      eventName,
+      payload,
+      callerAgentId,
+      nowMs: now(),
+    });
+
+    if (logEntry) {
+      deps.dispatch({ type: "appendRoutingLog", entry: logEntry });
+    }
+    for (const { agentId, patch } of agentPatches) {
+      deps.dispatch({ type: "updateAgent", agentId, patch });
+    }
+  };
+
   const handleEvent = (event: EventFrame) => {
     const eventKind = classifyGatewayEventKind(event.event);
 
@@ -473,6 +502,13 @@ export function createGatewayRuntimeEventHandler(
       const payload = event.payload as AgentEventPayload | undefined;
       if (!payload) return;
       handleRuntimeAgentEvent(payload);
+      return;
+    }
+
+    if (eventKind === "runtime-routing") {
+      const payload = event.payload as RoutingEventPayload | undefined;
+      if (!payload) return;
+      handleRoutingEvent(event.event, payload);
     }
   };
 

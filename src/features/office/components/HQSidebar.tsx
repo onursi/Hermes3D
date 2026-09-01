@@ -7,6 +7,7 @@ export type HQSidebarTab =
   | "history"
   | "kanban"
   | "playbooks"
+  | "activity"
   | "analytics";
 
 type HQSidebarProps = {
@@ -22,6 +23,7 @@ type HQSidebarProps = {
   historyPanel: ReactNode;
   kanbanPanel: ReactNode;
   playbooksPanel: ReactNode;
+  activityPanel: ReactNode;
   analyticsPanel: ReactNode;
 };
 
@@ -30,10 +32,11 @@ const TAB_LABELS: Record<HQSidebarTab, string> = {
   history: "History",
   kanban: "Kanban",
   playbooks: "Playbooks",
+  activity: "Activity",
   analytics: "Analytics",
 };
 
-const PRIMARY_TABS: HQSidebarTab[] = ["inbox", "history", "kanban", "playbooks"];
+const PRIMARY_TABS: HQSidebarTab[] = ["inbox", "history", "kanban", "playbooks", "activity"];
 
 export function HQSidebar({
   open,
@@ -48,6 +51,7 @@ export function HQSidebar({
   historyPanel,
   kanbanPanel,
   playbooksPanel,
+  activityPanel,
   analyticsPanel,
 }: HQSidebarProps) {
   const analyticsOnly = activeTab === "analytics";
@@ -61,7 +65,9 @@ export function HQSidebar({
           ? kanbanPanel
         : activeTab === "playbooks"
           ? playbooksPanel
-          : analyticsPanel;
+          : activeTab === "activity"
+            ? activityPanel
+            : analyticsPanel;
   const boardLikeWidth = activeTab === "kanban";
 
   return (
@@ -117,7 +123,7 @@ export function HQSidebar({
       {open ? (
         <div
           className={`pointer-events-auto flex h-full flex-col border-l border-cyan-500/20 bg-black/85 shadow-2xl backdrop-blur ${
-            boardLikeWidth ? "w-[min(94vw,1180px)]" : "w-56"
+            boardLikeWidth ? "w-[min(94vw,1180px)]" : "w-64"
           }`}
         >
           <div className="border-b border-cyan-500/15 px-4 py-3">
@@ -162,7 +168,7 @@ export function HQSidebar({
             <div
               role="tablist"
               aria-label="Headquarters panels"
-              className="grid grid-cols-4 border-b border-cyan-500/15"
+              className="grid grid-cols-5 border-b border-cyan-500/15"
             >
               {PRIMARY_TABS.map((tab) => {
                 const isActive = tab === activeTab;
@@ -176,15 +182,15 @@ export function HQSidebar({
                     aria-controls={`hq-panel-${tab}`}
                     id={`hq-tab-${tab}`}
                     onClick={() => onTabChange(tab)}
-                    className={`flex items-center justify-center gap-1 border-r border-cyan-500/10 px-2 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition-colors last:border-r-0 ${
+                    className={`flex flex-col items-center justify-center gap-0.5 border-r border-cyan-500/10 px-0.5 py-2 font-mono text-[8px] uppercase leading-tight tracking-[0.04em] transition-colors last:border-r-0 ${
                       isActive
                         ? "bg-cyan-500/10 text-cyan-100"
                         : "text-white/45 hover:bg-white/5 hover:text-white/80"
                     }`}
                   >
-                    <span>{TAB_LABELS[tab]}</span>
+                    <span className="text-center">{TAB_LABELS[tab]}</span>
                     {showBadge ? (
-                      <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] text-cyan-300" aria-label={`${inboxCount} unread`}>
+                      <span className="rounded bg-cyan-500/15 px-1 py-0.5 text-[9px] text-cyan-300" aria-label={`${inboxCount} unread`}>
                         {inboxCount}
                       </span>
                     ) : null}

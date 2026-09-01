@@ -67,6 +67,40 @@ const EMPTY_CHAT_INTRO_MESSAGES = [
 ];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+// Agent-HQ meta row (2026-08-31): surfaces the fields the Frontdoor Router
+// now tracks per agent (model/provider/fine status/routing reason/last tool
+// call) right where an operator already looks — the header of the panel
+// they get by clicking an agent. Deliberately not touched: the 3D office
+// scene/avatars themselves, per "3D-Office unangetastet" until this was
+// proven out here first.
+const FINE_STATUS_LABELS: Record<string, string> = {
+  idle: "Idle",
+  routing: "Routing",
+  working: "Working",
+  tool_call: "Tool Call",
+  waiting_approval: "Waiting Approval",
+  done: "Done",
+  error: "Error",
+};
+
+const FINE_STATUS_DOT_CLASS: Record<string, string> = {
+  idle: "bg-white/25",
+  routing: "bg-cyan-400",
+  working: "bg-amber-400",
+  tool_call: "bg-amber-400",
+  waiting_approval: "bg-fuchsia-400",
+  done: "bg-emerald-400",
+  error: "bg-rose-400",
+};
+
+const formatAgentMetaDuration = (startedAtMs: number): string => {
+  const seconds = Math.max(0, Math.round((Date.now() - startedAtMs) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder > 0 ? `${minutes}m ${remainder}s` : `${minutes}m`;
+};
+
 type UploadAttachment = {
   id: string;
   name: string;
@@ -1730,6 +1764,45 @@ export const AgentChatPanel = ({
               </div>
               {renameError ? (
                 <div className="ui-text-danger mt-1 text-[11px]">{renameError}</div>
+              ) : null}
+
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-muted-foreground">
+                {agent.role ? <span className="truncate">{agent.role}</span> : null}
+                {agent.model ? (
+                  <span className="truncate text-muted-foreground/80">{agent.model}</span>
+                ) : null}
+                {agent.provider ? (
+                  <span className="truncate text-muted-foreground/60">· {agent.provider}</span>
+                ) : null}
+                {agent.fineStatus && agent.fineStatus !== "idle" ? (
+                  <span
+                    className="inline-flex items-center gap-1 rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 uppercase tracking-[0.1em] text-cyan-200"
+                    data-fine-status={agent.fineStatus}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${FINE_STATUS_DOT_CLASS[agent.fineStatus] ?? "bg-white/25"}`} />
+                    {FINE_STATUS_LABELS[agent.fineStatus] ?? agent.fineStatus}
+                  </span>
+                ) : null}
+                {agent.runStartedAt ? (
+                  <span className="tabular-nums text-muted-foreground/60">
+                    {formatAgentMetaDuration(agent.runStartedAt)}
+                  </span>
+                ) : null}
+              </div>
+              {agent.routingCategory || agent.routingReason ? (
+                <div
+                  className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/50"
+                  title={agent.routingReason ?? undefined}
+                >
+                  {agent.routingCategory ? `${agent.routingCategory}` : ""}
+                  {agent.routingCategory && agent.routingReason ? " — " : ""}
+                  {agent.routingReason ?? ""}
+                </div>
+              ) : null}
+              {agent.lastToolCall ? (
+                <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/50">
+                  Letzter Tool-Call: {agent.lastToolCall}
+                </div>
               ) : null}
             </div>
           </div>

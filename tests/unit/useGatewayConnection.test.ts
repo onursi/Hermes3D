@@ -188,8 +188,14 @@ describe("useGatewayConnection", () => {
 
     render(createElement(Probe));
 
+    // Windows can resolve "localhost" to ::1 while the Studio proxy this
+    // isolated test copy launches is bound to IPv4 only, so
+    // resolveStudioProxyGatewayUrl() deliberately pins the browser-side
+    // proxy target to the explicit 127.0.0.1 loopback address (see
+    // src/lib/gateway/proxy-url.ts). jsdom's default test origin is
+    // http://localhost:3000, so that's the host/port this resolves against.
     await waitFor(() => {
-      expect(captured.url).toBe("ws://localhost:3000/api/gateway/ws");
+      expect(captured.url).toBe("ws://127.0.0.1:3000/api/gateway/ws");
     });
     expect(captured.token).toBe("");
     expect(captured.authScopeKey).toBe("wss://remote.example");
@@ -235,8 +241,10 @@ describe("useGatewayConnection", () => {
 
     render(createElement(Probe));
 
+    // See the comment in "connects_via_studio_proxy_ws_and_does_not_pass_token"
+    // above: the Studio proxy target is pinned to 127.0.0.1 on Windows.
     await waitFor(() => {
-      expect(captured.url).toBe("ws://localhost:3000/api/gateway/ws");
+      expect(captured.url).toBe("ws://127.0.0.1:3000/api/gateway/ws");
     });
     expect(captured.authScopeKey).toBe("wss://box.ts.net");
     expect(captured.clientName).toBe("hermes3d-control-ui");
@@ -281,8 +289,13 @@ describe("useGatewayConnection", () => {
 
     render(createElement(Probe));
 
+    // adapterType "hermes" doesn't need the gateway-proxy's server-side
+    // protocol translation (unlike e.g. "hermes-agent" — see
+    // EMBEDDED_TRANSLATION_ADAPTER_TYPES in src/lib/gateway/proxy-url.ts),
+    // so a loopback upstream like this one connects directly instead of
+    // being routed through the Studio proxy.
     await waitFor(() => {
-      expect(captured.url).toBe("ws://localhost:3000/api/gateway/ws");
+      expect(captured.url).toBe("ws://localhost:18789");
     });
     expect(captured.authScopeKey).toBe("ws://localhost:18789");
     expect(captured.clientName).toBe("hermes3d-control-ui");

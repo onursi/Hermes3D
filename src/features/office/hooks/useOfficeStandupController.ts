@@ -413,17 +413,42 @@ export const useOfficeStandupController = (params: {
     [config?.schedule.autoOpenBoard]
   );
 
-  return {
-    config,
-    meeting,
-    loading,
-    saving,
-    error,
-    saveConfig,
-    updateManualEntry,
-    startMeeting,
-    reportArrivals,
-    openBoardByDefault,
-    refreshMeeting,
-  };
+  // This was a plain object literal, rebuilt (new reference) on every
+  // render regardless of whether anything in it actually changed. The
+  // consumer (useTaskBoardController's [cronJobs, standup] effect)
+  // dispatches "upsertMany" whenever this reference changes — so an
+  // unmemoized return here meant that effect refired, and dispatched,
+  // on literally every render of OfficeScreen, for any reason at all.
+  // That dispatch updates task-board state, which triggers another
+  // render, which produces another fresh object here — a real, fully
+  // self-sustaining "Maximum update depth exceeded" loop with no
+  // external trigger needed. Memoizing closes it at the source.
+  return useMemo(
+    () => ({
+      config,
+      meeting,
+      loading,
+      saving,
+      error,
+      saveConfig,
+      updateManualEntry,
+      startMeeting,
+      reportArrivals,
+      openBoardByDefault,
+      refreshMeeting,
+    }),
+    [
+      config,
+      meeting,
+      loading,
+      saving,
+      error,
+      saveConfig,
+      updateManualEntry,
+      startMeeting,
+      reportArrivals,
+      openBoardByDefault,
+      refreshMeeting,
+    ]
+  );
 };

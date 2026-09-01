@@ -93,3 +93,16 @@ screenshots-*/
 # Bytecode from the bundled Python plugin.
 __pycache__/
 *.pyc
+
+# Local runtime/scratch state for this isolated test copy — includes
+# .state/hermes3d/settings.json (the live gateway URL/token) and
+# .state/claude-backups/ (pre-edit backups, diagnostic scripts, ad-hoc
+# logs). Never meant to be committed; a plaintext token artifact from a
+# scratch script ended up here uncommitted once (2026-08-31 Codex review
+# finding) specifically because this directory wasn't ignored yet.
+/.state
+
+# Backstop for the same class of mistake anywhere else in the tree: a
+# scratch/diagnostic script writing a credential to a stray *token*.txt
+# file that isn't otherwise covered by a more specific ignore rule above.
+*token*.txt

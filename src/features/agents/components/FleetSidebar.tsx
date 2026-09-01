@@ -8,6 +8,22 @@ import {
 } from "./colorSemantics";
 import { EmptyStatePanel } from "./EmptyStatePanel";
 
+const FINE_STATUS_LABELS: Record<string, string> = {
+  idle: "Idle",
+  routing: "Routing",
+  working: "Working",
+  tool_call: "Tool Call",
+  waiting_approval: "Waiting Approval",
+  done: "Done",
+  error: "Error",
+};
+
+const formatRunDuration = (runStartedAt: number | null): string | null => {
+  if (!runStartedAt) return null;
+  const seconds = Math.max(0, Math.round((Date.now() - runStartedAt) / 1000));
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+};
+
 type FleetSidebarProps = {
   agents: AgentState[];
   selectedAgentId: string | null;
@@ -157,12 +173,36 @@ export const FleetSidebar = ({
                       >
                         {resolveAgentStatusLabel(agent.status)}
                       </span>
+                      {agent.fineStatus && agent.fineStatus !== "idle" ? (
+                        <span
+                          className="rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-cyan-200"
+                          data-fine-status={agent.fineStatus}
+                        >
+                          {FINE_STATUS_LABELS[agent.fineStatus] ?? agent.fineStatus}
+                        </span>
+                      ) : null}
                       {agent.awaitingUserInput ? (
                         <span className={`ui-badge ${NEEDS_APPROVAL_BADGE_CLASS}`} data-status="approval">
                           Needs approval
                         </span>
                       ) : null}
                     </div>
+                    {agent.model || agent.routingCategory || agent.runStartedAt ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] text-muted-foreground/80">
+                        {agent.model ? <span className="truncate">{agent.model}</span> : null}
+                        {agent.routingCategory ? (
+                          <span className="truncate text-cyan-300/70">· {agent.routingCategory}</span>
+                        ) : null}
+                        {agent.runStartedAt ? (
+                          <span className="tabular-nums">· {formatRunDuration(agent.runStartedAt)}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {agent.routingReason ? (
+                      <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground/60" title={agent.routingReason}>
+                        {agent.routingReason}
+                      </p>
+                    ) : null}
                   </div>
                 </button>
               );

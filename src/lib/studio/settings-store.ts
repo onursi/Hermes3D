@@ -200,7 +200,11 @@ export const saveStudioSettings = (next: StudioSettings) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), "utf8");
+  // The UI can persist several independent settings patches in quick succession.
+  // Replace the file atomically so concurrent readers never observe partial JSON.
+  const temporaryPath = `${settingsPath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(next, null, 2), "utf8");
+  fs.renameSync(temporaryPath, settingsPath);
 };
 
 export const applyStudioSettingsPatch = (patch: StudioSettingsPatch): StudioSettings => {

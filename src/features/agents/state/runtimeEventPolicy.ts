@@ -157,6 +157,7 @@ export const decideRuntimeChatEvent = (
     streamText: null,
     thinkingTrace: null,
     runStartedAt: null,
+    lastToolCall: null,
   };
   if (typeof input.assistantCompletionAt === "number") {
     patch.lastAssistantMessageAt = input.assistantCompletionAt;
