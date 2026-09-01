@@ -122,6 +122,14 @@
   --status-approval-bg: color-mix(in oklch, #a77113 16%, transparent);
   --status-approval-border: color-mix(in oklch, #8f6011 34%, transparent);
   --status-approval-fg: color-mix(in oklch, #6a4504 82%, black 18%);
+  /* Meeting Room participant states not already covered above — same
+     restrained color-mix pattern as the rest of this block, no raw hues. */
+  --status-speaking-bg: color-mix(in oklch, #5b6bd6 16%, transparent);
+  --status-speaking-border: color-mix(in oklch, #4a58bd 36%, transparent);
+  --status-speaking-fg: color-mix(in oklch, #38408f 78%, black 22%);
+  --status-done-bg: color-mix(in oklch, var(--surface-3) 80%, transparent);
+  --status-done-border: color-mix(in oklch, var(--border) 76%, transparent);
+  --status-done-fg: color-mix(in oklch, #1b8f59 66%, var(--muted-foreground) 34%);
   --command-bg: color-mix(in oklch, #081018 88%, var(--surface-1));
   --command-border: color-mix(in oklch, #344d5e 62%, transparent);
   --command-fg: rgb(234 242 248 / 0.98);
@@ -228,6 +236,12 @@
   --status-approval-bg: color-mix(in oklch, #a77113 26%, transparent);
   --status-approval-border: color-mix(in oklch, #c68518 48%, transparent);
   --status-approval-fg: color-mix(in oklch, #f2c986 68%, white 32%);
+  --status-speaking-bg: color-mix(in oklch, #6674e0 24%, transparent);
+  --status-speaking-border: color-mix(in oklch, #7683e8 48%, transparent);
+  --status-speaking-fg: color-mix(in oklch, #b7bff2 68%, white 32%);
+  --status-done-bg: color-mix(in oklch, var(--surface-3) 66%, var(--surface-2));
+  --status-done-border: color-mix(in oklch, var(--surface-selected-border) 70%, var(--border));
+  --status-done-fg: color-mix(in oklch, #7be3ad 58%, var(--muted-foreground) 42%);
   --command-bg: color-mix(in oklch, #060c12 90%, var(--surface-1));
   --command-border: color-mix(in oklch, #325066 68%, transparent);
   --command-fg: rgb(236 243 248 / 0.96);
@@ -1216,6 +1230,47 @@ textarea:focus::-webkit-scrollbar {
   border: 1px solid var(--status-approval-border);
   background: var(--status-approval-bg);
   color: var(--status-approval-fg);
+}
+
+.ui-badge-status-speaking {
+  border: 1px solid var(--status-speaking-border);
+  background: var(--status-speaking-bg);
+  color: var(--status-speaking-fg);
+}
+
+.ui-badge-status-done {
+  border: 1px solid var(--status-done-border);
+  background: var(--status-done-bg);
+  color: var(--status-done-fg);
+}
+
+.ui-badge-status-waiting_approval {
+  border: 1px solid var(--status-approval-border);
+  background: var(--status-approval-bg);
+  color: var(--status-approval-fg);
+}
+
+/* A quiet presence cue for an actively-speaking participant — information
+   first, motion only for orientation, and off entirely when the visitor has
+   asked for less of it. */
+.meeting-speaking-dot {
+  animation: meetingSpeakingPulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meeting-speaking-dot {
+    animation: none;
+  }
+}
+
+@keyframes meetingSpeakingPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .ui-btn-danger {

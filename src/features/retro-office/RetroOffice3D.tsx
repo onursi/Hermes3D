@@ -41,6 +41,7 @@ import {
   type TextMessageStep,
 } from "@/features/office/screens/SmsBoothImmersiveScreen";
 import { StandupImmersiveScreen } from "@/features/office/screens/StandupImmersiveScreen";
+import { MeetingRoomImmersiveScreen } from "@/features/office/screens/MeetingRoomImmersiveScreen";
 import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
 import type { AgentState } from "@/features/agents/state/store";
 import type { CronJobSummary } from "@/lib/cron/types";
@@ -2853,6 +2854,7 @@ export function RetroOffice3D({
   const [spaceDown, setSpaceDown] = useState(false);
   const [spaceDragging, setSpaceDragging] = useState(false);
   const [standupBoardOpen, setStandupBoardOpen] = useState(false);
+  const [meetingRoomOpen, setMeetingRoomOpen] = useState(false);
   const [activeKanbanUid, setActiveKanbanUid] = useState<string | null>(null);
   const [agentRosterOpen, setAgentRosterOpen] = useState(false);
   const autoOpenedStandupIdRef = useRef<string | null>(null);
@@ -3642,6 +3644,7 @@ export function RetroOffice3D({
     ) && qaImmersiveReady;
   const standupImmersive = Boolean(standupBoardOpen && standupMeeting);
   const kanbanImmersive = Boolean(activeKanbanBoard);
+  const meetingRoomImmersive = meetingRoomOpen;
   const immersiveOverlayActive =
     monitorImmersive ||
     atmImmersive ||
@@ -3650,7 +3653,8 @@ export function RetroOffice3D({
     githubImmersive ||
     qaImmersive ||
     standupImmersive ||
-    kanbanImmersive;
+    kanbanImmersive ||
+    meetingRoomImmersive;
   const compactRosterAgents = useMemo(
     () => agents.slice(0, COMPACT_AGENT_BADGE_LIMIT),
     [agents],
@@ -6497,6 +6501,15 @@ export function RetroOffice3D({
               </div>
             </button>
           ) : null}
+          <button
+            type="button"
+            onClick={() => setMeetingRoomOpen(true)}
+            className="ui-card px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2)_92%,transparent)]"
+          >
+            <div className="type-meta uppercase tracking-[0.16em] text-muted-foreground">
+              Meeting Room
+            </div>
+          </button>
         </div>
       ) : null}
 
@@ -7028,6 +7041,10 @@ export function RetroOffice3D({
           meeting={standupMeeting}
           onClose={closeStandupBoard}
         />
+      ) : null}
+
+      {meetingRoomImmersive ? (
+        <MeetingRoomImmersiveScreen onClose={() => setMeetingRoomOpen(false)} />
       ) : null}
 
       {kanbanImmersive ? (
