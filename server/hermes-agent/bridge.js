@@ -229,14 +229,19 @@ const resolveDefaultAgentId = (agents) => {
  * actually known.
  *
  * Fallback order, each step checked against the live roster:
- *   1. the classifier's target, as-is
- *   2. the classifier's target, with the "default" sentinel remapped to
- *      the real defaultAgentId
- *   3. callerAgentId (the frontdoor's own agent — effectively "don't
+ *   1. the classifier's target, with the "default" sentinel remapped to
+ *      the real defaultAgentId FIRST — remapping has to happen before this
+ *      is looked up, not after, or a roster that happens to contain a real
+ *      profile literally named "default" (an unrelated specialist, not the
+ *      operator's actual default agent) would match the raw sentinel on
+ *      this very step and silently reroute complex/unclear and MoA
+ *      requests there instead of keeping them on the real default (Codex
+ *      review finding, P2, 2026-09-01)
+ *   2. callerAgentId (the frontdoor's own agent — effectively "don't
  *      reroute")
- *   4. defaultAgentId again (covers callerAgentId itself having dropped
+ *   3. defaultAgentId again (covers callerAgentId itself having dropped
  *      out of a stale roster)
- *   5. the first agent actually in agentRoster (guaranteed non-empty in
+ *   4. the first agent actually in agentRoster (guaranteed non-empty in
  *      the running bridge — see fallbackAgent() — but callers with a
  *      genuinely empty roster still get a safe, non-throwing result)
  *
@@ -244,13 +249,8 @@ const resolveDefaultAgentId = (agents) => {
  * directly in tests without standing up the whole bridge.
  */
 const resolveRoutingTarget = (agentRoster, defaultAgentId, requestedAgentId, callerAgentId) => {
-  const candidates = [
-    requestedAgentId,
-    requestedAgentId === "default" ? defaultAgentId : null,
-    callerAgentId,
-    defaultAgentId,
-    agentRoster[0]?.id,
-  ];
+  const resolvedRequestedId = requestedAgentId === "default" ? defaultAgentId : requestedAgentId;
+  const candidates = [resolvedRequestedId, callerAgentId, defaultAgentId, agentRoster[0]?.id];
   for (const candidateId of candidates) {
     if (!candidateId) continue;
     const agent = agentRoster.find((a) => a.id === candidateId);
@@ -397,6 +397,22 @@ const setOwnStoredId = (index, sessionKey, storedId) => {
   const existing = normalizeLedgerState(index[sessionKey]);
   if (existing.turns.length === 0 || existing.ownStoredId === storedId) return index;
   return { ...index, [sessionKey]: { ...existing, ownStoredId: storedId } };
+};
+
+/**
+ * Pure: returns a new index with `sessionKey`'s ledger entirely removed.
+ * sessions.reset discards a conversation and its backing hermes-agent
+ * session outright — the ledger must forget it too, or the FIRST
+ * chat.history/recordCompletedTurn call for that same sessionKey afterward
+ * would resume the just-discarded conversation's ownStoredId and mix its
+ * old routed turns into the new one (Codex review finding, P1,
+ * 2026-09-01). A no-op if there's nothing to remove.
+ */
+const removeLedgerEntry = (index, sessionKey) => {
+  if (!(sessionKey in index)) return index;
+  const next = { ...index };
+  delete next[sessionKey];
+  return next;
 };
 
 /**
@@ -602,6 +618,12 @@ function createHermesAgentUpstream(options) {
     const nextIndex = setOwnStoredId(currentIndex, sessionKey, storedId);
     if (nextIndex !== currentIndex) saveRoutedTurnsIndex(routedTurnsPath, nextIndex);
   };
+  /** Forgets sessionKey's ledger entirely — see removeLedgerEntry's doc comment. */
+  const clearLedger = (sessionKey) => {
+    const currentIndex = loadRoutedTurnsIndex(routedTurnsPath);
+    const nextIndex = removeLedgerEntry(currentIndex, sessionKey);
+    if (nextIndex !== currentIndex) saveRoutedTurnsIndex(routedTurnsPath, nextIndex);
+  };
 
   /**
    * Read a routed ledger entry's specialist session back by its DURABLE
@@ -799,6 +821,20 @@ function createHermesAgentUpstream(options) {
           // presence update above, only the routing-status event after it.
           try {
             await recordCompletedTurn(sessionKey, routing, run.storedId);
+            // Durably recorded — the throwaway specialist session's LOCAL
+            // bookkeeping is no longer needed by this bridge instance; drop
+            // it so a long-running bridge doesn't accumulate one live
+            // session per routed message forever, and so `status`'s
+            // `recent` list stops listing it (Codex review finding, P2,
+            // 2026-09-01). Never closed upstream — it must stay resumable
+            // by its storedId for chat.history later. Only cleaned up
+            // AFTER a successful persist: if that threw, the session is
+            // still the only place this turn's content exists.
+            if (routing?.wasRerouted && run.targetSessionKey && run.targetSessionKey !== sessionKey) {
+              const targetEntry = sessions.get(run.targetSessionKey);
+              if (targetEntry?.runtimeId) sessionKeyByRuntimeId.delete(targetEntry.runtimeId);
+              sessions.delete(run.targetSessionKey);
+            }
           } catch (err) {
             logError(`[hermes-agent] routed-turn ledger update failed for run "${runId}".`, err);
           }
@@ -1129,6 +1165,12 @@ function createHermesAgentUpstream(options) {
           } catch {}
         }
         sessions.delete(key);
+        // The conversation this key pointed to is gone — forget any
+        // routed-turn ledger for it too, or the next chat.history/routed
+        // turn for this same key would resume stale state from the
+        // conversation that was just reset (Codex review finding, P1,
+        // 2026-09-01).
+        clearLedger(key);
         return resOk(id, { ok: true });
       }
 
@@ -1260,6 +1302,12 @@ function createHermesAgentUpstream(options) {
           // with "session not found"), while `storedId` is the durable id
           // session.resume can always re-open, connection or no connection.
           storedId: entry.storedId,
+          // Only set (and different from `sessionKey`) for a routed run —
+          // lets message.complete below drop the throwaway specialist
+          // session's LOCAL bookkeeping once its durable id is safely on
+          // disk, instead of accumulating one forever per routed message
+          // (Codex review finding, P2, 2026-09-01).
+          targetSessionKey,
           buffer: "",
           aborted: false,
         });
@@ -1606,6 +1654,7 @@ module.exports = {
   mergeRoutedTurnLedger,
   normalizeLedgerState,
   setOwnStoredId,
+  removeLedgerEntry,
   resolveBackendId,
   MAIN_SESSION_KEY,
   AGENT_ID,

@@ -500,6 +500,41 @@ describe("resolveRoutingTarget", () => {
     const resolved = resolveRoutingTarget([], "sol", "router-opencode", "caller-x");
     expect(resolved).toEqual({ targetAgentId: "caller-x", targetProfile: "", targetModel: "" });
   });
+
+  // Regression coverage for the Codex review finding (P2, 2026-09-01): a
+  // roster can legitimately contain a real, unrelated specialist profile
+  // whose id happens to literally be "default" — that must never be
+  // confused with the classifier's "default" SENTINEL (meaning "stay on
+  // whatever the real default agent is"), which has to be remapped to
+  // defaultAgentId before it's ever checked against the roster at all.
+  const rosterWithForeignDefaultNamedProfile = [
+    { id: "sol", profile: "", model: "gpt-5.6-sol", isDefault: true },
+    { id: "default", profile: "default", model: "some-other-model" },
+    { id: "router-opencode", profile: "router-opencode", model: "nemotron-3-ultra-free" },
+  ];
+
+  it("resolves the 'default' sentinel to the real default agent, not a roster profile literally named 'default'", async () => {
+    const { resolveRoutingTarget } = await import("../../server/hermes-agent/bridge");
+    // Simulates COMPLEX_OR_UNCLEAR / MOA_REQUESTED classifications, which
+    // both emit the literal "default" sentinel from frontdoor-router.js.
+    const resolved = resolveRoutingTarget(rosterWithForeignDefaultNamedProfile, "sol", "default", "sol");
+    expect(resolved).toEqual({ targetAgentId: "sol", targetProfile: "", targetModel: "gpt-5.6-sol" });
+  });
+
+  it("still routes to a real specialist target when the roster also has a profile literally named 'default'", async () => {
+    const { resolveRoutingTarget } = await import("../../server/hermes-agent/bridge");
+    const resolved = resolveRoutingTarget(
+      rosterWithForeignDefaultNamedProfile,
+      "sol",
+      "router-opencode",
+      "sol",
+    );
+    expect(resolved).toEqual({
+      targetAgentId: "router-opencode",
+      targetProfile: "router-opencode",
+      targetModel: "nemotron-3-ultra-free",
+    });
+  });
 });
 
 describe("Frontdoor Router: routing survives an unavailable target", () => {
@@ -810,6 +845,28 @@ describe("routed-turn ledger (recovering routed replies for the caller's own ses
       "routed question",
       "routed answer",
     ]);
+  });
+
+  it("removeLedgerEntry drops a sessionKey's ledger entirely, without touching others", async () => {
+    const { appendRoutedTurnLedgerEntry, removeLedgerEntry } = await import("../../server/hermes-agent/bridge");
+
+    let index: Record<string, unknown> = {};
+    index = appendRoutedTurnLedgerEntry(index, "agent:default:main", {
+      kind: "routed",
+      targetAgentId: "allan",
+      storedId: "r1",
+    });
+    index = appendRoutedTurnLedgerEntry(index, "agent:allan:main", {
+      kind: "own",
+      count: 2,
+    });
+
+    const next = removeLedgerEntry(index, "agent:default:main");
+    expect("agent:default:main" in next).toBe(false);
+    expect("agent:allan:main" in next).toBe(true); // untouched
+
+    const noop = removeLedgerEntry(next, "agent:default:main");
+    expect(noop).toBe(next); // pure no-op when there's nothing to remove
   });
 
   it("resolveBackendId gives different upstream URLs different, stable ids", async () => {
@@ -1351,5 +1408,93 @@ describe("routed turns survive a simulated page reload", () => {
     expect(messages[0].content).toContain("Login-Funktion");
     expect(messages[2].content).toContain("Gesamtarchitektur");
     expect(messages.filter((m) => m.role === "user" && m.content.includes("Gesamtarchitektur"))).toHaveLength(1);
+  });
+
+  it("sessions.reset clears the routed-turn ledger, so a new conversation never resumes the discarded one", async () => {
+    const agent = await startRoutingAwareFakeHermesAgent();
+    const bridge = await openBridge(agent.url);
+    bridge.send({ type: "req", id: "c1", method: "connect", params: {} });
+    await bridge.waitFor((f) => f.type === "res" && f.id === "c1", "connect");
+
+    // Route a message so the ledger becomes active for this sessionKey.
+    bridge.send({
+      type: "req",
+      id: "m1",
+      method: "chat.send",
+      params: {
+        sessionKey: "agent:default:main",
+        message: "Bitte mache ein kritisches Sicherheits-Review dieser Login-Funktion.",
+        idempotencyKey: "run-1",
+      },
+    });
+    await bridge.waitFor((f) => f.type === "res" && f.id === "m1", "chat.send res");
+    await bridge.waitFor((f) => f.event === "routing.completed", "routing.completed");
+
+    const ledgerPath = await ledgerPathFor(agent.url);
+    expect(JSON.parse(fs.readFileSync(ledgerPath, "utf8"))["agent:default:main"].turns).toHaveLength(1);
+
+    // Discard the conversation.
+    bridge.send({ type: "req", id: "r1", method: "sessions.reset", params: { key: "agent:default:main" } });
+    await bridge.waitFor((f) => f.type === "res" && f.id === "r1", "sessions.reset res");
+
+    expect(JSON.parse(fs.readFileSync(ledgerPath, "utf8"))["agent:default:main"]).toBeUndefined();
+
+    // A brand new routed turn on the SAME key must not resume the
+    // discarded conversation's history (Codex review finding, P1,
+    // 2026-09-01) — chat.history right after should show only the new turn.
+    bridge.send({
+      type: "req",
+      id: "m2",
+      method: "chat.send",
+      params: {
+        sessionKey: "agent:default:main",
+        message: "Noch ein Sicherheits-Review bitte, andere Datei.",
+        idempotencyKey: "run-2",
+      },
+    });
+    await bridge.waitFor((f) => f.type === "res" && f.id === "m2", "chat.send res 2");
+    await bridge.waitFor(
+      (f) => f.event === "routing.completed" && at(f, "payload.runId") === "run-2",
+      "routing.completed 2",
+    );
+
+    bridge.send({ type: "req", id: "h1", method: "chat.history", params: { sessionKey: "agent:default:main" } });
+    const historyRes = await bridge.waitFor((f) => f.type === "res" && f.id === "h1", "chat.history");
+    const messages = at(historyRes, "payload.messages") as { role: string; content: string }[];
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).toContain("andere Datei");
+    expect(messages.some((m) => m.content.includes("Login-Funktion"))).toBe(false);
+  });
+
+  it("drops a completed routed session's local bookkeeping instead of accumulating it forever", async () => {
+    const agent = await startRoutingAwareFakeHermesAgent();
+    const bridge = await openBridge(agent.url);
+    bridge.send({ type: "req", id: "c1", method: "connect", params: {} });
+    await bridge.waitFor((f) => f.type === "res" && f.id === "c1", "connect");
+
+    bridge.send({
+      type: "req",
+      id: "m1",
+      method: "chat.send",
+      params: {
+        sessionKey: "agent:default:main",
+        message: "Bitte mache ein kritisches Sicherheits-Review dieser Login-Funktion.",
+        idempotencyKey: "run-1",
+      },
+    });
+    await bridge.waitFor((f) => f.type === "res" && f.id === "m1", "chat.send res");
+    await bridge.waitFor((f) => f.event === "routing.completed", "routing.completed");
+
+    bridge.send({ type: "req", id: "s1", method: "status", params: {} });
+    const statusRes = await bridge.waitFor((f) => f.type === "res" && f.id === "s1", "status");
+    const recentKeys = (at(statusRes, "payload.sessions.recent") as { key: string }[]).map((r) => r.key);
+
+    // The throwaway agent:router-claude-review:routed-run-1 session must
+    // not still be sitting in the bridge's own session map after its
+    // durable id was safely persisted (Codex review finding, P2,
+    // 2026-09-01) — it stays resumable via the ledger's storedId, just not
+    // as a live "recent session" here.
+    expect(recentKeys.some((key) => key.startsWith("agent:router-claude-review:routed-"))).toBe(false);
   });
 });
