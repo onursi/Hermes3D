@@ -237,6 +237,7 @@ import {
   MEETING_ROOM_STATUS_LABEL,
   type MeetingRoomSeatData,
 } from "@/features/retro-office/objects/meetingRoomFixtures";
+import { TableMeetingHoloHub } from "@/features/retro-office/scene/TableMeetingHoloHub";
 import { FloorAndWalls as SceneFloorAndWalls } from "@/features/retro-office/scene/environment";
 import {
   CAMERA_PRESETS as CAMERA_PRESET_MAP,
@@ -3902,6 +3903,62 @@ export function RetroOffice3D({
     standupMeeting?.cards.find(
       (card) => card.agentId === standupMeeting.currentSpeakerAgentId,
     ) ?? null;
+
+  // Local-only display state for the 3D hologram hub (TableMeetingHoloHub):
+  // the standup backend has no "pause" concept, so pausing is purely a
+  // client-side visual affordance (it doesn't stop the server's own
+  // auto-advance timer) — the same way the flat 2D board never paused it
+  // either. The countdown re-derives every second from the meeting's real
+  // speakerStartedAt/speakerDurationMs so it never drifts from the
+  // actual phase change driven by useOfficeStandupController.
+  const [holoHubPaused, setHoloHubPaused] = useState(false);
+  const [holoHubTimerSeconds, setHoloHubTimerSeconds] = useState(0);
+  useEffect(() => {
+    if (standupMeeting?.phase !== "in_progress" || !standupMeeting.speakerStartedAt) {
+      setHoloHubTimerSeconds(0);
+      return;
+    }
+    const startedAtMs = Date.parse(standupMeeting.speakerStartedAt);
+    const durationMs = standupMeeting.speakerDurationMs;
+    const tick = () => {
+      const remaining = Math.max(0, durationMs - (Date.now() - startedAtMs));
+      setHoloHubTimerSeconds(Math.ceil(remaining / 1000));
+    };
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [standupMeeting?.phase, standupMeeting?.speakerStartedAt, standupMeeting?.speakerDurationMs]);
+  useEffect(() => {
+    setHoloHubPaused(false);
+  }, [standupMeeting?.id, standupMeeting?.currentSpeakerAgentId]);
+  const STANDUP_STAGE_QUESTIONS = [
+    "Was wurde erledigt?",
+    "Was kommt als Nächstes?",
+    "Welche Blocker gibt es?",
+    "Welche Aufgaben entstehen daraus?",
+  ];
+  const holoHubStageIndex = standupMeeting
+    ? Math.max(
+        0,
+        standupMeeting.participantOrder.indexOf(
+          standupMeeting.currentSpeakerAgentId ?? "",
+        ),
+      )
+    : 0;
+  const holoHubSpeakerColor =
+    agents.find((agent) => agent.id === standupSpeakerCard?.agentId)?.color ??
+    "#38bdf8";
+  const tableMeetingHoloState = {
+    isActive: Boolean(standupActive && standupMeeting),
+    isPaused: holoHubPaused,
+    stageIndex: holoHubStageIndex,
+    speakerName: standupSpeakerCard?.agentName ?? "Team",
+    speakerColor: holoHubSpeakerColor,
+    question:
+      STANDUP_STAGE_QUESTIONS[holoHubStageIndex % STANDUP_STAGE_QUESTIONS.length],
+    timerSeconds: holoHubTimerSeconds,
+    totalStages: STANDUP_STAGE_QUESTIONS.length,
+  };
   const activeMonitorComputer = useMemo(() => {
     if (!monitorAgentId) return null;
     const deskIdx = assignedDeskIndexByAgentId[monitorAgentId];
@@ -6177,6 +6234,27 @@ export function RetroOffice3D({
               seats={meetingRoomSeatData}
               approvalActive={meetingRoomApprovalActive}
             />
+
+            {/* Hologram Stand-up hub floating over the council table — the
+                actual start/advance state lives in standupController
+                (OfficeScreen.tsx via useOfficeStandupController); this is
+                purely the in-scene visualization + "Meeting starten"
+                trigger, mirroring the flat 2D HUD's Standup button. */}
+            {(() => {
+              const [holoWx, , holoWz] = toWorld(
+                MEETING_ROOM_CENTER.x,
+                MEETING_ROOM_CENTER.y,
+              );
+              return (
+                <TableMeetingHoloHub
+                  position={[holoWx, 0, holoWz]}
+                  agentCount={agents.length}
+                  meetingState={tableMeetingHoloState}
+                  onStartMeeting={() => onStandupStartRequested?.()}
+                  onTogglePause={() => setHoloHubPaused((prev) => !prev)}
+                />
+              );
+            })()}
 
             {/* Furniture models — each loads its GLB asynchronously. */}
             <Suspense fallback={null}>
