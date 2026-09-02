@@ -40,6 +40,9 @@ export type AgentModelProps = {
   onUnhover?: () => void;
   onClick?: (id: string) => void;
   onContextMenu?: (id: string, x: number, y: number) => void;
+  /** Full nameplate only renders while true — otherwise just a small dot, so
+   * a room full of agents doesn't turn into overlapping name-plate clutter. */
+  isHovered?: boolean;
   showSpeech?: boolean;
   speechText?: string | null;
   suppressSpeechBubble?: boolean;

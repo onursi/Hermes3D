@@ -153,11 +153,36 @@ export const detectSoftwareWebGL = (): boolean => {
 };
 
 /**
+ * True on a phone/tablet-class device: coarse pointer (no mouse) combined
+ * with a narrow viewport. Deliberately narrower than just "has touch" —
+ * touch-screen laptops keep the desktop default. Mobile GPUs run the same
+ * "balanced" preset (2048px shadow map, SSAO, bloom, SMAA) at a real cost:
+ * this was a concrete, measured contributor to sub-30fps stutter on
+ * mid-range phones, not just "the internet connection" — none of that
+ * pipeline touches the network.
+ */
+export const isLikelyMobileDevice = (): boolean => {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  try {
+    return (
+      window.matchMedia("(pointer: coarse)").matches &&
+      window.matchMedia("(max-width: 900px)").matches
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
  * The quality the office should boot with: the user's stored choice, or a
  * hardware-appropriate default.
  */
-export const resolveInitialGraphicsQuality = (): GraphicsQuality =>
-  loadStoredGraphicsQuality() ?? (detectSoftwareWebGL() ? "low" : "balanced");
+export const resolveInitialGraphicsQuality = (): GraphicsQuality => {
+  const stored = loadStoredGraphicsQuality();
+  if (stored) return stored;
+  if (detectSoftwareWebGL() || isLikelyMobileDevice()) return "low";
+  return "balanced";
+};
 
 export const saveGraphicsQuality = (quality: GraphicsQuality) => {
   if (typeof window === "undefined") return;

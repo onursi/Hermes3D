@@ -165,6 +165,90 @@ export function RoundTableModel({
   );
 }
 
+/**
+ * Long rectangular conference table for the Meeting Room — dark walnut top
+ * (same procedural wood map as RoundTableModel, tinted darker to read as a
+ * distinct, calmer material) on four brushed-metal legs, one at each
+ * corner. item.x/y is the top-left corner of the footprint, matching every
+ * other rectangular furniture item (see InstancedWallSegmentsModel above).
+ */
+export function ConferenceTableModel({
+  item,
+  isSelected,
+  isHovered,
+  editMode,
+  onPointerDown,
+  onPointerOver,
+  onPointerOut,
+  onClick,
+}: InteractiveFurnitureModelProps) {
+  const width = (item.w ?? 70) * SCALE;
+  const depth = (item.h ?? 260) * SCALE;
+  const [cx, , cz] = toWorld(item.x + (item.w ?? 70) / 2, item.y + (item.h ?? 260) / 2);
+  const height = 0.52;
+  const topThickness = 0.045;
+  const legInset = 0.08;
+  const legRadius = 0.028;
+  const wood = useMemo(() => withRepeat(getWoodFloorTextures(), 1.2, 2.4), []);
+  const metal = useMemo(() => getBrushedMetalTextures(), []);
+  const highlightColor = isSelected ? "#fbbf24" : isHovered && editMode ? "#4a90d9" : "#000000";
+  const highlightIntensity = isSelected ? 0.35 : isHovered && editMode ? 0.22 : 0;
+  const legOffsets: Array<[number, number]> = [
+    [-width / 2 + legInset, -depth / 2 + legInset],
+    [width / 2 - legInset, -depth / 2 + legInset],
+    [-width / 2 + legInset, depth / 2 - legInset],
+    [width / 2 - legInset, depth / 2 - legInset],
+  ];
+
+  return (
+    <group
+      position={[cx, item.elevation ?? 0, cz]}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onPointerDown(item._uid);
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        onPointerOver(item._uid);
+      }}
+      onPointerOut={(event) => {
+        event.stopPropagation();
+        onPointerOut();
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.(item._uid);
+      }}
+    >
+      <mesh position={[0, height, 0]} receiveShadow castShadow>
+        <boxGeometry args={[width, topThickness, depth]} />
+        <meshStandardMaterial
+          color="#241a12"
+          map={wood.map}
+          roughnessMap={wood.roughnessMap}
+          normalMap={wood.normalMap}
+          roughness={0.38}
+          metalness={0.06}
+          emissive={highlightColor}
+          emissiveIntensity={highlightIntensity}
+        />
+      </mesh>
+      {legOffsets.map(([lx, lz], index) => (
+        <mesh key={index} position={[lx, height / 2, lz]} castShadow receiveShadow>
+          <cylinderGeometry args={[legRadius, legRadius, height, 12]} />
+          <meshStandardMaterial
+            color="#5c6068"
+            map={metal.map}
+            roughnessMap={metal.roughnessMap}
+            metalness={0.88}
+            roughness={0.32}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export function WallSegmentModel({
   item,
   isSelected,

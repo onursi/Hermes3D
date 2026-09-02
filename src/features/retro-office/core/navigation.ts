@@ -49,14 +49,20 @@ export const resolvePingPongTargets = (
   ];
 };
 
+// Room-shape pass: was authored for the old 1800x720 canvas (points up to
+// x:850/y:620) — with the office now down to a 500x400 footprint (see
+// district.ts), those points sat far outside the visible room, so idle
+// agents would "leave" it while roaming. Kept inside the floor with a
+// margin from the walls/table (round table sits at center 250,200,
+// rug span roughly x:[125,375] y:[75,325]).
 export const ROAM_POINTS = [
-  { x: 800, y: 200 },
-  { x: 850, y: 500 },
-  { x: 820, y: 580 },
-  { x: 450, y: 420 },
-  { x: 250, y: 420 },
-  { x: 650, y: 420 },
-  { x: 150, y: 620 },
+  { x: 70, y: 70 },
+  { x: 430, y: 70 },
+  { x: 70, y: 330 },
+  { x: 430, y: 330 },
+  { x: 250, y: 60 },
+  { x: 60, y: 200 },
+  { x: 440, y: 200 },
 ];
 
 export const JANITOR_ENTRY_POINTS: FacingPoint[] = [
@@ -91,7 +97,7 @@ export function buildNavGrid(furniture: FurnitureItem[]): NavGrid {
   const defaultPad = GRID_CELL * 0.6;
   for (const item of furniture) {
     if (!itemBlocksNavigation(item.type)) continue;
-    const itemPad = ITEM_METADATA[item.type]?.navPadding ?? defaultPad;
+    const itemPad = item.navPadding ?? ITEM_METADATA[item.type]?.navPadding ?? defaultPad;
     const bounds = getItemBounds(item);
     const x1 = bounds.x - itemPad;
     const y1 = bounds.y - itemPad;

@@ -82,6 +82,7 @@ import {
   ensureOfficeAtm,
   ensureOfficeGymRoom,
   ensureOfficeKanbanBoard,
+  ensureOfficeMeetingRoom,
   ensureOfficePhoneBooth,
   ensureOfficePingPongTable,
   ensureOfficeQaLab,
@@ -92,6 +93,12 @@ import {
   materializeDefaults,
   type OfficeLayoutPreset,
 } from "@/features/retro-office/core/furnitureDefaults";
+import { MEETING_ROOM_CENTER, MEETING_ROOM_SEATS } from "@/features/retro-office/core/meetingRoom";
+import { useAgentStore } from "@/features/agents/state/store";
+import {
+  deriveMeetingParticipantStatus,
+  isModeratorAgent,
+} from "@/features/office/meeting-room/deriveParticipantStatus";
 import {
   clampPointToZone,
   DISTRICT_CAMERA_TARGET,
@@ -162,6 +169,7 @@ import {
   loadFurniture,
   markAtmMigrationApplied,
   markGymRoomMigrationApplied,
+  markMeetingRoomMigrationApplied,
   markPhoneBoothMigrationApplied,
   markQaLabMigrationApplied,
   markSmsBoothMigrationApplied,
@@ -214,6 +222,7 @@ import {
 } from "@/features/retro-office/objects/machines";
 import {
   ClockModel as PrimitiveClockModel,
+  ConferenceTableModel as PrimitiveConferenceTableModel,
   DoorModel as PrimitiveDoorModel,
   InstancedWallSegmentsModel as PrimitiveInstancedWallSegmentsModel,
   KeyboardModel as PrimitiveKeyboardModel,
@@ -224,9 +233,11 @@ import {
   WallSegmentModel as PrimitiveWallSegmentModel,
 } from "@/features/retro-office/objects/primitives";
 import {
-  FloorAndWalls as SceneFloorAndWalls,
-  WallPictures as SceneWallPictures,
-} from "@/features/retro-office/scene/environment";
+  MeetingRoomFixtures,
+  MEETING_ROOM_STATUS_LABEL,
+  type MeetingRoomSeatData,
+} from "@/features/retro-office/objects/meetingRoomFixtures";
+import { FloorAndWalls as SceneFloorAndWalls } from "@/features/retro-office/scene/environment";
 import {
   CAMERA_PRESETS as CAMERA_PRESET_MAP,
   CameraAnimator as CameraPresetAnimator,
@@ -471,6 +482,14 @@ function CameraRig({ target }: { target: [number, number, number] }) {
 
 const NOOP_FURNITURE_UID_HANDLER = () => {};
 const NOOP_FURNITURE_HANDLER = () => {};
+// "Close enough to sit" for the council-table seats. Was a hardcoded 15 —
+// smaller than the nav grid's 25-unit cell size (core/navigation.ts), so a
+// path that could only reach the cell next to a chair (chairs are nav
+// obstacles) left the agent permanently >=15 units short: state never flips
+// to "sitting", so it stays in the walk-cycle animation while barely
+// moving — reads as jittering in place next to its chair. 30 gives enough
+// slack to cover that one-cell shortfall.
+const MEETING_SEAT_ARRIVAL_DIST = 30;
 const EMPTY_FURNITURE_ITEMS: FurnitureItem[] = [];
 
 const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
@@ -512,6 +531,17 @@ const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
           />
         ) : item.type === "round_table" ? (
           <PrimitiveRoundTableModel
+            key={item._uid}
+            item={item}
+            isSelected={false}
+            isHovered={false}
+            editMode={false}
+            onPointerDown={NOOP_FURNITURE_UID_HANDLER}
+            onPointerOver={NOOP_FURNITURE_UID_HANDLER}
+            onPointerOut={NOOP_FURNITURE_HANDLER}
+          />
+        ) : item.type === "conference_table" ? (
+          <PrimitiveConferenceTableModel
             key={item._uid}
             item={item}
             isSelected={false}
@@ -909,6 +939,16 @@ function useAgentTick(
   standupMeeting: StandupMeeting | null = null,
   conversationGroups: ConversationGroup[] = [],
   conversationExpiryRef: React.RefObject<Map<string, number>> | null = null,
+  // Boardroom (East Wing "Meeting Room") seating — deliberately independent
+  // of the standup table's meetingSeatLocations/resolveMeetingTarget above:
+  // that mechanism reflects a real standup event's participantOrder, while
+  // this holds the four real roster agents at their fixed boardroom seats
+  // (core/meetingRoom.ts) purely while the room is open for viewing, so the
+  // room never shows empty chairs when four agents are connected. No
+  // routing/ledger/gateway state is read or written here — this only picks
+  // a walk target for the existing scene animation.
+  boardroomOpen = false,
+  boardroomSeatAgentIds: (string | null)[] = [],
 ) {
   const renderAgentsRef = useRef<RenderAgent[]>([]);
   const renderAgentLookupRef = useRef<Map<string, RenderAgent>>(new Map());
@@ -951,9 +991,11 @@ function useAgentTick(
         Math.floor(Math.random() * REMOTE_ROAM_POINTS.length)
       ];
     }
+    // Was Math.random()*800+100 / *500+100 — fine for the old 1800x720
+    // canvas, far outside the new 500x400 room footprint (see district.ts).
     return {
-      x: Math.random() * 800 + 100,
-      y: Math.random() * 500 + 100,
+      x: Math.random() * 300 + 100,
+      y: Math.random() * 200 + 100,
     };
   }, []);
 
@@ -986,16 +1028,40 @@ function useAgentTick(
     Map<string, { x: number; y: number; facing: number; seatIndex: number; groupId: string }>
   >(new Map());
   const placedConversationGroupIdsRef = useRef<Set<string>>(new Set());
+  // Fixed boardroom seat targets (canvas-space), computed once from the
+  // authored layout — not chair-derived like meetingSeatLocations above,
+  // since the boardroom's four seats are always in the same place.
+  const boardroomSeatTargets = useMemo(
+    () =>
+      MEETING_ROOM_SEATS.map((seat) => ({
+        x: seat.x,
+        y: seat.y,
+        facing: (seat.chairFacing * Math.PI) / 180,
+      })),
+    [],
+  );
+
   const resolveMeetingTarget = useCallback(
     (agentId: string) => {
       const participantOrder = standupMeeting?.participantOrder ?? [];
-      const targetIndex = participantOrder.indexOf(agentId);
-      const seats = [...meetingSeatLocations, ...MEETING_OVERFLOW_LOCATIONS];
-      const fallbackSeat = seats[0] ?? { x: 145, y: 118, facing: Math.PI };
-      if (targetIndex < 0) return fallbackSeat;
-      return seats[targetIndex] ?? fallbackSeat;
+      let targetIndex = participantOrder.indexOf(agentId);
+      if (targetIndex < 0) {
+        targetIndex = boardroomSeatAgentIds.indexOf(agentId);
+      }
+      if (targetIndex < 0) {
+        const hash = agentId.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        targetIndex = Math.abs(hash) % boardroomSeatTargets.length;
+      }
+      return boardroomSeatTargets[targetIndex] ?? boardroomSeatTargets[0];
     },
-    [meetingSeatLocations, standupMeeting?.participantOrder],
+    [boardroomSeatAgentIds, boardroomSeatTargets, standupMeeting?.participantOrder],
+  );
+
+  const resolveBoardroomTarget = useCallback(
+    (agentId: string) => {
+      return resolveMeetingTarget(agentId);
+    },
+    [resolveMeetingTarget],
   );
 
   useEffect(() => {
@@ -1168,11 +1234,15 @@ function useAgentTick(
         ...QA_LAB_DEFAULT_TARGET,
         stationType: "console" as const,
       };
-      const explicitMeetingHold =
-        standupActive && meetingParticipants.has(agent.id);
-      const meetingTarget = explicitMeetingHold
-        ? resolveMeetingTarget(agent.id)
+      const boardroomTarget = boardroomOpen
+        ? resolveBoardroomTarget(agent.id)
         : null;
+      const explicitMeetingHold =
+        (standupActive && meetingParticipants.has(agent.id)) ||
+        boardroomTarget !== null;
+      const meetingTarget = boardroomTarget ?? (explicitMeetingHold
+        ? resolveMeetingTarget(agent.id)
+        : null);
       const smsBoothItem =
         (furnitureRef.current ?? []).find(
           (item) => item.type === "sms_booth",
@@ -1249,7 +1319,25 @@ function useAgentTick(
             existing.interactionTarget !== "meeting_room";
           ns.targetX = meetingTarget.x;
           ns.targetY = meetingTarget.y;
-          if (targetChanged) {
+          const __meetingDist = Math.hypot(
+            existing.x - meetingTarget.x,
+            existing.y - meetingTarget.y,
+          );
+          // Also retry when the *existing* path is empty and the agent
+          // hasn't arrived: `targetChanged` alone latches a bad result
+          // forever once it flips back to false (targetX/Y/interactionTarget
+          // all already match), so a path that failed on the very first
+          // attempt — e.g. a transient miss while the nav grid was still
+          // settling right after the furniture list changed — never gets a
+          // second try even though the room and its seats are genuinely
+          // reachable (see the East Wing connectivity tests). Retrying on
+          // every empty-path frame is cheap: astar() is a no-op fast path
+          // once the agent is actually walking a real route.
+          if (
+            targetChanged ||
+            (__meetingDist >= MEETING_SEAT_ARRIVAL_DIST &&
+              (existing.path?.length ?? 0) === 0)
+          ) {
             ns.path = planPath(
               existing.x,
               existing.y,
@@ -1258,12 +1346,7 @@ function useAgentTick(
             );
           }
           ns.state =
-            Math.hypot(
-              existing.x - meetingTarget.x,
-              existing.y - meetingTarget.y,
-            ) < 15
-              ? "sitting"
-              : "walking";
+            __meetingDist < MEETING_SEAT_ARRIVAL_DIST ? "sitting" : "walking";
           ns.facing = meetingTarget.facing;
         } else if (conversationMembership && conversationSlot) {
           // Agents talking between themselves gather into a circle. Standup
@@ -1574,7 +1657,8 @@ function useAgentTick(
           if (targetChanged)
             ns.path = planPath(existing.x, existing.y, deskPos.x, deskPos.y);
           ns.state =
-            Math.hypot(existing.x - deskPos.x, existing.y - deskPos.y) < 15
+            Math.hypot(existing.x - deskPos.x, existing.y - deskPos.y) <
+            MEETING_SEAT_ARRIVAL_DIST
               ? "sitting"
               : "walking";
         } else if (effectiveStatus === "working") {
@@ -1931,6 +2015,8 @@ function useAgentTick(
     pickSpawnPoint,
     planPath,
     resolveMeetingTarget,
+    resolveBoardroomTarget,
+    boardroomOpen,
     standupActive,
     standupMeeting,
   ]);
@@ -2201,7 +2287,7 @@ function useAgentTick(
               agent.conversationSeatIndex ?? 0,
               agent.conversationSize ?? 2,
             );
-          } else if (agent.status === "working") {
+          } else if (agent.status === "working" || agent.interactionTarget === "meeting_room") {
             if (
               agent.interactionTarget === "sms_booth" &&
               agent.smsBoothStage !== "typing"
@@ -2362,7 +2448,12 @@ function useAgentTick(
             } else if (agent.interactionTarget === "qa_lab") {
               nf = agent.facing;
             } else if (agent.interactionTarget === "meeting_room") {
+              ns = "sitting";
               nf = agent.facing;
+              if (agent.targetX !== undefined && agent.targetY !== undefined) {
+                nx = agent.targetX;
+                ny = agent.targetY;
+              }
             }
           } else if (agent.status === "error") {
             ns = "standing";
@@ -2376,17 +2467,23 @@ function useAgentTick(
                   awayFurniture[
                     Math.floor(Math.random() * awayFurniture.length)
                   ];
+                // Clamp to this agent's own zone (district-wide CANVAS_W/H
+                // let a local agent's away-target land outside the much
+                // smaller local office room — see district.ts).
+                const remote = isRemoteOfficeAgentId(agent.id);
+                const maxX = remote ? CANVAS_W : LOCAL_OFFICE_CANVAS_WIDTH;
+                const maxY = remote ? CANVAS_H : LOCAL_OFFICE_CANVAS_HEIGHT;
                 const tx = Math.max(
                   SNAP_GRID,
                   Math.min(
-                    CANVAS_W - SNAP_GRID,
+                    maxX - SNAP_GRID,
                     Math.round((f.x + 20) / SNAP_GRID) * SNAP_GRID,
                   ),
                 );
                 const ty = Math.max(
                   SNAP_GRID,
                   Math.min(
-                    CANVAS_H - SNAP_GRID,
+                    maxY - SNAP_GRID,
                     Math.round((f.y + 20) / SNAP_GRID) * SNAP_GRID,
                   ),
                 );
@@ -2431,11 +2528,11 @@ function useAgentTick(
                   : {
                       x: Math.max(
                         SNAP_GRID,
-                        Math.min(CANVAS_W - SNAP_GRID, tx),
+                        Math.min(LOCAL_OFFICE_CANVAS_WIDTH - SNAP_GRID, tx),
                       ),
                       y: Math.max(
                         SNAP_GRID,
-                        Math.min(CANVAS_H - SNAP_GRID, ty),
+                        Math.min(LOCAL_OFFICE_CANVAS_HEIGHT - SNAP_GRID, ty),
                       ),
                     };
               }
@@ -2526,16 +2623,18 @@ const buildInitialFurnitureLayout = (
   storageNamespace: string,
   layoutPreset: OfficeLayoutPreset,
 ): FurnitureItem[] =>
-  ensureOfficeKanbanBoard(
-    ensureOfficeJukebox(
-      ensureOfficeQaLab(
-        ensureOfficeGymRoom(
-          ensureOfficeServerRoom(
-            ensureOfficePhoneBooth(
-              ensureOfficeSmsBooth(
-                ensureOfficeAtm(
-                  ensureOfficePingPongTable(
-                    loadFurniture(storageNamespace) ?? materializeDefaults(layoutPreset),
+  ensureOfficeMeetingRoom(
+    ensureOfficeKanbanBoard(
+      ensureOfficeJukebox(
+        ensureOfficeQaLab(
+          ensureOfficeGymRoom(
+            ensureOfficeServerRoom(
+              ensureOfficePhoneBooth(
+                ensureOfficeSmsBooth(
+                  ensureOfficeAtm(
+                    ensureOfficePingPongTable(
+                      loadFurniture(storageNamespace) ?? materializeDefaults(layoutPreset),
+                    ),
                   ),
                 ),
               ),
@@ -2545,6 +2644,97 @@ const buildInitialFurnitureLayout = (
       ),
     ),
   );
+
+/**
+ * Slim, transparent HUD shown over the live 3D Meeting Room once the camera
+ * has flown in — deliberately NOT a full-bleed takeover like every other
+ * immersive screen (see the Canvas-mount comment above): the room itself is
+ * visible behind it, carrying the per-seat nameplates/status/approval
+ * marker (objects/meetingRoomFixtures.tsx). This HUD only adds what the 3D
+ * scene can't: the topic line and an escape hatch, plus a link to the
+ * fuller MeetingRoomImmersiveScreen for anyone who wants the flat detail
+ * view instead. `pointer-events-none` on the wrapper keeps the 3D canvas
+ * underneath fully orbit/zoom-able except where the HUD card itself sits.
+ */
+function MeetingRoomHud({
+  seats,
+  topic,
+  approvalActive,
+  onExpand,
+  onClose,
+}: {
+  seats: MeetingRoomSeatData[];
+  topic: string | null;
+  approvalActive: boolean;
+  onExpand: () => void;
+  onClose: () => void;
+}) {
+  const filledSeats = seats.filter((seat) => seat.agentName);
+  return (
+    <div className="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between p-4 sm:p-6">
+      <div className="pointer-events-auto flex items-start justify-between gap-3">
+        <div className="ui-card max-w-sm px-4 py-3">
+          <div className="type-page-title" style={{ fontFamily: "var(--font-serif)" }}>
+            Meeting Room
+          </div>
+          <div className="type-meta mt-1 text-muted-foreground">
+            {filledSeats.length} Teilnehmer · Hermes moderiert
+          </div>
+          {topic ? <div className="type-body mt-1.5 line-clamp-2 break-words">{topic}</div> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={onExpand} className="ui-btn-icon" aria-label="Detailansicht öffnen">
+            <Maximize className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={onClose} className="ui-btn-icon" aria-label="Meeting Room verlassen">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom cluster: roster (name/model/role/status — the room itself
+          deliberately carries none of this as floating labels, see
+          meetingRoomFixtures.tsx) plus the approval line, stacked with
+          bottom clearance so neither ever collides with bottom-docked HUD
+          chrome elsewhere in the scene. */}
+      <div className="pointer-events-none mb-16 flex flex-col items-center gap-2 sm:mb-6">
+        <div className="pointer-events-auto flex w-fit max-w-[min(92vw,20rem)] flex-col gap-1.5">
+          {seats.map((seat, index) => (
+            <div key={index} className="ui-card flex items-center gap-2 px-3 py-1.5">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: seat.agentName ? seat.agentColor : "var(--border)" }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="type-meta truncate font-medium">
+                  {seat.agentName ?? "— leer —"}
+                  {seat.role === "moderator" ? " · Moderator" : ""}
+                </div>
+              </div>
+              {seat.agentModel ? (
+                <span
+                  className="type-meta shrink-0 truncate rounded-sm border px-1 py-0.5 text-[10px]"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  {seat.agentModel}
+                </span>
+              ) : null}
+              <span className="type-meta shrink-0 text-muted-foreground">
+                {seat.agentName ? MEETING_ROOM_STATUS_LABEL[seat.status] : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {approvalActive ? (
+          <div className="pointer-events-auto ui-alert-caution w-fit rounded-md px-4 py-2 type-meta">
+            Freigabe durch Mensch erforderlich — siehe Chat-Panel des jeweiligen Agenten.
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function RetroOffice3D({
   agents,
@@ -2860,6 +3050,19 @@ export function RetroOffice3D({
   const autoOpenedStandupIdRef = useRef<string | null>(null);
   // Idea 1 (original): hovered agent for tooltip overlay.
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
+  // Wall whiteboard text — persisted so it survives a reload, same
+  // localStorage namespace convention as the furniture layout itself.
+  const [whiteboardText, setWhiteboardText] = useState<string>(() => {
+    if (typeof window === "undefined") return "Projekt Hermes 3D";
+    return window.localStorage.getItem("hermes-office-whiteboard-v1") ?? "Projekt Hermes 3D";
+  });
+  const handleWhiteboardClick = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const next = window.prompt("Text auf dem Whiteboard:", whiteboardText);
+    if (next === null) return;
+    setWhiteboardText(next);
+    window.localStorage.setItem("hermes-office-whiteboard-v1", next);
+  }, [whiteboardText]);
   const [renderAgentUiById, setRenderAgentUiById] = useState<
     Record<string, RenderAgentUiSnapshot>
   >({});
@@ -3283,6 +3486,10 @@ export function RetroOffice3D({
   }, [storageNamespace]);
 
   useEffect(() => {
+    markMeetingRoomMigrationApplied(storageNamespace);
+  }, [storageNamespace]);
+
+  useEffect(() => {
     followAgentIdRef.current = followAgentId;
   }, [followAgentId]);
 
@@ -3373,6 +3580,23 @@ export function RetroOffice3D({
     [agents, janitorActors],
   );
 
+  // The real roster agents assigned to the boardroom's four fixed seats —
+  // moderator first, then the first three specialists in store order. This
+  // is the single source of truth for "who sits where" in the Meeting
+  // Room: both the scene movement below (useAgentTick) and the HUD/fixtures
+  // roster further down (meetingRoomSeatData) read from it, so they can
+  // never disagree about which agent occupies which seat.
+  const { state: agentStoreState } = useAgentStore();
+  const boardroomOrderedAgents = useMemo(() => {
+    const moderator = agentStoreState.agents.find((agent) => isModeratorAgent(agent)) ?? null;
+    const specialists = agentStoreState.agents.filter((agent) => !isModeratorAgent(agent)).slice(0, 3);
+    return [moderator, specialists[0] ?? null, specialists[1] ?? null, specialists[2] ?? null];
+  }, [agentStoreState.agents]);
+  const boardroomSeatAgentIds = useMemo(
+    () => boardroomOrderedAgents.map((agent) => agent?.agentId ?? null),
+    [boardroomOrderedAgents],
+  );
+
   const {
     renderAgentsRef,
     renderAgentLookupRef,
@@ -3398,6 +3622,14 @@ export function RetroOffice3D({
     standupMeeting,
     conversationGroups,
     conversationExpiryRef,
+    // Was `meetingRoomOpen` (only seated while the Meeting Room camera view
+    // was open) — the council table is now the room's only furniture, so
+    // the 4 roster agents sit there permanently instead of idle-roaming an
+    // otherwise-empty floor. `meetingRoomOpen` still separately controls the
+    // camera fly-in/immersive overlay (meetingRoomImmersive below), just no
+    // longer gates whether agents are seated.
+    true,
+    boardroomSeatAgentIds,
   );
   useEffect(() => {
     const syncRenderAgentUi = () => {
@@ -4787,6 +5019,21 @@ export function RetroOffice3D({
     };
   }, [meetingTable, standupAutoOpenBoard, standupMeeting]);
 
+  // Meeting Room camera fly-in. Unlike the standup effect above, the target
+  // is a fixed room (not a furniture lookup) and there's no delayed overlay
+  // mount to time against — the HUD renders immediately and the Canvas
+  // itself stays mounted (see the `|| meetingRoomImmersive` Canvas guard),
+  // so the camera is simply left to lerp toward the preset live.
+  useEffect(() => {
+    if (!meetingRoomOpen) return;
+    const [wx, , wz] = toWorld(MEETING_ROOM_CENTER.x, MEETING_ROOM_CENTER.y);
+    cameraPresetRef.current = {
+      pos: [wx + 1.7, 1.55, wz + 2.15],
+      target: [wx, 0.7, wz],
+      zoom: 190,
+    };
+  }, [meetingRoomOpen]);
+
   useEffect(() => {
     if (!monitorAgentId && prevMonitorAgentIdRef.current) {
       cameraPresetRef.current = overviewPreset;
@@ -5300,6 +5547,42 @@ export function RetroOffice3D({
     monitorAgentId,
     overviewPreset,
   ]);
+  const closeMeetingRoom = useCallback(() => {
+    setMeetingRoomOpen(false);
+    cameraPresetRef.current = overviewPreset;
+  }, [overviewPreset]);
+
+  // Real Meeting Room seat data, built from the same boardroomOrderedAgents
+  // list the scene movement (useAgentTick, above) seats agents against —
+  // one source of truth, so the HUD roster and the in-world seating can
+  // never disagree about which agent occupies which of the four seats. A
+  // fifth+ agent simply has no physical seat here, same as any real
+  // four-seat room.
+  const meetingRoomSeatData = useMemo<MeetingRoomSeatData[]>(() => {
+    const nowMs = Date.now();
+    return boardroomOrderedAgents.map((agent, index): MeetingRoomSeatData => {
+      const role: MeetingRoomSeatData["role"] = index === 0 ? "moderator" : "specialist";
+      if (!agent) {
+        return { role, agentName: null, agentModel: null, agentColor: "#4a4d54", status: "available" };
+      }
+      return {
+        role,
+        agentName: agent.name,
+        agentModel: agent.model ?? null,
+        agentColor: agentColorMap.get(agent.agentId) ?? "#8a8f98",
+        status: deriveMeetingParticipantStatus(agent, nowMs),
+      };
+    });
+  }, [agentColorMap, boardroomOrderedAgents]);
+  const meetingRoomApprovalActive = useMemo(
+    () => agentStoreState.agents.some((agent) => agent.awaitingUserInput),
+    [agentStoreState.agents],
+  );
+  const meetingRoomTopic = useMemo(() => {
+    const moderator = agentStoreState.agents.find((agent) => isModeratorAgent(agent));
+    return moderator?.lastUserMessage?.trim() || null;
+  }, [agentStoreState.agents]);
+  const [meetingRoomDetailOpen, setMeetingRoomDetailOpen] = useState(false);
 
   useEffect(() => {
     const hoveredItem = hoverUid
@@ -5780,7 +6063,13 @@ export function RetroOffice3D({
           4. Agent components read from `renderAgentsRef` via useFrame → pure Three.js mutations.
           5. Floor/walls render immediately (no Suspense). Only GLB models are suspended.
         */}
-        {!immersiveOverlayActive ? (
+        {/* Every other immersive screen (Standup, Kanban, ATM, …) is a hard
+            cut to a flat 2D takeover, so the Canvas unmounts entirely once
+            its overlay opens. The Meeting Room is deliberately different —
+            per Onur's explicit call, the camera flies into the room and the
+            3D scene stays live and visible underneath the HUD, instead of
+            being replaced by another 2D screen. */}
+        {!immersiveOverlayActive || meetingRoomImmersive ? (
           <SceneErrorBoundary>
           <Canvas
             key={canvasResetKey}
@@ -5867,10 +6156,27 @@ export function RetroOffice3D({
             />
 
             {/* Floor + walls — always visible, no async loading. */}
-            <SceneFloorAndWalls showRemoteOffice={remoteOfficeEnabled} />
+            <SceneFloorAndWalls
+              showRemoteOffice={remoteOfficeEnabled}
+              whiteboardText={whiteboardText}
+              onWhiteboardClick={handleWhiteboardClick}
+              screenTopic={meetingRoomTopic}
+            />
 
-            {/* Wall pictures — procedural, no async loading. */}
-            <SceneWallPictures showRemoteOffice={remoteOfficeEnabled} />
+            {/* Flag poles + framed wall pictures removed on request — the
+                clean-slate room shouldn't carry over decor authored for the
+                old, much larger layout. WallPictures (environment.tsx) is
+                kept defined but unrendered rather than deleted, in case
+                decor gets reintroduced deliberately later. */}
+
+            {/* Meeting Room fixtures — real per-seat status, always present
+                (not gated on meetingRoomImmersive) so the room reads as a
+                real, populated part of the office even outside the fly-in
+                view, the same way every other room's furniture already is. */}
+            <MeetingRoomFixtures
+              seats={meetingRoomSeatData}
+              approvalActive={meetingRoomApprovalActive}
+            />
 
             {/* Furniture models — each loads its GLB asynchronously. */}
             <Suspense fallback={null}>
@@ -5946,6 +6252,18 @@ export function RetroOffice3D({
                   />
                 ) : item.type === "round_table" ? (
                   <PrimitiveRoundTableModel
+                    key={item._uid}
+                    item={item}
+                    isSelected={item._uid === selectedUid}
+                    isHovered={item._uid === hoverUid}
+                    editMode={editMode}
+                    onPointerDown={handleFurniturePointerDown}
+                    onPointerOver={handleFurniturePointerOver}
+                    onPointerOut={handleFurniturePointerOut}
+                    onClick={handleDeskClick}
+                  />
+                ) : item.type === "conference_table" ? (
+                  <PrimitiveConferenceTableModel
                     key={item._uid}
                     item={item}
                     isSelected={item._uid === selectedUid}
@@ -6326,6 +6644,7 @@ export function RetroOffice3D({
                   onUnhover={isJanitor ? undefined : handleAgentUnhover}
                   onClick={isJanitor ? undefined : handleAgentClick}
                   onContextMenu={isJanitor ? undefined : handleAgentContextMenu}
+                  isHovered={hoveredAgentId === agent.id}
                   showSpeech={
                     isJanitor
                       ? false
@@ -7043,8 +7362,22 @@ export function RetroOffice3D({
         />
       ) : null}
 
-      {meetingRoomImmersive ? (
-        <MeetingRoomImmersiveScreen onClose={() => setMeetingRoomOpen(false)} />
+      {meetingRoomImmersive && !meetingRoomDetailOpen ? (
+        <MeetingRoomHud
+          seats={meetingRoomSeatData}
+          topic={meetingRoomTopic}
+          approvalActive={meetingRoomApprovalActive}
+          onExpand={() => setMeetingRoomDetailOpen(true)}
+          onClose={closeMeetingRoom}
+        />
+      ) : null}
+
+      {meetingRoomImmersive && meetingRoomDetailOpen ? (
+        <MeetingRoomImmersiveScreen
+          onClose={() => {
+            setMeetingRoomDetailOpen(false);
+          }}
+        />
       ) : null}
 
       {kanbanImmersive ? (

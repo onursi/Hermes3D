@@ -215,6 +215,21 @@ const stringToColor = (str: string) => {
   return "#" + "00000".substring(0, 6 - c.length) + c;
 };
 
+// Explicit per-agent identity colors, requested by name rather than left to
+// stringToColor's arbitrary hash — "default" (ChatGPT) dark blue, Claude
+// orange, the other two model-router agents picked to stay visually
+// distinct from those two and each other. Any agentId not listed here still
+// falls back to the hash so new/unknown agents always get *a* color.
+const AGENT_IDENTITY_COLORS: Record<string, string> = {
+  default: "#1d3557", // ChatGPT — dark blue
+  "router-claude-review": "#f97316", // Claude — orange
+  "router-deepseek-pro": "#10b981", // DeepSeek — emerald
+  "router-opencode": "#8b5cf6", // opencode — violet
+};
+
+const resolveAgentColor = (agentId: string) =>
+  AGENT_IDENTITY_COLORS[agentId] ?? stringToColor(agentId);
+
 const ITEMS = [
   "globe",
   "books",
@@ -562,7 +577,7 @@ const mapAgentToOffice = (agent: AgentState): OfficeAgent => {
       name: agent.name || "Unknown",
       subtitle: agent.role ?? null,
       status: "error",
-      color: stringToColor(agent.agentId),
+      color: resolveAgentColor(agent.agentId),
       item: getDeterministicItem(agent.agentId),
       avatarProfile: agent.avatarProfile ?? null,
     };
@@ -573,7 +588,7 @@ const mapAgentToOffice = (agent: AgentState): OfficeAgent => {
     name: agent.name || "Unknown",
     subtitle: agent.role ?? null,
     status: isWorking ? "working" : "idle",
-    color: stringToColor(agent.agentId),
+    color: resolveAgentColor(agent.agentId),
     item: getDeterministicItem(agent.agentId),
     avatarProfile: agent.avatarProfile ?? null,
   };
@@ -590,7 +605,7 @@ const mapRemotePresenceAgentToOffice = (agent: {
     id: stableId,
     name: agent.name || "Unknown",
     status: agent.state === "error" ? "error" : isWorking ? "working" : "idle",
-    color: stringToColor(stableId),
+    color: resolveAgentColor(stableId),
     item: getDeterministicItem(stableId),
     avatarProfile: null,
   };

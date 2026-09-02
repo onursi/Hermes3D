@@ -101,7 +101,7 @@ export function CameraAnimator({
   const targetLookAtRef = useRef(new THREE.Vector3());
   const directionRef = useRef(new THREE.Vector3());
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const preset = presetRef.current;
     const orbit = orbitRef.current;
     if (!preset || !orbit) return;
@@ -128,8 +128,17 @@ export function CameraAnimator({
         .addScaledVector(directionRef.current, distance);
     }
 
-    camera.position.lerp(targetPositionRef.current, 0.06);
-    orbit.target.lerp(targetLookAtRef.current, 0.06);
+    // Frame-rate-independent exponential damping instead of a fixed
+    // per-frame lerp factor: a constant 0.06 lerp converges roughly twice
+    // as fast at 60fps as it does at 30fps, so the same fly-in preset felt
+    // noticeably slower and less smooth on a throttled mobile GPU than on
+    // desktop. `1 - exp(-lambda * delta)` converges at the same real-world
+    // speed regardless of frame rate (see Freya Holmér's "lerp smoothing is
+    // broken" — same fix pattern applies here).
+    const dampingLambda = 5.5;
+    const t = 1 - Math.exp(-dampingLambda * Math.min(delta, 1 / 15));
+    camera.position.lerp(targetPositionRef.current, t);
+    orbit.target.lerp(targetLookAtRef.current, t);
     orbit.update();
 
     if (camera.position.distanceTo(targetPositionRef.current) < 0.05) {

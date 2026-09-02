@@ -49,6 +49,14 @@ export function applyAgentCollisionBumps({
     // bump's escape-reroute would trap approaching members in a loop of
     // freeze, escape, and walk-back at the circle's edge.
     if (moved[i].conversationGroupId !== undefined) continue;
+    // Same reasoning for agents walking to their permanent council-table
+    // seat: the room shrank to 500x400 (district.ts) with 4 agents
+    // converging on one small table, so two of them passing within
+    // AGENT_RADIUS*2 of each other while approaching is routine, not a real
+    // collision — without this they'd get bumped to a random roam point
+    // and walk back, forever, which read as agents jittering/never sitting
+    // down.
+    if (moved[i].interactionTarget === "meeting_room") continue;
     if (moved[i].bumpedUntil !== undefined) continue;
     if ((moved[i].collisionCooldownUntil ?? 0) > now) continue;
     let sx = 0,

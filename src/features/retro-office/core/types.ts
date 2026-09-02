@@ -85,6 +85,14 @@ export type FurnitureItem = {
   facing?: number;
   vertical?: boolean;
   elevation?: number;
+  /**
+   * Per-item override for buildNavGrid's obstacle padding (core/navigation.ts).
+   * Most furniture should rely on the per-type default in ITEM_METADATA —
+   * this exists for the rare wall segment that flanks a passage narrow
+   * enough that the shared 15-unit default would seal it shut (see the
+   * East Wing hall walls in furnitureDefaults.ts for the motivating case).
+   */
+  navPadding?: number;
 };
 
 export type FurnitureSeed = Omit<FurnitureItem, "_uid">;
