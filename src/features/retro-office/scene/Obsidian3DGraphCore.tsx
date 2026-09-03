@@ -112,6 +112,29 @@ export function Obsidian3DGraphCore({
     return { connectedNeighborIds: neighbors, connectedLinkKeys: linkKeys };
   }, [selectedNodeId, data.links]);
 
+  /**
+   * How many notes each note is wired to, and the busiest count in the vault.
+   *
+   * Connection count is what makes a knowledge graph read as a galaxy: the
+   * hubs become suns and everything else falls into orbit around them. Note
+   * length — the only thing size used to hint at, and only barely — says
+   * nothing about how central a note is. `Index.md` links 190 times; most
+   * notes link once or twice, so the scale has to be logarithmic or the hubs
+   * swallow the picture.
+   */
+  const { degreeById, maxDegree } = useMemo(() => {
+    const degree = new Map<string, number>();
+    data.links.forEach((link) => {
+      degree.set(link.source, (degree.get(link.source) ?? 0) + 1);
+      degree.set(link.target, (degree.get(link.target) ?? 0) + 1);
+    });
+    let max = 1;
+    degree.forEach((value) => {
+      if (value > max) max = value;
+    });
+    return { degreeById: degree, maxDegree: max };
+  }, [data.links]);
+
   const filteredNodes = useMemo(() => {
     return data.nodes.filter((node) => {
       if (activeFilter !== "all" && node.group !== activeFilter && node.folder !== activeFilter) return false;
@@ -322,6 +345,18 @@ export function Obsidian3DGraphCore({
     }
   }, [sparkColorArray]);
 
+  /**
+   * One unit sphere shared by every note, scaled per node.
+   *
+   * Each node used to declare `sphereGeometry args={[radius, 12, 12]}`, which
+   * builds a fresh geometry per note — and rebuilds all of them whenever a
+   * hover or selection changes any radius. At 24x16 segments a focused node
+   * finally reads as a sphere instead of a faceted lump, and it costs one
+   * geometry for the whole galaxy instead of several hundred.
+   */
+  const nodeSphere = useMemo(() => new THREE.SphereGeometry(1, 24, 16), []);
+  useEffect(() => () => nodeSphere.dispose(), [nodeSphere]);
+
   const brainScaffoldMatRef = useRef<THREE.LineBasicMaterial>(null);
   const cosmicDustMatRef = useRef<THREE.PointsMaterial>(null);
   const auroraMatRef = useRef<THREE.LineBasicMaterial>(null);
@@ -454,7 +489,19 @@ export function Obsidian3DGraphCore({
         const arealColor = AREAL_COLORS[node.group] || node.color;
         const displayColor = isFiltered ? arealColor : node.color;
 
-        const radius = isSelected ? 0.14 : isHovered ? 0.10 : (isInActiveAreal && isFiltered) ? 0.07 : 0.05;
+        // Size carries meaning. Every note used to be 0.05 across the board, so
+        // a hub with 190 links looked exactly like an orphan and the galaxy
+        // read as even dust.
+        const degree = degreeById.get(node.id) ?? 0;
+        const baseRadius =
+          0.024 + (Math.log1p(degree) / Math.log1p(maxDegree)) * 0.075;
+        const radius = isSelected
+          ? baseRadius * 2.4
+          : isHovered
+            ? baseRadius * 1.8
+            : isInActiveAreal && isFiltered
+              ? baseRadius * 1.35
+              : baseRadius;
         const opacity = isDimmed ? 0.18 : arealDimmed ? 0.15 : 1.0;
         const emissive = isSelected ? 4.5 : isHovered ? 3.0 : (isInActiveAreal && isFiltered) ? 2.5 : arealDimmed ? 0.4 : 1.5;
 
@@ -472,22 +519,25 @@ export function Obsidian3DGraphCore({
                 cyberAudio.playSynapseBlip();
               }}
               onPointerOut={() => setHoveredNode(null)}
+              geometry={nodeSphere}
+              scale={radius}
             >
-              <sphereGeometry args={[radius, 12, 12]} />
               <meshStandardMaterial
                 color={displayColor}
                 emissive={displayColor}
                 emissiveIntensity={emissive}
                 roughness={0.1}
                 metalness={0.95}
-                transparent
+                // Flagging an opaque note as transparent drops it out of the
+                // opaque queue, costing early-Z and a per-frame depth sort for
+                // all 255 of them. Only the dimmed ones actually need it.
+                transparent={opacity < 1}
                 opacity={opacity}
               />
             </mesh>
 
             {(isSelected || isHovered) && (
-              <mesh>
-                <sphereGeometry args={[radius * 2.5, 10, 10]} />
+              <mesh geometry={nodeSphere} scale={radius * 2.5}>
                 <meshBasicMaterial
                   color={isSelected ? "#ffffff" : displayColor}
                   transparent
