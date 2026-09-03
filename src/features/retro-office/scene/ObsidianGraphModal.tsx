@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
 import { Obsidian3DGraphCore, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
@@ -24,6 +24,9 @@ export function ObsidianGraphModal({
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeResultIndex, setActiveResultIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolumeState] = useState(60);
+  const [soundMode, setSoundModeState] = useState<"alpha" | "cosmos" | "matrix" | "zen">("alpha");
+  const [showSoundMenu, setShowSoundMenu] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -191,34 +194,134 @@ export function ObsidianGraphModal({
           </div>
         </div>
 
-        {/* Actions: Sound Mute Toggle & Close */}
-        <div className="pointer-events-auto flex items-center gap-2">
+        {/* Actions: Sound Settings & Close */}
+        <div className="pointer-events-auto relative flex items-center gap-2">
+          {/* Sound Menu Trigger */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               cyberAudio.resume();
-              setIsMuted((prev) => {
-                const next = !prev;
-                if (!next) {
-                  cyberAudio.startNeuralAmbience();
-                  cyberAudio.playSynapseBlip();
-                } else {
-                  cyberAudio.stopNeuralAmbience();
-                }
-                return next;
-              });
+              setShowSoundMenu((prev) => !prev);
             }}
-            className={`flex h-9 items-center gap-1.5 rounded-xl border px-3 font-mono text-xs transition shadow-xl backdrop-blur-md cursor-pointer ${
+            className={`flex h-9 items-center gap-2 rounded-xl border px-3 font-mono text-xs transition shadow-xl backdrop-blur-md cursor-pointer ${
               !isMuted
-                ? "border-cyan-500/50 bg-cyan-950/80 text-cyan-300 shadow-cyan-500/20"
+                ? "border-cyan-500/50 bg-[#070e1c]/95 text-cyan-300 shadow-cyan-500/20 hover:border-cyan-400"
                 : "border-slate-700 bg-[#070e1c]/90 text-slate-500 hover:text-slate-300"
             }`}
-            title={!isMuted ? "Gehirnsound stummschalten" : "Gehirnsound aktivieren"}
+            title="Klang-Einstellungen & Lautstärke"
           >
             {!isMuted ? <Volume2 size={15} className="text-cyan-400 animate-pulse" /> : <VolumeX size={15} />}
-            <span className="text-[10px] font-bold">{!isMuted ? "SOUND AN" : "MUTE"}</span>
+            <span className="text-[10px] font-bold uppercase">
+              {!isMuted ? `${volume}% • ${soundMode}` : "MUTED"}
+            </span>
+            <Sliders size={12} className="text-slate-400" />
           </button>
+
+          {/* Floating Sound Control Drawer */}
+          {showSoundMenu && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-11 right-11 w-72 rounded-2xl border border-cyan-500/40 bg-[#050b16]/98 p-4 font-mono shadow-2xl shadow-cyan-950/80 backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 z-50 flex flex-col gap-3.5"
+            >
+              <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Music size={13} className="text-cyan-400" />
+                  GEHIRN-AUDIO KONTROLLE
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSoundMenu(false)}
+                  className="text-slate-500 hover:text-white text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Volume Slider */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Lautstärke:</span>
+                  <span className="font-bold text-cyan-300">{volume}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={volume}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setVolumeState(val);
+                    cyberAudio.resume();
+                    cyberAudio.setVolume(val / 100);
+                    if (val === 0 && !isMuted) setIsMuted(true);
+                    else if (val > 0 && isMuted) setIsMuted(false);
+                  }}
+                  className="h-1.5 w-full appearance-none rounded-lg bg-slate-800 accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Sound Mode Selection */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] text-slate-400">Klang-Atmosphäre:</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { id: "alpha", label: "🌌 Alpha", desc: "108 Hz Fokus" },
+                    { id: "cosmos", label: "🌊 Cosmos", desc: "Tiefsee-Bass" },
+                    { id: "matrix", label: "⚡ Matrix", desc: "Cyber-Takt" },
+                    { id: "zen", label: "🍃 Zen", desc: "528 Hz Harmonie" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        const nextMode = m.id as "alpha" | "cosmos" | "matrix" | "zen";
+                        setSoundModeState(nextMode);
+                        cyberAudio.resume();
+                        cyberAudio.setSoundMode(nextMode);
+                        cyberAudio.playSynapseBlip();
+                      }}
+                      className={`flex flex-col items-start rounded-xl p-2 text-left border transition cursor-pointer ${
+                        soundMode === m.id
+                          ? "border-cyan-400 bg-cyan-500/20 text-white shadow-md shadow-cyan-500/20"
+                          : "border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold">{m.label}</span>
+                      <span className="text-[8px] text-slate-500">{m.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mute Toggle inside drawer */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                <span className="text-[10px] text-slate-400">Stummschalten:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMuted((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        cyberAudio.startNeuralAmbience(soundMode);
+                        cyberAudio.playSynapseBlip();
+                      } else {
+                        cyberAudio.stopNeuralAmbience();
+                      }
+                      return next;
+                    });
+                  }}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-bold border transition cursor-pointer ${
+                    isMuted
+                      ? "bg-rose-950/60 text-rose-300 border-rose-500/40"
+                      : "bg-cyan-950/60 text-cyan-300 border-cyan-500/40"
+                  }`}
+                >
+                  {isMuted ? "🔇 STUMM" : "🔊 AKTIV"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             type="button"

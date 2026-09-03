@@ -348,55 +348,173 @@ class CyberAudioController {
   private neuralDroneNodes: {
     oscillators: OscillatorNode[];
     filter: BiquadFilterNode;
-    lfo: OscillatorNode;
-    lfoGain: GainNode;
+    lfo?: OscillatorNode;
+    lfoGain?: GainNode;
     gain: GainNode;
   } | null = null;
 
-  startNeuralAmbience() {
+  private currentVolume: number = 0.6;
+  private currentMode: "alpha" | "cosmos" | "matrix" | "zen" = "alpha";
+
+  setVolume(vol: number) {
+    this.currentVolume = Math.max(0, Math.min(1, vol));
+    if (this.neuralDroneNodes && this.ctx) {
+      const targetGain = this.currentVolume * 0.18;
+      this.neuralDroneNodes.gain.gain.setValueAtTime(
+        Math.max(0.0001, targetGain),
+        this.ctx.currentTime
+      );
+    }
+  }
+
+  getVolume() {
+    return this.currentVolume;
+  }
+
+  setSoundMode(mode: "alpha" | "cosmos" | "matrix" | "zen") {
+    this.currentMode = mode;
+    if (this.neuralDroneNodes) {
+      this.stopNeuralAmbience();
+      setTimeout(() => {
+        this.startNeuralAmbience(mode);
+      }, 300);
+    }
+  }
+
+  getSoundMode() {
+    return this.currentMode;
+  }
+
+  startNeuralAmbience(modeOverride?: "alpha" | "cosmos" | "matrix" | "zen") {
     try {
       this.init();
-      if (!this.ctx || this.neuralDroneNodes) return;
+      if (!this.ctx) return;
       if (this.ctx.state === "suspended") {
         this.ctx.resume().catch(() => {});
       }
+      if (this.neuralDroneNodes) {
+        this.stopNeuralAmbience();
+      }
+
+      const mode = modeOverride || this.currentMode;
+      this.currentMode = mode;
       const t = this.ctx.currentTime;
+      const targetGain = Math.max(0.0001, this.currentVolume * 0.18);
 
-      // Multi-harmonic chord: E3 (164.8 Hz), A3 (220 Hz), C#4 (277.2 Hz), E4 (329.6 Hz) + detuned binaural pairs
-      const freqs = [164.8, 166.2, 220.0, 222.1, 329.6];
       const oscillators: OscillatorNode[] = [];
-
       const filter = this.ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(450, t);
-      filter.Q.setValueAtTime(3.0, t);
-
-      // Breathing LFO: slowly sweeps filter frequency between 300 Hz and 750 Hz (5s cycle)
-      const lfo = this.ctx.createOscillator();
-      const lfoGain = this.ctx.createGain();
-      lfo.type = "sine";
-      lfo.frequency.setValueAtTime(0.18, t); // ~5.5 second breath
-      lfoGain.gain.setValueAtTime(280, t);
-      lfo.connect(filter.frequency);
-      lfo.start(t);
-
       const masterGain = this.ctx.createGain();
       masterGain.gain.setValueAtTime(0.0001, t);
-      masterGain.gain.exponentialRampToValueAtTime(0.14, t + 0.8); // Rich, clearly audible warm ambient volume
+      masterGain.gain.exponentialRampToValueAtTime(targetGain, t + 0.8);
 
-      freqs.forEach((f, idx) => {
-        const osc = this.ctx!.createOscillator();
-        osc.type = idx % 2 === 0 ? "sawtooth" : "sine";
-        osc.frequency.setValueAtTime(f, t);
+      let lfo: OscillatorNode | undefined;
+      let lfoGain: GainNode | undefined;
 
-        const oscGain = this.ctx!.createGain();
-        oscGain.gain.setValueAtTime(idx % 2 === 0 ? 0.04 : 0.08, t);
+      if (mode === "alpha") {
+        // Binaural Alpha (108 Hz / 115.5 Hz) + Warm Body E3 (164.8 Hz)
+        const freqs = [108.0, 115.5, 164.8, 220.0, 329.6];
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(450, t);
+        filter.Q.setValueAtTime(3.0, t);
 
-        osc.connect(oscGain);
-        oscGain.connect(filter);
-        osc.start(t);
-        oscillators.push(osc);
-      });
+        lfo = this.ctx.createOscillator();
+        lfoGain = this.ctx.createGain();
+        lfo.type = "sine";
+        lfo.frequency.setValueAtTime(0.18, t);
+        lfoGain.gain.setValueAtTime(260, t);
+        lfo.connect(filter.frequency);
+        lfo.start(t);
+
+        freqs.forEach((f, idx) => {
+          const osc = this.ctx!.createOscillator();
+          osc.type = idx % 2 === 0 ? "sawtooth" : "sine";
+          osc.frequency.setValueAtTime(f, t);
+          const oscGain = this.ctx!.createGain();
+          oscGain.gain.setValueAtTime(idx % 2 === 0 ? 0.04 : 0.08, t);
+          osc.connect(oscGain);
+          oscGain.connect(filter);
+          osc.start(t);
+          oscillators.push(osc);
+        });
+      } else if (mode === "cosmos") {
+        // Deep Cosmos: Ultra-low subterranean sub-bass (55 Hz + 73.4 Hz + 110 Hz)
+        const freqs = [55.0, 73.4, 110.0, 146.8];
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(220, t);
+        filter.Q.setValueAtTime(4.0, t);
+
+        lfo = this.ctx.createOscillator();
+        lfoGain = this.ctx.createGain();
+        lfo.type = "sine";
+        lfo.frequency.setValueAtTime(0.08, t); // Slow 12-second cosmic tide
+        lfoGain.gain.setValueAtTime(120, t);
+        lfo.connect(filter.frequency);
+        lfo.start(t);
+
+        freqs.forEach((f) => {
+          const osc = this.ctx!.createOscillator();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(f, t);
+          const oscGain = this.ctx!.createGain();
+          oscGain.gain.setValueAtTime(0.12, t);
+          osc.connect(oscGain);
+          oscGain.connect(filter);
+          osc.start(t);
+          oscillators.push(osc);
+        });
+      } else if (mode === "matrix") {
+        // Cyber Matrix: Pulse-width synth with bright neural sparkle
+        const freqs = [110.0, 220.0, 293.66, 440.0];
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(600, t);
+        filter.Q.setValueAtTime(2.0, t);
+
+        lfo = this.ctx.createOscillator();
+        lfoGain = this.ctx.createGain();
+        lfo.type = "triangle";
+        lfo.frequency.setValueAtTime(0.4, t); // Quick 2.5-second electrical wave
+        lfoGain.gain.setValueAtTime(350, t);
+        lfo.connect(filter.frequency);
+        lfo.start(t);
+
+        freqs.forEach((f) => {
+          const osc = this.ctx!.createOscillator();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(f, t);
+          const oscGain = this.ctx!.createGain();
+          oscGain.gain.setValueAtTime(0.07, t);
+          osc.connect(oscGain);
+          oscGain.connect(filter);
+          osc.start(t);
+          oscillators.push(osc);
+        });
+      } else if (mode === "zen") {
+        // Zen Shimmer: 528 Hz Solfeggio Love/DNA frequency + pure crystalline sine harmonics
+        const freqs = [264.0, 528.0, 792.0];
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(900, t);
+        filter.Q.setValueAtTime(1.5, t);
+
+        lfo = this.ctx.createOscillator();
+        lfoGain = this.ctx.createGain();
+        lfo.type = "sine";
+        lfo.frequency.setValueAtTime(0.12, t);
+        lfoGain.gain.setValueAtTime(300, t);
+        lfo.connect(filter.frequency);
+        lfo.start(t);
+
+        freqs.forEach((f) => {
+          const osc = this.ctx!.createOscillator();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(f, t);
+          const oscGain = this.ctx!.createGain();
+          oscGain.gain.setValueAtTime(0.09, t);
+          osc.connect(oscGain);
+          oscGain.connect(filter);
+          osc.start(t);
+          oscillators.push(osc);
+        });
+      }
 
       filter.connect(masterGain);
       masterGain.connect(this.ctx.destination);
@@ -418,8 +536,10 @@ class CyberAudioController {
             o.stop();
             o.disconnect();
           });
-          lfo.stop();
-          lfo.disconnect();
+          if (lfo) {
+            lfo.stop();
+            lfo.disconnect();
+          }
         } catch {}
       }, 400);
       this.neuralDroneNodes = null;
