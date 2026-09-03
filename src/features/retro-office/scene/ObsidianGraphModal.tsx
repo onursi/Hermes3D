@@ -8,6 +8,23 @@ import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, V
 import { Obsidian3DGraphCore, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
+/**
+ * The areas of the vault, in the order their pills appear and their number
+ * keys fire. Kept at module scope so the keyboard shortcuts and the pill row
+ * cannot drift apart.
+ */
+const AREA_FILTERS = [
+  { id: "all", label: "🧠 Alle Neuronen", color: "#38bdf8" },
+  { id: "projects", label: "🚀 Projekte", color: "#f59e0b" },
+  { id: "knowledge", label: "🧠 Wissen", color: "#ec4899" },
+  { id: "system", label: "⚙️ System", color: "#38bdf8" },
+  { id: "identity", label: "🪪 Identität", color: "#34d399" },
+  { id: "sources", label: "📚 Quellen", color: "#06b6d4" },
+  { id: "ideas", label: "💡 Ideen", color: "#e879f9" },
+  { id: "interests", label: "⭐ Interessen", color: "#fbbf24" },
+  { id: "core", label: "⚡ Core", color: "#ffffff" },
+];
+
 export function ObsidianGraphModal({
   isOpen,
   onClose,
@@ -68,6 +85,19 @@ export function ObsidianGraphModal({
         cyberAudio.playElectricalZap();
         setFlyToLobe((prev) => (prev === "projects" ? "knowledge" : "projects"));
       }
+      // Space only ever toggled between two halves of the brain, which leaves
+      // seven of the nine areas unreachable without hunting for their pill.
+      // The digits fly straight to any of them, in the order the pills sit.
+      if (isOpen && document.activeElement !== searchInputRef.current && /^[1-9]$/.test(e.key)) {
+        const area = AREA_FILTERS[Number(e.key) - 1];
+        if (area) {
+          e.preventDefault();
+          cyberAudio.resume();
+          cyberAudio.playSynapseBlip();
+          setActiveFilter(area.id);
+          setFlyToLobe(area.id);
+        }
+      }
     };
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
@@ -112,17 +142,7 @@ export function ObsidianGraphModal({
 
   if (!isOpen) return null;
 
-  const filters = [
-    { id: "all", label: "🧠 Alle Neuronen", color: "#38bdf8" },
-    { id: "projects", label: "🚀 Projekte", color: "#f59e0b" },
-    { id: "knowledge", label: "🧠 Wissen", color: "#ec4899" },
-    { id: "system", label: "⚙️ System", color: "#38bdf8" },
-    { id: "identity", label: "🪪 Identität", color: "#34d399" },
-    { id: "sources", label: "📚 Quellen", color: "#06b6d4" },
-    { id: "ideas", label: "💡 Ideen", color: "#e879f9" },
-    { id: "interests", label: "⭐ Interessen", color: "#fbbf24" },
-    { id: "core", label: "⚡ Core", color: "#ffffff" },
-  ];
+  const filters = AREA_FILTERS;
 
   const handleFilterClick = (filterId: string) => {
     cyberAudio.resume();
@@ -410,8 +430,11 @@ export function ObsidianGraphModal({
             </button>
           ) : (
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-mono text-cyan-400/80 rounded bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5" title="Leertaste: Gehirn um 180° zwischen Hemisphären drehen">
-                Space: Flip
+              <span
+                className="text-[9px] font-mono text-cyan-400/80 rounded bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5"
+                title="1–9 fliegt direkt in einen Bereich, in der Reihenfolge der Chips darunter. Leertaste wechselt zwischen den beiden Gehirnhälften."
+              >
+                1–9: Bereiche
               </span>
               <span className="text-[10px] font-mono text-slate-500 rounded bg-slate-900 border border-slate-800 px-1.5 py-0.5">
                 Strg+K
