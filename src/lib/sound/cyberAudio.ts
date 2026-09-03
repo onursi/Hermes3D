@@ -344,43 +344,64 @@ class CyberAudioController {
     } catch {}
   }
 
-  /** Continuous binaural neural ambience (alpha-wave brain drone with gentle harmonic breath) */
-  private neuralDroneNodes: { osc1: OscillatorNode; osc2: OscillatorNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
+  /** Continuous binaural neural ambience (multi-harmonic breathing brain synth) */
+  private neuralDroneNodes: {
+    oscillators: OscillatorNode[];
+    filter: BiquadFilterNode;
+    lfo: OscillatorNode;
+    lfoGain: GainNode;
+    gain: GainNode;
+  } | null = null;
 
   startNeuralAmbience() {
     try {
       this.init();
       if (!this.ctx || this.neuralDroneNodes) return;
+      if (this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {});
+      }
       const t = this.ctx.currentTime;
 
-      const osc1 = this.ctx.createOscillator();
-      const osc2 = this.ctx.createOscillator();
+      // Multi-harmonic chord: E3 (164.8 Hz), A3 (220 Hz), C#4 (277.2 Hz), E4 (329.6 Hz) + detuned binaural pairs
+      const freqs = [164.8, 166.2, 220.0, 222.1, 329.6];
+      const oscillators: OscillatorNode[] = [];
+
       const filter = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
-
-      // Binaural alpha-wave frequency ~110 Hz (A2) and ~117 Hz (7 Hz alpha difference)
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(108, t);
-
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(115.5, t);
-
       filter.type = "lowpass";
-      filter.frequency.setValueAtTime(320, t);
-      filter.Q.setValueAtTime(2.5, t);
+      filter.frequency.setValueAtTime(450, t);
+      filter.Q.setValueAtTime(3.0, t);
 
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.045, t + 1.2); // Soft, non-intrusive ambient bed
+      // Breathing LFO: slowly sweeps filter frequency between 300 Hz and 750 Hz (5s cycle)
+      const lfo = this.ctx.createOscillator();
+      const lfoGain = this.ctx.createGain();
+      lfo.type = "sine";
+      lfo.frequency.setValueAtTime(0.18, t); // ~5.5 second breath
+      lfoGain.gain.setValueAtTime(280, t);
+      lfo.connect(filter.frequency);
+      lfo.start(t);
 
-      osc1.connect(filter);
-      osc2.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.setValueAtTime(0.0001, t);
+      masterGain.gain.exponentialRampToValueAtTime(0.14, t + 0.8); // Rich, clearly audible warm ambient volume
 
-      osc1.start(t);
-      osc2.start(t);
+      freqs.forEach((f, idx) => {
+        const osc = this.ctx!.createOscillator();
+        osc.type = idx % 2 === 0 ? "sawtooth" : "sine";
+        osc.frequency.setValueAtTime(f, t);
 
-      this.neuralDroneNodes = { osc1, osc2, filter, gain };
+        const oscGain = this.ctx!.createGain();
+        oscGain.gain.setValueAtTime(idx % 2 === 0 ? 0.04 : 0.08, t);
+
+        osc.connect(oscGain);
+        oscGain.connect(filter);
+        osc.start(t);
+        oscillators.push(osc);
+      });
+
+      filter.connect(masterGain);
+      masterGain.connect(this.ctx.destination);
+
+      this.neuralDroneNodes = { oscillators, filter, lfo, lfoGain, gain: masterGain };
     } catch {}
   }
 
@@ -388,17 +409,19 @@ class CyberAudioController {
     try {
       if (!this.neuralDroneNodes || !this.ctx) return;
       const t = this.ctx.currentTime;
-      const { osc1, osc2, gain } = this.neuralDroneNodes;
+      const { oscillators, lfo, gain } = this.neuralDroneNodes;
       gain.gain.setValueAtTime(gain.gain.value, t);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
       setTimeout(() => {
         try {
-          osc1.stop();
-          osc2.stop();
-          osc1.disconnect();
-          osc2.disconnect();
+          oscillators.forEach((o) => {
+            o.stop();
+            o.disconnect();
+          });
+          lfo.stop();
+          lfo.disconnect();
         } catch {}
-      }, 450);
+      }, 400);
       this.neuralDroneNodes = null;
     } catch {}
   }
@@ -408,25 +431,35 @@ class CyberAudioController {
     try {
       this.init();
       if (!this.ctx) return;
+      if (this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {});
+      }
       const t = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
       osc.type = "sine";
-      const notes = [1046.5, 1318.5, 1567.98, 2093]; // High crystalline brain notes (C6, E6, G6, C7)
+      const notes = [880, 1046.5, 1318.5, 1567.98, 1760]; // Crisp, sparkling brain frequencies (A5, C6, E6, G6, A6)
       const freq = notes[Math.floor(Math.random() * notes.length)];
       osc.frequency.setValueAtTime(freq, t);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.35, t + 0.09);
 
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.035, t + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.09, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(t);
-      osc.stop(t + 0.13);
+      osc.stop(t + 0.17);
     } catch {}
+  }
+
+  /** Ensure AudioContext is resumed upon any user interaction */
+  resume() {
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {});
+    }
   }
 }
 

@@ -38,6 +38,7 @@ export function ObsidianGraphModal({
   // Binaural Neural Ambience Sound Lifecycle
   useEffect(() => {
     if (isOpen && !isMuted) {
+      cyberAudio.resume();
       cyberAudio.startNeuralAmbience();
     } else {
       cyberAudio.stopNeuralAmbience();
@@ -115,12 +116,20 @@ export function ObsidianGraphModal({
   ];
 
   const handleFilterClick = (filterId: string) => {
+    cyberAudio.resume();
+    cyberAudio.playSynapseBlip();
     setActiveFilter(filterId);
     setFlyToLobe(filterId);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl animate-in fade-in duration-200">
+    <div
+      onClick={() => {
+        cyberAudio.resume();
+        if (!isMuted) cyberAudio.startNeuralAmbience();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl animate-in fade-in duration-200"
+    >
       
       {/* 3D Neural Canvas */}
       <div className="absolute inset-0">
@@ -186,7 +195,20 @@ export function ObsidianGraphModal({
         <div className="pointer-events-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsMuted((prev) => !prev)}
+            onClick={(e) => {
+              e.stopPropagation();
+              cyberAudio.resume();
+              setIsMuted((prev) => {
+                const next = !prev;
+                if (!next) {
+                  cyberAudio.startNeuralAmbience();
+                  cyberAudio.playSynapseBlip();
+                } else {
+                  cyberAudio.stopNeuralAmbience();
+                }
+                return next;
+              });
+            }}
             className={`flex h-9 items-center gap-1.5 rounded-xl border px-3 font-mono text-xs transition shadow-xl backdrop-blur-md cursor-pointer ${
               !isMuted
                 ? "border-cyan-500/50 bg-cyan-950/80 text-cyan-300 shadow-cyan-500/20"
