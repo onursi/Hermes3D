@@ -6770,18 +6770,16 @@ export function RetroOffice3D({
             {/* Quantum War Room // Hologramm-Archiv (Unterdeck / Sub-Level 1) */}
             <QuantumWarRoom
               position={[-11.7, -5.2, -16.2]}
+              // Only what something actually measures. Cost, tokens, task
+              // counts, repo, branch, CI status and gateway latency used to be
+              // passed as literals here — `branchName: "main"` while the repo
+              // sat on a feature branch, a latency of 18 ms that was never
+              // measured, and `failingChecks: false` claiming a green
+              // pipeline nobody had asked about. Left out, the consoles now
+              // show them as unmeasured instead of inventing an answer.
               metrics={{
-                totalCostToday: 0.0,
-                totalTokensToday: 0,
-                activeTasksCount: agents.filter((a) => a.status === "working").length,
-                reviewTasksCount: 0,
-                doneTasksCount: 0,
                 workingAgentsCount: agents.filter((a) => a.status === "working").length,
-                activeTaskTitle: githubSkill ? githubSkill.name : null,
-                repoName: "Hermes-3D",
-                branchName: "main",
-                failingChecks: false,
-                gatewayLatencyMs: gatewayStatus === "connected" ? 18 : 24,
+                totalAgentsCount: agents.length,
               }}
             />
 
@@ -7381,11 +7379,11 @@ export function RetroOffice3D({
               </div>
             </>
           )}
-          <span className="text-cyan-500/30">|</span>
-          <div className="flex items-center gap-1 text-cyan-200">
-            <span className="text-[10px] text-cyan-400/70">Kosten:</span>
-            <span className="font-semibold">€ 0.00</span>
-          </div>
+          {/* A cost chip belongs here, but nothing in this component measures
+              spend — it read a literal `€ 0.00` regardless of what the day had
+              actually cost. Usage totals live in `useUsageAnalytics`, which
+              needs a gateway client this component does not hold; wire that
+              through and the chip comes back with a real number behind it. */}
           <span className="text-cyan-500/30">|</span>
           <div className="flex items-center gap-1 text-amber-300">
             <span className="text-[10px] text-amber-400/70">Status:</span>

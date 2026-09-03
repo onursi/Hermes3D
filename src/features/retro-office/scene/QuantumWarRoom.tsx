@@ -6,7 +6,24 @@ import { Text, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
+/**
+ * Shown wherever a metric has no source behind it.
+ *
+ * Every console in this room used to fall back to a plausible-looking default
+ * — `€ 0.00`, `24ms`, `[main]`, `✓ CHECKS: ALLE BESTANDEN` — which is worse
+ * than showing nothing, because a wrong number is indistinguishable from a
+ * right one and quietly teaches you to distrust the whole room. An unmeasured
+ * value now reads as unmeasured.
+ */
+const UNKNOWN = "—";
+
+const showNumber = (
+  value: number | null | undefined,
+  format: (n: number) => string,
+) => (typeof value === "number" ? format(value) : UNKNOWN);
+
 export interface QuantumWarRoomMetrics {
+  totalAgentsCount?: number;
   totalCostToday?: number;
   totalTokensToday?: number;
   inputTokensToday?: number;
@@ -365,18 +382,22 @@ export function QuantumWarRoom({
             CLUSTER // METRIKEN
           </Text>
           <Text position={[-0.58, 0.16, 0]} fontSize={0.038} color="#e2e8f0" anchorX="left">
-            {metrics?.workingAgentsCount && metrics.workingAgentsCount > 0
-              ? `AGENTEN: ${metrics.workingAgentsCount}/4 AKTIV`
-              : "AGENTEN: 4 BEREIT (IDLE)"}
+            {typeof metrics?.workingAgentsCount === "number"
+              ? `AGENTEN: ${metrics.workingAgentsCount}${
+                  typeof metrics.totalAgentsCount === "number"
+                    ? `/${metrics.totalAgentsCount}`
+                    : ""
+                } AKTIV`
+              : `AGENTEN: ${UNKNOWN}`}
           </Text>
           <Text position={[-0.58, 0.08, 0]} fontSize={0.038} color="#38bdf8" anchorX="left">
-            {`KOSTEN HEUTE: € ${(metrics?.totalCostToday ?? 0).toFixed(2)}`}
+            {`KOSTEN HEUTE: ${showNumber(metrics?.totalCostToday, (n) => `€ ${n.toFixed(2)}`)}`}
           </Text>
           <Text position={[-0.58, -0.01, 0]} fontSize={0.038} color="#4ade80" anchorX="left">
-            {`TOKEN VERBRAUCH: ${(metrics?.totalTokensToday ?? 0).toLocaleString("de-DE")} t`}
+            {`TOKEN VERBRAUCH: ${showNumber(metrics?.totalTokensToday, (n) => `${n.toLocaleString("de-DE")} t`)}`}
           </Text>
           <Text position={[-0.58, -0.10, 0]} fontSize={0.038} color="#fbbf24" anchorX="left">
-            {`GATEWAY LATENZ: ${metrics?.gatewayLatencyMs ?? 24}ms`}
+            {`GATEWAY LATENZ: ${showNumber(metrics?.gatewayLatencyMs, (n) => `${n}ms`)}`}
           </Text>
         </group>
         <mesh position={[0, 0.91, 0.1]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -415,16 +436,22 @@ export function QuantumWarRoom({
             GITHUB // PIPELINE
           </Text>
           <Text position={[-0.58, 0.16, 0]} fontSize={0.038} color="#4ade80" anchorX="left">
-            {metrics?.failingChecks ? "⚠ CHECKS: FEHLER GEFUNDEN" : "✓ CHECKS: ALLE BESTANDEN"}
+            {typeof metrics?.failingChecks === "boolean"
+              ? metrics.failingChecks
+                ? "⚠ CHECKS: FEHLER GEFUNDEN"
+                : "✓ CHECKS: ALLE BESTANDEN"
+              : `CHECKS: ${UNKNOWN}`}
           </Text>
           <Text position={[-0.58, 0.08, 0]} fontSize={0.038} color="#e2e8f0" anchorX="left">
-            {`REPO: ${metrics?.repoName || "Hermes-3D"} [${metrics?.branchName || "main"}]`}
+            {metrics?.repoName
+              ? `REPO: ${metrics.repoName}${metrics.branchName ? ` [${metrics.branchName}]` : ""}`
+              : `REPO: ${UNKNOWN}`}
           </Text>
           <Text position={[-0.58, -0.01, 0]} fontSize={0.038} color="#c084fc" anchorX="left">
-            {`TASKS: ${metrics?.activeTasksCount ?? 0} in Arbeit • ${metrics?.doneTasksCount ?? 0} erledigt`}
+            {`TASKS: ${showNumber(metrics?.activeTasksCount, (n) => `${n} in Arbeit`)} • ${showNumber(metrics?.doneTasksCount, (n) => `${n} erledigt`)}`}
           </Text>
           <Text position={[-0.58, -0.10, 0]} fontSize={0.038} color="#38bdf8" anchorX="left">
-            {`REVIEWS: ${metrics?.reviewTasksCount ?? 0} warten auf Freigabe`}
+            {`REVIEWS: ${showNumber(metrics?.reviewTasksCount, (n) => `${n} warten auf Freigabe`)}`}
           </Text>
         </group>
         <mesh position={[0, 0.91, 0.1]} rotation={[-Math.PI / 2, 0, 0]}>
