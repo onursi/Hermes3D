@@ -49,6 +49,33 @@ let cachedResponse: any = null;
 let lastScanTime = 0;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
+// Generous ceiling so no real note is ever cut short; only guards against a
+// pathological file. The largest note in the vault is well under this.
+const MAX_NOTE_CHARS = 512 * 1024;
+
+/** Drop the YAML frontmatter block so excerpts show prose, not `status: entwurf`. */
+function stripFrontmatter(content: string) {
+  if (!content.startsWith("---")) return content;
+  const end = content.indexOf("\n---", 3);
+  return end === -1 ? content : content.slice(end + 4);
+}
+
+/**
+ * First line of real prose. Skips headings, horizontal rules, images and
+ * embeds, and unwraps Obsidian callouts, whose `> [!note]` markers otherwise
+ * hide the actual sentence behind them.
+ */
+function firstProseLine(body: string) {
+  for (const rawLine of body.split("\n")) {
+    const line = rawLine.replace(/^\s*>\s?/, "").replace(/^\[![a-z]+\]\s*/i, "").trim();
+    if (!line) continue;
+    if (line.startsWith("#") || line.startsWith("![") || line.startsWith("|")) continue;
+    if (/^([-*_])\1{2,}$/.test(line.replace(/\s/g, ""))) continue;
+    return line.length > 160 ? line.slice(0, 160) + "..." : line;
+  }
+  return "";
+}
+
 function scanDir(dir: string, baseDir: string, results: { filePath: string; relPath: string; folder: string }[] = []) {
   if (!fs.existsSync(dir)) return results;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -132,19 +159,19 @@ export async function GET(req: Request) {
 
     files.forEach((file, idx) => {
       try {
-        const fd = fs.openSync(file.filePath, "r");
-        const buf = Buffer.alloc(8192);
-        const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
-        fs.closeSync(fd);
-        const content = buf.toString("utf8", 0, bytesRead);
+        // Read the whole note. A previous 8 KB window silently dropped every
+        // wikilink past that offset, which cost roughly half of all edges, and
+        // cutting mid-byte mangled the emoji in the vault's folder names.
+        const raw = fs.readFileSync(file.filePath, "utf8");
+        const content = raw.length > MAX_NOTE_CHARS ? raw.slice(0, MAX_NOTE_CHARS) : raw;
 
         const node = nodes[idx];
-        const words = content.trim().split(/\s+/).length;
+        const body = stripFrontmatter(content);
+        const words = body.trim().split(/\s+/).length;
         node.wordCount = words;
         node.val = Math.min(5, 1 + Math.log10(Math.max(1, words)) * 0.9);
 
-        const lines = content.split("\n").filter((l) => l.trim() && !l.startsWith("#") && !l.startsWith("---"));
-        node.excerpt = lines[0] ? lines[0].slice(0, 160) + (lines[0].length > 160 ? "..." : "") : "";
+        node.excerpt = firstProseLine(body);
 
         let match: RegExpExecArray | null;
         while ((match = wikilinkRegex.exec(content)) !== null) {
