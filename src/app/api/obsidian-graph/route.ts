@@ -45,7 +45,16 @@ const BRAIN_REGIONS: Record<string, { group: string; color: string; isLeft: bool
   core:               { group: "core",      color: "#ffffff", isLeft: false, zMin: -0.8, zMax: 0.6,  yMin: -2.2, yMax: 0.0,  xMin: -0.5, xMax: 0.5 },
 };
 
-let cachedResponse: any = null;
+type GraphResponse = {
+  vaultPath: string;
+  totalNotes: number;
+  totalLinks: number;
+  nodes: GraphNode[];
+  links: GraphLink[];
+  cachedAt: string;
+};
+
+let cachedResponse: GraphResponse | null = null;
 let lastScanTime = 0;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -208,8 +217,9 @@ export async function GET(req: Request) {
     return NextResponse.json(cachedResponse, {
       headers: { "Cache-Control": "public, max-age=600, stale-while-revalidate=120" },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Obsidian Graph API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

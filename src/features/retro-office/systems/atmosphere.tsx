@@ -28,8 +28,6 @@ import {
   CANVAS_H,
   CANVAS_W,
   SCALE,
-  WORLD_H,
-  WORLD_W,
 } from "@/features/retro-office/core/constants";
 import {
   LOCAL_OFFICE_CANVAS_HEIGHT,
@@ -39,8 +37,26 @@ import { toWorld } from "@/features/retro-office/core/geometry";
 
 export const OFFICE_ENVIRONMENT_HDR = "/office-assets/env/office_env_1k.hdr";
 
-/** Half-extent of the sun shadow frustum — covers the whole district. */
-const SHADOW_EXTENT = Math.max(WORLD_W, WORLD_H) * 0.72;
+/**
+ * Slack added around the active footprint so walls, shelves and anything
+ * standing at the very edge still throw their shadow inward. The tallest wall
+ * is ~2.6 m and the sun sits at roughly 50°, so ~2.2 m of throw plus headroom.
+ */
+const SHADOW_MARGIN = 3;
+
+/**
+ * Half-extent of the sun's shadow frustum, derived from whichever footprint is
+ * actually on screen.
+ *
+ * This used to be `max(WORLD_W, WORLD_H) * 0.72` — 28.5, i.e. a 57 x 57 m
+ * frustum sized for the old district canvas. The local office is 9.0 x 7.2 m,
+ * so 98 % of the shadow map covered empty space and a single texel spanned
+ * 28 mm. At that resolution most casters cannot produce a shadow anyone can
+ * see, which is why the room's shadows read as mush rather than as shape.
+ */
+function shadowExtentFor(width: number, height: number) {
+  return Math.max(width, height) / 2 + SHADOW_MARGIN;
+}
 
 /** Period of the subtle daylight drift, in seconds. */
 const DAYLIGHT_DRIFT_PERIOD = 480;
@@ -78,13 +94,13 @@ function DaylightDrift({
     // Balanced studio lighting: eliminates specular blowout on the marble floor
     sun.intensity = 0.55 + phase * 0.15;
     sun.color.copy(SUN_WARM).lerp(SUN_NEUTRAL, phase);
-    // Sun swings a few degrees across the sky over the drift period.
-    const sway = (phase - 0.5) * 6;
-    sun.position.set(
-      SUN_BASE_POSITION.x + sway,
-      SUN_BASE_POSITION.y,
-      SUN_BASE_POSITION.z - sway * 0.5,
-    );
+    // The sun deliberately does not move any more. It used to sway a few
+    // degrees over the drift period, which nobody could see at this distance
+    // but which invalidated the shadow map on every single frame — the sun is
+    // the only shadow caster left, so a still sun is what makes caching the
+    // map possible at all. Its position is also office-relative now (see the
+    // directionalLight below); rewriting it here would drag it back to the
+    // world origin and pull the room out of its own shadow frustum.
   });
 
   return null;
@@ -932,6 +948,16 @@ export function SceneAtmosphere({
     ? CANVAS_H * SCALE
     : LOCAL_OFFICE_CANVAS_HEIGHT * SCALE;
 
+  // The sun aims at the active footprint instead of the world origin. Without
+  // this the room sits ~20 m off-centre in the shadow frustum, so tightening
+  // the frustum would drop it out of the map entirely.
+  const sunTarget = useMemo(() => new THREE.Object3D(), []);
+  const shadowExtent = shadowExtentFor(groundWidth, groundHeight);
+  // Keep the sun's direction identical by moving it with its target.
+  const sunDistance = SUN_BASE_POSITION.length();
+  const sunNear = Math.max(0.5, sunDistance - shadowExtent - SHADOW_MARGIN);
+  const sunFar = sunDistance + shadowExtent + SHADOW_MARGIN;
+
   return (
     <>
       {/* Black-space void with an infinite twinkling starfield in 360 degrees — no fog culling */}
@@ -951,26 +977,39 @@ export function SceneAtmosphere({
       {/* Cool, soft ambient fill */}
       <hemisphereLight args={["#475569", "#090d16", 0.38]} />
 
-      {/* Clean, glare-free studio key light */}
+      {/* Clean, glare-free studio key light — the only shadow caster. */}
+      <primitive object={sunTarget} position={[groundCenterX, 0, groundCenterZ]} />
       <directionalLight
         ref={sunRef}
-        position={SUN_BASE_POSITION.toArray()}
+        position={[
+          groundCenterX + SUN_BASE_POSITION.x,
+          SUN_BASE_POSITION.y,
+          groundCenterZ + SUN_BASE_POSITION.z,
+        ]}
+        target={sunTarget}
         intensity={1.25}
         color="#ffffff"
         castShadow
         shadow-mapSize={[config.shadowMapSize, config.shadowMapSize]}
         shadow-bias={-0.00012}
         shadow-normalBias={0.02}
-        shadow-radius={2.5}
-        shadow-camera-left={-SHADOW_EXTENT}
-        shadow-camera-right={SHADOW_EXTENT}
-        shadow-camera-top={SHADOW_EXTENT}
-        shadow-camera-bottom={-SHADOW_EXTENT}
-        shadow-camera-near={1}
-        shadow-camera-far={90}
+        shadow-camera-left={-shadowExtent}
+        shadow-camera-right={shadowExtent}
+        shadow-camera-top={shadowExtent}
+        shadow-camera-bottom={-shadowExtent}
+        shadow-camera-near={sunNear}
+        shadow-camera-far={sunFar}
       />
 
-      {/* Softened Satin Overhead Fill on Central Workstation Table — No blinding glare */}
+      {/* Softened Satin Overhead Fill on Central Workstation Table — No blinding glare.
+          Deliberately casts no shadow. It used to, which meant a second full
+          depth pass over every caster in the room on every frame, for a cone
+          hanging 4.4 m above the table with no shadow camera bounds of its
+          own — three fell back to a 90° perspective with a 0.5–500 depth
+          range, so the map it produced was mush anyway. The sun below is the
+          only shadow caster. If a contact shadow under the table is missed,
+          add a FloorContactShadow (see scene/environment.tsx) rather than
+          bringing this pass back. */}
       <spotLight
         position={[localCenterX, 4.4, localCenterZ]}
         target-position={[localCenterX, 0.5, localCenterZ]}
@@ -978,9 +1017,6 @@ export function SceneAtmosphere({
         penumbra={0.65}
         intensity={1.4}
         color="#f0f9ff"
-        castShadow
-        shadow-bias={-0.0001}
-        shadow-mapSize={[1024, 1024]}
       />
 
       {/* Subtle Cyan/Blue Horizon Accent Rim Light */}
@@ -1046,7 +1082,7 @@ export function ScenePostFx({
       {showDof ? (
         <FollowFocusUpdater dofRef={dofRef} focusPointRef={followFocusPointRef} />
       ) : null}
-      <EffectComposer multisampling={0}>
+      <EffectComposer multisampling={config.msaaSamples}>
         {config.ambientOcclusion ? (
           <N8AO
             halfRes

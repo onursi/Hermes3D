@@ -1889,7 +1889,6 @@ export const FloorAndWalls = memo(function FloorAndWalls({
       <mesh
         position={[localOfficeCenterX, -FLOOR_SLAB_THICKNESS / 2, localOfficeCenterZ]}
         receiveShadow
-        castShadow
       >
         <boxGeometry args={[localOfficeWidth, FLOOR_SLAB_THICKNESS, localOfficeHeight]} />
         <meshStandardMaterial
@@ -2000,7 +1999,6 @@ export const FloorAndWalls = memo(function FloorAndWalls({
               localOfficeCenterZ + remoteOfficeOffsetZ,
             ]}
             receiveShadow
-            castShadow
           >
             <boxGeometry args={[localOfficeWidth, FLOOR_SLAB_THICKNESS, localOfficeHeight]} />
             <meshStandardMaterial

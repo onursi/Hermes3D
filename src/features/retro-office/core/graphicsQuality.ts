@@ -42,6 +42,30 @@ export type GraphicsQualityConfig = {
   bloom: boolean;
   /** SMAA anti-aliasing inside the composer. */
   smaa: boolean;
+  /**
+   * MSAA samples on the composer's render target.
+   *
+   * This is the only real geometric anti-aliasing the scene gets. The
+   * `antialias` flag on the canvas is inert while an EffectComposer is
+   * mounted, because the composer renders into its own targets and never
+   * touches the multisampled default framebuffer. With this at 0, every hard
+   * edge in the room — box corners, table rims, LED rails, window frames —
+   * relies on SMAA alone, which reconstructs edges from the finished image
+   * and cannot recover what was never sampled.
+   */
+  msaaSamples: number;
+  /**
+   * Resolution of the buffer three renders for refractive materials, relative
+   * to the viewport.
+   *
+   * Five materials in the room use `transmission` (the smoked glass table top,
+   * its core portal, the war room shell). A single one of them makes the
+   * renderer re-render the whole opaque scene into a separate target and build
+   * its mip chain, every frame. What that buffer actually shows here is the
+   * floor seen through dark glass at 0.88 opacity, so it survives being
+   * rendered smaller far better than the rest of the image does.
+   */
+  transmissionScale: number;
   /** Depth of field while the follow camera is active. */
   followDepthOfField: boolean;
 };
@@ -55,6 +79,8 @@ const QUALITY_CONFIGS: Record<GraphicsQuality, GraphicsQualityConfig> = {
     aoQuality: "performance",
     bloom: false,
     smaa: false,
+    msaaSamples: 0,
+    transmissionScale: 0.35,
     followDepthOfField: false,
   },
   balanced: {
@@ -65,6 +91,8 @@ const QUALITY_CONFIGS: Record<GraphicsQuality, GraphicsQualityConfig> = {
     aoQuality: "performance",
     bloom: true,
     smaa: true,
+    msaaSamples: 4,
+    transmissionScale: 0.5,
     followDepthOfField: false,
   },
   ultra: {
@@ -75,6 +103,8 @@ const QUALITY_CONFIGS: Record<GraphicsQuality, GraphicsQualityConfig> = {
     aoQuality: "high",
     bloom: true,
     smaa: true,
+    msaaSamples: 8,
+    transmissionScale: 0.75,
     followDepthOfField: true,
   },
 };

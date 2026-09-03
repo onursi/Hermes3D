@@ -275,6 +275,7 @@ import {
   type GraphicsQuality,
 } from "@/features/retro-office/core/graphicsQuality";
 import { SceneErrorBoundary } from "@/features/retro-office/systems/SceneErrorBoundary";
+import { PerfProbe } from "@/features/retro-office/systems/perfProbe";
 import {
   FloorRaycaster as SceneFloorRaycaster,
   GameLoop as SceneGameLoop,
@@ -3868,6 +3869,7 @@ export function RetroOffice3D({
       gl.domElement.addEventListener("webglcontextlost", (event) => {
         event.preventDefault();
       });
+      gl.transmissionResolutionScale = graphicsQualityConfig.transmissionScale;
       // Late safety net: if the pre-mount probe missed a software rasterizer
       // (some browsers only reveal it on the real context), drop to low.
       if (
@@ -3877,7 +3879,7 @@ export function RetroOffice3D({
         setGraphicsQualityState("low");
       }
     },
-    [],
+    [graphicsQualityConfig.transmissionScale],
   );
   const followFocusPointRef = useRef(new THREE.Vector3());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -6628,7 +6630,13 @@ export function RetroOffice3D({
             }}
             shadows={{ type: THREE.PCFSoftShadowMap }}
             gl={{
-              antialias: true,
+              // Only meaningful when nothing post-processes the frame. With an
+              // EffectComposer mounted, the scene is rendered into the
+              // composer's own targets and the multisampled default
+              // framebuffer is allocated but never resolved — pure bandwidth.
+              // The composer does the anti-aliasing instead, via
+              // `msaaSamples` in the graphics quality preset.
+              antialias: !graphicsQualityConfig.postProcessing,
               powerPreference: "high-performance",
               toneMapping: THREE.ACESFilmicToneMapping,
               toneMappingExposure: 1.05,
@@ -6641,6 +6649,7 @@ export function RetroOffice3D({
           >
             {/* Ensure camera looks at the active office target after mount. */}
             <CameraRig target={cameraTarget} />
+            <PerfProbe />
             <DirectCameraController orbitRef={orbitRef} />
             <AdaptiveDprController maxDpr={graphicsQualityConfig.maxDpr} />
 
