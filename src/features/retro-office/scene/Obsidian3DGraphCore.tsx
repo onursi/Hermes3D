@@ -3,7 +3,7 @@
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { Html } from "@react-three/drei";
+import { Billboard, Html, Text } from "@react-three/drei";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
 export type GraphNode = {
@@ -122,7 +122,7 @@ export function Obsidian3DGraphCore({
    * notes link once or twice, so the scale has to be logarithmic or the hubs
    * swallow the picture.
    */
-  const { degreeById, maxDegree } = useMemo(() => {
+  const { degreeById, maxDegree, labelCutoff } = useMemo(() => {
     const degree = new Map<string, number>();
     data.links.forEach((link) => {
       degree.set(link.source, (degree.get(link.source) ?? 0) + 1);
@@ -132,7 +132,12 @@ export function Obsidian3DGraphCore({
     degree.forEach((value) => {
       if (value > max) max = value;
     });
-    return { degreeById: degree, maxDegree: max };
+    // The dozen busiest notes keep their name on screen. Labelling everything
+    // would bury the galaxy in text; labelling nothing means the shape tells
+    // you there is a centre without ever telling you which one.
+    const ranked = Array.from(degree.values()).sort((a, b) => b - a);
+    const cutoff = ranked.length > 12 ? ranked[11] : 1;
+    return { degreeById: degree, maxDegree: max, labelCutoff: Math.max(2, cutoff) };
   }, [data.links]);
 
   const filteredNodes = useMemo(() => {
@@ -503,7 +508,20 @@ export function Obsidian3DGraphCore({
               ? baseRadius * 1.35
               : baseRadius;
         const opacity = isDimmed ? 0.18 : arealDimmed ? 0.15 : 1.0;
-        const emissive = isSelected ? 4.5 : isHovered ? 3.0 : (isInActiveAreal && isFiltered) ? 2.5 : arealDimmed ? 0.4 : 1.5;
+        // Brightness follows the same signal as size, so the hubs read as suns
+        // and the rest as dust. Every note used to glow at a flat 1.5, which
+        // handed the bloom pass nothing to pick out.
+        const degreeWeight = Math.log1p(degree) / Math.log1p(maxDegree);
+        const restingEmissive = 0.85 + degreeWeight * 2.75;
+        const emissive = isSelected
+          ? 4.5
+          : isHovered
+            ? 3.0
+            : isInActiveAreal && isFiltered
+              ? 2.5
+              : arealDimmed
+                ? 0.4
+                : restingEmissive;
 
         return (
           <group key={node.id} position={[node.x, node.y, node.z]}>
@@ -560,6 +578,22 @@ export function Obsidian3DGraphCore({
                   <meshBasicMaterial color="#ffffff" transparent opacity={0.65} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
                 </mesh>
               </>
+            )}
+
+            {degree >= labelCutoff && !isHovered && !isSelected && !isDimmed && !arealDimmed && (
+              <Billboard position={[0, radius + 0.07, 0]}>
+                <Text
+                  fontSize={0.052}
+                  color="#dbeafe"
+                  anchorX="center"
+                  anchorY="bottom"
+                  outlineWidth={0.006}
+                  outlineColor="#020617"
+                  maxWidth={1.6}
+                >
+                  {node.name}
+                </Text>
+              </Billboard>
             )}
 
             {(isHovered || isSelected) && (
