@@ -4,6 +4,17 @@
 class CyberAudioController {
   private ctx: AudioContext | null = null;
 
+  /**
+   * Every clip currently being spoken.
+   *
+   * Agent speech plays through `new Audio(...)`, which lives entirely outside
+   * the document — so it cannot be found with a DOM query, paused by the page,
+   * or stopped by any control that did not keep a reference. Without this set,
+   * muting only stopped the *next* line and whatever was already talking kept
+   * talking, including after the tab that started it was gone.
+   */
+  private activeSpeech = new Set<HTMLAudioElement>();
+
   private init() {
     if (!this.ctx && typeof window !== "undefined") {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -121,6 +132,31 @@ class CyberAudioController {
 
   setVoiceEnabled(enabled: boolean) {
     this.voiceEnabled = enabled;
+    // Turning voices off has to silence what is already speaking, not just
+    // decline the next line. Anything else reads as a broken mute button.
+    if (!enabled) this.stopSpeaking();
+  }
+
+  /** Cuts off every agent voice immediately, both server clips and the browser engine. */
+  stopSpeaking() {
+    this.activeSpeech.forEach((audio) => {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = "";
+      } catch {
+        // A clip that already ended needs no stopping.
+      }
+    });
+    this.activeSpeech.clear();
+    this.speechBusy = false;
+    try {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    } catch {
+      // Some browsers throw when cancelling an empty queue.
+    }
   }
 
   isVoiceEnabled(): boolean {
@@ -154,15 +190,44 @@ class CyberAudioController {
     return Array.from(this.mutedAgents);
   }
 
+  /** True while any agent line is still being spoken. */
+  private isSpeaking() {
+    if (this.speechBusy || this.activeSpeech.size > 0) return true;
+    try {
+      return (
+        typeof window !== "undefined" &&
+        "speechSynthesis" in window &&
+        (window.speechSynthesis.speaking || window.speechSynthesis.pending)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Reserved synchronously, before the voice request goes out.
+   *
+   * Two lines arriving in the same tick would both see an idle synthesiser and
+   * both start talking, which is exactly the overlap this is meant to prevent.
+   */
+  private speechBusy = false;
+
   /** Speak text out loud using Studio Cloud AI or High-Definition Natural Neural voices */
   async speakAgent(agentId: string, text: string) {
     if (!this.voiceEnabled || typeof window === "undefined") return;
     if (this.isAgentMuted(agentId)) return;
+    // One voice at a time. Overlapping agents are unintelligible, and queueing
+    // them only delivers a backlog long after the moment it described.
+    if (this.isSpeaking()) return;
+    this.speechBusy = true;
 
     try {
       this.playBlip();
       const cleanText = text.replace(/[*#_`[\]()]/g, "").trim();
-      if (!cleanText) return;
+      if (!cleanText) {
+        this.speechBusy = false;
+        return;
+      }
 
       // 1. Try server-side Studio AI voice generation (OpenAI / ElevenLabs)
       try {
@@ -175,8 +240,20 @@ class CyberAudioController {
           const blob = await res.blob();
           const audioUrl = URL.createObjectURL(blob);
           const audio = new Audio(audioUrl);
-          audio.playbackRate = 1.0; // Audio already synthesized at 1.25x speed
-          audio.onended = () => URL.revokeObjectURL(audioUrl);
+          audio.playbackRate = 1.0; // The clip already carries its intended pace.
+          const release = () => {
+            URL.revokeObjectURL(audioUrl);
+            this.activeSpeech.delete(audio);
+            this.speechBusy = false;
+          };
+          audio.onended = release;
+          audio.onerror = release;
+          this.activeSpeech.add(audio);
+          // A mute issued while the clip was still downloading must still win.
+          if (!this.voiceEnabled) {
+            release();
+            return;
+          }
           await audio.play();
           return;
         }
@@ -190,8 +267,9 @@ class CyberAudioController {
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = "de-DE";
-      // 1.25x natural speech rate
-      utterance.rate = 1.25;
+      // Normal pace. It ran at 1.25, which is the single biggest reason the
+      // voices sounded synthetic rather than spoken.
+      utterance.rate = 1.0;
       // Natural pitch = 1.0 (prevents robotic metallic distortion)
       utterance.pitch = 1.0;
 
@@ -255,7 +333,6 @@ class CyberAudioController {
       // Hermes: Maskulin, tief, souverän
       else if (lower.includes("hermes")) {
         utterance.pitch = 0.94; // slightly deeper
-        utterance.rate = 1.42;
         utterance.voice = maleVoices[0] || candidateList.find((v) => !femaleVoices.includes(v)) || candidateList[0];
       }
       // Claude: Männlich, artikuliert, klar
@@ -263,8 +340,16 @@ class CyberAudioController {
         utterance.voice = maleVoices[1] || maleVoices[0] || candidateList.find((v) => !femaleVoices.includes(v)) || candidateList[0];
       }
 
+      utterance.onend = () => {
+        this.speechBusy = false;
+      };
+      utterance.onerror = () => {
+        this.speechBusy = false;
+      };
       window.speechSynthesis.speak(utterance);
-    } catch {}
+    } catch {
+      this.speechBusy = false;
+    }
   }
 
   /** Dramatic sci-fi gravitational suction / elevator warp sound */
@@ -634,3 +719,10 @@ class CyberAudioController {
 }
 
 export const cyberAudio = new CyberAudioController();
+
+// Speech outlives the page that started it: `new Audio(...)` clips and queued
+// utterances keep playing while the tab tears down, so an agent can still be
+// heard talking after its window is gone.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => cyberAudio.stopSpeaking());
+}

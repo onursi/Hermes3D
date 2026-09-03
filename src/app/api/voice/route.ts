@@ -45,10 +45,16 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "tts-1",
+          // `tts-1` is the latency-optimised model; `tts-1-hd` trades a little
+          // speed for noticeably cleaner audio, which matters more here since
+          // every clip is cached after the first request.
+          model: "tts-1-hd",
           input: cleanText,
           voice,
-          speed: 1.45,
+          // Was 1.45. Anything much above 1.0 turns a natural voice into the
+          // chipmunk-adjacent rush that reads as "robot", which is the exact
+          // opposite of what these voices are for.
+          speed: 1.0,
         }),
       });
 
