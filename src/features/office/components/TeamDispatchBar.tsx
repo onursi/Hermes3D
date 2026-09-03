@@ -140,31 +140,15 @@ export function TeamDispatchBar({
     const targets = DEFAULT_AGENTS.filter((a) => selectedAgentIds.includes(a.id));
     const targetNames = targets.map((t) => t.name);
 
-    // Generate council response preview
-    const responses = targets.map((agent) => {
-      let sampleText = "";
-      if (agent.id === "hermes") {
-        sampleText = `Ich koordiniere den Auftrag: "${promptText}". Die Aufgabenverteilung im Headquarter ist initiiert.`;
-      } else if (agent.id === "claude") {
-        sampleText = `Architektur- und Systemanalyse für "${promptText}" läuft. Datenkonsistenz und Struktur werden gesichert.`;
-      } else if (agent.id === "chatgpt") {
-        sampleText = `Operative Implementierung gestartet. Die Teilaufgaben wurden ins Kanban-Board übernommen.`;
-      } else if (agent.id === "gemini") {
-        sampleText = `Recherche und Validierung der Quellen bezüglich "${promptText}" wird mit Live-Daten abgeglichen.`;
-      } else {
-        sampleText = `Tiefenoptimierung und Logikprüfung abgeschlossen. Performance-Vorgaben sind erfüllt.`;
-      }
-      return {
-        agentName: agent.name,
-        color: agent.color,
-        text: sampleText,
-      };
-    });
-
+    // The bar used to compose a reply for each agent right here — a fixed
+    // sentence per id, written before anything was sent and shown as though
+    // the council had answered. What it confirms now is only what it actually
+    // did: which prompt went to which agents. Their real replies arrive
+    // through the agent store, on the same path the single-agent chat uses.
     setActiveDispatchSummary({
       prompt: promptText,
       targets: targetNames,
-      responses,
+      responses: [],
     });
     setResponseModalOpen(true);
 
@@ -261,34 +245,10 @@ export function TeamDispatchBar({
 
   const openChatHistoryModal = () => {
     cyberAudio.playBlip();
-    if (!activeDispatchSummary) {
-      setActiveDispatchSummary({
-        prompt: "Aktuelle Lage & Task-Status im Headquarter",
-        targets: ["Hermes", "Claude", "ChatGPT", "Gemini"],
-        responses: [
-          {
-            agentName: "Hermes",
-            color: "#f59e0b",
-            text: "Council-Status: Alle 4 Modelle im Headquarter sind aktiv und einsatzbereit. Doppel-Deck Synchronisation läuft stabil.",
-          },
-          {
-            agentName: "Claude",
-            color: "#f97316",
-            text: "Architekturprüfung: Zero-Latency State Sync und Echtzeit-Sockets aktiv. Codebase im optimalen Zustand.",
-          },
-          {
-            agentName: "ChatGPT",
-            color: "#38bdf8",
-            text: "Task-Board synchronisiert. Aufgaben im War Room und Entwicklungs-Pods sind zugeteilt.",
-          },
-          {
-            agentName: "Gemini",
-            color: "#eab308",
-            text: "Multimodale Sensoren online. Orbit-Verbindung und Gravitations-Lift einsatzbereit.",
-          },
-        ],
-      });
-    }
+    // Opening the history with nothing dispatched used to seed a whole council
+    // conversation — four agents reporting stable syncs, an optimal codebase
+    // and sensors online, none of which had been checked. An empty history now
+    // shows as empty.
     setResponseModalOpen(true);
   };
 

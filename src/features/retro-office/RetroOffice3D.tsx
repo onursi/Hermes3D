@@ -3004,6 +3004,7 @@ export function RetroOffice3D({
   monitorAgentId = null,
   monitorByAgentId = EMPTY_MONITOR_MAP,
   githubSkill = null,
+  onCouncilDispatch,
   taskManagerEnabled = false,
   soundhermesEnabled = false,
   officeTitle = "Hermes Cyber HQ",
@@ -3120,6 +3121,8 @@ export function RetroOffice3D({
   monitorAgentId?: string | null;
   monitorByAgentId?: OfficeDeskMonitorMap;
   githubSkill?: SkillStatusEntry | null;
+  /** Broadcasts one prompt from the council bar to the selected agents. */
+  onCouncilDispatch?: (prompt: string, targetAgentIds: string[]) => void;
   taskManagerEnabled?: boolean;
   soundhermesEnabled?: boolean;
   officeTitle?: string;
@@ -8520,7 +8523,11 @@ export function RetroOffice3D({
 
       <CyberJukebox />
 
-      <TeamDispatchBar />
+      <TeamDispatchBar
+        onDispatch={(prompt, targetAgentIds) =>
+          onCouncilDispatch?.(prompt, targetAgentIds)
+        }
+      />
 
       {githubImmersive ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">

@@ -4006,6 +4006,44 @@ export function OfficeScreen({
     ],
   );
 
+  /**
+   * The council bar at the bottom of the room, broadcasting one prompt to the
+   * selected agents.
+   *
+   * It previously did nothing at all: `<TeamDispatchBar />` was rendered
+   * without props, so its `onDispatch` was undefined and pressing Senden was a
+   * no-op — while a modal above it played a fully scripted conversation
+   * between Hermes, Claude, ChatGPT and Gemini on `setTimeout` chains.
+   *
+   * Every target now goes through the same path the single-agent chat uses, so
+   * replies land in the agent store and the room animates off real traffic.
+   * An id the store does not know is skipped and reported, rather than
+   * answered by something that isn't there.
+   */
+  const handleCouncilDispatch = useCallback(
+    (prompt: string, targetAgentIds: string[]) => {
+      const trimmed = prompt.trim();
+      if (!trimmed) return;
+      const roster = stateRef.current.agents;
+      const targets = targetAgentIds.length > 0 ? targetAgentIds : [MAIN_AGENT_ID];
+      const unknown: string[] = [];
+      targets.forEach((agentId) => {
+        const agent = roster.find((candidate) => candidate.agentId === agentId);
+        if (!agent) {
+          unknown.push(agentId);
+          return;
+        }
+        void handleChatSend(agent.agentId, agent.sessionKey, trimmed);
+      });
+      if (unknown.length > 0) {
+        console.warn(
+          `Council dispatch skipped unknown agents: ${unknown.join(", ")}`,
+        );
+      }
+    },
+    [handleChatSend],
+  );
+
   useEffect(() => {
     if (!pendingStandupRequest) return;
     if (lastStandupTriggerKeyRef.current === pendingStandupRequest.key) return;
@@ -4772,6 +4810,7 @@ export function OfficeScreen({
         ) : (
         <RetroOffice3D
           agents={allVisibleAgents}
+          onCouncilDispatch={handleCouncilDispatch}
           storageNamespace={activeFloor.id}
           layoutPreset="office"
           officeCenterSignal={officeCameraCenterSignal}
