@@ -575,6 +575,56 @@ class CyberAudioController {
     } catch {}
   }
 
+  /** Real bio-electric synaptic arc / lightning discharge sound (FM electric crackle) */
+  playElectricalZap() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {});
+      }
+      const t = this.ctx.currentTime;
+
+      // 1. FM Modulated Electric Arc Carrier & Modulator
+      const carrier = this.ctx.createOscillator();
+      const mod = this.ctx.createOscillator();
+      const modGain = this.ctx.createGain();
+      const arcGain = this.ctx.createGain();
+
+      // Sharp bio-electric chirp (2800 Hz down to 350 Hz)
+      carrier.type = "sawtooth";
+      carrier.frequency.setValueAtTime(2800, t);
+      carrier.frequency.exponentialRampToValueAtTime(320, t + 0.11);
+
+      // High-speed electrical buzz modulation (180 Hz)
+      mod.type = "square";
+      mod.frequency.setValueAtTime(180, t);
+      modGain.gain.setValueAtTime(950, t);
+      modGain.gain.exponentialRampToValueAtTime(50, t + 0.1);
+
+      mod.connect(carrier.frequency);
+
+      // 2. High-pass filter for crisp electrical snap
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(2200, t);
+      filter.Q.setValueAtTime(2.0, t);
+
+      arcGain.gain.setValueAtTime(0.0001, t);
+      arcGain.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
+      arcGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+
+      carrier.connect(filter);
+      filter.connect(arcGain);
+      arcGain.connect(this.ctx.destination);
+
+      carrier.start(t);
+      mod.start(t);
+      carrier.stop(t + 0.14);
+      mod.stop(t + 0.14);
+    } catch {}
+  }
+
   /** Ensure AudioContext is resumed upon any user interaction */
   resume() {
     if (this.ctx && this.ctx.state === "suspended") {

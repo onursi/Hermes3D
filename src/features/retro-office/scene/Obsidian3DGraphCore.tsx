@@ -461,7 +461,11 @@ export function Obsidian3DGraphCore({
         return (
           <group key={node.id} position={[node.x, node.y, node.z]}>
             <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectNode?.(node); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                cyberAudio.playElectricalZap();
+                onSelectNode?.(node);
+              }}
               onPointerOver={(e) => {
                 e.stopPropagation();
                 setHoveredNode(node);
@@ -495,10 +499,17 @@ export function Obsidian3DGraphCore({
             )}
 
             {isSelected && (
-              <mesh rotation={[Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[radius * 2.5, radius * 3.2, 32]} />
-                <meshBasicMaterial color={displayColor} transparent opacity={0.9} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
-              </mesh>
+              <>
+                <mesh rotation={[Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[radius * 2.5, radius * 3.2, 32]} />
+                  <meshBasicMaterial color={displayColor} transparent opacity={0.9} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                </mesh>
+                {/* Secondary expanding bio-electric shockwave ring */}
+                <mesh rotation={[Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[radius * 4.2, radius * 4.9, 32]} />
+                  <meshBasicMaterial color="#ffffff" transparent opacity={0.65} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                </mesh>
+              </>
             )}
 
             {(isHovered || isSelected) && (

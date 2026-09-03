@@ -62,6 +62,12 @@ export function ObsidianGraphModal({
       if (e.key === "Escape" && isOpen) {
         onClose();
       }
+      if (e.code === "Space" && isOpen && document.activeElement !== searchInputRef.current) {
+        e.preventDefault();
+        cyberAudio.resume();
+        cyberAudio.playElectricalZap();
+        setFlyToLobe((prev) => (prev === "projects" ? "knowledge" : "projects"));
+      }
     };
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
@@ -80,7 +86,7 @@ export function ObsidianGraphModal({
   }, [searchQuery]);
 
   const handleSelectAndFly = (node: GraphNode) => {
-    cyberAudio.playSynapseBlip();
+    cyberAudio.playElectricalZap();
     setSelectedNode(node);
     setFlyToNode(node);
     setSearchQuery("");
@@ -403,9 +409,14 @@ export function ObsidianGraphModal({
               ✕
             </button>
           ) : (
-            <span className="text-[10px] font-mono text-slate-500 rounded bg-slate-900 border border-slate-800 px-1.5 py-0.5">
-              Strg+K
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-mono text-cyan-400/80 rounded bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5" title="Leertaste: Gehirn um 180° zwischen Hemisphären drehen">
+                Space: Flip
+              </span>
+              <span className="text-[10px] font-mono text-slate-500 rounded bg-slate-900 border border-slate-800 px-1.5 py-0.5">
+                Strg+K
+              </span>
+            </div>
           )}
         </div>
 
