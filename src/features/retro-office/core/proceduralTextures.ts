@@ -38,7 +38,7 @@ const toTexture = (
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   if (options.srgb) texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
   return texture;
@@ -438,6 +438,87 @@ export const getGrassTextures = (): PbrTextureSet =>
       map: toTexture(albedo.canvas, { srgb: true }),
       roughnessMap: toTexture(rough.canvas),
       normalMap: heightToNormal(heightMap, 0.9),
+    };
+  });
+
+/** Sci-Fi Space Shuttle / Orbital Station Bridge deck plating with illuminated seams and composite panels. */
+export const getSpaceShuttleDeckTextures = (): PbrTextureSet =>
+  cached("space-shuttle-deck", () => {
+    const albedo = makeCanvas(1024);
+    const rough = makeCanvas(1024);
+    if (!albedo || !rough) return EMPTY_SET;
+    const size = albedo.size;
+    const ctx = albedo.ctx;
+    const rCtx = rough.ctx;
+
+    // Deep obsidian space titanium alloy base
+    ctx.fillStyle = "#050811";
+    ctx.fillRect(0, 0, size, size);
+
+    // Highly reflective glossy floor (low roughness)
+    rCtx.fillStyle = "#151a24";
+    rCtx.fillRect(0, 0, size, size);
+
+    // Modular deck plates with beveled borders
+    const gridSize = 128;
+    for (let x = 0; x < size; x += gridSize) {
+      for (let y = 0; y < size; y += gridSize) {
+        // Subtle brushed titanium gradient
+        const grad = ctx.createRadialGradient(
+          x + gridSize / 2,
+          y + gridSize / 2,
+          5,
+          x + gridSize / 2,
+          y + gridSize / 2,
+          gridSize * 0.7,
+        );
+        grad.addColorStop(0, "#0c1524");
+        grad.addColorStop(0.7, "#070c16");
+        grad.addColorStop(1, "#04070e");
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + 3, y + 3, gridSize - 6, gridSize - 6);
+
+        // Plate border bevel
+        ctx.strokeStyle = "#162438";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + 4, y + 4, gridSize - 8, gridSize - 8);
+
+        // Tech rivets at the 4 corners
+        ctx.fillStyle = "#00e5ff";
+        const rOff = 8;
+        const rSize = 2;
+        ctx.fillRect(x + rOff, y + rOff, rSize, rSize);
+        ctx.fillRect(x + gridSize - rOff - rSize, y + rOff, rSize, rSize);
+        ctx.fillRect(x + rOff, y + gridSize - rOff - rSize, rSize, rSize);
+        ctx.fillRect(x + gridSize - rOff - rSize, y + gridSize - rOff - rSize, rSize, rSize);
+
+        // Center micro hex / cross accent
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.18)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + gridSize / 2 - 10, y + gridSize / 2 - 10, 20, 20);
+      }
+    }
+
+    // Glowing cyan / blue illuminated conduit channels between plates
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.65)";
+    ctx.lineWidth = 2.5;
+    for (let x = 0; x <= size; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, size);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= size; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y);
+      ctx.stroke();
+    }
+
+    return {
+      map: toTexture(albedo.canvas, { srgb: true }),
+      roughnessMap: toTexture(rough.canvas),
+      normalMap: null,
     };
   });
 

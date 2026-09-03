@@ -230,6 +230,38 @@ const agentRegistry = new Map([
     systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
     settings: { wipe: false, continuity: true, model: HERMES_MODEL },
   }],
+  ["claude", {
+    id: "claude",
+    name: "Claude",
+    workspace: `${HOME}/.hermes/workspace-claude`,
+    role: "Architektur & Review",
+    systemPrompt: "You are Claude, specialist for software architecture, refactoring and security.",
+    settings: { wipe: false, continuity: true, model: "claude" },
+  }],
+  ["chatgpt", {
+    id: "chatgpt",
+    name: "ChatGPT",
+    workspace: `${HOME}/.hermes/workspace-chatgpt`,
+    role: "UX & Core Logic",
+    systemPrompt: "You are ChatGPT, specialist for product design, interface usability and core algorithms.",
+    settings: { wipe: false, continuity: true, model: "chatgpt" },
+  }],
+  ["gemini", {
+    id: "gemini",
+    name: "Gemini",
+    workspace: `${HOME}/.hermes/workspace-gemini`,
+    role: "Multi-Modal & Skalierung",
+    systemPrompt: "You are Gemini, specialist for multi-modal data, reasoning and high-throughput scaling.",
+    settings: { wipe: false, continuity: true, model: "gemini" },
+  }],
+  ["deepseek", {
+    id: "deepseek",
+    name: "DeepSeek",
+    workspace: `${HOME}/.hermes/workspace-deepseek`,
+    role: "Deep Reasoning & Logik",
+    systemPrompt: "You are DeepSeek, specialist for mathematical verification, edge cases and logic chains.",
+    settings: { wipe: false, continuity: true, model: "deepseek" },
+  }],
 ]);
 
 // Set of all active sendEvent functions (one per connected WS client)

@@ -127,40 +127,161 @@ export function RoundTableModel({
       }}
     >
       <group position={[radius, 0, radius]}>
+        {/* Smoked Obsidian Glass Outer Table Top */}
         <mesh position={[0, height, 0]} receiveShadow castShadow>
           <cylinderGeometry args={[radius, radius, topThickness, 64]} />
-          <meshStandardMaterial
-            color="#b07a45"
-            map={wood.map}
-            roughnessMap={wood.roughnessMap}
-            normalMap={wood.normalMap}
-            roughness={0.55}
-            metalness={0.05}
+          <meshPhysicalMaterial
+            color="#070d16"
+            roughness={0.06}
+            metalness={0.7}
+            clearcoat={1}
+            clearcoatRoughness={0.04}
+            transmission={0.55}
+            transparent
+            opacity={0.88}
             emissive={highlightColor}
             emissiveIntensity={highlightIntensity}
           />
         </mesh>
-        <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[0.06, 0.06, height, 16]} />
-          <meshStandardMaterial
-            color="#7d838c"
-            map={metal.map}
-            roughnessMap={metal.roughnessMap}
-            metalness={0.85}
-            roughness={0.35}
+        {/* Transparent Cyber-Glass Core Portal (Blick in die Gravitationsröhre) */}
+        <mesh position={[0, height + 0.001, 0]}>
+          <cylinderGeometry args={[radius * 0.42, radius * 0.42, topThickness + 0.004, 48]} />
+          <meshPhysicalMaterial
+            color="#00f0ff"
+            roughness={0.02}
+            metalness={0.1}
+            transmission={0.92}
+            ior={1.5}
+            transparent
+            opacity={0.22}
           />
         </mesh>
-        <mesh position={[0, 0.02, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[radius * 0.4, radius * 0.45, 0.04, 32]} />
+        {/* Brushed Titanium Rim */}
+        <mesh position={[0, height, 0]}>
+          <torusGeometry args={[radius, 0.012, 16, 64]} />
           <meshStandardMaterial
-            color="#6c727a"
-            map={metal.map}
-            roughnessMap={metal.roughnessMap}
-            metalness={0.85}
-            roughness={0.4}
+            color="#94a3b8"
+            metalness={0.92}
+            roughness={0.18}
           />
+        </mesh>
+        {/* Glowing Cyber Accent Ring under rim */}
+        <mesh position={[0, height - 0.02, 0]}>
+          <torusGeometry args={[radius * 0.94, 0.005, 16, 64]} />
+          <meshBasicMaterial color="#00f0ff" />
+        </mesh>
+        {/* Central Quantum Gravity Tube Glass Collar & Portal */}
+        <mesh position={[0, height / 2, 0]}>
+          <cylinderGeometry args={[radius * 0.38, radius * 0.38, height, 32, 1, true]} />
+          <meshStandardMaterial
+            color="#00f0ff"
+            transparent
+            opacity={0.25}
+            metalness={0.9}
+            roughness={0.1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {/* Core Glowing Rings */}
+        <mesh position={[0, height + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[radius * 0.36, radius * 0.38, 32]} />
+          <meshBasicMaterial color="#00f0ff" transparent opacity={0.85} />
+        </mesh>
+        <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[radius * 0.38, radius * 0.44, 32]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.7} />
         </mesh>
       </group>
+    </group>
+  );
+}
+
+/**
+ * Long rectangular conference table for the Meeting Room — dark walnut top
+ * (same procedural wood map as RoundTableModel, tinted darker to read as a
+ * distinct, calmer material) on four brushed-metal legs, one at each
+ * corner. item.x/y is the top-left corner of the footprint, matching every
+ * other rectangular furniture item (see InstancedWallSegmentsModel above).
+ */
+export function ConferenceTableModel({
+  item,
+  isSelected,
+  isHovered,
+  editMode,
+  onPointerDown,
+  onPointerOver,
+  onPointerOut,
+  onClick,
+}: InteractiveFurnitureModelProps) {
+  const width = (item.w ?? 70) * SCALE;
+  const depth = (item.h ?? 260) * SCALE;
+  const [cx, , cz] = toWorld(item.x + (item.w ?? 70) / 2, item.y + (item.h ?? 260) / 2);
+  const height = 0.52;
+  const topThickness = 0.045;
+  const legInset = 0.08;
+  const legRadius = 0.028;
+  const wood = useMemo(() => withRepeat(getWoodFloorTextures(), 1.2, 2.4), []);
+  const metal = useMemo(() => getBrushedMetalTextures(), []);
+  const highlightColor = isSelected ? "#fbbf24" : isHovered && editMode ? "#4a90d9" : "#000000";
+  const highlightIntensity = isSelected ? 0.35 : isHovered && editMode ? 0.22 : 0;
+  const legOffsets: Array<[number, number]> = [
+    [-width / 2 + legInset, -depth / 2 + legInset],
+    [width / 2 - legInset, -depth / 2 + legInset],
+    [-width / 2 + legInset, depth / 2 - legInset],
+    [width / 2 - legInset, depth / 2 - legInset],
+  ];
+
+  return (
+    <group
+      position={[cx, item.elevation ?? 0, cz]}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onPointerDown(item._uid);
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        onPointerOver(item._uid);
+      }}
+      onPointerOut={(event) => {
+        event.stopPropagation();
+        onPointerOut();
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.(item._uid);
+      }}
+    >
+      {/* Smoked Obsidian Glass Tabletop with Bevelled Edge */}
+      <mesh position={[0, height, 0]} receiveShadow castShadow>
+        <boxGeometry args={[width, topThickness, depth]} />
+        <meshPhysicalMaterial
+          color="#0b1320"
+          roughness={0.34}
+          metalness={0.55}
+          clearcoat={0.3}
+          clearcoatRoughness={0.45}
+          transmission={0.35}
+          transparent
+          opacity={0.94}
+          emissive={highlightColor}
+          emissiveIntensity={highlightIntensity}
+        />
+      </mesh>
+      {/* Sleek Cyan Edge Accent Glow Stripe */}
+      <mesh position={[0, height, 0]}>
+        <boxGeometry args={[width + 0.008, 0.004, depth + 0.008]} />
+        <meshBasicMaterial color="#00f0ff" transparent opacity={0.65} />
+      </mesh>
+      {legOffsets.map(([lx, lz], index) => (
+        <mesh key={index} position={[lx, height / 2, lz]} castShadow receiveShadow>
+          <cylinderGeometry args={[legRadius, legRadius, height, 16]} />
+          <meshStandardMaterial
+            color="#94a3b8"
+            metalness={0.95}
+            roughness={0.16}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }

@@ -44,8 +44,8 @@ const STATUS_META: Record<
   }
 > = {
   inbox: {
-    label: "Inbox",
-    hint: "Captured requests",
+    label: "Eingang",
+    hint: "Erfasste Aufgaben & Requests",
     icon: Inbox,
     headerClass: "text-sky-200/90",
     countClass: "bg-sky-400/15 text-sky-100",
@@ -53,8 +53,8 @@ const STATUS_META: Record<
     cardIdleClass: "hover:border-sky-400/25 hover:bg-sky-500/[0.05]",
   },
   scheduled: {
-    label: "Scheduled",
-    hint: "Cron and playbooks",
+    label: "Geplant",
+    hint: "Cron & Zeitpläne",
     icon: AlarmClock,
     headerClass: "text-violet-200/90",
     countClass: "bg-violet-400/15 text-violet-100",
@@ -62,17 +62,17 @@ const STATUS_META: Record<
     cardIdleClass: "hover:border-violet-400/25 hover:bg-violet-500/[0.05]",
   },
   working: {
-    label: "Working",
-    hint: "Agent executing",
+    label: "In Arbeit",
+    hint: "Agent führt aus",
     icon: Loader2,
-    headerClass: "text-amber-200/90",
-    countClass: "bg-amber-400/15 text-amber-100",
-    cardSelectedClass: "border-amber-400/40 bg-amber-500/[0.10]",
-    cardIdleClass: "hover:border-amber-400/25 hover:bg-amber-500/[0.05]",
+    headerClass: "text-cyan-200/90",
+    countClass: "bg-cyan-400/15 text-cyan-100",
+    cardSelectedClass: "border-cyan-400/40 bg-cyan-500/[0.10]",
+    cardIdleClass: "hover:border-cyan-400/25 hover:bg-cyan-500/[0.05]",
   },
   needs_attention: {
-    label: "Needs Attention",
-    hint: "Approvals and errors",
+    label: "Prüfung / Blocker",
+    hint: "Freigaben & Fehler",
     icon: ShieldAlert,
     headerClass: "text-rose-200/90",
     countClass: "bg-rose-400/15 text-rose-100",
@@ -80,8 +80,8 @@ const STATUS_META: Record<
     cardIdleClass: "hover:border-rose-400/25 hover:bg-rose-500/[0.05]",
   },
   done: {
-    label: "Done",
-    hint: "Shipped and learned",
+    label: "Erledigt",
+    hint: "Erfolgreich abgeschlossen",
     icon: Sparkles,
     headerClass: "text-emerald-200/90",
     countClass: "bg-emerald-400/15 text-emerald-100",
@@ -226,12 +226,12 @@ export function TaskBoardView({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-white/40">
               <span>{subtitle}</span>
-              <span className="text-amber-200/70">{workingCount} working</span>
+              <span className="text-cyan-200/70">{workingCount} in Arbeit</span>
               {attentionCount > 0 ? (
-                <span className="text-rose-300/80">{attentionCount} need attention</span>
+                <span className="text-rose-300/80">{attentionCount} Blocker / Prüfung</span>
               ) : null}
               {learnedCount > 0 ? (
-                <span className="text-emerald-300/70">{learnedCount} skills learned</span>
+                <span className="text-emerald-300/70">{learnedCount} gelernte Skills</span>
               ) : null}
             </div>
           </div>
@@ -239,17 +239,17 @@ export function TaskBoardView({
             <button
               type="button"
               onClick={onRefreshCronJobs}
-              className="rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-white/70 transition-colors hover:border-white/20 hover:text-white"
+              className="rounded border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-white/70 transition-colors hover:border-white/20 hover:text-white"
             >
-              {cronLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "Refresh"}
+              {cronLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "Aktualisieren"}
             </button>
             <button
               type="button"
               onClick={onCreateCard}
-              className="inline-flex items-center gap-1 rounded border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-100 transition-colors hover:border-emerald-400/50 hover:text-white"
+              className="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-500/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-cyan-200 shadow-md shadow-cyan-950/40 transition-colors hover:border-cyan-400/60 hover:text-white"
             >
               <Plus className="h-3.5 w-3.5" />
-              New Task
+              + Neue Aufgabe
             </button>
           </div>
         </div>
@@ -340,7 +340,7 @@ export function TaskBoardView({
                   <div className="flex-1 space-y-2 overflow-y-auto p-3">
                     {cards.length === 0 ? (
                       <div className="rounded border border-dashed border-white/10 px-3 py-4 text-center font-mono text-[10px] uppercase tracking-[0.16em] text-white/25">
-                        Drop a card here.
+                        Karte hier ablegen
                       </div>
                     ) : (
                       cards.map((card) => {
@@ -464,7 +464,10 @@ export function TaskBoardView({
                 Close
               </button>
             </div>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+            <div
+              onKeyDown={(e) => e.stopPropagation()}
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4"
+            >
               <label className="flex flex-col gap-1">
                 <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/35">
                   Title

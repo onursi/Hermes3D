@@ -212,7 +212,7 @@ export const useOfficeStandupController = (params: {
           err instanceof Error ? err.message : "Failed to refresh standup meeting."
         );
       });
-    }, isMeetingActive(meeting) ? 8000 : 60000);
+    }, isMeetingActive(meeting) ? 3000 : 10000);
     return () => {
       window.clearInterval(intervalId);
     };

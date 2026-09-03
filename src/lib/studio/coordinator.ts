@@ -465,12 +465,13 @@ export class StudioSettingsCoordinator {
     if (this.timer) {
       clearTimeout(this.timer);
     }
+    const effectiveDebounce = Math.max(debounceMs, 800);
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.flushPending().catch((err) => {
         console.error("Failed to flush pending studio settings patch.", err);
       });
-    }, debounceMs);
+    }, effectiveDebounce);
   }
 
   async applyPatchNow(patch: StudioSettingsPatch): Promise<void> {

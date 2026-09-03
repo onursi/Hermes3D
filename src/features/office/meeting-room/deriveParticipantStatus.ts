@@ -83,6 +83,8 @@ export const MEETING_STATUS_LABEL: Record<MeetingParticipantStatus, string> = {
   error: "Fehler",
 };
 
-/** True for the Hermes3D default/orchestrator agent — the Meeting Room's moderator. */
-export const isModeratorAgent = (agent: Pick<AgentState, "agentId">): boolean =>
-  agent.agentId === "default";
+/** True for Hermes — the Chairman & Boss of Hermes3D, sitting at Seat 0. */
+export const isModeratorAgent = (agent: Pick<AgentState, "agentId">): boolean => {
+  const id = agent.agentId?.toLowerCase() ?? "";
+  return id.includes("hermes") || id === "main";
+};

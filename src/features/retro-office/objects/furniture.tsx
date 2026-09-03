@@ -43,7 +43,7 @@ export const FURNITURE_GLB: Record<string, string> = {
 export const FURNITURE_SCALE: Record<string, [number, number, number]> = {
   desk_cubicle: [1.5, 1.5, 1.5],
   executive_desk: [1.8, 1.8, 1.8],
-  chair: [1.2, 1.2, 1.2],
+  chair: [1.0, 1.0, 1.0],
   round_table: [3.2, 3.2, 3.2],
   couch: [1.8, 1.8, 1.8],
   couch_v: [1.4, 1.4, 1.4],
@@ -71,26 +71,26 @@ export const FURNITURE_Y_OFFSET: Record<string, number> = {
 export const KANBAN_CLUTTER_OFFSET = { x: -1, y: 1, z: -2 };
 
 export const FURNITURE_TINT: Record<string, string | null> = {
-  desk_cubicle: "#8b5e32",
-  executive_desk: "#6b3c1a",
-  chair: "#4a5568",
-  round_table: "#9a6332",
-  couch: "#3d5575",
-  couch_v: "#5a4870",
-  bookshelf: "#5c3520",
+  desk_cubicle: "#111827", // Anodized Dark Alloy / Graphite
+  executive_desk: "#090d16", // Deep Obsidian Black
+  chair: "#1e293b", // Slate Aerodynamic Carbon
+  round_table: "#070d16", // Quantum Glass Obsidian
+  couch: "#0f172a", // Deep Navy Cyber Leather
+  couch_v: "#1e1b4b", // Midnight Indigo
+  bookshelf: "#111827", // Anodized Rack Frame
   beanbag: null,
-  computer: "#363c58",
-  pingpong: "#2d6048",
-  table_rect: "#7a5028",
-  coffee_machine: "#2d2d38",
-  fridge: "#505a60",
-  water_cooler: "#3a5070",
-  whiteboard: "#f4f2ee",
-  kanban_board: "#8b5e32",
-  cabinet: "#3c4248",
+  computer: "#030712", // Pure OLED Obsidian
+  pingpong: "#042f2e", // Deep Emerald
+  table_rect: "#0b1220", // Deep Space Titanium
+  coffee_machine: "#090e17", // Cyber Black & Chrome
+  fridge: "#1e293b",
+  water_cooler: "#082f49",
+  whiteboard: "#f8fafc",
+  kanban_board: "#0f172a",
+  cabinet: "#111827",
   plant: null,
-  lamp: "#c8a060",
-  printer: "#404858",
+  lamp: "#38bdf8",
+  printer: "#111827",
 };
 
 const furnitureTemplateCache = new Map<string, THREE.Object3D>();
@@ -140,14 +140,17 @@ const resolveFurnitureTemplate = (params: {
         nextMaterial.color.g = Math.min(1, nextMaterial.color.g);
         nextMaterial.color.b = Math.min(1, nextMaterial.color.b);
       }
+      if ("map" in nextMaterial && nextMaterial.map) nextMaterial.map.anisotropy = 16;
+      if ("roughnessMap" in nextMaterial && nextMaterial.roughnessMap) nextMaterial.roughnessMap.anisotropy = 16;
+      if ("normalMap" in nextMaterial && nextMaterial.normalMap) nextMaterial.normalMap.anisotropy = 16;
       if ("roughness" in nextMaterial) {
-        // Deterministic per-mesh roughness variation so surfaces catch the
-        // environment light differently instead of reading uniformly flat.
-        nextMaterial.roughness = 0.5 + ((meshIndex + materialIndex) % 4) * 0.07;
+        nextMaterial.roughness = 0.42 + ((meshIndex + materialIndex) % 4) * 0.05;
       }
-      if ("metalness" in nextMaterial) nextMaterial.metalness = 0.08;
+      if ("metalness" in nextMaterial) {
+        nextMaterial.metalness = 0.48;
+      }
       if ("envMapIntensity" in nextMaterial) {
-        nextMaterial.envMapIntensity = 0.7;
+        nextMaterial.envMapIntensity = 0.55;
       }
       nextMaterial.userData = {
         ...nextMaterial.userData,
@@ -160,6 +163,25 @@ const resolveFurnitureTemplate = (params: {
       : templateMats[0];
     meshIndex += 1;
   });
+
+  if (params.itemType === "chair") {
+    // Kenney chairDesk.glb was exported with a raw -40.3° diagonal yaw offset,
+    // and its cushion center is at (0.167475, 0, -0.15715).
+    // We center the cushion onto the rotation pivot (0.192, 0, 0.192) and rotate
+    // by 319.7° (-40.3°) so the chair sits squarely and faces directly forward.
+    const pivotWrapper = new THREE.Group();
+    pivotWrapper.position.set(0.192, 0, 0.192);
+    pivotWrapper.rotation.y = (319.7 * Math.PI) / 180;
+
+    const offsetWrapper = new THREE.Group();
+    offsetWrapper.position.set(-0.167475, 0, 0.15715);
+
+    while (template.children.length > 0) {
+      offsetWrapper.add(template.children[0]);
+    }
+    pivotWrapper.add(offsetWrapper);
+    template.add(pivotWrapper);
+  }
 
   furnitureTemplateCache.set(cacheKey, template);
   return template;

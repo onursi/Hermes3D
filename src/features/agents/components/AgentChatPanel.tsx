@@ -59,11 +59,11 @@ const CHAT_SELECT_STYLE = {
   color: "#ffffff",
 } as const;
 const EMPTY_CHAT_INTRO_MESSAGES = [
-  "How can I help you today?",
-  "What should we accomplish today?",
-  "Ready when you are. What do you want to tackle?",
-  "What are we working on today?",
-  "I'm here and ready. What's the plan?",
+  "Bereit wenn du es bist. Was möchtest du erledigen?",
+  "Wie kann ich dir heute helfen?",
+  "Welche Aufgabe gehen wir als Nächstes an?",
+  "Einsatzbereit. Was ist der nächste Schritt?",
+  "Ich bin bereit. Beschreibe eine Aufgabe, Frage oder Code-Änderung.",
 ];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
@@ -1255,7 +1255,7 @@ const AgentChatComposer = memo(function AgentChatComposer({
           >
             <span className="inline-flex items-center gap-1.5">
               <Paperclip className="h-3.5 w-3.5" />
-              <span>Attach</span>
+              <span>Anhang</span>
             </span>
           </button>
           {voiceEnabled ? (
@@ -1269,8 +1269,8 @@ const AgentChatComposer = memo(function AgentChatComposer({
               onClick={onVoiceToggle}
               disabled={voiceDisabled}
               data-testid="agent-voice-toggle"
-              aria-label={voiceRecording ? "Stop voice recording" : "Start voice recording"}
-              title={voiceRecording ? "Stop voice recording" : "Start voice recording"}
+              aria-label={voiceRecording ? "Sprachaufnahme stoppen" : "Sprachaufnahme starten"}
+              title={voiceRecording ? "Sprachaufnahme stoppen" : "Sprachaufnahme starten"}
             >
               <span className="inline-flex items-center gap-1.5">
                 {voiceRecording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
@@ -1287,17 +1287,17 @@ const AgentChatComposer = memo(function AgentChatComposer({
                 disabled={stopDisabled}
                 aria-label={stopAriaLabel}
               >
-                {stopBusy ? "Stopping" : "Stop"}
+                {stopBusy ? "Stoppt..." : "Stopp"}
               </button>
             </span>
           ) : null}
           <button
-            className="rounded border border-[color:var(--status-approval-border)] bg-[#0e0a04]/90 px-3 py-2 font-mono text-[12px] font-medium tracking-wider text-[color:var(--status-approval-fg)] shadow-lg backdrop-blur transition-colors hover:border-[color:var(--status-approval-border)] hover:text-[color:var(--status-approval-fg)] disabled:cursor-not-allowed disabled:border-border/30 disabled:bg-muted/20 disabled:text-muted-foreground"
+            className="rounded border border-cyan-500/40 bg-cyan-950/80 px-3.5 py-2 font-mono text-[12px] font-semibold tracking-wider text-cyan-200 shadow-lg backdrop-blur transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:border-border/30 disabled:bg-muted/20 disabled:text-muted-foreground"
             type="button"
             onClick={onSend}
             disabled={sendDisabled}
           >
-            Send
+            Senden
           </button>
         </div>
       </div>
@@ -1824,14 +1824,14 @@ export const AgentChatPanel = ({
               className="nodrag inline-flex items-center whitespace-nowrap rounded border border-[color:var(--status-approval-border)] bg-[color:var(--status-approval-bg)] px-2 py-0.5 font-mono text-[9px] font-medium tracking-[0.02em] text-white transition hover:bg-[color:var(--status-approval-bg)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               type="button"
               data-testid="agent-new-session-toggle"
-              aria-label="Start new session"
-              title="Start new session"
+              aria-label="Neue Sitzung starten"
+              title="Neue Sitzung starten"
               onClick={() => {
                 void handleNewSession();
               }}
               disabled={newSessionDisabled}
             >
-              {newSessionBusy ? "Starting..." : "New session"}
+              {newSessionBusy ? "Startet..." : "Neue Sitzung"}
             </button>
           </div>
         </div>

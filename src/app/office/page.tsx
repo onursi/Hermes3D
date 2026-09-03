@@ -15,14 +15,14 @@ function OfficeLoadingFallback() {
   return (
     <div
       className="flex h-full w-full items-center justify-center bg-background"
-      aria-label="Loading office"
+      aria-label="Hauptquartier wird geladen"
       role="status"
     >
       <div className="flex flex-col items-center gap-3">
         <RunningAvatarLoader
           size={28}
           trackWidth={76}
-          label="Loading..."
+          label="Wird geladen..."
           labelClassName="text-muted-foreground"
         />
       </div>

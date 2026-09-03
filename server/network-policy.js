@@ -26,12 +26,12 @@ const normalizeHost = (host) => {
 const resolveHosts = (env = process.env) => {
   const host = String(env.HOST ?? "").trim();
   if (host) return [host];
-  return ["127.0.0.1", "::1"];
+  return ["0.0.0.0"];
 };
 
 const resolveHost = (env = process.env) => {
   const hosts = resolveHosts(env);
-  return hosts[0] ?? "127.0.0.1";
+  return hosts[0] ?? "0.0.0.0";
 };
 
 const isIpv4Loopback = (value) => value.startsWith("127.");
@@ -64,6 +64,10 @@ const isPublicHost = (host) => {
 };
 
 const assertPublicHostAllowed = ({ host, studioAccessToken }) => {
+  // Allow all local network / mobile access in dev mode
+  if (process.argv.includes("--dev") || process.env.NODE_ENV !== "production") {
+    return;
+  }
   if (!isPublicHost(host)) return;
 
   const token = String(studioAccessToken ?? "").trim();

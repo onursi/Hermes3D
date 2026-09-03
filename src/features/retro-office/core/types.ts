@@ -58,6 +58,8 @@ export type RenderAgent = SceneActor & {
   conversationFacing?: number;
   conversationSeatIndex?: number;
   conversationSize?: number;
+  gestureClip?: "wave" | "thumbsUp" | "dance" | "jump" | null;
+  gestureUntil?: number;
   conversationPreviousWalkSpeed?: number;
   conversationReplanAtMs?: number;
   interactionTarget?: OfficeInteractionTargetId;
@@ -70,6 +72,10 @@ export type RenderAgent = SceneActor & {
   workoutStyle?: "run" | "lift" | "bike" | "box" | "row" | "stretch";
   janitorRouteIndex?: number;
   janitorPauseUntil?: number;
+  workstationId?: string;
+  workstationUntil?: number;
+  workstationActivity?: string;
+  verticalSuctionY?: number;
 };
 
 export type FurnitureItem = {
@@ -85,6 +91,14 @@ export type FurnitureItem = {
   facing?: number;
   vertical?: boolean;
   elevation?: number;
+  /**
+   * Per-item override for buildNavGrid's obstacle padding (core/navigation.ts).
+   * Most furniture should rely on the per-type default in ITEM_METADATA —
+   * this exists for the rare wall segment that flanks a passage narrow
+   * enough that the shared 15-unit default would seal it shut (see the
+   * East Wing hall walls in furnitureDefaults.ts for the motivating case).
+   */
+  navPadding?: number;
 };
 
 export type FurnitureSeed = Omit<FurnitureItem, "_uid">;

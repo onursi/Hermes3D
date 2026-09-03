@@ -1,18 +1,22 @@
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { memo, useMemo, useRef } from "react";
+import { memo, useRef, useState } from "react";
 import * as THREE from "three";
-import { createDefaultAgentAvatarProfile } from "@/lib/avatars/profile";
 import {
   AGENT_SCALE,
   WALK_ANIM_SPEED,
 } from "@/features/retro-office/core/constants";
 import { toWorld } from "@/features/retro-office/core/geometry";
-import type {
-  JanitorActor,
-  RenderAgent,
-} from "@/features/retro-office/core/types";
 import { AgentModelProps } from "@/features/retro-office/objects/types";
+import {
+  RobotAgentModel,
+  type RobotClipKey,
+} from "@/features/retro-office/objects/RobotAgentModel";
+
+export const activeLiftSuction = {
+  agentId: null as string | null,
+  currentY: 0,
+};
 
 const MAX_NAMEPLATE_TEXT_LENGTH = 10;
 const MAX_SUBTITLE_TEXT_LENGTH = 20;
@@ -78,7 +82,6 @@ export const AgentModel = memo(function AgentModel({
   subtitle,
   status,
   color,
-  appearance,
   agentsRef,
   agentLookupRef,
   onHover,
@@ -89,38 +92,28 @@ export const AgentModel = memo(function AgentModel({
   speechText = null,
   suppressSpeechBubble = false,
   huddleSeatIndex = null,
+  isHovered = false,
 }: AgentModelProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const leftArmRef = useRef<THREE.Group>(null);
-  const rightArmRef = useRef<THREE.Group>(null);
-  const leftLegRef = useRef<THREE.Group>(null);
-  const rightLegRef = useRef<THREE.Group>(null);
   const statusDotMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const pulseRingRef = useRef<THREE.Mesh>(null);
   const pulseRingMatRef = useRef<THREE.MeshBasicMaterial>(null);
-  const leftEyeRef = useRef<THREE.Mesh>(null);
-  const rightEyeRef = useRef<THREE.Mesh>(null);
-  const leftEyeHighlightRef = useRef<THREE.Mesh>(null);
-  const rightEyeHighlightRef = useRef<THREE.Mesh>(null);
-  const mouthRef = useRef<THREE.Mesh>(null);
-  const leftMouthCornerRef = useRef<THREE.Mesh>(null);
-  const rightMouthCornerRef = useRef<THREE.Mesh>(null);
-  const leftBrowRef = useRef<THREE.Mesh>(null);
-  const rightBrowRef = useRef<THREE.Mesh>(null);
-  const heldPaddleRef = useRef<THREE.Group>(null);
-  const heldPaddleFaceRef = useRef<THREE.MeshStandardMaterial>(null);
-  const heldCleaningToolRef = useRef<THREE.Group>(null);
-  const heldCleaningHeadRef = useRef<THREE.MeshStandardMaterial>(null);
-  const heldBucketRef = useRef<THREE.Group>(null);
-  const heldScrubberRef = useRef<THREE.Group>(null);
   const speechBubbleRef = useRef<THREE.Group>(null);
   const speechBubbleMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const awayBubbleRef = useRef<THREE.Group>(null);
-  const bodyMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const pos = useRef(new THREE.Vector3(0, 0, 0));
-  const resolvedAppearance = useMemo(
-    () => appearance ?? createDefaultAgentAvatarProfile(agentId),
-    [agentId, appearance],
+  const [robotClip, setRobotClip] = useState<RobotClipKey>("idle");
+  const robotClipRef = useRef<RobotClipKey>("idle");
+  const [isAway, setIsAway] = useState(false);
+  const [isSeated, setIsSeated] = useState(false);
+  const isSeatedRef = useRef(false);
+  const [workstationActivity, setWorkstationActivity] = useState<string | null>(null);
+  const workstationActivityRef = useRef<string | null>(null);
+  const [isHoveredLocal, setIsHoveredLocal] = useState(false);
+  const effectiveHovered = isHovered || isHoveredLocal;
+  const isSubLevel = Boolean(
+    workstationActivity &&
+    (workstationActivity.startsWith("war_room") || workstationActivity.includes("dev_desk"))
   );
 
   useFrame(() => {
@@ -130,33 +123,56 @@ export const AgentModel = memo(function AgentModel({
     if (!agent || !groupRef.current) return;
 
     const [wx, , wz] = toWorld(agent.x, agent.y);
-    pos.current.set(wx, 0, wz);
-    groupRef.current.position.lerp(pos.current, 0.15);
+    const isMoving = agent.state === "walking";
+    // Futuristic Anti-Gravity Hover: Robot glides smoothly 12cm above floor
+    const hoverY = isMoving
+      ? 0.12 + Math.sin(agent.frame * 0.26 + (agent.phaseOffset ?? 0)) * 0.022
+      : 0;
+    const isSubLevel = Boolean(
+      agent.workstationActivity &&
+      (agent.workstationActivity.startsWith("war_room") ||
+       agent.workstationActivity.includes("dev_desk"))
+    );
+    const floorY = isSubLevel ? -5.2 : 0;
+    const isUnderSuction = activeLiftSuction.agentId === agent.id;
+    const targetYPos = isUnderSuction
+      ? activeLiftSuction.currentY
+      : agent.verticalSuctionY !== undefined
+      ? agent.verticalSuctionY
+      : agent.state === "sitting"
+      ? 0.09
+      : floorY + hoverY;
+
+    if (isUnderSuction) {
+      pos.current.set(-11.7, targetYPos, -16.2);
+      groupRef.current.position.lerp(pos.current, 0.85);
+      groupRef.current.rotation.y += 0.25;
+    } else {
+      pos.current.set(wx, targetYPos, wz);
+      const lerpRate = agent.verticalSuctionY !== undefined ? 0.9 : isMoving ? 0.35 : 0.24;
+      groupRef.current.position.lerp(pos.current, lerpRate);
+    }
 
     const targetY = agent.facing;
     let rotDelta = targetY - groupRef.current.rotation.y;
     while (rotDelta > Math.PI) rotDelta -= Math.PI * 2;
     while (rotDelta < -Math.PI) rotDelta += Math.PI * 2;
-    groupRef.current.rotation.y += rotDelta * 0.12;
+    groupRef.current.rotation.y += rotDelta * 0.28;
     const isWorkout = agent.state === "working_out";
     const isDancing = agent.state === "dancing";
     const isJanitor = "role" in agent && agent.role === "janitor";
-    const janitorTool = isJanitor
-      ? (agent as RenderAgent & JanitorActor).janitorTool
-      : undefined;
     const workoutStyle = agent.workoutStyle ?? "lift";
     const frameValue = agent.frame + (agent.phaseOffset ?? 0) / WALK_ANIM_SPEED;
-    const walkPhase = Math.sin(frameValue * WALK_ANIM_SPEED);
     const workoutPhase = Math.sin(
       agent.frame * 0.18 + (agent.phaseOffset ?? 0),
     );
-    const workoutPushPhase = Math.sin(
-      agent.frame * 0.18 + (agent.phaseOffset ?? 0) + Math.PI / 2,
-    );
-    groupRef.current.rotation.z = 0;
+    // Smooth aerodynamic banking into curves when hovering
+    groupRef.current.rotation.z = isMoving
+      ? THREE.MathUtils.clamp(-rotDelta * 0.25, -0.15, 0.15)
+      : 0;
     groupRef.current.rotation.x =
       agent.state === "sitting"
-        ? -0.15
+        ? 0
         : isDancing
           ? Math.sin(agent.frame * 0.18 + (agent.phaseOffset ?? 0)) * 0.06
           : isWorkout
@@ -175,190 +191,81 @@ export const AgentModel = memo(function AgentModel({
               ? 0.08
               : 0;
     const bounce =
-      agent.state === "walking"
-        ? Math.sin(frameValue * WALK_ANIM_SPEED) * 0.04
-        : isDancing
-          ? 0.03 +
-            Math.abs(Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0))) *
-              0.05
-          : isWorkout
-            ? workoutStyle === "stretch"
-              ? 0.012 + Math.abs(workoutPhase) * 0.018
-              : workoutStyle === "row"
-                ? 0.015 + Math.abs(workoutPhase) * 0.028
-                : 0.02 + Math.abs(workoutPhase) * 0.04
-            : 0;
+      agent.state === "sitting"
+        ? 0.09
+        : isMoving
+          ? 0.12 + Math.sin(agent.frame * 0.26 + (agent.phaseOffset ?? 0)) * 0.022
+          : isDancing
+            ? 0.03 +
+              Math.abs(Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0))) *
+                0.05
+            : isWorkout
+              ? workoutStyle === "stretch"
+                ? 0.012 + Math.abs(workoutPhase) * 0.018
+                : workoutStyle === "row"
+                  ? 0.015 + Math.abs(workoutPhase) * 0.028
+                  : 0.02 + Math.abs(workoutPhase) * 0.04
+              : 0;
     const breathe =
       agent.state === "standing" || isWorkout || agent.pingPongUntil
         ? Math.sin(frameValue * 0.03) * 0.01
         : 0;
     groupRef.current.position.y = bounce + breathe;
 
-    if (leftArmRef.current) {
-      leftArmRef.current.rotation.x = 0;
-      leftArmRef.current.rotation.y = 0;
-      leftArmRef.current.rotation.z = 0;
-      if (isJanitor && janitorTool !== "broom") {
-        leftArmRef.current.rotation.x = -0.22;
-        leftArmRef.current.rotation.z = -0.08;
-      } else if (agent.state === "walking") {
-        leftArmRef.current.rotation.x = walkPhase * 0.4;
-      } else if (isDancing) {
-        leftArmRef.current.rotation.x =
-          -0.8 + Math.sin(agent.frame * 0.22) * 0.9;
-        leftArmRef.current.rotation.z =
-          -0.45 + Math.cos(agent.frame * 0.16) * 0.18;
-        leftArmRef.current.rotation.y = -0.08;
-        groupRef.current.rotation.z = Math.sin(agent.frame * 0.12) * 0.08;
-      } else if (isWorkout) {
-        if (workoutStyle === "run") {
-          leftArmRef.current.rotation.x = -(0.28 + workoutPhase * 1.05);
-          leftArmRef.current.rotation.z = -0.08;
-        } else if (workoutStyle === "bike") {
-          leftArmRef.current.rotation.x = -(1.05 + workoutPushPhase * 0.16);
-          leftArmRef.current.rotation.z = -0.18;
-          leftArmRef.current.rotation.y = -0.12;
-        } else if (workoutStyle === "row") {
-          leftArmRef.current.rotation.x = -(
-            0.95 -
-            Math.max(0, workoutPhase) * 0.7
-          );
-          leftArmRef.current.rotation.z = -0.16;
-          leftArmRef.current.rotation.y = -0.1;
-        } else if (workoutStyle === "box") {
-          leftArmRef.current.rotation.x = -(
-            0.92 +
-            Math.max(0, workoutPushPhase) * 0.45
-          );
-          leftArmRef.current.rotation.z = -0.52;
-          leftArmRef.current.rotation.y = -0.06;
-          groupRef.current.rotation.z = 0.05;
-        } else if (workoutStyle === "stretch") {
-          leftArmRef.current.rotation.x = -1.58;
-          leftArmRef.current.rotation.z = -0.42;
-          leftArmRef.current.rotation.y = -0.08;
-        } else {
-          leftArmRef.current.rotation.x = -(
-            0.28 +
-            Math.abs(workoutPhase) * 0.28
-          );
-          leftArmRef.current.rotation.z = -0.58;
-          leftArmRef.current.rotation.y = -0.12;
-        }
-      } else if (agent.pingPongUntil) {
-        leftArmRef.current.rotation.x =
-          0.2 + Math.sin(agent.frame * 0.08) * 0.28;
-      } else if (agent.state === "sitting") {
-        leftArmRef.current.rotation.x = 0.3;
+    // Glowing anti-gravity thruster pulse ring on the floor beneath hovering bot
+    if (pulseRingRef.current) {
+      pulseRingRef.current.visible = isMoving;
+      if (isMoving) {
+        pulseRingRef.current.position.y = -(bounce + breathe) + 0.005;
+        const ringScale = 1.05 + Math.sin(agent.frame * 0.3) * 0.12;
+        pulseRingRef.current.scale.set(ringScale, ringScale, ringScale);
       }
     }
-    if (rightArmRef.current) {
-      rightArmRef.current.rotation.x = 0;
-      rightArmRef.current.rotation.y = 0;
-      rightArmRef.current.rotation.z = 0;
-      if (isJanitor && janitorTool !== "broom") {
-        rightArmRef.current.rotation.x = -0.95;
-        rightArmRef.current.rotation.y = 0.18;
-        rightArmRef.current.rotation.z = 0.08;
-      } else if (agent.state === "walking") {
-        rightArmRef.current.rotation.x = -walkPhase * 0.4;
-      } else if (isDancing) {
-        rightArmRef.current.rotation.x =
-          -0.8 - Math.sin(agent.frame * 0.22) * 0.9;
-        rightArmRef.current.rotation.z =
-          0.45 - Math.cos(agent.frame * 0.16) * 0.18;
-        rightArmRef.current.rotation.y = 0.08;
-        groupRef.current.rotation.z = Math.sin(agent.frame * 0.12) * 0.08;
-      } else if (isWorkout) {
-        if (workoutStyle === "run") {
-          rightArmRef.current.rotation.x = -(0.28 - workoutPhase * 1.05);
-          rightArmRef.current.rotation.z = 0.08;
-        } else if (workoutStyle === "bike") {
-          rightArmRef.current.rotation.x = -(1.05 - workoutPushPhase * 0.16);
-          rightArmRef.current.rotation.z = 0.18;
-          rightArmRef.current.rotation.y = 0.12;
-        } else if (workoutStyle === "row") {
-          rightArmRef.current.rotation.x = -(
-            0.95 -
-            Math.max(0, -workoutPhase) * 0.7
-          );
-          rightArmRef.current.rotation.z = 0.16;
-          rightArmRef.current.rotation.y = 0.1;
-        } else if (workoutStyle === "box") {
-          rightArmRef.current.rotation.x = -(
-            0.92 +
-            Math.max(0, -workoutPushPhase) * 0.45
-          );
-          rightArmRef.current.rotation.z = 0.52;
-          rightArmRef.current.rotation.y = 0.06;
-          groupRef.current.rotation.z = -0.05;
-        } else if (workoutStyle === "stretch") {
-          rightArmRef.current.rotation.x = -1.58;
-          rightArmRef.current.rotation.z = 0.42;
-          rightArmRef.current.rotation.y = 0.08;
-        } else {
-          rightArmRef.current.rotation.x = -(
-            0.28 +
-            Math.abs(workoutPhase) * 0.28
-          );
-          rightArmRef.current.rotation.z = 0.58;
-          rightArmRef.current.rotation.y = 0.12;
-        }
-      } else if (agent.pingPongUntil) {
-        rightArmRef.current.rotation.x =
-          0.08 - Math.sin(agent.frame * 0.08) * 0.16;
-      } else if (agent.state === "sitting") {
-        rightArmRef.current.rotation.x = 0.3;
-      }
-    }
-    if (leftLegRef.current) {
-      leftLegRef.current.rotation.x =
-        agent.state === "walking"
-          ? walkPhase * 0.35
+
+    // Check for user-triggered gestures (wave, thumbsUp, dance, jump)
+    const activeGesture =
+      agent.gestureClip && agent.gestureUntil && performance.now() < agent.gestureUntil
+        ? agent.gestureClip
+        : null;
+
+    // Drive the robot's real skeletal animation clips (standing poise for sleek hover gliding)
+    const nextClip: RobotClipKey =
+      activeGesture ??
+      (agent.state === "walking"
+        ? "standing"
+        : agent.state === "sitting"
+          ? "sitting"
           : isDancing
-            ? Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0)) * 0.35
-            : isWorkout
-              ? workoutStyle === "run"
-                ? workoutPhase * 0.7
-                : workoutStyle === "bike"
-                  ? workoutPhase * 0.82
-                  : workoutStyle === "row"
-                    ? 0.14 + Math.max(0, workoutPhase) * 0.42
-                    : workoutStyle === "stretch"
-                      ? -0.2 + Math.abs(workoutPhase) * 0.08
-                      : workoutStyle === "box"
-                        ? 0.06 + workoutPhase * 0.14
-                        : workoutPhase * 0.18
-              : 0;
+            ? "dance"
+            : isWorkout || agent.pingPongUntil || isJanitor
+              ? "running"
+              : agent.state === "standing"
+                ? "standing"
+                : "idle");
+    if (robotClipRef.current !== nextClip) {
+      robotClipRef.current = nextClip;
+      setRobotClip(nextClip);
     }
-    if (rightLegRef.current) {
-      rightLegRef.current.rotation.x =
-        agent.state === "walking"
-          ? -walkPhase * 0.35
-          : isDancing
-            ? -Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0)) * 0.35
-            : isWorkout
-              ? workoutStyle === "run"
-                ? -workoutPhase * 0.7
-                : workoutStyle === "bike"
-                  ? -workoutPhase * 0.82
-                  : workoutStyle === "row"
-                    ? 0.14 + Math.max(0, -workoutPhase) * 0.42
-                    : workoutStyle === "stretch"
-                      ? -0.12 + Math.abs(workoutPhase) * 0.08
-                      : workoutStyle === "box"
-                        ? 0.06 - workoutPhase * 0.14
-                        : -workoutPhase * 0.18
-              : 0;
+
+    if (agent.workstationActivity !== workstationActivityRef.current) {
+      workstationActivityRef.current = agent.workstationActivity ?? null;
+      setWorkstationActivity(agent.workstationActivity ?? null);
     }
 
     const working =
       agent.state === "sitting" ||
       isWorkout ||
       isDancing ||
+      Boolean(agent.workstationActivity) ||
       agent.status === "working";
     const isError = agent.status === "error";
     const isAway = agent.state === "away";
+    const seated = agent.state === "sitting";
+
+    if (seated !== isSeatedRef.current) {
+      isSeatedRef.current = seated;
+      setIsSeated(seated);
+    }
 
     if (statusDotMatRef.current) {
       statusDotMatRef.current.color.set(
@@ -366,13 +273,17 @@ export const AgentModel = memo(function AgentModel({
       );
     }
 
+    const isSpeaking = Boolean(showSpeech || (agent.bumpTalkUntil ?? 0) > Date.now());
+
     if (pulseRingRef.current && pulseRingMatRef.current) {
-      if (working || isError) {
-        const pulse = (Math.sin(agent.frame * 0.05) + 1) / 2;
-        const scale = isError ? 1.25 + pulse * 0.55 : 1.2 + pulse * 0.8;
+      if (isSpeaking || working || isError) {
+        const pulse = (Math.sin(agent.frame * 0.08) + 1) / 2;
+        const scale = isSpeaking ? 1.35 + pulse * 0.45 : isError ? 1.25 + pulse * 0.55 : 1.2 + pulse * 0.8;
         pulseRingRef.current.scale.setScalar(scale);
-        pulseRingMatRef.current.color.set(isError ? "#ef4444" : "#22c55e");
-        pulseRingMatRef.current.opacity = isError
+        pulseRingMatRef.current.color.set(isSpeaking ? "#00f0ff" : isError ? "#ef4444" : "#22c55e");
+        pulseRingMatRef.current.opacity = isSpeaking
+          ? 0.85 - pulse * 0.35
+          : isError
           ? 0.7 - pulse * 0.3
           : 0.55 - pulse * 0.45;
         pulseRingRef.current.visible = true;
@@ -382,124 +293,11 @@ export const AgentModel = memo(function AgentModel({
     }
 
     if (awayBubbleRef.current) awayBubbleRef.current.visible = isAway;
-    if (bodyMatRef.current) bodyMatRef.current.opacity = isAway ? 0.45 : 1;
-    if (groupRef.current) {
-      groupRef.current.traverse((child) => {
-        // Physical materials (glasses lenses) keep their fixed transparency.
-        if (
-          child instanceof THREE.Mesh &&
-          child.material instanceof THREE.MeshStandardMaterial &&
-          !(child.material instanceof THREE.MeshPhysicalMaterial)
-        ) {
-          child.material.transparent = isAway;
-          child.material.opacity = isAway ? 0.45 : 1;
-        }
-      });
-    }
+    setIsAway((prev) => (prev === isAway ? prev : isAway));
 
     const blinkSeed = agentId
       .split("")
       .reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const blinkCycle = isAway ? 180 : isError ? 120 : working ? 170 : 240;
-    const blinkWindow = isAway ? 26 : isError ? 18 : 12;
-    const blinkPhase = (agent.frame + blinkSeed * 17) % blinkCycle;
-    let eyeOpen = isError ? 0.92 : working ? 0.84 : 1.12;
-
-    if (blinkPhase < blinkWindow) {
-      const midpoint = blinkWindow / 2;
-      eyeOpen *= Math.min(1, Math.abs(blinkPhase - midpoint) / midpoint);
-    }
-    if (working) eyeOpen = Math.max(0.48, eyeOpen);
-    if (isError) eyeOpen = Math.max(0.28, eyeOpen);
-    if (isAway) eyeOpen = Math.min(eyeOpen, 0.2);
-
-    const eyeScaleX = isError ? 1.2 : working ? 1.06 : 1.12;
-    const eyeScaleY = Math.max(0.05, eyeOpen);
-    const eyeOffsetY =
-      (working ? -0.006 : 0) +
-      (isError ? -0.004 : 0) +
-      (agent.state === "walking" ? 0.004 : 0) +
-      (isAway ? -0.008 : 0);
-
-    for (const eyeRef of [leftEyeRef, rightEyeRef]) {
-      if (!eyeRef.current) continue;
-      eyeRef.current.scale.x = eyeScaleX;
-      eyeRef.current.scale.y = eyeScaleY;
-      eyeRef.current.position.y = 0.475 + eyeOffsetY;
-    }
-    for (const highlightRef of [leftEyeHighlightRef, rightEyeHighlightRef]) {
-      if (!highlightRef.current) continue;
-      highlightRef.current.visible = eyeOpen > 0.45 && !isAway;
-      highlightRef.current.position.y = 0.482 + eyeOffsetY;
-    }
-
-    if (mouthRef.current) {
-      mouthRef.current.rotation.z = 0;
-      mouthRef.current.position.set(0, 0.436, 0.074);
-      if (isAway) {
-        mouthRef.current.scale.set(0.5, 0.12, 1);
-        mouthRef.current.position.y = 0.434;
-      } else if (isError) {
-        mouthRef.current.scale.set(1.28, 0.16, 1);
-        mouthRef.current.position.y = 0.43;
-      } else if (working) {
-        mouthRef.current.scale.set(0.92, 0.14, 1);
-        mouthRef.current.position.y = 0.437;
-      } else if (agent.state === "walking") {
-        const talkPulse =
-          0.38 + (Math.sin(agent.frame * 0.14 + blinkSeed) + 1) * 0.22;
-        mouthRef.current.scale.set(0.95, talkPulse, 1);
-      } else {
-        mouthRef.current.scale.set(1.35, 0.34, 1);
-        mouthRef.current.position.y = 0.428;
-      }
-    }
-
-    const showSmileCorners =
-      !isAway && !isError && !working && agent.state !== "walking";
-    const showFrownCorners = isError;
-    if (leftMouthCornerRef.current && rightMouthCornerRef.current) {
-      leftMouthCornerRef.current.visible = showSmileCorners || showFrownCorners;
-      rightMouthCornerRef.current.visible =
-        showSmileCorners || showFrownCorners;
-      leftMouthCornerRef.current.position.set(-0.031, 0.434, 0.074);
-      rightMouthCornerRef.current.position.set(0.031, 0.434, 0.074);
-      if (showFrownCorners) {
-        leftMouthCornerRef.current.rotation.z = -0.6;
-        rightMouthCornerRef.current.rotation.z = 0.6;
-        leftMouthCornerRef.current.position.y = 0.425;
-        rightMouthCornerRef.current.position.y = 0.425;
-      } else if (showSmileCorners) {
-        leftMouthCornerRef.current.rotation.z = 0.62;
-        rightMouthCornerRef.current.rotation.z = -0.62;
-        leftMouthCornerRef.current.position.y = 0.438;
-        rightMouthCornerRef.current.position.y = 0.438;
-      }
-    }
-
-    if (leftBrowRef.current && rightBrowRef.current) {
-      leftBrowRef.current.position.y = 0.52;
-      rightBrowRef.current.position.y = 0.52;
-      if (isAway) {
-        leftBrowRef.current.rotation.z = -0.24;
-        rightBrowRef.current.rotation.z = 0.24;
-        leftBrowRef.current.position.y = 0.512;
-        rightBrowRef.current.position.y = 0.512;
-      } else if (isError) {
-        leftBrowRef.current.rotation.z = 0.42;
-        rightBrowRef.current.rotation.z = -0.42;
-        leftBrowRef.current.position.y = 0.516;
-        rightBrowRef.current.position.y = 0.516;
-      } else if (working) {
-        leftBrowRef.current.rotation.z = 0.3;
-        rightBrowRef.current.rotation.z = -0.3;
-      } else {
-        leftBrowRef.current.rotation.z = -0.18;
-        rightBrowRef.current.rotation.z = 0.18;
-        leftBrowRef.current.position.y = 0.526;
-        rightBrowRef.current.position.y = 0.526;
-      }
-    }
 
     const ambientBubbleVisible =
       (!suppressSpeechBubble && isError) ||
@@ -549,103 +347,7 @@ export const AgentModel = memo(function AgentModel({
       speechBubbleMatRef.current.opacity = isError ? 0.97 : 0.92;
     }
 
-    if (heldPaddleRef.current) {
-      const isPlaying = agent.pingPongUntil !== undefined;
-      heldPaddleRef.current.visible = isPlaying;
-      if (isPlaying) {
-        const swing = Math.sin(agent.frame * 0.08);
-        heldPaddleRef.current.position.set(-0.01, -0.21, 0.07 + swing * 0.015);
-        heldPaddleRef.current.rotation.set(-0.55 + swing * 0.1, 0.25, -0.35);
-      }
-    }
-
-    if (heldPaddleFaceRef.current) {
-      heldPaddleFaceRef.current.color.set(
-        agent.pingPongSide === 0 ? "#1f4fa8" : "#c53b30",
-      );
-    }
-
-    if (heldCleaningToolRef.current) {
-      const showBroom = isJanitor && janitorTool === "broom";
-      heldCleaningToolRef.current.visible = showBroom;
-      if (showBroom) {
-        const sweep =
-          agent.state === "walking" ? Math.sin(agent.frame * 0.08) * 0.08 : 0;
-        heldCleaningToolRef.current.position.set(
-          -0.02,
-          -0.2,
-          0.08 + sweep * 0.06,
-        );
-        heldCleaningToolRef.current.rotation.set(-0.8, 0.18, -0.18);
-      }
-    }
-
-    if (heldCleaningHeadRef.current) {
-      heldCleaningHeadRef.current.color.set("#facc15");
-    }
-
-    if (heldBucketRef.current) {
-      const showVacuum = isJanitor && janitorTool === "vacuum";
-      heldBucketRef.current.visible = showVacuum;
-      if (showVacuum) {
-        heldBucketRef.current.position.set(-0.08, -0.1, 0.18);
-        heldBucketRef.current.rotation.set(-0.32, 0.22, -0.38);
-      }
-    }
-
-    if (heldScrubberRef.current) {
-      const showScrubber = isJanitor && janitorTool === "floor_scrubber";
-      heldScrubberRef.current.visible = showScrubber;
-      if (showScrubber) {
-        heldScrubberRef.current.position.set(-0.1, -0.08, 0.2);
-        heldScrubberRef.current.rotation.set(-0.28, 0.18, -0.42);
-      }
-    }
   });
-
-  const skin = resolvedAppearance.body.skinTone;
-  const topColor = resolvedAppearance.clothing.topColor;
-  const trouserColor = resolvedAppearance.clothing.bottomColor;
-  const shoeColor = resolvedAppearance.clothing.shoesColor;
-  const hairColor = resolvedAppearance.hair.color;
-  const hairStyle = resolvedAppearance.hair.style;
-  const topStyle = resolvedAppearance.clothing.topStyle;
-  const bottomStyle = resolvedAppearance.clothing.bottomStyle;
-  const hatStyle = resolvedAppearance.accessories.hatStyle;
-  const showGlasses = resolvedAppearance.accessories.glasses;
-  const showHeadset = resolvedAppearance.accessories.headset;
-  const showBackpack = resolvedAppearance.accessories.backpack;
-  const accessoryColor = topColor;
-  const sleeveColor = topStyle === "jacket" ? "#dbe4ff" : topColor;
-  const cuffColor = topStyle === "hoodie" ? "#d1d5db" : sleeveColor;
-  // Jacket accent brightened ~10% so it doesn't turn muddy under ACES tone mapping.
-  const topAccentColor = topStyle === "jacket" ? "#2a3648" : cuffColor;
-
-  const faceTexture = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 64;
-    canvas.height = 64;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return new THREE.CanvasTexture(canvas);
-
-    ctx.fillStyle = skin;
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.fillStyle = "rgba(255,255,255,0.14)";
-    ctx.fillRect(0, 0, 64, 10);
-    ctx.fillStyle = "rgba(196,122,84,0.18)";
-    ctx.beginPath();
-    ctx.arc(18, 38, 7, 0, Math.PI * 2);
-    ctx.arc(46, 38, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#d8a06e";
-    ctx.fillRect(30, 28, 4, 10);
-    ctx.fillRect(29, 37, 6, 2);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }, [skin]);
 
   const resolvedSpeechText =
     showSpeech && speechText?.trim()
@@ -664,16 +366,16 @@ export const AgentModel = memo(function AgentModel({
   const speechBubbleWasTruncated = speechBubblePreview.truncated;
   const speechBubbleTextLength = speechBubbleDisplayText.length;
   const speechBubbleWidth = activeSpeechBubble
-    ? Math.min(4.6, Math.max(1.8, 1.55 + speechBubbleTextLength * 0.018))
-    : 0.36;
-  const speechBubblePaddingX = activeSpeechBubble ? 0.34 : 0.06;
-  const speechBubblePaddingY = activeSpeechBubble ? 0.3 : 0.06;
+    ? Math.min(1.45, Math.max(0.75, 0.45 + speechBubbleTextLength * 0.012))
+    : 0.22;
+  const speechBubblePaddingX = activeSpeechBubble ? 0.12 : 0.04;
+  const speechBubblePaddingY = activeSpeechBubble ? 0.08 : 0.04;
   const speechBubbleMaxWidth = Math.max(
-    0.24,
+    0.2,
     speechBubbleWidth - speechBubblePaddingX,
   );
   const estimatedSpeechCharsPerLine = activeSpeechBubble
-    ? Math.max(10, Math.floor(speechBubbleMaxWidth * 7))
+    ? Math.max(12, Math.floor(speechBubbleMaxWidth * 14))
     : 8;
   const estimatedSpeechLines = activeSpeechBubble
     ? Math.max(
@@ -685,15 +387,15 @@ export const AgentModel = memo(function AgentModel({
       )
     : 1;
   const speechBubbleHeight = activeSpeechBubble
-    ? Math.max(0.72, estimatedSpeechLines * 0.26 + speechBubblePaddingY)
-    : 0.2;
+    ? Math.max(0.26, estimatedSpeechLines * 0.085 + speechBubblePaddingY)
+    : 0.14;
   const speechBubbleFontSize = activeSpeechBubble
     ? speechBubbleTextLength > 110
-      ? 0.188
+      ? 0.062
       : speechBubbleTextLength > 70
-        ? 0.2
-        : 0.216
-    : 0.13;
+        ? 0.068
+        : 0.076
+    : 0.055;
   const speechBubbleTextColor = activeSpeechBubble
     ? "#f8fafc"
     : status === "error"
@@ -709,6 +411,7 @@ export const AgentModel = memo(function AgentModel({
         : "#8dc4ff"
     : "transparent";
   const speechBubbleBorderInset = activeSpeechBubble ? 0.03 : 0;
+  const isBoss = agentId.toLowerCase().includes("hermes") || (name?.toLowerCase().includes("hermes") ?? false);
   const nameplateText = name ? formatAgentNameplateText(name) : "";
   // A huddle packs four plates into roughly one plate's worth of screen space.
   // Drop the role line there and step each seat's plate to its own height so
@@ -718,8 +421,26 @@ export const AgentModel = memo(function AgentModel({
     !inHuddle && typeof subtitle === "string"
       ? formatAgentSubtitleText(subtitle)
       : "";
+  // Both the height and the Billboard's own scale (below) were tuned for
+  // the old ~0.6-unit-tall procedural body. The robot model is much
+  // smaller (see RobotAgentModel's ROBOT_BASE_SCALE), so the nameplate now
+  // sits much closer to the head and renders at roughly half its old size
+  // — otherwise it reads as a giant sign floating over a tiny character.
+  const lowerBrand = (agentId + " " + (name ?? "")).toLowerCase();
+  const brandInfo = lowerBrand.includes("hermes")
+    ? { icon: "👑", tag: "HERMES", color: "#f59e0b" }
+    : lowerBrand.includes("claude") || lowerBrand.includes("anthropic")
+      ? { icon: "✳", tag: "ANTHROPIC", color: "#ea580c" }
+      : lowerBrand.includes("chatgpt") || lowerBrand.includes("gpt") || lowerBrand === "default"
+        ? { icon: "🌀", tag: "OPENAI", color: "#2563eb" }
+        : lowerBrand.includes("gemini") || lowerBrand.includes("google")
+          ? { icon: "✦", tag: "GOOGLE", color: "#eab308" }
+          : lowerBrand.includes("deepseek")
+            ? { icon: "🐳", tag: "DEEPSEEK", color: "#a855f7" }
+            : { icon: "🤖", tag: "AI", color: "#64748b" };
+
   const nameplateHeight =
-    1.05 + (inHuddle ? ((huddleSeatIndex ?? 0) % 4) * 0.17 : 0);
+    0.5 + (inHuddle ? ((huddleSeatIndex ?? 0) % 4) * 0.08 : 0);
   const nameplateFontSize =
     nameplateText.length > 9 ? 0.118 : nameplateText.length > 7 ? 0.13 : 0.144;
 
@@ -729,9 +450,13 @@ export const AgentModel = memo(function AgentModel({
       scale={[AGENT_SCALE, AGENT_SCALE, AGENT_SCALE]}
       onPointerOver={(event) => {
         event.stopPropagation();
+        setIsHoveredLocal(true);
         onHover?.(agentId);
       }}
-      onPointerOut={() => onUnhover?.()}
+      onPointerOut={() => {
+        setIsHoveredLocal(false);
+        onUnhover?.();
+      }}
       onClick={(event) => {
         event.stopPropagation();
         onClick?.(agentId);
@@ -742,468 +467,148 @@ export const AgentModel = memo(function AgentModel({
         onContextMenu?.(agentId, nativeEvent.clientX, nativeEvent.clientY);
       }}
     >
-      <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.12, 12]} />
+      {/* Invisible enlarged hit cylinder for effortless clicking & dragging */}
+      <mesh position={[0, 0.45, 0]} visible={false}>
+        <cylinderGeometry args={[0.36, 0.36, 0.9, 12]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+      {/* Ground Contact Cyber Shadow Puck */}
+      <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.18, 16]} />
         <meshBasicMaterial color="#000" transparent opacity={0.2} />
       </mesh>
-      <group ref={rightLegRef} position={[-0.045, 0.1, 0]}>
-        {bottomStyle === "shorts" ? (
-          <>
-            <mesh position={[0, 0.03, 0]} castShadow>
-              <boxGeometry args={[0.07, 0.08, 0.08]} />
-              <meshStandardMaterial color={trouserColor} roughness={0.75} />
-            </mesh>
-            <mesh position={[0, -0.045, 0]} castShadow>
-              <boxGeometry args={[0.05, 0.06, 0.05]} />
-              <meshStandardMaterial color={skin} roughness={0.55} />
-            </mesh>
-          </>
-        ) : (
-          <>
-            <mesh castShadow>
-              <boxGeometry args={[0.07, 0.14, 0.08]} />
-              <meshStandardMaterial color={trouserColor} roughness={0.75} />
-            </mesh>
-            {bottomStyle === "cuffed" ? (
-              <mesh position={[0, -0.05, 0]}>
-                <boxGeometry args={[0.074, 0.022, 0.084]} />
-                <meshStandardMaterial color="#d1d5db" roughness={0.75} />
-              </mesh>
-            ) : null}
-          </>
-        )}
-        <mesh position={[0, -0.09, 0]} castShadow>
-          <boxGeometry args={[0.07, 0.05, 0.12]} />
-          <meshStandardMaterial color={shoeColor} roughness={0.75} />
-        </mesh>
+      <group position={[0, 0, 0]}>
+        <RobotAgentModel
+          clip={robotClip}
+          color={isBoss ? "#f59e0b" : brandInfo.color}
+          isAway={isAway}
+          agentId={agentId}
+          name={name}
+          isBoss={isBoss}
+          isWorking={status === "working" || Boolean(workstationActivity)}
+          workstationActivity={workstationActivity ?? undefined}
+        />
       </group>
-      <group ref={leftLegRef} position={[0.045, 0.1, 0]}>
-        {bottomStyle === "shorts" ? (
-          <>
-            <mesh position={[0, 0.03, 0]} castShadow>
-              <boxGeometry args={[0.07, 0.08, 0.08]} />
-              <meshStandardMaterial color={trouserColor} roughness={0.75} />
-            </mesh>
-            <mesh position={[0, -0.045, 0]} castShadow>
-              <boxGeometry args={[0.05, 0.06, 0.05]} />
-              <meshStandardMaterial color={skin} roughness={0.55} />
-            </mesh>
-          </>
-        ) : (
-          <>
-            <mesh castShadow>
-              <boxGeometry args={[0.07, 0.14, 0.08]} />
-              <meshStandardMaterial color={trouserColor} roughness={0.75} />
-            </mesh>
-            {bottomStyle === "cuffed" ? (
-              <mesh position={[0, -0.05, 0]}>
-                <boxGeometry args={[0.074, 0.022, 0.084]} />
-                <meshStandardMaterial color="#d1d5db" roughness={0.75} />
-              </mesh>
-            ) : null}
-          </>
-        )}
-        <mesh position={[0, -0.09, 0]} castShadow>
-          <boxGeometry args={[0.07, 0.05, 0.12]} />
-          <meshStandardMaterial color={shoeColor} roughness={0.75} />
-        </mesh>
-      </group>
-      {showBackpack ? (
-        <group position={[0, 0.28, -0.08]}>
-          <mesh castShadow>
-            <boxGeometry args={[0.15, 0.18, 0.06]} />
-            <meshStandardMaterial color={accessoryColor} roughness={0.75} />
+
+      {/* Dynamic Anti-Gravity Tube Tractor Suction Beam & Warp Rings */}
+      {groupRef.current && groupRef.current.position.y > -5.0 && groupRef.current.position.y < -0.15 && (
+        <group position={[0, 0.45, 0]}>
+          {/* Luminous suction vortex sheath */}
+          <mesh>
+            <cylinderGeometry args={[0.34, 0.42, 1.1, 16, 1, true]} />
+            <meshBasicMaterial
+              color="#00f0ff"
+              transparent
+              opacity={0.65}
+              side={THREE.DoubleSide}
+            />
           </mesh>
-          <mesh position={[-0.06, 0.02, 0.02]}>
-            <boxGeometry args={[0.018, 0.16, 0.018]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.75} />
-          </mesh>
-          <mesh position={[0.06, 0.02, 0.02]}>
-            <boxGeometry args={[0.018, 0.16, 0.018]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.75} />
-          </mesh>
-        </group>
-      ) : null}
-      <mesh position={[0, 0.28, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.18, 0.2, 0.1]} />
-        <meshStandardMaterial ref={bodyMatRef} color={topColor} roughness={0.75} />
-      </mesh>
-      {topStyle === "hoodie" ? (
-        <>
-          <mesh position={[0, 0.35, -0.045]} castShadow>
-            <boxGeometry args={[0.17, 0.1, 0.03]} />
-            <meshStandardMaterial color={topColor} roughness={0.75} />
-          </mesh>
-          <mesh position={[0, 0.22, 0.056]}>
-            <boxGeometry args={[0.11, 0.03, 0.012]} />
-            <meshStandardMaterial color={cuffColor} roughness={0.75} />
-          </mesh>
-        </>
-      ) : null}
-      {topStyle === "jacket" ? (
-        <>
-          <mesh position={[0, 0.28, 0.056]}>
-            <boxGeometry args={[0.182, 0.21, 0.012]} />
-            <meshStandardMaterial color={topAccentColor} roughness={0.75} />
-          </mesh>
-          <mesh position={[0, 0.28, 0.063]}>
-            <boxGeometry args={[0.034, 0.2, 0.01]} />
-            <meshStandardMaterial color="#f8fafc" roughness={0.75} />
-          </mesh>
-        </>
-      ) : null}
-      <group ref={rightArmRef} position={[-0.12, 0.28, 0]}>
-        <mesh position={[0, -0.08, 0]} castShadow>
-          <boxGeometry args={[0.06, 0.16, 0.06]} />
-          <meshStandardMaterial color={sleeveColor} roughness={0.75} />
-        </mesh>
-        {topStyle === "hoodie" ? (
-          <mesh position={[0, -0.145, 0]}>
-            <boxGeometry args={[0.064, 0.03, 0.064]} />
-            <meshStandardMaterial color={cuffColor} roughness={0.75} />
-          </mesh>
-        ) : null}
-        <mesh position={[0, -0.17, 0]} castShadow>
-          <boxGeometry args={[0.05, 0.05, 0.05]} />
-          <meshStandardMaterial color={skin} roughness={0.55} />
-        </mesh>
-        <group
-          ref={heldPaddleRef}
-          position={[-0.01, -0.21, 0.07]}
-          visible={false}
-        >
+          {/* Concentric high-speed energy rings */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.042, 0.042, 0.012, 18]} />
-            <meshStandardMaterial
-              ref={heldPaddleFaceRef}
-              color="#c53b30"
-              roughness={0.72}
-            />
-          </mesh>
-          <mesh position={[0, -0.045, -0.015]} rotation={[0.12, 0, 0]}>
-            <boxGeometry args={[0.014, 0.07, 0.014]} />
-            <meshStandardMaterial color="#c59a68" roughness={0.74} />
-          </mesh>
-        </group>
-        <group
-          ref={heldCleaningToolRef}
-          position={[-0.02, -0.2, 0.08]}
-          rotation={[-0.8, 0.18, -0.18]}
-          visible={false}
-        >
-          <mesh position={[0, -0.13, 0]}>
-            <boxGeometry args={[0.012, 0.28, 0.012]} />
-            <meshStandardMaterial color="#9a6b3c" roughness={0.76} />
-          </mesh>
-          <mesh position={[0, -0.28, 0.012]}>
-            <boxGeometry args={[0.09, 0.028, 0.03]} />
-            <meshStandardMaterial
-              ref={heldCleaningHeadRef}
-              color="#facc15"
-              roughness={0.68}
-            />
-          </mesh>
-        </group>
-        {/* Vacuum cleaner: larger upright silhouette so it reads clearly in-scene. */}
-        <group
-          ref={heldBucketRef}
-          position={[-0.08, -0.1, 0.18]}
-          visible={false}
-        >
-          <mesh position={[0, -0.02, 0]}>
-            <boxGeometry args={[0.015, 0.3, 0.015]} />
-            <meshStandardMaterial color="#555" roughness={0.72} />
-          </mesh>
-          <mesh position={[0.025, -0.16, 0]}>
-            <boxGeometry args={[0.08, 0.12, 0.07]} />
-            <meshStandardMaterial color="#dc2626" roughness={0.48} />
-          </mesh>
-          <mesh position={[0.05, -0.24, 0.02]}>
-            <boxGeometry args={[0.11, 0.024, 0.06]} />
-            <meshStandardMaterial color="#1f2937" roughness={0.65} />
-          </mesh>
-          <mesh position={[0.02, -0.11, 0.035]} rotation={[0, Math.PI / 2, 0]}>
-            <torusGeometry args={[0.03, 0.005, 10, 18, Math.PI]} />
-            <meshStandardMaterial
-              color="#94a3b8"
-              roughness={0.36}
-              metalness={0.18}
-            />
-          </mesh>
-        </group>
-        {/* Floor scrubber: prominent handle, body, and wide cleaning base. */}
-        <group
-          ref={heldScrubberRef}
-          position={[-0.1, -0.08, 0.2]}
-          visible={false}
-        >
-          <mesh position={[0, -0.02, 0]}>
-            <boxGeometry args={[0.015, 0.32, 0.015]} />
-            <meshStandardMaterial color="#777" roughness={0.7} />
-          </mesh>
-          <mesh position={[0.035, -0.17, 0]}>
-            <boxGeometry args={[0.085, 0.08, 0.065]} />
-            <meshStandardMaterial color="#f59e0b" roughness={0.46} />
-          </mesh>
-          <mesh position={[0.06, -0.27, 0.02]} rotation={[-Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.075, 0.075, 0.018, 24]} />
-            <meshStandardMaterial color="#0ea5e9" roughness={0.52} />
-          </mesh>
-          <mesh position={[0.06, -0.23, 0.02]}>
-            <boxGeometry args={[0.12, 0.018, 0.07]} />
-            <meshStandardMaterial color="#1f2937" roughness={0.6} />
-          </mesh>
-        </group>
-      </group>
-      <group ref={leftArmRef} position={[0.12, 0.28, 0]}>
-        <mesh position={[0, -0.08, 0]} castShadow>
-          <boxGeometry args={[0.06, 0.16, 0.06]} />
-          <meshStandardMaterial color={sleeveColor} roughness={0.75} />
-        </mesh>
-        {topStyle === "hoodie" ? (
-          <mesh position={[0, -0.145, 0]}>
-            <boxGeometry args={[0.064, 0.03, 0.064]} />
-            <meshStandardMaterial color={cuffColor} roughness={0.75} />
-          </mesh>
-        ) : null}
-        <mesh position={[0, -0.17, 0]} castShadow>
-          <boxGeometry args={[0.05, 0.05, 0.05]} />
-          <meshStandardMaterial color={skin} roughness={0.55} />
-        </mesh>
-      </group>
-      <mesh position={[0, 0.39, 0]}>
-        <boxGeometry args={[0.07, 0.05, 0.07]} />
-        <meshStandardMaterial color={skin} roughness={0.55} />
-      </mesh>
-      <mesh position={[0, 0.47, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.16, 0.16, 0.14]} />
-        <meshStandardMaterial attach="material-0" color={skin} roughness={0.55} />
-        <meshStandardMaterial attach="material-1" color={skin} roughness={0.55} />
-        <meshStandardMaterial attach="material-2" color={skin} roughness={0.55} />
-        <meshStandardMaterial attach="material-3" color={skin} roughness={0.55} />
-        <meshStandardMaterial attach="material-4" map={faceTexture} roughness={0.55} />
-        <meshStandardMaterial attach="material-5" color={skin} roughness={0.55} />
-      </mesh>
-      {hairStyle === "short" ? (
-        <mesh position={[0, 0.555, 0]} castShadow>
-          <boxGeometry args={[0.17, 0.05, 0.15]} />
-          <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-        </mesh>
-      ) : null}
-      {hairStyle === "parted" ? (
-        <>
-          <mesh position={[0, 0.555, 0]} castShadow>
-            <boxGeometry args={[0.17, 0.045, 0.15]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-          <mesh position={[-0.035, 0.59, 0.01]} rotation={[0.1, 0, -0.2]} castShadow>
-            <boxGeometry args={[0.12, 0.03, 0.08]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-        </>
-      ) : null}
-      {hairStyle === "spiky" ? (
-        <>
-          <mesh position={[0, 0.55, 0]} castShadow>
-            <boxGeometry args={[0.16, 0.035, 0.14]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-          <mesh position={[-0.05, 0.59, 0]} rotation={[0, 0, -0.2]} castShadow>
-            <boxGeometry args={[0.04, 0.06, 0.04]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-          <mesh position={[0, 0.605, 0]} rotation={[0, 0, 0]} castShadow>
-            <boxGeometry args={[0.04, 0.08, 0.04]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-          <mesh position={[0.05, 0.59, 0]} rotation={[0, 0, 0.2]} castShadow>
-            <boxGeometry args={[0.04, 0.06, 0.04]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-        </>
-      ) : null}
-      {hairStyle === "bun" ? (
-        <>
-          <mesh position={[0, 0.548, 0]} castShadow>
-            <boxGeometry args={[0.17, 0.04, 0.15]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-          <mesh position={[0, 0.6, -0.035]} castShadow>
-            <sphereGeometry args={[0.042, 14, 14]} />
-            <meshStandardMaterial color={hairColor} roughness={0.35} metalness={0.05} />
-          </mesh>
-        </>
-      ) : null}
-      {hatStyle === "cap" ? (
-        <>
-          <mesh position={[0, 0.59, 0]} castShadow>
-            <boxGeometry args={[0.172, 0.03, 0.152]} />
-            <meshStandardMaterial color={accessoryColor} roughness={0.75} />
-          </mesh>
-          <mesh position={[0, 0.575, 0.07]}>
-            <boxGeometry args={[0.09, 0.012, 0.05]} />
-            <meshStandardMaterial color={accessoryColor} roughness={0.75} />
-          </mesh>
-        </>
-      ) : null}
-      {hatStyle === "beanie" ? (
-        <mesh position={[0, 0.59, 0]} castShadow>
-          <boxGeometry args={[0.18, 0.06, 0.16]} />
-          <meshStandardMaterial color={accessoryColor} roughness={0.75} />
-        </mesh>
-      ) : null}
-      {showHeadset ? (
-        <>
-          <mesh position={[0, 0.57, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-            <torusGeometry args={[0.09, 0.008, 8, 24, Math.PI]} />
-            <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.25} />
-          </mesh>
-          <mesh position={[-0.1, 0.48, 0]}>
-            <boxGeometry args={[0.018, 0.05, 0.028]} />
-            <meshStandardMaterial color="#475569" roughness={0.6} />
-          </mesh>
-          <mesh position={[0.1, 0.48, 0]}>
-            <boxGeometry args={[0.018, 0.05, 0.028]} />
-            <meshStandardMaterial color="#475569" roughness={0.6} />
-          </mesh>
-          <mesh position={[0.085, 0.43, 0.06]} rotation={[0.25, 0.25, -0.4]}>
-            <boxGeometry args={[0.012, 0.06, 0.012]} />
-            <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.25} />
-          </mesh>
-        </>
-      ) : null}
-      <mesh ref={leftBrowRef} position={[-0.04, 0.52, 0.074]}>
-        <boxGeometry args={[0.04, 0.01, 0.01]} />
-        <meshBasicMaterial color="#342016" />
-      </mesh>
-      <mesh ref={rightBrowRef} position={[0.04, 0.52, 0.074]}>
-        <boxGeometry args={[0.04, 0.01, 0.01]} />
-        <meshBasicMaterial color="#342016" />
-      </mesh>
-      <mesh ref={leftEyeRef} position={[-0.04, 0.475, 0.072]}>
-        <boxGeometry args={[0.03, 0.03, 0.01]} />
-        <meshBasicMaterial color="#1a1a2e" />
-      </mesh>
-      <mesh ref={rightEyeRef} position={[0.04, 0.475, 0.072]}>
-        <boxGeometry args={[0.03, 0.03, 0.01]} />
-        <meshBasicMaterial color="#1a1a2e" />
-      </mesh>
-      <mesh ref={leftEyeHighlightRef} position={[-0.03, 0.482, 0.074]}>
-        <boxGeometry args={[0.008, 0.008, 0.01]} />
-        <meshBasicMaterial color="#fff" />
-      </mesh>
-      <mesh ref={rightEyeHighlightRef} position={[0.05, 0.482, 0.074]}>
-        <boxGeometry args={[0.008, 0.008, 0.01]} />
-        <meshBasicMaterial color="#fff" />
-      </mesh>
-      {showGlasses ? (
-        <>
-          <mesh position={[-0.04, 0.475, 0.078]}>
-            <boxGeometry args={[0.05, 0.05, 0.01]} />
-            <meshBasicMaterial color="#111827" wireframe />
-          </mesh>
-          <mesh position={[0.04, 0.475, 0.078]}>
-            <boxGeometry args={[0.05, 0.05, 0.01]} />
-            <meshBasicMaterial color="#111827" wireframe />
-          </mesh>
-          {/* Glassy lens panes inside the wireframe frames. */}
-          <mesh position={[-0.04, 0.475, 0.078]}>
-            <boxGeometry args={[0.044, 0.044, 0.006]} />
-            <meshPhysicalMaterial
-              color="#cfe2ff"
+            <ringGeometry args={[0.30, 0.42, 24]} />
+            <meshBasicMaterial
+              color="#38bdf8"
               transparent
-              opacity={0.3}
-              roughness={0.05}
+              opacity={0.9}
+              side={THREE.DoubleSide}
             />
           </mesh>
-          <mesh position={[0.04, 0.475, 0.078]}>
-            <boxGeometry args={[0.044, 0.044, 0.006]} />
-            <meshPhysicalMaterial
-              color="#cfe2ff"
+          <mesh position={[0, 0.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.22, 0.32, 24]} />
+            <meshBasicMaterial
+              color={isBoss ? "#fbbf24" : brandInfo.color}
               transparent
-              opacity={0.3}
-              roughness={0.05}
+              opacity={0.85}
+              side={THREE.DoubleSide}
             />
           </mesh>
-          <mesh position={[0, 0.475, 0.078]}>
-            <boxGeometry args={[0.02, 0.008, 0.01]} />
-            <meshBasicMaterial color="#111827" />
-          </mesh>
-        </>
-      ) : null}
-      <mesh ref={mouthRef} position={[0, 0.436, 0.074]}>
-        <boxGeometry args={[0.05, 0.014, 0.01]} />
-        <meshBasicMaterial color="#9c4a4a" />
-      </mesh>
-      <mesh
-        ref={leftMouthCornerRef}
-        position={[-0.031, 0.438, 0.074]}
-        visible={false}
-      >
-        <boxGeometry args={[0.014, 0.014, 0.01]} />
-        <meshBasicMaterial color="#9c4a4a" />
-      </mesh>
-      <mesh
-        ref={rightMouthCornerRef}
-        position={[0.031, 0.438, 0.074]}
-        visible={false}
-      >
-        <boxGeometry args={[0.014, 0.014, 0.01]} />
-        <meshBasicMaterial color="#9c4a4a" />
-      </mesh>
+        </group>
+      )}
+
       <mesh
         ref={pulseRingRef}
         position={[0, 0.005, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
-        visible={false}
+        visible={status === "working" || status === "error" || effectiveHovered}
       >
-        <ringGeometry args={[0.13, 0.19, 24]} />
+        <ringGeometry args={[0.22, 0.32, 32]} />
         <meshBasicMaterial
-          ref={pulseRingMatRef}
-          color="#22c55e"
+          color={status === "error" ? "#ef4444" : status === "working" ? "#22c55e" : (isBoss ? "#fbbf24" : brandInfo.color)}
           transparent
-          opacity={0.5}
-          depthWrite={false}
+          opacity={0.85}
+          side={THREE.DoubleSide}
         />
       </mesh>
-      {!activeSpeechBubble && nameplateText ? (
-        <Billboard position={[0, nameplateHeight, 0]}>
-          <mesh position={[0, 0, -0.001]}>
-            <planeGeometry args={[0.82, subtitleText ? 0.34 : 0.24]} />
-            <meshBasicMaterial color="#080c14" transparent opacity={0.9} />
-          </mesh>
-          <mesh position={[-0.392, 0, 0]}>
-            <planeGeometry args={[0.028, subtitleText ? 0.34 : 0.24]} />
-            <meshBasicMaterial color={color} />
-          </mesh>
-          <mesh position={[0.355, subtitleText ? 0.05 : 0, 0]}>
-            <circleGeometry args={[0.052, 14]} />
-            <meshBasicMaterial ref={statusDotMatRef} color="#ef4444" />
-          </mesh>
+
+      {/* Floating Holographic Brand Emblem & Live Activity Badge */}
+      {name ? (
+        <Billboard position={[0, 0.65 + (inHuddle ? ((huddleSeatIndex ?? 0) % 4) * 0.05 : 0), 0]}>
+          {/* 1. Floating Brand Logo / Icon */}
           <Text
-            position={[-0.02, subtitleText ? 0.05 : 0, 0.001]}
-            fontSize={nameplateFontSize}
-            color="#e8dfc0"
+            position={[0, (effectiveHovered || status === "working" || status === "error") ? 0.075 : 0, 0.002]}
+            fontSize={isBoss ? 0.096 : 0.082}
+            color={status === "error" ? "#f87171" : status === "working" ? "#4ade80" : (isBoss ? "#fef08a" : brandInfo.color)}
             anchorX="center"
             anchorY="middle"
-            maxWidth={0.68}
-            font={undefined}
+            outlineWidth={0.004}
+            outlineColor="#000000"
           >
-            {nameplateText}
+            {brandInfo.icon}
           </Text>
-          {subtitleText ? (
-            <Text
-              position={[-0.02, -0.085, 0.001]}
-              fontSize={0.062}
-              color="#8ab4ff"
-              anchorX="center"
-              anchorY="middle"
-              maxWidth={0.68}
-              font={undefined}
-            >
-              {subtitleText}
-            </Text>
-          ) : null}
+
+          {/* 2. Micro Status Capsule — Permanent bei Arbeit/Fehler, sonst bei Hover */}
+          {(effectiveHovered || status === "working" || status === "error") && (
+            <group position={[0, -0.012, 0]}>
+              <mesh position={[0, 0, 0]}>
+                <planeGeometry args={[Math.max(0.28, nameplateText.length * 0.024 + 0.12), 0.058]} />
+                <meshBasicMaterial
+                  color="#030814"
+                  transparent
+                  opacity={0.92}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+              <lineSegments position={[0, 0, 0.001]}>
+                <edgesGeometry
+                  args={[
+                    new THREE.PlaneGeometry(
+                      Math.max(0.28, nameplateText.length * 0.024 + 0.12),
+                      0.058,
+                    ),
+                  ]}
+                />
+                <lineBasicMaterial
+                  color={status === "error" ? "#ef4444" : status === "working" ? "#22c55e" : (isBoss ? "#fbbf24" : brandInfo.color)}
+                  transparent
+                  opacity={0.85}
+                />
+              </lineSegments>
+
+              {/* Status Dot */}
+              <mesh position={[-Math.max(0.28, nameplateText.length * 0.024 + 0.12) / 2 + 0.022, 0, 0.002]}>
+                <circleGeometry args={[0.011, 16]} />
+                <meshBasicMaterial color={status === "error" ? "#ef4444" : status === "working" ? "#22c55e" : "#f59e0b"} />
+              </mesh>
+
+              {/* Agent Name + Status Tag */}
+              <Text
+                position={[0.01, 0, 0.003]}
+                fontSize={0.038}
+                color={status === "error" ? "#fca5a5" : status === "working" ? "#86efac" : "#ffffff"}
+                anchorX="center"
+                anchorY="middle"
+                letterSpacing={0.05}
+                outlineWidth={0.0015}
+                outlineColor="#000000"
+              >
+                {status === "working"
+                  ? `${nameplateText} • AKTIV`
+                  : status === "error"
+                    ? `${nameplateText} • FEHLER`
+                    : (isBoss ? "HERMES" : nameplateText.toUpperCase())}
+              </Text>
+            </group>
+          )}
         </Billboard>
       ) : null}
       <group ref={awayBubbleRef} visible={false}>
@@ -1224,56 +629,32 @@ export const AgentModel = memo(function AgentModel({
         </Billboard>
       </group>
       <group ref={speechBubbleRef} visible={false}>
-        <Billboard position={[0, 1.45, 0]}>
-          {activeSpeechBubble ? (
-            <mesh
-              position={[-speechBubbleWidth * 0.18, -speechBubbleHeight * 0.53, -0.0005]}
-              rotation={[0, 0, Math.PI / 4]}
-              renderOrder={99997}
-            >
-              <planeGeometry args={[0.22, 0.22]} />
-              <meshBasicMaterial
-                color="#1a2030"
-                transparent
-                opacity={0.82}
-                depthTest={false}
-                depthWrite={false}
-              />
-            </mesh>
-          ) : null}
-          {activeSpeechBubble ? (
-            <mesh position={[0, 0, -0.0015]} renderOrder={99998}>
-              <planeGeometry
-                args={[
-                  speechBubbleWidth + speechBubbleBorderInset,
-                  speechBubbleHeight + speechBubbleBorderInset,
-                ]}
-              />
-              <meshBasicMaterial
-                color={speechBubbleBorderColor}
-                transparent
-                opacity={0.88}
-                depthTest={false}
-                depthWrite={false}
-              />
-            </mesh>
-          ) : null}
-          <mesh position={[0, 0, -0.001]} renderOrder={99999}>
+        <Billboard position={[0, 0.95, 0]}>
+          {/* Futuristic Cyber Speech Capsule */}
+          <mesh position={[0, 0, 0]}>
             <planeGeometry args={[speechBubbleWidth, speechBubbleHeight]} />
             <meshBasicMaterial
               ref={speechBubbleMatRef}
-              color="#1a2030"
+              color="#030814"
               transparent
-              opacity={activeSpeechBubble ? 0.76 : 0.92}
-              depthTest={false}
-              depthWrite={false}
+              opacity={0.88}
+              side={THREE.DoubleSide}
             />
+          </mesh>
+          <lineSegments position={[0, 0, 0.001]}>
+            <edgesGeometry args={[new THREE.PlaneGeometry(speechBubbleWidth, speechBubbleHeight)]} />
+            <lineBasicMaterial color={speechBubbleBorderColor} transparent opacity={0.75} />
+          </lineSegments>
+          {/* Subtle micro emitter ray down to logo */}
+          <mesh position={[0, -speechBubbleHeight / 2 - 0.04, 0]}>
+            <cylinderGeometry args={[0.002, 0.008, 0.08, 8]} />
+            <meshBasicMaterial color={speechBubbleBorderColor} transparent opacity={0.35} />
           </mesh>
           <Text
             position={
               activeSpeechBubble
-                ? [-speechBubbleWidth / 2 + speechBubblePaddingX / 2, 0, 0.001]
-                : [0, 0, 0.001]
+                ? [-speechBubbleWidth / 2 + speechBubblePaddingX / 2, 0, 0.002]
+                : [0, 0, 0.002]
             }
             fontSize={speechBubbleFontSize}
             color={speechBubbleTextColor}
@@ -1281,31 +662,10 @@ export const AgentModel = memo(function AgentModel({
             anchorY="middle"
             maxWidth={speechBubbleMaxWidth}
             textAlign={activeSpeechBubble ? "left" : "center"}
-            lineHeight={1.1}
-            renderOrder={100000}
-            depthOffset={-10}
-            material-depthTest={false}
-            material-depthWrite={false}
+            lineHeight={1.15}
           >
             {speechBubbleDisplayText}
           </Text>
-          {activeSpeechBubble && speechBubbleWasTruncated ? (
-            <Text
-              position={[0, -speechBubbleHeight * 0.34, 0.001]}
-              fontSize={0.09}
-              color="#8ab4ff"
-              anchorX="center"
-              anchorY="middle"
-              maxWidth={speechBubbleMaxWidth}
-              textAlign="center"
-              renderOrder={100001}
-              depthOffset={-10}
-              material-depthTest={false}
-              material-depthWrite={false}
-            >
-              click for full chat
-            </Text>
-          ) : null}
         </Billboard>
       </group>
     </group>

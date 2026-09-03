@@ -9,8 +9,21 @@ export type DistrictZone = {
   maxY: number;
 };
 
-export const LOCAL_OFFICE_CANVAS_WIDTH = 1800;
-export const LOCAL_OFFICE_CANVAS_HEIGHT = 720;
+// HQ v2 room-shape pass: the office was a 1800x720 strip (2.5:1) — very
+// elongated, with a large dead gap between the desk cluster (ends ~x:1090)
+// and the Council Corner (was centered at x:1500). Per the TikTok/SAMS
+// reference's compact, near-square room card, the corner moved in to
+// x:1180 (see meetingRoom.ts) and the footprint shrank to match — width
+// down, height up, so the shape reads as a room rather than a corridor.
+// CITY_PATH_ZONE/REMOTE_OFFICE_ZONE and CANVAS_H (constants.ts) are shifted
+// down by the same +180 height delta below so they still stack cleanly
+// after the taller local office, with no overlap.
+// Drastically smaller than the 1200x750 room-shape pass — that still read
+// as an empty white/black hall with furniture scattered in it. The SAMS
+// reference's diorama fills most of the frame: a compact footprint where
+// the table + 4 agents actually occupy the space, not float in it.
+export const LOCAL_OFFICE_CANVAS_WIDTH = 500;
+export const LOCAL_OFFICE_CANVAS_HEIGHT = 400;
 
 export const LOCAL_OFFICE_ZONE: DistrictZone = {
   minX: 0,
@@ -22,25 +35,25 @@ export const LOCAL_OFFICE_ZONE: DistrictZone = {
 export const CITY_PATH_ZONE: DistrictZone = {
   minX: 0,
   maxX: LOCAL_OFFICE_CANVAS_WIDTH,
-  minY: 760,
-  maxY: 980,
+  minY: 940,
+  maxY: 1160,
 };
 
 export const REMOTE_OFFICE_ZONE: DistrictZone = {
   minX: 0,
   maxX: LOCAL_OFFICE_CANVAS_WIDTH,
-  minY: 1020,
-  maxY: 1020 + LOCAL_OFFICE_CANVAS_HEIGHT,
+  minY: 1200,
+  maxY: 1200 + LOCAL_OFFICE_CANVAS_HEIGHT,
 };
 
 export const REMOTE_ROAM_POINTS = [
-  { x: 800, y: 1220 },
-  { x: 850, y: 1520 },
-  { x: 820, y: 1600 },
-  { x: 450, y: 1440 },
-  { x: 250, y: 1440 },
-  { x: 650, y: 1440 },
-  { x: 150, y: 1640 },
+  { x: 800, y: 1400 },
+  { x: 850, y: 1700 },
+  { x: 820, y: 1780 },
+  { x: 450, y: 1620 },
+  { x: 250, y: 1620 },
+  { x: 650, y: 1620 },
+  { x: 150, y: 1820 },
 ] as const;
 
 export const DISTRICT_CAMERA_POSITION: [number, number, number] = [14, 16, 18];

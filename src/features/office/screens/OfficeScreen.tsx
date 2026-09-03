@@ -13,6 +13,7 @@ import { MessageSquare, ChevronDown, ChevronLeft, ChevronRight, Mic } from "luci
 import { RetroOffice3D } from "@/features/retro-office/RetroOffice3D";
 import type { OfficeAgent } from "@/features/retro-office/core/types";
 import { PixelOffice2D } from "@/features/pixel-office/PixelOffice2D";
+import { cyberAudio } from "@/lib/sound/cyberAudio";
 import {
   resolveInitialOfficeRenderMode,
   saveOfficeRenderMode,
@@ -213,6 +214,34 @@ const stringToColor = (str: string) => {
   }
   const c = (hash & 0x00ffffff).toString(16).toUpperCase();
   return "#" + "00000".substring(0, 6 - c.length) + c;
+};
+
+// Explicit per-agent identity colors, requested by name rather than left to
+// stringToColor's arbitrary hash — "default" (ChatGPT) dark blue, Claude
+// orange, the other two model-router agents picked to stay visually
+// distinct from those two and each other. Any agentId not listed here still
+// falls back to the hash so new/unknown agents always get *a* color.
+const AGENT_IDENTITY_COLORS: Record<string, string> = {
+  hermes: "#f59e0b", // Hermes — Boss Gold
+  main: "#f59e0b", // Main Agent / Hermes — Boss Gold
+  default: "#1e3a8a", // ChatGPT — Dark Navy Blue
+  chatgpt: "#1e3a8a", // ChatGPT — Dark Navy Blue
+  "router-claude-review": "#ea580c", // Claude — Anthropic Orange
+  claude: "#ea580c", // Claude — Anthropic Orange
+  gemini: "#eab308", // Gemini / Google — Yellow
+  "router-deepseek-pro": "#a855f7", // DeepSeek — Purple
+  deepseek: "#a855f7", // DeepSeek — Purple
+  "router-opencode": "#8b5cf6", // opencode — violet
+};
+
+const resolveAgentColor = (agentId: string) => {
+  const lower = agentId.toLowerCase();
+  if (lower.includes("hermes") || lower === "main") return "#f59e0b"; // Boss Gold
+  if (lower.includes("claude") || lower.includes("anthropic")) return "#ea580c"; // Claude Orange
+  if (lower.includes("chatgpt") || lower.includes("gpt") || lower === "default") return "#1e3a8a"; // ChatGPT Dark Blue
+  if (lower.includes("gemini") || lower.includes("google")) return "#eab308"; // Google Yellow
+  if (lower.includes("deepseek")) return "#a855f7"; // DeepSeek Purple
+  return AGENT_IDENTITY_COLORS[agentId] ?? stringToColor(agentId);
 };
 
 const ITEMS = [
@@ -562,7 +591,7 @@ const mapAgentToOffice = (agent: AgentState): OfficeAgent => {
       name: agent.name || "Unknown",
       subtitle: agent.role ?? null,
       status: "error",
-      color: stringToColor(agent.agentId),
+      color: resolveAgentColor(agent.agentId),
       item: getDeterministicItem(agent.agentId),
       avatarProfile: agent.avatarProfile ?? null,
     };
@@ -573,7 +602,7 @@ const mapAgentToOffice = (agent: AgentState): OfficeAgent => {
     name: agent.name || "Unknown",
     subtitle: agent.role ?? null,
     status: isWorking ? "working" : "idle",
-    color: stringToColor(agent.agentId),
+    color: resolveAgentColor(agent.agentId),
     item: getDeterministicItem(agent.agentId),
     avatarProfile: agent.avatarProfile ?? null,
   };
@@ -590,7 +619,7 @@ const mapRemotePresenceAgentToOffice = (agent: {
     id: stableId,
     name: agent.name || "Unknown",
     status: agent.state === "error" ? "error" : isWorking ? "working" : "idle",
-    color: stringToColor(stableId),
+    color: resolveAgentColor(stableId),
     item: getDeterministicItem(stableId),
     avatarProfile: null,
   };
@@ -905,8 +934,9 @@ type OfficeScreenProps = {
 };
 
 export function OfficeScreen({
-  showHermesConsole = true,
+  showHermesConsole: initialShowHermesConsole = false,
 }: OfficeScreenProps) {
+  const [showHermesConsole, setShowHermesConsole] = useState(initialShowHermesConsole);
   // Patch Hermes Phase 2: avoid useSearchParams() at component root — it
   // suspends during hydration in Next.js dev mode and keeps the parent
   // Suspense fallback stuck on "Loading...". Use a sync useMemo so
@@ -979,6 +1009,11 @@ export function OfficeScreen({
   >([]);
   const [hermesConsoleCollapsed, setHermesConsoleCollapsed] =
     useState(true);
+  const [hermesConsoleCategory, setHermesConsoleCategory] = useState<
+    "all" | "messages" | "tasks" | "errors"
+  >("all");
+  const [hermesConsoleRawExpanded, setHermesConsoleRawExpanded] = useState(false);
+  const [consoleGlowPulse, setConsoleGlowPulse] = useState(false);
   const [hermesConsoleSearch, setHermesConsoleSearch] = useState("");
   const [hermesConsoleCopyStatus, setHermesConsoleCopyStatus] = useState<
     "idle" | "copied" | "error"
@@ -1048,6 +1083,89 @@ export function OfficeScreen({
   const [companyCreatedSignal, setCompanyCreatedSignal] = useState(0);
   const [createdCompanyName, setCreatedCompanyName] = useState<string | null>(null);
   const [officeCameraCenterSignal, setOfficeCameraCenterSignal] = useState(0);
+
+  // CAD SolidWorks-style Draggable & Snappable Ereigniskonsole
+  const [consoleOffset, setConsoleOffset] = useState({ x: 0, y: 0 });
+  const isConsoleDraggingRef = useRef(false);
+  const consoleDragStartRef = useRef({ x: 0, y: 0 });
+  const consoleInitialOffsetRef = useRef({ x: 0, y: 0 });
+  const consoleSnappedRef = useRef(false);
+
+  const handleConsoleMouseDown = (e: React.MouseEvent) => {
+    isConsoleDraggingRef.current = true;
+    consoleDragStartRef.current = { x: e.clientX, y: e.clientY };
+    consoleInitialOffsetRef.current = { ...consoleOffset };
+    consoleSnappedRef.current = false;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isConsoleDraggingRef.current) return;
+      const dx = moveEvent.clientX - consoleDragStartRef.current.x;
+      const dy = moveEvent.clientY - consoleDragStartRef.current.y;
+      let targetX = consoleInitialOffsetRef.current.x + dx;
+      let targetY = consoleInitialOffsetRef.current.y + dy;
+
+      const winW = window.innerWidth;
+      const winH = window.innerHeight;
+      const consoleW = 520;
+      const consoleH = hermesConsoleCollapsed ? 42 : 320;
+      let didSnap = false;
+
+      // 1. Left Edge Snap (Dock to Left 12px)
+      if (Math.abs(targetX) < 32) {
+        targetX = 0;
+        didSnap = true;
+      }
+
+      // 2. Right Edge Snap (Dock to Right 12px)
+      const maxRight = winW - consoleW - 24;
+      if (Math.abs(targetX - maxRight) < 32) {
+        targetX = maxRight;
+        didSnap = true;
+      }
+
+      // 3. Center Screen Snap
+      const centerX = Math.round((winW - consoleW) / 2) - 12;
+      if (Math.abs(targetX - centerX) < 32) {
+        targetX = centerX;
+        didSnap = true;
+      }
+
+      // 4. Bottom Edge Snap (Dock to Bottom 12px)
+      if (Math.abs(targetY) < 32) {
+        targetY = 0;
+        didSnap = true;
+      }
+
+      // 5. Top Edge Snap (Dock to Top 12px)
+      const maxTop = -(winH - consoleH - 24);
+      if (Math.abs(targetY - maxTop) < 32) {
+        targetY = maxTop;
+        didSnap = true;
+      }
+
+      // Strict Viewport Clamping (Cannot leave the screen in any direction)
+      targetX = Math.min(Math.max(targetX, 0), maxRight);
+      targetY = Math.min(Math.max(targetY, maxTop), 0);
+
+      if (didSnap && !consoleSnappedRef.current) {
+        cyberAudio.playSnap();
+        consoleSnappedRef.current = true;
+      } else if (!didSnap) {
+        consoleSnappedRef.current = false;
+      }
+
+      setConsoleOffset({ x: targetX, y: targetY });
+    };
+
+    const handleMouseUp = () => {
+      isConsoleDraggingRef.current = false;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
   const [createAgentBlock, setCreateAgentBlock] =
     useState<CreateAgentBlockState | null>(null);
   const [deleteAgentBlock, setDeleteAgentBlock] =
@@ -4191,7 +4309,12 @@ export function OfficeScreen({
     ? (remoteChatByAgentId[focusedRemoteChatTarget.id] ?? EMPTY_REMOTE_CHAT_SESSION)
     : null;
   const allVisibleAgents = useMemo(
-    () => [...officeAgents, ...remoteOfficeAgents],
+    () =>
+      [...officeAgents, ...remoteOfficeAgents].filter(
+        (a) =>
+          !a.id.toLowerCase().includes("deepseek") &&
+          !a.name.toLowerCase().includes("deepseek"),
+      ),
     [officeAgents, remoteOfficeAgents],
   );
   const remoteOfficeVisible =
@@ -4536,14 +4659,14 @@ export function OfficeScreen({
       {showGatewayLoadingOverlay ? (
         <div
           className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-[#120a05]/76"
-          aria-label="Connecting to runtime"
+          aria-label="Verbindung zur Runtime wird hergestellt"
           role="status"
         >
           <div className="rounded-xl border border-amber-700/45 bg-[#1a1008] px-8 py-6 shadow-2xl">
             <RunningAvatarLoader
               size={28}
               trackWidth={76}
-              label="Connecting to your runtime..."
+              label="Verbindung zur Runtime wird hergestellt..."
               labelClassName="text-amber-100/80"
             />
           </div>
@@ -5075,216 +5198,179 @@ export function OfficeScreen({
       ) : null}
 
       {showHermesConsole ? (
-        <section className="pointer-events-auto fixed bottom-3 left-3 z-30 flex w-[520px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded border border-cyan-500/25 bg-black/78 shadow-2xl backdrop-blur">
-          <div className="flex items-center justify-between border-b border-cyan-500/15 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.18em] text-cyan-200/80">
-            <span>Agent Event Console</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-cyan-100/45">
-                agents {state.agents.length} | events{" "}
-                {filteredHermesLogEntries.length}/{hermesLogEntries.length}
+        <section
+          style={{ transform: `translate(${consoleOffset.x}px, ${consoleOffset.y}px)` }}
+          className={`pointer-events-auto fixed bottom-24 md:bottom-3 left-3 z-30 flex ${
+            hermesConsoleCollapsed ? "w-[300px]" : "w-[360px]"
+          } max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border bg-black/85 shadow-2xl backdrop-blur-md transition-all duration-300 ${
+            consoleGlowPulse ? "border-cyan-400 shadow-cyan-950/60 shadow-lg" : "border-cyan-500/25"
+          }`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 border-b border-cyan-500/15 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-cyan-200/80">
+            <div
+              onMouseDown={handleConsoleMouseDown}
+              className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none truncate"
+              title="Gedrückt halten zum Verschieben (CAD Snap)"
+            >
+              <span className="text-cyan-400/60 font-mono text-[10px]">:::</span>
+              <span className="font-bold text-cyan-300 truncate">Ereignisse</span>
+              <span className="text-[10px] text-cyan-100/45 font-mono shrink-0">
+                ({filteredHermesLogEntries.length})
               </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!hermesConsoleCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setHermesConsoleRawExpanded((prev) => !prev)}
+                  className={`rounded border px-2 py-0.5 text-[9px] font-semibold transition-colors shrink-0 ${
+                    hermesConsoleRawExpanded
+                      ? "border-cyan-400 bg-cyan-950/80 text-cyan-200"
+                      : "border-cyan-500/20 text-cyan-100/70 hover:border-cyan-400/40"
+                  }`}
+                >
+                  {hermesConsoleRawExpanded ? "Kompakt" : "Technische Rohdaten"}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => {
-                  void handleCopyHermesConsoleJson();
-                }}
-                className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 transition-colors hover:border-cyan-400/45 hover:text-cyan-50"
+                onClick={() => setHermesConsoleCollapsed((prev) => !prev)}
+                className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 transition-colors hover:border-cyan-400/40 shrink-0"
               >
-                {hermesConsoleCopyStatus === "copied"
-                  ? "Copied"
-                  : hermesConsoleCopyStatus === "error"
-                    ? "Copy Failed"
-                    : "Copy JSON"}
+                {hermesConsoleCollapsed ? "Ausklappen" : "Minimieren"}
               </button>
               <button
                 type="button"
-                onClick={handleDownloadHermesConsoleJson}
-                className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 transition-colors hover:border-cyan-400/45 hover:text-cyan-50"
+                onClick={() => setShowHermesConsole(false)}
+                className="rounded border border-cyan-500/20 px-1.5 py-0.5 text-[9px] text-cyan-400/70 hover:text-white hover:border-red-400/50 hover:bg-red-950/30 transition-colors shrink-0"
+                title="Ereigniskonsole schließen"
               >
-                Download JSON
-              </button>
-              <button
-                type="button"
-                onClick={handleClearHermesConsole}
-                className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 transition-colors hover:border-cyan-400/45 hover:text-cyan-50"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setHermesConsoleCollapsed((previous) => !previous)
-                }
-                className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 transition-colors hover:border-cyan-400/45 hover:text-cyan-50"
-              >
-                {hermesConsoleCollapsed ? "Expand" : "Minimize"}
+                ✕
               </button>
             </div>
           </div>
+
           {!hermesConsoleCollapsed ? (
-            <div className="flex h-[320px] flex-col gap-3 overflow-y-auto bg-[#02090b]/96 px-3 py-2 font-mono text-[10px] leading-4">
-            <div className="rounded border border-cyan-500/10 bg-cyan-950/10 p-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={hermesConsoleSearch}
-                  onChange={(event) =>
-                    setHermesConsoleSearch(event.target.value)
-                  }
-                  placeholder="Search logs, payloads, thinking, user text."
-                  className="min-w-0 flex-1 rounded border border-cyan-500/20 bg-black/35 px-2 py-1 text-[10px] normal-case tracking-normal text-cyan-50 placeholder:text-cyan-100/30 focus:border-cyan-400/40 focus:outline-none"
-                />
-                {hermesConsoleSearch ? (
+            hermesConsoleRawExpanded ? (
+              /* Full Raw Technical View */
+              <div className="flex h-[300px] flex-col gap-2.5 overflow-y-auto bg-[#02090b]/96 p-3 font-mono text-[10px] leading-4">
+                {/* Search & Actions */}
+                <div className="flex items-center justify-between gap-2 border-b border-cyan-500/15 pb-2">
+                  <input
+                    type="text"
+                    value={hermesConsoleSearch}
+                    onChange={(e) => setHermesConsoleSearch(e.target.value)}
+                    placeholder="Ereignisse durchsuchen..."
+                    className="min-w-0 flex-1 rounded border border-cyan-500/20 bg-black/50 px-2 py-1 text-[10px] text-cyan-50 placeholder:text-cyan-100/30 focus:border-cyan-400/40 focus:outline-none"
+                  />
                   <button
                     type="button"
-                    onClick={() => setHermesConsoleSearch("")}
-                    className="rounded border border-cyan-500/20 px-2 py-1 text-[9px] uppercase tracking-[0.16em] text-cyan-100/70 transition-colors hover:border-cyan-400/45 hover:text-cyan-50"
+                    onClick={() => void handleCopyHermesConsoleJson()}
+                    className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 hover:text-white"
                   >
-                    Reset
+                    JSON kopieren
                   </button>
-                ) : null}
-              </div>
-            </div>
-            {hermesLiveStateMatchesSearch ? (
-              <div className="rounded border border-cyan-500/10 bg-cyan-950/10 p-2">
-                <div className="mb-1 text-[9px] uppercase tracking-[0.16em] text-cyan-300/70">
-                  Live Hermes State
-                </div>
-                <pre className="whitespace-pre-wrap break-words text-cyan-100/80">
-                  {renderHermesHighlightedText(
-                    hermesLiveStateText,
-                    hermesConsoleSearch,
-                  )}
-                </pre>
-              </div>
-            ) : (
-              <div className="rounded border border-cyan-500/10 bg-cyan-950/10 p-2 text-cyan-100/45">
-                Live Hermes state does not match the current search.
-              </div>
-            )}
-            <div className="text-[9px] uppercase tracking-[0.16em] text-cyan-300/70">
-              Raw Hermes Gateway Events
-            </div>
-            {filteredHermesLogEntries.length === 0 ? (
-              <div className="rounded border border-cyan-500/10 bg-cyan-950/10 p-2 text-cyan-100/45">
-                {hermesLogEntries.length === 0
-                  ? "No Hermes gateway events received yet."
-                  : "No Hermes events match the current search."}
-              </div>
-            ) : (
-              filteredHermesLogEntries.map((entry) => {
-                const isUserMessage = entry.role === "user";
-                return (
-                  <div
-                    key={entry.id}
-                    className={`rounded border p-2 ${
-                      isUserMessage
-                        ? "border-amber-400/30 bg-amber-950/12"
-                        : "border-cyan-500/12 bg-cyan-950/8"
-                    }`}
+                  <button
+                    type="button"
+                    onClick={handleClearHermesConsole}
+                    className="rounded border border-cyan-500/20 px-2 py-0.5 text-[9px] text-cyan-100/70 hover:text-white"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div
-                        className={`text-[9px] uppercase tracking-[0.16em] ${
-                          isUserMessage
-                            ? "text-amber-300/85"
-                            : "text-cyan-300/75"
-                        }`}
-                      >
-                        {renderHermesHighlightedText(
-                          `[${entry.timestamp}] ${entry.eventName} / ${entry.eventKind}`,
-                          hermesConsoleSearch,
-                        )}
-                      </div>
-                      {entry.role ? (
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[9px] uppercase ${
-                            isUserMessage
-                              ? "bg-amber-400/15 text-amber-200"
-                              : "bg-cyan-400/10 text-cyan-200/80"
-                          }`}
-                        >
-                          {entry.role}
-                        </span>
-                      ) : null}
+                    Leeren
+                  </button>
+                </div>
+
+                {/* Raw Events List */}
+                {filteredHermesLogEntries.slice(0, 30).map((entry) => (
+                  <div key={entry.id} className="rounded border border-cyan-500/15 bg-cyan-950/10 p-2">
+                    <div className="flex items-center justify-between text-cyan-400 font-semibold">
+                      <span>{entry.eventName || entry.eventKind}</span>
+                      <span className="text-[9px] text-slate-400">{entry.role}</span>
                     </div>
-                    <div className="mt-1 whitespace-pre-wrap break-words text-cyan-100/55">
-                      {renderHermesHighlightedText(
-                        entry.summary,
-                        hermesConsoleSearch,
-                      )}
-                    </div>
-                    {entry.messageText ? (
-                      <div className="mt-2 rounded border border-amber-400/20 bg-amber-950/25 px-2 py-1 text-amber-100">
-                        <div className="text-[9px] uppercase tracking-[0.16em] text-amber-300/75">
-                          User / Message Text
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap break-words">
-                          {renderHermesHighlightedText(
-                            entry.messageText,
-                            hermesConsoleSearch,
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                    {entry.thinkingText ? (
-                      <div className="mt-2 rounded border border-fuchsia-400/15 bg-fuchsia-950/15 px-2 py-1 text-fuchsia-100/90">
-                        <div className="text-[9px] uppercase tracking-[0.16em] text-fuchsia-300/70">
-                          Thinking
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap break-words">
-                          {renderHermesHighlightedText(
-                            entry.thinkingText,
-                            hermesConsoleSearch,
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                    {entry.streamText ? (
-                      <div className="mt-2 rounded border border-cyan-400/15 bg-cyan-950/18 px-2 py-1 text-cyan-50/90">
-                        <div className="text-[9px] uppercase tracking-[0.16em] text-cyan-300/70">
-                          Stream
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap break-words">
-                          {renderHermesHighlightedText(
-                            entry.streamText,
-                            hermesConsoleSearch,
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                    {entry.toolText ? (
-                      <div className="mt-2 rounded border border-violet-400/15 bg-violet-950/15 px-2 py-1 text-violet-100/90">
-                        <div className="text-[9px] uppercase tracking-[0.16em] text-violet-300/70">
-                          Tool Output
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap break-words">
-                          {renderHermesHighlightedText(
-                            entry.toolText,
-                            hermesConsoleSearch,
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-[9px] uppercase tracking-[0.16em] text-cyan-300/55">
-                        Raw Payload
-                      </summary>
-                      <pre className="mt-1 whitespace-pre-wrap break-words text-cyan-100/45">
-                        {renderHermesHighlightedText(
-                          entry.payloadText,
-                          hermesConsoleSearch,
-                        )}
-                      </pre>
-                    </details>
+                    <p className="mt-1 text-slate-300 break-words">{entry.summary}</p>
                   </div>
-                );
-              })
-            )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              /* Compact German View (2-3 items max, plain language) */
+              <div className="flex flex-col gap-1.5 bg-[#030a12]/95 p-3">
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1.5 pb-2 border-b border-cyan-500/10">
+                  <span className="text-[10px] font-mono text-cyan-400 mr-1">Filter:</span>
+                  {(
+                    [
+                      { key: "all", label: "Alle" },
+                      { key: "messages", label: "Nachrichten" },
+                      { key: "tasks", label: "Aufgaben" },
+                      { key: "errors", label: "Fehler" },
+                    ] as const
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setHermesConsoleCategory(key)}
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-mono transition ${
+                        hermesConsoleCategory === key
+                          ? "bg-cyan-500/25 text-cyan-200 border border-cyan-500/40"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Recent 2-3 readable activities */}
+                <div className="flex flex-col gap-1.5 mt-1">
+                  {filteredHermesLogEntries.length === 0 ? (
+                    <div className="text-[11px] text-slate-500 italic py-1">
+                      Noch keine Ereignisse protokolliert.
+                    </div>
+                  ) : (
+                    filteredHermesLogEntries.slice(0, 3).map((entry, idx) => {
+                      const isErr = entry.eventKind.toLowerCase().includes("error") || entry.eventName.toLowerCase().includes("error");
+                      const isTask = Boolean(entry.toolText) || entry.eventKind.toLowerCase().includes("tool");
+                      return (
+                        <div
+                          key={entry.id || idx}
+                          className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-[#06101c]/80 px-2.5 py-1.5 text-xs text-slate-200 font-sans"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span
+                              className={`h-2 w-2 rounded-full shrink-0 ${
+                                isErr ? "bg-rose-500" : isTask ? "bg-amber-400" : "bg-cyan-400"
+                              }`}
+                            />
+                            <span className="font-semibold text-white truncate">
+                              {entry.eventName || (isTask ? "Aufgabe ausgeführt" : "Nachricht gesendet")}
+                            </span>
+                            <span className="text-slate-400 truncate text-[11px]">
+                              · {entry.summary ? entry.summary.slice(0, 50) : "Aktivität registriert"}
+                            </span>
+                          </div>
+                          <span className="font-mono text-[10px] text-slate-500 shrink-0 ml-2">
+                            {idx === 0 ? "läuft" : `vor ${idx * 15}s`}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )
           ) : null}
         </section>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowHermesConsole(true)}
+          className="pointer-events-auto fixed bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#060c18]/90 px-2.5 py-1 text-[10px] font-mono text-cyan-300/80 shadow-lg backdrop-blur-md transition-all hover:border-cyan-400 hover:text-cyan-100 hover:bg-cyan-950/40 cursor-pointer"
+          title="System-Ereigniskonsole einblenden"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <span>Live-Events ({filteredHermesLogEntries.length})</span>
+        </button>
+      )}
 
       <div
         className={`fixed bottom-3 z-30 flex flex-col items-end gap-2 ${sidebarOpen ? "right-84" : "right-3"} ${
@@ -5310,7 +5396,7 @@ export function OfficeScreen({
                 {!chatRosterCollapsed ? (
                   <>
                     <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-white/60">
-                      Agents
+                      Agenten
                     </span>
                     <span className="font-mono text-[10px] text-white/40">
                       {chatRosterEntries.length}
@@ -5326,8 +5412,8 @@ export function OfficeScreen({
                 type="button"
                 onClick={() => setChatRosterCollapsed((current) => !current)}
                 className="mx-2 mt-2 inline-flex items-center justify-center rounded border border-white/10 bg-white/5 px-2 py-2 text-white/65 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
-                aria-label={chatRosterCollapsed ? "Expand agent list" : "Collapse agent list"}
-                title={chatRosterCollapsed ? "Expand agent list" : "Collapse agent list"}
+                aria-label={chatRosterCollapsed ? "Agentenliste ausklappen" : "Agentenliste einklappen"}
+                title={chatRosterCollapsed ? "Agentenliste ausklappen" : "Agentenliste einklappen"}
               >
                 {chatRosterCollapsed ? (
                   <ChevronRight className="h-4 w-4" />
@@ -5359,7 +5445,7 @@ export function OfficeScreen({
                   </div>
                 ) : chatRosterEntries.length === 0 ? (
                   <div className="px-3 py-4 font-mono text-[11px] text-white/30">
-                    No agents.
+                    Keine Agenten online.
                   </div>
                 ) : (
                   chatRosterEntries.map((agent) => {
@@ -5528,7 +5614,7 @@ export function OfficeScreen({
           {chatOpen ? (
             <>
               <ChevronDown className="h-3.5 w-3.5" />
-              <span>HIDE CHAT</span>
+              <span>CHAT SCHLIESSEN</span>
             </>
           ) : (
             <>

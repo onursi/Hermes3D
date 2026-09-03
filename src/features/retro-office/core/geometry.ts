@@ -40,6 +40,7 @@ export const ITEM_FOOTPRINT: Record<string, [number, number]> = {
   desk_cubicle: [100, 55],
   chair: [24, 24],
   round_table: [120, 120],
+  conference_table: [70, 260],
   executive_desk: [130, 65],
   couch: [100, 40],
   couch_v: [40, 80],
@@ -123,6 +124,13 @@ export const ITEM_METADATA: Record<string, { blocksNavigation: boolean; navPaddi
   // ── tables ────────────────────────────────────────────────────────────────
   round_table:     { blocksNavigation: true  },
   table_rect:      { blocksNavigation: true  },
+  // Tight padding (not the 15-unit default): a long conference table in a
+  // room only ~170 units of clear interior width otherwise eats both side
+  // corridors down to less than one nav grid cell, making its own far-side
+  // seats unreachable by A* (found while wiring real agents into the
+  // Meeting Room's seats, RetroOffice3D.tsx boardroomOpen — the seats
+  // resolved a path of length 0 with the 15-unit default).
+  conference_table:{ blocksNavigation: true, navPadding: 6 },
   pingpong:        { blocksNavigation: true  },
   // ── storage / shelving ────────────────────────────────────────────────────
   bookshelf:       { blocksNavigation: true  },

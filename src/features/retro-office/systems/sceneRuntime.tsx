@@ -207,7 +207,7 @@ export function SpotlightEffect({
       progressRef.current = Math.max(0, progressRef.current - delta / 0.6);
     }
     const bell = Math.sin(progressRef.current * Math.PI);
-    lightRef.current.intensity = bell * 6;
+    lightRef.current.intensity = bell * 0.8;
 
     const agent =
       (agentId ? agentLookupRef?.current?.get(agentId) : undefined) ??

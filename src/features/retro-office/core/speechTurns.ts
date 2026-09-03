@@ -29,6 +29,7 @@ export interface SpeechTurn {
   /** Identifies one reply, so the same event is never queued twice. */
   key: string;
   durationMs: number;
+  text?: string;
 }
 
 /** Reading time for a reply of this length, bounded at both ends. */

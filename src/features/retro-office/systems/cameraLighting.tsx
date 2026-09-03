@@ -66,23 +66,53 @@ export type CameraPreset = {
   zoom?: number;
 };
 
+const OX = -11.7;
+const OZ = -16.2;
+
 export const CAMERA_PRESETS = {
   overview: {
-    pos: DISTRICT_CAMERA_POSITION,
-    target: DISTRICT_CAMERA_TARGET,
-    zoom: DISTRICT_CAMERA_ZOOM,
+    pos: [OX + 5.5, 6.0, OZ + 7.0],
+    target: [OX, 0.6, OZ],
+    zoom: 65,
+  },
+  meetingTable: {
+    pos: [OX + 0.2, 2.2, OZ + 3.1],
+    target: [OX, 0.55, OZ],
+    zoom: 65,
+  },
+  dualDeck: {
+    pos: [OX + 9.5, 7.2, OZ + 10.5],
+    target: [OX, -1.6, OZ],
+    zoom: 50,
+  },
+  screens: {
+    pos: [OX, 1.8, OZ + 1.0],
+    target: [OX, 1.5, OZ - 3.07],
+    zoom: 55,
+  },
+  hermesPov: {
+    pos: [OX + 0.22, 0.94, OZ - 1.65],
+    target: [OX, 0.75, OZ + 0.8],
+    zoom: 55,
   },
   frontDesk: {
-    pos: [-2, 8, 4],
-    target: [-3, 0, -2],
-    zoom: 70,
+    pos: [OX + 5.5, 6.0, OZ + 7.0],
+    target: [OX, 0.6, OZ],
+    zoom: 65,
   },
   lounge: {
-    pos: [7, 7, -5],
-    target: [5, 0, -3],
-    zoom: 62,
+    pos: [OX + 0.2, 2.2, OZ + 3.1],
+    target: [OX, 0.55, OZ],
+    zoom: 65,
+  },
+  warRoom: {
+    pos: [OX + 0.1, -3.75, OZ - 0.2],
+    target: [OX + 2.9, -3.85, OZ],
+    zoom: 60,
   },
 } satisfies Record<string, CameraPreset>;
+
+export const CAMERA_PRESET_MAP = CAMERA_PRESETS;
 
 type OrbitControllerLike = {
   target: THREE.Vector3;
@@ -92,48 +122,134 @@ type OrbitControllerLike = {
 export function CameraAnimator({
   presetRef,
   orbitRef,
+  cinematicTourRef,
+  onKontrollfahrtStation,
+  jumpStationTargetRef,
 }: {
   presetRef: MutableRefObject<CameraPreset | null>;
   orbitRef: RefObject<OrbitControllerLike | null>;
+  cinematicTourRef?: MutableRefObject<boolean>;
+  onKontrollfahrtStation?: (station: number, arrived: boolean) => void;
+  jumpStationTargetRef?: MutableRefObject<number | null>;
 }) {
-  const { camera, size } = useThree();
-  const targetPositionRef = useRef(new THREE.Vector3());
-  const targetLookAtRef = useRef(new THREE.Vector3());
-  const directionRef = useRef(new THREE.Vector3());
+  const { camera } = useThree();
+  const startPos = useRef(new THREE.Vector3());
+  const startTarget = useRef(new THREE.Vector3());
+  const endPos = useRef(new THREE.Vector3());
+  const endTarget = useRef(new THREE.Vector3());
+  const progress = useRef(1);
+  const activePresetRef = useRef<CameraPreset | null>(null);
+  const tourTimeRef = useRef(0);
+  const lastReportedStation = useRef<number>(-1);
+  const lastReportedArrived = useRef<boolean>(false);
 
-  useFrame(() => {
-    const preset = presetRef.current;
+  useFrame((_, delta) => {
     const orbit = orbitRef.current;
-    if (!preset || !orbit) return;
+    if (!orbit) return;
 
-    targetLookAtRef.current.set(...preset.target);
-    targetPositionRef.current.set(...preset.pos);
-
-    if (typeof preset.zoom === "number" && preset.zoom > 0) {
-      // Re-project the preset position so the perspective camera frames the
-      // same world height the old orthographic zoom described.
-      directionRef.current
-        .copy(targetPositionRef.current)
-        .sub(targetLookAtRef.current);
-      if (directionRef.current.lengthSq() < 1e-6) {
-        directionRef.current.copy(DEFAULT_VIEW_DIRECTION);
-      } else {
-        directionRef.current.normalize();
+    // 1. Data-Driven Kontrollfahrt Mode (Operative 5-Stationen-Leitstand-Tour)
+    if (cinematicTourRef?.current) {
+      if (jumpStationTargetRef && jumpStationTargetRef.current !== null) {
+        const targetStation = Math.max(0, Math.min(4, jumpStationTargetRef.current));
+        tourTimeRef.current = targetStation * 13 + 3.6;
+        jumpStationTargetRef.current = null;
       }
-      const fov =
-        camera instanceof THREE.PerspectiveCamera ? camera.fov : SCENE_CAMERA_FOV;
-      const distance = orthoZoomToDistance(preset.zoom, size.height, fov);
-      targetPositionRef.current
-        .copy(targetLookAtRef.current)
-        .addScaledVector(directionRef.current, distance);
+      tourTimeRef.current += delta;
+      const t = tourTimeRef.current;
+      const cycle = t % 65; // 65s koordinierte 5-Stationen-Tour (13s pro Station)
+      const stationIdx = Math.min(4, Math.floor(cycle / 13));
+      const stationTime = cycle % 13;
+      const isArrived = stationTime >= 3.5 && stationTime <= 12.0;
+
+      if (
+        onKontrollfahrtStation &&
+        (stationIdx !== lastReportedStation.current || isArrived !== lastReportedArrived.current)
+      ) {
+        lastReportedStation.current = stationIdx;
+        lastReportedArrived.current = isArrived;
+        onKontrollfahrtStation(stationIdx, isArrived);
+      }
+
+      if (stationIdx === 0) {
+        // Station 1: Wand-Monitore (Projekt-Status & CI)
+        const p = stationTime / 13;
+        const camX = OX - 1.8 + Math.sin(p * Math.PI) * 0.35;
+        const camY = 1.72 + Math.sin(p * Math.PI) * 0.1;
+        const camZ = OZ - 0.7 + p * 0.25;
+        camera.position.set(camX, camY, camZ);
+        orbit.target.set(OX - 0.1, 1.45, OZ - 3.2);
+      } else if (stationIdx === 1) {
+        // Station 2: Kanban-Wand (Stapelhöhen & Sprint-Workload)
+        const p = stationTime / 13;
+        const camX = OX + 0.6 + Math.sin(p * Math.PI) * 0.3;
+        const camY = 1.72 + Math.sin(p * Math.PI) * 0.08;
+        const camZ = OZ - 0.7 + p * 0.25;
+        camera.position.set(camX, camY, camZ);
+        orbit.target.set(OX + 1.2, 1.45, OZ - 3.2);
+      } else if (stationIdx === 2) {
+        // Station 3: Quantum War Room (Unterdeck: Tagesbudget in %, Tokens & Latenz)
+        const p = stationTime / 13;
+        const camX = -8.2 + Math.cos(p * Math.PI) * 0.8;
+        const camY = -3.7 + Math.sin(p * Math.PI) * 0.15;
+        const camZ = -12.4 + Math.sin(p * Math.PI) * 0.6;
+        camera.position.set(camX, camY, camZ);
+        orbit.target.set(-11.7, -4.5, -16.2);
+      } else if (stationIdx === 3) {
+        // Station 4: Nachtschicht-Tafel (Cronjobs & Background Runs)
+        const p = stationTime / 13;
+        const camX = OX - 1.2 + Math.sin(p * Math.PI) * 0.3;
+        const camY = 1.62 + Math.sin(p * Math.PI) * 0.1;
+        const camZ = OZ + 1.6 - p * 0.2;
+        camera.position.set(camX, camY, camZ);
+        orbit.target.set(OX - 2.6, 1.3, OZ + 0.2);
+      } else {
+        // Station 5: Das Finale am Tisch (Hermes' Urteil & Handlungsempfehlung)
+        const p = stationTime / 13;
+        const camX = OX + 1.2 - p * 0.35;
+        const camY = 1.65 - p * 0.12;
+        const camZ = OZ + 1.4 - p * 0.25;
+        camera.position.set(camX, camY, camZ);
+        orbit.target.set(OX, 0.45, OZ);
+      }
+      orbit.update();
+      return;
+    } else {
+      tourTimeRef.current = 0;
+      if (lastReportedStation.current !== -1 && onKontrollfahrtStation) {
+        lastReportedStation.current = -1;
+        lastReportedArrived.current = false;
+        onKontrollfahrtStation(-1, false);
+      }
     }
 
-    camera.position.lerp(targetPositionRef.current, 0.06);
-    orbit.target.lerp(targetLookAtRef.current, 0.06);
-    orbit.update();
+    // 2. Preset Transition Animator
+    const preset = presetRef.current;
+    if (preset && preset !== activePresetRef.current) {
+      activePresetRef.current = preset;
+      startPos.current.copy(camera.position);
+      startTarget.current.copy(orbit.target);
+      endPos.current.set(...preset.pos);
+      endTarget.current.set(...preset.target);
+      progress.current = 0;
+    }
 
-    if (camera.position.distanceTo(targetPositionRef.current) < 0.05) {
-      presetRef.current = null;
+    if (progress.current < 1) {
+      progress.current = Math.min(1, progress.current + delta * 1.8);
+      // Smooth cubic ease-in-out
+      const p = progress.current;
+      const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
+      camera.position.lerpVectors(startPos.current, endPos.current, ease);
+      orbit.target.lerpVectors(startTarget.current, endTarget.current, ease);
+      orbit.update();
+
+      if (progress.current >= 1) {
+        camera.position.copy(endPos.current);
+        orbit.target.copy(endTarget.current);
+        orbit.update();
+        presetRef.current = null;
+        activePresetRef.current = null;
+      }
     }
   });
 
@@ -259,28 +375,36 @@ export function FollowCamController({
       agentsRef.current?.find((candidate) => candidate.id === agentId);
     if (!agent) return;
 
-    if (agentId !== lastAgentIdRef.current) {
-      thetaRef.current = agent.facing + Math.PI;
-      lastAgentIdRef.current = agentId;
-    }
-
     const [wx, , wz] = toWorld(agent.x, agent.y);
-    const radius = radiusRef.current;
-    const theta = thetaRef.current;
-    const phi = phiRef.current;
+    const facing = agent.facing;
+    const isSeated = agent.state === "sitting";
 
-    cameraPositionRef.current.set(
-      wx + radius * Math.sin(phi) * Math.sin(theta),
-      0.4 + radius * Math.cos(phi),
-      wz + radius * Math.sin(phi) * Math.cos(theta),
-    );
-    perspectiveCameraRef.current.position.copy(cameraPositionRef.current);
+    // Forward direction the agent is looking
+    const forwardX = Math.sin(facing);
+    const forwardZ = Math.cos(facing);
+    const rightX = Math.cos(facing);
+    const rightZ = -Math.sin(facing);
 
-    lookAtRef.current.set(wx, 0.5, wz);
+    // Over-the-shoulder POV placed directly next to the helmet looking forward across the table
+    const eyeHeight = isSeated ? 0.82 : 1.08;
+    const targetCamX = wx - forwardX * 0.22 + rightX * 0.26;
+    const targetCamY = eyeHeight + 0.12;
+    const targetCamZ = wz - forwardZ * 0.22 + rightZ * 0.26;
+
+    // Look out across the table and toward the screens
+    const targetLookX = wx + forwardX * 8;
+    const targetLookY = eyeHeight + 0.08;
+    const targetLookZ = wz + forwardZ * 8;
+
+    // Smooth exponential damping to eliminate stutter/jitter
+    const cam = perspectiveCameraRef.current;
+    cam.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.14);
+
+    lookAtRef.current.lerp(new THREE.Vector3(targetLookX, targetLookY, targetLookZ), 0.14);
     if (focusPointRef) focusPointRef.current.copy(lookAtRef.current);
-    perspectiveCameraRef.current.lookAt(lookAtRef.current);
-    perspectiveCameraRef.current.aspect = size.width / size.height;
-    perspectiveCameraRef.current.updateProjectionMatrix();
+    cam.lookAt(lookAtRef.current);
+    cam.aspect = size.width / size.height;
+    cam.updateProjectionMatrix();
   });
 
   return null;

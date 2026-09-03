@@ -78,10 +78,10 @@ export function HQSidebar({
           onClick={onToggle}
           className="rounded-l-md border border-r-0 border-cyan-500/30 bg-[#06090d]/90 px-1.5 py-2.5 font-mono text-[10px] font-semibold tracking-[0.2em] text-cyan-300 shadow-xl backdrop-blur transition-colors hover:border-cyan-400/50 hover:text-cyan-100"
           aria-expanded={open}
-          aria-label={open ? "Collapse headquarters sidebar" : "Open headquarters sidebar"}
+          aria-label={open ? "Headquarters schließen" : "Headquarters öffnen"}
         >
           <span className="block leading-none [writing-mode:vertical-rl]">
-            {open ? "COLLAPSE HQ" : "OPEN HQ"}
+            {open ? "HQ SCHLIESSEN" : "HQ ÖFFNEN"}
           </span>
         </button>
 
@@ -91,10 +91,10 @@ export function HQSidebar({
             onOpenMarketplace();
           }}
           className="rounded-l-md border border-r-0 border-fuchsia-500/25 bg-[#100611]/90 px-1.5 py-2.5 font-mono text-[10px] font-semibold tracking-[0.2em] text-fuchsia-300/80 shadow-xl backdrop-blur transition-colors hover:border-fuchsia-400/45 hover:text-fuchsia-100"
-          aria-label="Open marketplace"
+          aria-label="Marktplatz öffnen"
         >
           <span className="block leading-none [writing-mode:vertical-rl]">
-            MARKETPLACE
+            MARKTPLATZ
           </span>
         </button>
 
@@ -112,10 +112,10 @@ export function HQSidebar({
               : "border-amber-500/25 bg-[#120d06]/90 text-amber-300/80 hover:border-amber-400/45 hover:text-amber-100"
           }`}
           aria-pressed={analyticsOnly}
-          aria-label="Open analytics sidebar"
+          aria-label="Analytik öffnen"
         >
           <span className="block leading-none [writing-mode:vertical-rl]">
-            ANALYTICS
+            ANALYTIK
           </span>
         </button>
       </div>
@@ -128,12 +128,12 @@ export function HQSidebar({
         >
           <div className="border-b border-cyan-500/15 px-4 py-3">
             <div className="font-mono text-[10px] font-semibold tracking-[0.32em] text-cyan-300/80">
-              {analyticsOnly ? "ANALYTICS" : "HEADQUARTERS"}
+              {analyticsOnly ? "ANALYTIK" : "HEADQUARTER"}
             </div>
             <div className="mt-1 font-mono text-[11px] text-white/45">
               {analyticsOnly
-                ? "Cost, budgets, and performance intelligence."
-                : "Monitor outputs, runs, and schedules."}
+                ? "Kosten, Budgets & Performance-Intelligenz."
+                : "Mission Control & Agenten-Management."}
             </div>
             {!railOnly && onAddAgent ? (
               <button

@@ -49,14 +49,111 @@ export const resolvePingPongTargets = (
   ];
 };
 
+// Room-shape pass: was authored for the old 1800x720 canvas (points up to
+// x:850/y:620) — with the office now down to a 500x400 footprint (see
+// district.ts), those points sat far outside the visible room, so idle
+// agents would "leave" it while roaming. Kept inside the floor with a
+// margin from the walls/table (round table sits at center 250,200,
+// rug span roughly x:[125,375] y:[75,325]).
 export const ROAM_POINTS = [
-  { x: 800, y: 200 },
-  { x: 850, y: 500 },
-  { x: 820, y: 580 },
-  { x: 450, y: 420 },
-  { x: 250, y: 420 },
-  { x: 650, y: 420 },
-  { x: 150, y: 620 },
+  { x: 70, y: 70 },
+  { x: 430, y: 70 },
+  { x: 70, y: 330 },
+  { x: 430, y: 330 },
+  { x: 250, y: 60 },
+  { x: 60, y: 200 },
+  { x: 440, y: 200 },
+];
+
+export interface OfficeWorkstation {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  facing: number;
+  activity:
+    | "kanban_typing"
+    | "whiteboard_sketch"
+    | "war_room_metrics"
+    | "war_room_pipeline"
+    | "war_room_logs"
+    | "coffee_break"
+    | "thinking_walk";
+  durationMs: number;
+  description: string;
+}
+
+export const OFFICE_WORKSTATIONS: OfficeWorkstation[] = [
+  {
+    id: "kanban",
+    name: "Kanban Board",
+    x: 390,
+    y: 72,
+    facing: Math.PI,
+    activity: "kanban_typing",
+    durationMs: 8000,
+    description: "Tickets am Kanban-Board prüfen & verschieben",
+  },
+  {
+    id: "whiteboard",
+    name: "Whiteboard / Strategy Wall",
+    x: 250,
+    y: 72,
+    facing: Math.PI,
+    activity: "whiteboard_sketch",
+    durationMs: 7000,
+    description: "Architektur-Skizzen analysieren",
+  },
+  {
+    id: "war_room_metrics",
+    name: "Unterdeck // Cluster Metrics",
+    x: 368,
+    y: 340,
+    facing: -Math.PI / 4,
+    activity: "war_room_metrics",
+    durationMs: 9000,
+    description: "Server-Metriken & Cluster-Last analysieren",
+  },
+  {
+    id: "war_room_pipeline",
+    name: "Unterdeck // GitHub Pipeline",
+    x: 433,
+    y: 200,
+    facing: 0,
+    activity: "war_room_pipeline",
+    durationMs: 9000,
+    description: "GitHub-Pipelines & CI/CD Builds überwachen",
+  },
+  {
+    id: "war_room_logs",
+    name: "Unterdeck // Live Logs",
+    x: 368,
+    y: 60,
+    facing: Math.PI / 4,
+    activity: "war_room_logs",
+    durationMs: 8500,
+    description: "Live-System-Logs & Traces prüfen",
+  },
+  {
+    id: "coffee",
+    name: "Espresso Bar",
+    x: 70,
+    y: 325,
+    facing: -Math.PI / 2,
+    activity: "coffee_break",
+    durationMs: 6000,
+    description: "Frischen Espresso zapfen",
+  },
+  {
+    id: "lounge",
+    name: "Creative Corner",
+    x: 430,
+    y: 320,
+    facing: -Math.PI / 4,
+    activity: "thinking_walk",
+    durationMs: 7000,
+    description: "Kreative Denkpause & Horizon-Scan",
+  },
 ];
 
 export const JANITOR_ENTRY_POINTS: FacingPoint[] = [
@@ -91,7 +188,7 @@ export function buildNavGrid(furniture: FurnitureItem[]): NavGrid {
   const defaultPad = GRID_CELL * 0.6;
   for (const item of furniture) {
     if (!itemBlocksNavigation(item.type)) continue;
-    const itemPad = ITEM_METADATA[item.type]?.navPadding ?? defaultPad;
+    const itemPad = item.navPadding ?? ITEM_METADATA[item.type]?.navPadding ?? defaultPad;
     const bounds = getItemBounds(item);
     const x1 = bounds.x - itemPad;
     const y1 = bounds.y - itemPad;

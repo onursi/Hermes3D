@@ -1,6 +1,22 @@
 const http = require("node:http");
 const https = require("node:https");
+const fs = require("node:fs");
+const path = require("node:path");
 const next = require("next");
+
+// Auto-load .env.local so PORT=3200 is always respected
+try {
+  const envPath = path.join(__dirname, "..", ".env.local");
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2]?.trim() ?? "";
+      }
+    }
+  }
+} catch {}
 
 const { createAccessGate } = require("./access-gate");
 const { createGatewayProxy } = require("./gateway-proxy");
@@ -8,9 +24,9 @@ const { assertPublicHostAllowed, resolveHosts } = require("./network-policy");
 const { loadUpstreamGatewaySettings } = require("./studio-settings");
 
 const resolvePort = () => {
-  const raw = process.env.PORT?.trim() || "3000";
+  const raw = process.env.PORT?.trim() || "3200";
   const port = Number(raw);
-  if (!Number.isFinite(port) || port <= 0) return 3000;
+  if (!Number.isFinite(port) || port <= 0) return 3200;
   return port;
 };
 

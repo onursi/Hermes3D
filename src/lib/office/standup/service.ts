@@ -247,7 +247,7 @@ const normalizeAgentSnapshots = (agents: StandupAgentSnapshot[]): StandupAgentSn
       lastUserMessage: coerceText(agent.lastUserMessage) || null,
     }))
     .filter((agent) => agent.agentId);
-  if (valid.length > 0) return valid;
+  if (valid.length > 0) return valid.slice(0, 4);
   const configPath = path.join(resolveStateDir(), HERMES_CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return [];
   const raw = fs.readFileSync(configPath, "utf8");
@@ -256,7 +256,7 @@ const normalizeAgentSnapshots = (agents: StandupAgentSnapshot[]): StandupAgentSn
     parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : undefined;
-  return readConfigAgentList(config).map((entry) => ({
+  return readConfigAgentList(config).slice(0, 4).map((entry) => ({
     agentId: entry.id.trim(),
     name:
       (typeof entry.name === "string" ? entry.name.trim() : "") || entry.id.trim(),

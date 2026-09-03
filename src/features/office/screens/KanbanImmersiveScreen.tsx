@@ -93,8 +93,8 @@ export function KanbanImmersiveScreen({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close Kanban Board"
-          className="absolute -right-5 -top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-amber-400/20 bg-[#0e0b07]/90 text-amber-200/70 backdrop-blur-sm transition-colors hover:border-amber-400/40 hover:text-white"
+          aria-label="Kanban-Board schließen"
+          className="absolute -right-4 -top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-cyan-500/30 bg-[#060c18]/95 text-cyan-300 shadow-xl backdrop-blur-md transition-colors hover:border-cyan-400 hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>
@@ -102,12 +102,15 @@ export function KanbanImmersiveScreen({
         <div
           ref={dialogRef}
           tabIndex={-1}
-          className="flex h-[min(75vh,800px)] w-[min(80vw,1280px)] flex-col overflow-hidden rounded-2xl border border-amber-500/20 bg-[#0e0b07]/85 shadow-2xl outline-none backdrop-blur-md"
+          onKeyDown={(e) => {
+            e.stopPropagation();
+          }}
+          className="flex h-[min(78vh,820px)] w-[min(84vw,1320px)] flex-col overflow-hidden rounded-2xl border border-cyan-500/35 bg-[#060e1b]/95 shadow-2xl shadow-cyan-950/80 outline-none backdrop-blur-xl"
         >
           <div className="min-h-0 flex-1">
           <TaskBoardView
-            title="Hermes Task Board"
-            subtitle="Inbox, schedules, live runs, approvals, and learned skills."
+            title="Hermes Aufgaben-Board // Task-Pipeline"
+            subtitle="Eingang, Zeitpläne, Live-Agentenläufe, Freigaben & gelernte Fähigkeiten."
             agents={agents}
             cardsByStatus={cardsByStatus}
             selectedCard={selectedCard}

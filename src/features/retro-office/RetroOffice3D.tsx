@@ -13,6 +13,9 @@ import {
   Trash2,
   Users,
   X,
+  Smartphone,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   type ComponentProps,
@@ -42,6 +45,11 @@ import {
 } from "@/features/office/screens/SmsBoothImmersiveScreen";
 import { StandupImmersiveScreen } from "@/features/office/screens/StandupImmersiveScreen";
 import { MeetingRoomImmersiveScreen } from "@/features/office/screens/MeetingRoomImmersiveScreen";
+import { CouncilDiagramModal } from "@/features/office/screens/CouncilDiagramModal";
+import { WhiteboardModal } from "@/features/office/screens/WhiteboardModal";
+import { CyberJukebox } from "@/features/office/components/CyberJukebox";
+import { TeamDispatchBar } from "@/features/office/components/TeamDispatchBar";
+import { cyberAudio } from "@/lib/sound/cyberAudio";
 import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
 import type { AgentState } from "@/features/agents/state/store";
 import type { CronJobSummary } from "@/lib/cron/types";
@@ -82,6 +90,7 @@ import {
   ensureOfficeAtm,
   ensureOfficeGymRoom,
   ensureOfficeKanbanBoard,
+  ensureOfficeMeetingRoom,
   ensureOfficePhoneBooth,
   ensureOfficePingPongTable,
   ensureOfficeQaLab,
@@ -92,6 +101,12 @@ import {
   materializeDefaults,
   type OfficeLayoutPreset,
 } from "@/features/retro-office/core/furnitureDefaults";
+import { MEETING_ROOM_CENTER, MEETING_ROOM_SEATS } from "@/features/retro-office/core/meetingRoom";
+import { useAgentStore } from "@/features/agents/state/store";
+import {
+  deriveMeetingParticipantStatus,
+  isModeratorAgent,
+} from "@/features/office/meeting-room/deriveParticipantStatus";
 import {
   clampPointToZone,
   DISTRICT_CAMERA_TARGET,
@@ -137,6 +152,7 @@ import {
   resolveSmsBoothRoute,
   resolveServerRoomRoute,
   ROAM_POINTS,
+  OFFICE_WORKSTATIONS,
   SERVER_ROOM_TARGET,
 } from "@/features/retro-office/core/navigation";
 import {
@@ -162,6 +178,7 @@ import {
   loadFurniture,
   markAtmMigrationApplied,
   markGymRoomMigrationApplied,
+  markMeetingRoomMigrationApplied,
   markPhoneBoothMigrationApplied,
   markQaLabMigrationApplied,
   markSmsBoothMigrationApplied,
@@ -178,7 +195,10 @@ import type {
 } from "@/features/retro-office/core/types";
 import type { NavGrid } from "@/features/retro-office/core/navigation";
 import type { OfficeLayoutSnapshot } from "@/lib/office/layoutSnapshot";
-import { AgentModel as AgentObjectModel } from "@/features/retro-office/objects/agents";
+import {
+  AgentModel as AgentObjectModel,
+  activeLiftSuction,
+} from "@/features/retro-office/objects/agents";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
   FurnitureModel as GenericFurnitureModel,
@@ -214,6 +234,7 @@ import {
 } from "@/features/retro-office/objects/machines";
 import {
   ClockModel as PrimitiveClockModel,
+  ConferenceTableModel as PrimitiveConferenceTableModel,
   DoorModel as PrimitiveDoorModel,
   InstancedWallSegmentsModel as PrimitiveInstancedWallSegmentsModel,
   KeyboardModel as PrimitiveKeyboardModel,
@@ -224,9 +245,16 @@ import {
   WallSegmentModel as PrimitiveWallSegmentModel,
 } from "@/features/retro-office/objects/primitives";
 import {
-  FloorAndWalls as SceneFloorAndWalls,
-  WallPictures as SceneWallPictures,
-} from "@/features/retro-office/scene/environment";
+  MeetingRoomFixtures,
+  MEETING_ROOM_STATUS_LABEL,
+  type MeetingRoomSeatData,
+} from "@/features/retro-office/objects/meetingRoomFixtures";
+import { IdleAgentThoughtBubbles } from "@/features/retro-office/scene/IdleAgentThoughtBubbles";
+import { QuantumWarRoom } from "@/features/retro-office/scene/QuantumWarRoom";
+import { FloorAndWalls as SceneFloorAndWalls, type FloorAnimationMode } from "@/features/retro-office/scene/environment";
+import { KontrollfahrtArrivalPanel } from "@/features/retro-office/scene/KontrollfahrtArrivalPanel";
+import { ObsidianGraphModal } from "@/features/retro-office/scene/ObsidianGraphModal";
+import { TodoistTerminalModal } from "@/features/retro-office/scene/TodoistTerminalModal";
 import {
   CAMERA_PRESETS as CAMERA_PRESET_MAP,
   CameraAnimator as CameraPresetAnimator,
@@ -462,15 +490,80 @@ const PALETTE: PaletteEntry[] = [
 
 function CameraRig({ target }: { target: [number, number, number] }) {
   const { camera } = useThree();
+  const mountedRef = useRef(false);
   useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
     camera.lookAt(...target);
     camera.updateProjectionMatrix();
   }, [camera, target]);
   return null;
 }
 
+function DirectCameraController({
+  orbitRef,
+}: {
+  orbitRef: React.RefObject<any>;
+}) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    const handleFlyTo = (e: any) => {
+      const { pos, target } = e.detail || {};
+      if (!pos || !target) return;
+      const startPos = camera.position.clone();
+      const endPos = new THREE.Vector3(...pos);
+      const startTarget = orbitRef.current
+        ? orbitRef.current.target.clone()
+        : new THREE.Vector3(0, 0.6, 0);
+      const endTarget = new THREE.Vector3(...target);
+
+      const startTime = performance.now();
+      const duration = 850;
+
+      const animate = (now: number) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const ease =
+          progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+        camera.position.lerpVectors(startPos, endPos, ease);
+        if (orbitRef.current) {
+          orbitRef.current.target.lerpVectors(startTarget, endTarget, ease);
+          orbitRef.current.update();
+        } else {
+          camera.lookAt(endTarget);
+        }
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    };
+
+    window.addEventListener("fly_to_camera_preset", handleFlyTo);
+    return () => {
+      window.removeEventListener("fly_to_camera_preset", handleFlyTo);
+    };
+  }, [camera, orbitRef]);
+
+  return null;
+}
+
 const NOOP_FURNITURE_UID_HANDLER = () => {};
 const NOOP_FURNITURE_HANDLER = () => {};
+// "Close enough to sit" for the council-table seats. Was a hardcoded 15 —
+// smaller than the nav grid's 25-unit cell size (core/navigation.ts), so a
+// path that could only reach the cell next to a chair (chairs are nav
+// obstacles) left the agent permanently >=15 units short: state never flips
+// to "sitting", so it stays in the walk-cycle animation while barely
+// moving — reads as jittering in place next to its chair. 30 gives enough
+// slack to cover that one-cell shortfall.
+const MEETING_SEAT_ARRIVAL_DIST = 30;
 const EMPTY_FURNITURE_ITEMS: FurnitureItem[] = [];
 
 const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
@@ -512,6 +605,17 @@ const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
           />
         ) : item.type === "round_table" ? (
           <PrimitiveRoundTableModel
+            key={item._uid}
+            item={item}
+            isSelected={false}
+            isHovered={false}
+            editMode={false}
+            onPointerDown={NOOP_FURNITURE_UID_HANDLER}
+            onPointerOver={NOOP_FURNITURE_UID_HANDLER}
+            onPointerOut={NOOP_FURNITURE_HANDLER}
+          />
+        ) : item.type === "conference_table" ? (
+          <PrimitiveConferenceTableModel
             key={item._uid}
             item={item}
             isSelected={false}
@@ -909,6 +1013,16 @@ function useAgentTick(
   standupMeeting: StandupMeeting | null = null,
   conversationGroups: ConversationGroup[] = [],
   conversationExpiryRef: React.RefObject<Map<string, number>> | null = null,
+  // Boardroom (East Wing "Meeting Room") seating — deliberately independent
+  // of the standup table's meetingSeatLocations/resolveMeetingTarget above:
+  // that mechanism reflects a real standup event's participantOrder, while
+  // this holds the four real roster agents at their fixed boardroom seats
+  // (core/meetingRoom.ts) purely while the room is open for viewing, so the
+  // room never shows empty chairs when four agents are connected. No
+  // routing/ledger/gateway state is read or written here — this only picks
+  // a walk target for the existing scene animation.
+  boardroomOpen = false,
+  boardroomSeatAgentIds: (string | null)[] = [],
 ) {
   const renderAgentsRef = useRef<RenderAgent[]>([]);
   const renderAgentLookupRef = useRef<Map<string, RenderAgent>>(new Map());
@@ -951,9 +1065,11 @@ function useAgentTick(
         Math.floor(Math.random() * REMOTE_ROAM_POINTS.length)
       ];
     }
+    // Was Math.random()*800+100 / *500+100 — fine for the old 1800x720
+    // canvas, far outside the new 500x400 room footprint (see district.ts).
     return {
-      x: Math.random() * 800 + 100,
-      y: Math.random() * 500 + 100,
+      x: Math.random() * 300 + 100,
+      y: Math.random() * 200 + 100,
     };
   }, []);
 
@@ -986,16 +1102,53 @@ function useAgentTick(
     Map<string, { x: number; y: number; facing: number; seatIndex: number; groupId: string }>
   >(new Map());
   const placedConversationGroupIdsRef = useRef<Set<string>>(new Set());
+  // Fixed boardroom seat targets (canvas-space), computed once from the
+  // authored layout — not chair-derived like meetingSeatLocations above,
+  // since the boardroom's four seats are always in the same place.
+  const boardroomSeatTargets = useMemo(
+    () =>
+      MEETING_ROOM_SEATS.map((seat) => ({
+        x: seat.x,
+        y: seat.y,
+        facing: (seat.chairFacing * Math.PI) / 180,
+      })),
+    [],
+  );
+
   const resolveMeetingTarget = useCallback(
     (agentId: string) => {
-      const participantOrder = standupMeeting?.participantOrder ?? [];
-      const targetIndex = participantOrder.indexOf(agentId);
-      const seats = [...meetingSeatLocations, ...MEETING_OVERFLOW_LOCATIONS];
-      const fallbackSeat = seats[0] ?? { x: 145, y: 118, facing: Math.PI };
-      if (targetIndex < 0) return fallbackSeat;
-      return seats[targetIndex] ?? fallbackSeat;
+      const isHermes =
+        agentId.toLowerCase().includes("hermes") || agentId === "main";
+      let targetIndex = isHermes ? 0 : -1;
+      if (targetIndex < 0) {
+        const participantOrder = standupMeeting?.participantOrder ?? [];
+        targetIndex = participantOrder.indexOf(agentId);
+      }
+      if (targetIndex < 0) {
+        targetIndex = boardroomSeatAgentIds.indexOf(agentId);
+      }
+      if (targetIndex < 0 || (targetIndex === 0 && !isHermes)) {
+        // Seat 0 is reserved for Hermes (Chairman / Boss). Assign other agents to seats 1, 2, 3:
+        const others = boardroomSeatAgentIds.filter(
+          (id) => id && !id.toLowerCase().includes("hermes"),
+        );
+        const idx = others.indexOf(agentId);
+        targetIndex = idx >= 0 ? (idx % 3) + 1 : 1;
+      }
+      const safeIndex = Math.min(
+        MEETING_ROOM_SEATS.length - 1,
+        Math.max(0, targetIndex),
+      );
+      return boardroomSeatTargets[safeIndex] ?? boardroomSeatTargets[0];
     },
-    [meetingSeatLocations, standupMeeting?.participantOrder],
+    [boardroomSeatAgentIds, boardroomSeatTargets, standupMeeting?.participantOrder],
+  );
+
+  const resolveBoardroomTarget = useCallback(
+    (agentId: string) => {
+      return resolveMeetingTarget(agentId);
+    },
+    [resolveMeetingTarget],
   );
 
   useEffect(() => {
@@ -1168,11 +1321,15 @@ function useAgentTick(
         ...QA_LAB_DEFAULT_TARGET,
         stationType: "console" as const,
       };
-      const explicitMeetingHold =
-        standupActive && meetingParticipants.has(agent.id);
-      const meetingTarget = explicitMeetingHold
-        ? resolveMeetingTarget(agent.id)
+      const boardroomTarget = boardroomOpen
+        ? resolveBoardroomTarget(agent.id)
         : null;
+      const explicitMeetingHold =
+        (standupActive && meetingParticipants.has(agent.id)) ||
+        boardroomTarget !== null;
+      const meetingTarget = boardroomTarget ?? (explicitMeetingHold
+        ? resolveMeetingTarget(agent.id)
+        : null);
       const smsBoothItem =
         (furnitureRef.current ?? []).find(
           (item) => item.type === "sms_booth",
@@ -1249,7 +1406,25 @@ function useAgentTick(
             existing.interactionTarget !== "meeting_room";
           ns.targetX = meetingTarget.x;
           ns.targetY = meetingTarget.y;
-          if (targetChanged) {
+          const __meetingDist = Math.hypot(
+            existing.x - meetingTarget.x,
+            existing.y - meetingTarget.y,
+          );
+          // Also retry when the *existing* path is empty and the agent
+          // hasn't arrived: `targetChanged` alone latches a bad result
+          // forever once it flips back to false (targetX/Y/interactionTarget
+          // all already match), so a path that failed on the very first
+          // attempt — e.g. a transient miss while the nav grid was still
+          // settling right after the furniture list changed — never gets a
+          // second try even though the room and its seats are genuinely
+          // reachable (see the East Wing connectivity tests). Retrying on
+          // every empty-path frame is cheap: astar() is a no-op fast path
+          // once the agent is actually walking a real route.
+          if (
+            targetChanged ||
+            (__meetingDist >= MEETING_SEAT_ARRIVAL_DIST &&
+              (existing.path?.length ?? 0) === 0)
+          ) {
             ns.path = planPath(
               existing.x,
               existing.y,
@@ -1257,13 +1432,14 @@ function useAgentTick(
               meetingTarget.y,
             );
           }
-          ns.state =
-            Math.hypot(
-              existing.x - meetingTarget.x,
-              existing.y - meetingTarget.y,
-            ) < 15
-              ? "sitting"
-              : "walking";
+          if (__meetingDist < MEETING_SEAT_ARRIVAL_DIST) {
+            ns.state = "sitting";
+            ns.x = meetingTarget.x;
+            ns.y = meetingTarget.y;
+            ns.path = [];
+          } else {
+            ns.state = "walking";
+          }
           ns.facing = meetingTarget.facing;
         } else if (conversationMembership && conversationSlot) {
           // Agents talking between themselves gather into a circle. Standup
@@ -1574,7 +1750,8 @@ function useAgentTick(
           if (targetChanged)
             ns.path = planPath(existing.x, existing.y, deskPos.x, deskPos.y);
           ns.state =
-            Math.hypot(existing.x - deskPos.x, existing.y - deskPos.y) < 15
+            Math.hypot(existing.x - deskPos.x, existing.y - deskPos.y) <
+            MEETING_SEAT_ARRIVAL_DIST
               ? "sitting"
               : "walking";
         } else if (effectiveStatus === "working") {
@@ -1931,6 +2108,8 @@ function useAgentTick(
     pickSpawnPoint,
     planPath,
     resolveMeetingTarget,
+    resolveBoardroomTarget,
+    boardroomOpen,
     standupActive,
     standupMeeting,
   ]);
@@ -2159,6 +2338,77 @@ function useAgentTick(
             ny = agent.pingPongTargetY ?? ny;
             nf = agent.pingPongFacing ?? nf;
             ns = "standing";
+          } else if (
+            (standupActive || boardroomOpen) &&
+            (boardroomSeatAgentIds.includes(agent.id) ||
+              Boolean(standupMeeting?.participantOrder.includes(agent.id)))
+          ) {
+            // Arrived at meeting chair: sit firmly on the chair!
+            ns = "sitting";
+            nf = agent.facing;
+            if (agent.targetX !== undefined && agent.targetY !== undefined) {
+              nx = agent.targetX;
+              ny = agent.targetY;
+            }
+          } else if (agent.workstationId) {
+            const st = OFFICE_WORKSTATIONS.find((w) => w.id === agent.workstationId);
+            if (st) {
+              nf = st.facing;
+              ns = "standing";
+              if (!agent.workstationUntil) {
+                // First arrival: begin task and trigger authentic gestures!
+                const isTyping =
+                  st.activity.includes("typing") ||
+                  st.activity.includes("pipeline") ||
+                  st.activity.includes("metrics");
+                return {
+                  ...agent,
+                  x: nx,
+                  y: ny,
+                  facing: st.facing,
+                  state: "standing" as const,
+                  workstationUntil: now + st.durationMs,
+                  gestureClip: isTyping ? ("wave" as const) : ("thumbsUp" as const),
+                  gestureUntil: now + 3500,
+                  frame: agent.frame + 1,
+                };
+              } else if (now < agent.workstationUntil) {
+                // Still actively working at station: periodically animate typing arms/gestures!
+                const shouldGesture =
+                  Math.sin(now * 0.002 + (agent.phaseOffset ?? 0)) > 0.65;
+                return {
+                  ...agent,
+                  x: nx,
+                  y: ny,
+                  facing: st.facing,
+                  state: "standing" as const,
+                  gestureClip: shouldGesture ? ("wave" as const) : agent.gestureClip,
+                  gestureUntil: shouldGesture ? now + 2500 : agent.gestureUntil,
+                  frame: agent.frame + 1,
+                };
+              } else {
+                // Task finished! Pick next workstation and travel to it!
+                const otherStations = OFFICE_WORKSTATIONS.filter(
+                  (w) => w.id !== agent.workstationId,
+                );
+                const nextSt =
+                  otherStations[Math.floor(Math.random() * otherStations.length)] ??
+                  OFFICE_WORKSTATIONS[0];
+                return {
+                  ...agent,
+                  x: nx,
+                  y: ny,
+                  workstationId: nextSt.id,
+                  workstationActivity: nextSt.activity,
+                  workstationUntil: undefined,
+                  targetX: nextSt.x,
+                  targetY: nextSt.y,
+                  path: astar(nx, ny, nextSt.x, nextSt.y, grid),
+                  state: "walking" as const,
+                  frame: agent.frame + 1,
+                };
+              }
+            }
           } else if (conversationLive && agent.conversationTargetX !== undefined) {
             const slotY = agent.conversationTargetY ?? ny;
             const distToSlot = Math.hypot(
@@ -2201,7 +2451,7 @@ function useAgentTick(
               agent.conversationSeatIndex ?? 0,
               agent.conversationSize ?? 2,
             );
-          } else if (agent.status === "working") {
+          } else if (agent.status === "working" || agent.interactionTarget === "meeting_room") {
             if (
               agent.interactionTarget === "sms_booth" &&
               agent.smsBoothStage !== "typing"
@@ -2361,8 +2611,17 @@ function useAgentTick(
               nf = agent.facing;
             } else if (agent.interactionTarget === "qa_lab") {
               nf = agent.facing;
-            } else if (agent.interactionTarget === "meeting_room") {
+            } else if (
+              (standupActive || boardroomOpen) &&
+              (boardroomSeatAgentIds.includes(agent.id) ||
+                Boolean(standupMeeting?.participantOrder.includes(agent.id)))
+            ) {
+              ns = "sitting";
               nf = agent.facing;
+              if (agent.targetX !== undefined && agent.targetY !== undefined) {
+                nx = agent.targetX;
+                ny = agent.targetY;
+              }
             }
           } else if (agent.status === "error") {
             ns = "standing";
@@ -2376,17 +2635,23 @@ function useAgentTick(
                   awayFurniture[
                     Math.floor(Math.random() * awayFurniture.length)
                   ];
+                // Clamp to this agent's own zone (district-wide CANVAS_W/H
+                // let a local agent's away-target land outside the much
+                // smaller local office room — see district.ts).
+                const remote = isRemoteOfficeAgentId(agent.id);
+                const maxX = remote ? CANVAS_W : LOCAL_OFFICE_CANVAS_WIDTH;
+                const maxY = remote ? CANVAS_H : LOCAL_OFFICE_CANVAS_HEIGHT;
                 const tx = Math.max(
                   SNAP_GRID,
                   Math.min(
-                    CANVAS_W - SNAP_GRID,
+                    maxX - SNAP_GRID,
                     Math.round((f.x + 20) / SNAP_GRID) * SNAP_GRID,
                   ),
                 );
                 const ty = Math.max(
                   SNAP_GRID,
                   Math.min(
-                    CANVAS_H - SNAP_GRID,
+                    maxY - SNAP_GRID,
                     Math.round((f.y + 20) / SNAP_GRID) * SNAP_GRID,
                   ),
                 );
@@ -2431,11 +2696,11 @@ function useAgentTick(
                   : {
                       x: Math.max(
                         SNAP_GRID,
-                        Math.min(CANVAS_W - SNAP_GRID, tx),
+                        Math.min(LOCAL_OFFICE_CANVAS_WIDTH - SNAP_GRID, tx),
                       ),
                       y: Math.max(
                         SNAP_GRID,
-                        Math.min(CANVAS_H - SNAP_GRID, ty),
+                        Math.min(LOCAL_OFFICE_CANVAS_HEIGHT - SNAP_GRID, ty),
                       ),
                     };
               }
@@ -2526,16 +2791,18 @@ const buildInitialFurnitureLayout = (
   storageNamespace: string,
   layoutPreset: OfficeLayoutPreset,
 ): FurnitureItem[] =>
-  ensureOfficeKanbanBoard(
-    ensureOfficeJukebox(
-      ensureOfficeQaLab(
-        ensureOfficeGymRoom(
-          ensureOfficeServerRoom(
-            ensureOfficePhoneBooth(
-              ensureOfficeSmsBooth(
-                ensureOfficeAtm(
-                  ensureOfficePingPongTable(
-                    loadFurniture(storageNamespace) ?? materializeDefaults(layoutPreset),
+  ensureOfficeMeetingRoom(
+    ensureOfficeKanbanBoard(
+      ensureOfficeJukebox(
+        ensureOfficeQaLab(
+          ensureOfficeGymRoom(
+            ensureOfficeServerRoom(
+              ensureOfficePhoneBooth(
+                ensureOfficeSmsBooth(
+                  ensureOfficeAtm(
+                    ensureOfficePingPongTable(
+                      loadFurniture(storageNamespace) ?? materializeDefaults(layoutPreset),
+                    ),
                   ),
                 ),
               ),
@@ -2545,6 +2812,173 @@ const buildInitialFurnitureLayout = (
       ),
     ),
   );
+
+/**
+ * Slim, transparent HUD shown over the live 3D Meeting Room once the camera
+ * has flown in — deliberately NOT a full-bleed takeover like every other
+ * immersive screen (see the Canvas-mount comment above): the room itself is
+ * visible behind it, carrying the per-seat nameplates/status/approval
+ * marker (objects/meetingRoomFixtures.tsx). This HUD only adds what the 3D
+ * scene can't: the topic line and an escape hatch, plus a link to the
+ * fuller MeetingRoomImmersiveScreen for anyone who wants the flat detail
+ * view instead. `pointer-events-none` on the wrapper keeps the 3D canvas
+ * underneath fully orbit/zoom-able except where the HUD card itself sits.
+ */
+function MeetingRoomHud({
+  seats,
+  topic,
+  approvalActive,
+  onExpand,
+  onClose,
+}: {
+  seats: MeetingRoomSeatData[];
+  topic: string | null;
+  approvalActive: boolean;
+  onExpand: () => void;
+  onClose: () => void;
+}) {
+  const [minimized, setMinimized] = useState(true);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const initialOffsetRef = useRef({ x: 0, y: 0 });
+  const snappedRef = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDraggingRef.current = true;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    initialOffsetRef.current = { ...offset };
+    snappedRef.current = false;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const dx = moveEvent.clientX - dragStartRef.current.x;
+      const dy = moveEvent.clientY - dragStartRef.current.y;
+      let targetX = initialOffsetRef.current.x + dx;
+      let targetY = initialOffsetRef.current.y + dy;
+
+      let didSnap = false;
+      if (Math.abs(targetX) < 32) {
+        targetX = 0;
+        didSnap = true;
+      }
+      if (Math.abs(targetY) < 32) {
+        targetY = 0;
+        didSnap = true;
+      }
+
+      targetX = Math.min(Math.max(targetX, -window.innerWidth + 280), 0);
+      targetY = Math.min(Math.max(targetY, 0), window.innerHeight - 200);
+
+      if (didSnap && !snappedRef.current) {
+        cyberAudio.playSnap();
+        snappedRef.current = true;
+      } else if (!didSnap) {
+        snappedRef.current = false;
+      }
+
+      setOffset({ x: targetX, y: targetY });
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-4">
+      {/* Top bar: minimal room label + human-in-the-loop topic crumb. */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="pointer-events-auto ui-card flex flex-col gap-1 p-3">
+          <div className="flex items-center gap-2">
+            <span className="font-serif text-base font-semibold tracking-tight">
+              Meeting Room
+            </span>
+          </div>
+          <div className="type-meta text-muted-foreground">
+            {seats.length} Teilnehmer · Hermes moderiert
+          </div>
+        </div>
+
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button type="button" onClick={onClose} className="ui-btn-icon" aria-label="Meeting Room verlassen">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* SolidWorks CAD-style Draggable / Minimizable Konferenz-Teilnehmer Roster */}
+      <div
+        style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+        className="pointer-events-none fixed top-16 right-4 z-20 flex flex-col items-end gap-1.5"
+      >
+        <div className="pointer-events-auto flex w-fit max-w-[260px] flex-col gap-1 rounded-xl border border-cyan-500/30 bg-[#050b14]/95 p-2 shadow-2xl backdrop-blur-md">
+          <div
+            onMouseDown={handleMouseDown}
+            className="flex items-center justify-between cursor-grab active:cursor-grabbing border-b border-cyan-500/20 pb-1 select-none"
+            title="Gedrückt halten zum Verschieben"
+          >
+            <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-300">
+              ::: TEILNEHMER (CAD DOCK) :::
+            </span>
+            <button
+              type="button"
+              onClick={() => setMinimized((prev) => !prev)}
+              className="text-cyan-400 hover:text-white px-1.5 text-[10px] font-mono"
+              title={minimized ? "Ausklappen" : "Minimieren"}
+            >
+              {minimized ? "[+]" : "[ _ ]"}
+            </button>
+          </div>
+          {!minimized ? (
+            seats.map((seat, index) => (
+              <div key={index} className="flex items-center gap-2 rounded-lg bg-black/40 px-2 py-1 border border-slate-800">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: seat.agentName ? seat.agentColor : "#64748b" }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[10px] text-slate-200 truncate">
+                    {seat.agentName ?? "— leer —"}
+                    {seat.role === "moderator" ? " · Lead" : ""}
+                  </div>
+                </div>
+                <span className="font-mono text-[9px] text-cyan-400 shrink-0">
+                  {seat.agentName ? MEETING_ROOM_STATUS_LABEL[seat.status] : "—"}
+                </span>
+              </div>
+            ))
+          ) : null}
+        </div>
+
+        {approvalActive ? (
+          <div className="pointer-events-auto w-fit rounded-lg border border-amber-500/40 bg-amber-950/80 px-3 py-1.5 text-[10px] font-mono text-amber-200 shadow-lg">
+            Freigabe erforderlich (siehe Chat)
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function OrbitalFloatingStationGroup({ children }: { children: React.ReactNode }) {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const t = state.clock.getElapsedTime();
+    // Distinct visible floating weightless zero-gravity drift of the whole station platform:
+    groupRef.current.position.y = Math.sin(t * 0.85) * 0.16;
+    groupRef.current.position.x = Math.cos(t * 0.55) * 0.08;
+    groupRef.current.rotation.z = Math.sin(t * 0.35) * 0.005;
+    groupRef.current.rotation.x = Math.cos(t * 0.45) * 0.003;
+  });
+  return <group ref={groupRef}>{children}</group>;
+}
 
 export function RetroOffice3D({
   agents,
@@ -2571,11 +3005,11 @@ export function RetroOffice3D({
   githubSkill = null,
   taskManagerEnabled = false,
   soundhermesEnabled = false,
-  officeTitle = "Luke Headquarters",
+  officeTitle = "Hermes Cyber HQ",
   officeTitleLoaded = false,
   remoteOfficeEnabled = false,
   remoteOfficeSourceKind = "presence_endpoint",
-  remoteOfficeLabel = "Remote Office",
+  remoteOfficeLabel = "Remote-Büro",
   remoteOfficePresenceUrl = "",
   remoteOfficeGatewayUrl = "",
   remoteOfficeStatusText = "Remote office disabled.",
@@ -2810,11 +3244,29 @@ export function RetroOffice3D({
     Boolean,
   );
 
-  const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
-    buildInitialFurnitureLayout(storageNamespace, layoutPreset).filter(
+  const [furniture, setFurniture] = useState<FurnitureItem[]>(() => {
+    const raw = buildInitialFurnitureLayout(storageNamespace, layoutPreset).filter(
       (item) => !isRetiredPingPongLamp(item),
-    ),
-  );
+    );
+    // Purge any stale/migrated meeting chairs from localStorage so they match MEETING_ROOM_SEATS exactly
+    const nonMeeting = raw.filter(
+      (item) =>
+        !(
+          item.type === "chair" &&
+          MEETING_ROOM_SEATS.some(
+            (seat) => Math.hypot(item.x - (seat.x - 12), item.y - (seat.y - 12)) < 95,
+          )
+        ),
+    );
+    const freshMeetingChairs: FurnitureItem[] = MEETING_ROOM_SEATS.map((seat, index) => ({
+      _uid: `meeting_chair_${index}`,
+      type: "chair" as const,
+      x: seat.x - 12,
+      y: seat.y - 12,
+      facing: seat.chairFacing,
+    }));
+    return [...nonMeeting, ...freshMeetingChairs];
+  });
   const defaultRemoteLayoutFurniture = useMemo(
     () =>
       remoteOfficeEnabled
@@ -2856,10 +3308,249 @@ export function RetroOffice3D({
   const [standupBoardOpen, setStandupBoardOpen] = useState(false);
   const [meetingRoomOpen, setMeetingRoomOpen] = useState(false);
   const [activeKanbanUid, setActiveKanbanUid] = useState<string | null>(null);
+  const [wallKanbanOpen, setWallKanbanOpen] = useState(false);
+  const [wallDiagramOpen, setWallDiagramOpen] = useState(false);
+  const [holoChandelierVisible, setHoloChandelierVisible] = useState(true);
+  const [hudCollapsed, setHudCollapsed] = useState(true);
+  const [cinematicTourActive, setCinematicTourActive] = useState(false);
+  const cinematicTourRef = useRef(false);
+  const [kontrollfahrtStation, setKontrollfahrtStation] = useState<number>(-1);
+  const [kontrollfahrtArrived, setKontrollfahrtArrived] = useState(false);
+  const jumpStationTargetRef = useRef<number | null>(null);
+  const [obsidianGraphOpen, setObsidianGraphOpen] = useState(false);
+  const [todoistModalOpen, setTodoistModalOpen] = useState(false);
+  const [isDocumentHidden, setIsDocumentHidden] = useState(false);
+
+  useEffect(() => {
+    const handleVis = () => {
+      setIsDocumentHidden(document.hidden);
+    };
+    document.addEventListener("visibilitychange", handleVis);
+    return () => document.removeEventListener("visibilitychange", handleVis);
+  }, []);
+
+  const handleKontrollfahrtStation = useCallback((station: number, arrived: boolean) => {
+    setKontrollfahrtStation(station);
+    setKontrollfahrtArrived(arrived);
+  }, []);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && cinematicTourRef.current) {
+        cinematicTourRef.current = false;
+        setCinematicTourActive(false);
+        setKontrollfahrtStation(-1);
+        setKontrollfahrtArrived(false);
+      }
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
+
+  // Arrow key navigation for Kontrollfahrt (Skip to Next / Previous station)
+  useEffect(() => {
+    const handleTourKeys = (e: KeyboardEvent) => {
+      if (!cinematicTourRef.current) return;
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+        e.preventDefault();
+        cyberAudio.playBlip();
+        const current = kontrollfahrtStation >= 0 ? kontrollfahrtStation : 0;
+        const next = (current + 1) % 5;
+        jumpStationTargetRef.current = next;
+        setKontrollfahrtStation(next);
+        setKontrollfahrtArrived(true);
+      } else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        cyberAudio.playBlip();
+        const current = kontrollfahrtStation >= 0 ? kontrollfahrtStation : 0;
+        const prev = (current - 1 + 5) % 5;
+        jumpStationTargetRef.current = prev;
+        setKontrollfahrtStation(prev);
+        setKontrollfahrtArrived(true);
+      }
+    };
+    window.addEventListener("keydown", handleTourKeys);
+    return () => window.removeEventListener("keydown", handleTourKeys);
+  }, [kontrollfahrtStation]);
+
+  const handleWallKanbanClick = useCallback(() => {
+    const [wx, , wz] = toWorld(
+      LOCAL_OFFICE_CANVAS_WIDTH / 2,
+      LOCAL_OFFICE_CANVAS_HEIGHT / 2,
+    );
+    const kanbanX = wx + 140 * SCALE;
+    const kanbanY = 1.5;
+    const kanbanZ = wz - (LOCAL_OFFICE_CANVAS_HEIGHT * SCALE) / 2 + 0.13;
+    cameraPresetRef.current = {
+      pos: [kanbanX, kanbanY + 0.35, kanbanZ + 2.0],
+      target: [kanbanX, kanbanY, kanbanZ],
+      zoom: 175,
+    };
+    window.setTimeout(() => {
+      setWallKanbanOpen(true);
+    }, 400);
+  }, []);
+
+  const handleWallDiagramClick = useCallback(() => {
+    const [wx, , wz] = toWorld(
+      LOCAL_OFFICE_CANVAS_WIDTH / 2,
+      LOCAL_OFFICE_CANVAS_HEIGHT / 2,
+    );
+    const screenX = wx;
+    const screenY = 1.5;
+    const screenZ = wz - (LOCAL_OFFICE_CANVAS_HEIGHT * SCALE) / 2 + 0.13;
+    cameraPresetRef.current = {
+      pos: [screenX, screenY + 0.35, screenZ + 2.0],
+      target: [screenX, screenY, screenZ],
+      zoom: 175,
+    };
+    window.setTimeout(() => {
+      setWallDiagramOpen(true);
+    }, 400);
+  }, []);
   const [agentRosterOpen, setAgentRosterOpen] = useState(false);
   const autoOpenedStandupIdRef = useRef<string | null>(null);
   // Idea 1 (original): hovered agent for tooltip overlay.
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
+  // Wall whiteboard text — persisted so it survives a reload, same
+  // localStorage namespace convention as the furniture layout itself.
+  const [whiteboardText, setWhiteboardText] = useState<string>(() => {
+    if (typeof window === "undefined") return "Projekt Hermes 3D";
+    return window.localStorage.getItem("hermes-office-whiteboard-v1") ?? "Projekt Hermes 3D";
+  });
+  const [whiteboardModalOpen, setWhiteboardModalOpen] = useState(false);
+  const handleWhiteboardClick = useCallback(() => {
+    cyberAudio.playWhoosh();
+    setWhiteboardModalOpen(true);
+  }, []);
+  const handleSaveWhiteboard = useCallback((next: string) => {
+    setWhiteboardText(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("hermes-office-whiteboard-v1", next);
+    }
+  }, []);
+
+  // Mobile / Smartphone UI Mode
+  const [mobileMode, setMobileMode] = useState(false);
+  const [mobileHelpOpen, setMobileHelpOpen] = useState(false);
+
+  // Table Hologram Meeting State Machine
+  const [tableMeetingActive, setTableMeetingActive] = useState(false);
+  const [tableMeetingPaused, setTableMeetingPaused] = useState(false);
+  const [tableMeetingStage, setTableMeetingStage] = useState(0);
+  const [tableMeetingTimer, setTableMeetingTimer] = useState(25);
+
+  const MEETING_STAGES = useMemo(
+    () => [
+      { speaker: "Claude", color: "#ea580c", question: "Was wurde erledigt?" },
+      { speaker: "ChatGPT", color: "#0ea5e9", question: "Was kommt als Nächstes?" },
+      { speaker: "Gemini", color: "#eab308", question: "Welche Blocker gibt es?" },
+      { speaker: "Hermes", color: "#a855f7", question: "Welche Aufgaben entstehen daraus?" },
+    ],
+    []
+  );
+
+  useEffect(() => {
+    if (!tableMeetingActive || tableMeetingPaused) return;
+    const interval = setInterval(() => {
+      setTableMeetingTimer((prev) => {
+        if (prev <= 1) {
+          setTableMeetingStage((curr) => {
+            if (curr < MEETING_STAGES.length - 1) {
+              return curr + 1;
+            }
+            setTableMeetingActive(false);
+            cyberAudio.playChime();
+            return 0;
+          });
+          return 25;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [tableMeetingActive, tableMeetingPaused, MEETING_STAGES.length]);
+
+  const handleStartTableMeeting = useCallback(() => {
+    cyberAudio.playChime();
+    setTableMeetingActive(true);
+    setTableMeetingPaused(false);
+    setTableMeetingStage(0);
+    setTableMeetingTimer(25);
+  }, []);
+
+  const handleToggleTableMeetingPause = useCallback(() => {
+    setTableMeetingPaused((p) => !p);
+  }, []);
+
+  const handleNextTableMeetingStage = useCallback(() => {
+    cyberAudio.playBlip();
+    setTableMeetingStage((curr) => {
+      if (curr < MEETING_STAGES.length - 1) return curr + 1;
+      setTableMeetingActive(false);
+      cyberAudio.playChime();
+      return 0;
+    });
+    setTableMeetingTimer(25);
+  }, [MEETING_STAGES.length]);
+
+  const [floorMode, setFloorMode] = useState<FloorAnimationMode>(() => {
+    if (typeof window === "undefined") return "ambient";
+    return (localStorage.getItem("hermes_floor_mode") as FloorAnimationMode) || "ambient";
+  });
+
+  const handleFloorModeChange = useCallback((mode: FloorAnimationMode) => {
+    cyberAudio.playBlip();
+    setFloorMode(mode);
+    try {
+      localStorage.setItem("hermes_floor_mode", mode);
+    } catch {}
+  }, []);
+
+  const handleCadZoom = useCallback((inOut: "in" | "out") => {
+    cyberAudio.playBlip();
+    if (!orbitRef.current) return;
+    const controls = orbitRef.current;
+    const factor = inOut === "in" ? 0.76 : 1.30;
+    const cam = controls.object;
+    const target = controls.target;
+    const offset = cam.position.clone().sub(target);
+    offset.multiplyScalar(factor);
+    if (offset.length() >= 0.4 && offset.length() <= 35) {
+      cam.position.copy(target).add(offset);
+      controls.update();
+    }
+  }, []);
+
+  const handleCadReset = useCallback(() => {
+    cyberAudio.playWhoosh();
+    setFollowAgentId(null);
+    if (!orbitRef.current) return;
+    const controls = orbitRef.current;
+    controls.target.set(-11.7, 0.6, -16.2);
+    controls.object.position.set(-11.7 + 5.5, 6.0, -16.2 + 7.0);
+    controls.update();
+  }, []);
+
+  const handleCadTopView = useCallback(() => {
+    cyberAudio.playWhoosh();
+    setFollowAgentId(null);
+    if (!orbitRef.current) return;
+    const controls = orbitRef.current;
+    controls.target.set(-11.7, 0.6, -16.2);
+    controls.object.position.set(-11.7 + 0.01, 9.5, -16.2 + 0.01);
+    controls.update();
+  }, []);
+
+  const handleCadFocusTable = useCallback(() => {
+    cyberAudio.playWhoosh();
+    setFollowAgentId(null);
+    if (!orbitRef.current) return;
+    const controls = orbitRef.current;
+    controls.target.set(-11.7, 0.7, -16.2);
+    controls.object.position.set(-11.7 + 2.4, 2.2, -16.2 + 2.7);
+    controls.update();
+  }, []);
   const [renderAgentUiById, setRenderAgentUiById] = useState<
     Record<string, RenderAgentUiSnapshot>
   >({});
@@ -2902,6 +3593,9 @@ export function RetroOffice3D({
       return;
     }
     setSpeechAgentIds(new Set([next.agentId]));
+    if (next.text) {
+      cyberAudio.speakAgent(next.agentId, next.text);
+    }
     speechTurnTimerRef.current = window.setTimeout(() => {
       speechTurnTimerRef.current = null;
       pump();
@@ -3123,33 +3817,25 @@ export function RetroOffice3D({
     target: [number, number, number];
     zoom?: number;
   } | null>(null);
-  const LOCAL_CAMERA_TARGET = useMemo(
-    () =>
-      toWorld(LOCAL_OFFICE_CANVAS_WIDTH / 2, LOCAL_OFFICE_CANVAS_HEIGHT / 2),
+  const LOCAL_CAMERA_TARGET = useMemo<[number, number, number]>(
+    () => [-11.7, 0.45, -16.2],
     [],
   );
   const cameraTarget = remoteOfficeEnabled
     ? DISTRICT_CAMERA_TARGET
     : LOCAL_CAMERA_TARGET;
-  const cameraZoom = remoteOfficeEnabled ? DISTRICT_CAMERA_ZOOM : 56;
+  const cameraZoom = 56;
+  // Cinematic initial camera position framing the conference table and dual deck
   const CAM_POS = useMemo<[number, number, number]>(
-    () => computeOverviewCameraPosition(cameraTarget, cameraZoom),
-    [cameraTarget, cameraZoom],
+    () => [-6.2, 5.2, -9.5],
+    [],
   );
   const overviewPreset = useMemo(
     () => ({ pos: CAM_POS, target: cameraTarget, zoom: cameraZoom }),
     [CAM_POS, cameraTarget, cameraZoom]
   );
-  const canvasResetKey = useMemo(
-    () =>
-      [
-        remoteOfficeEnabled ? "remote" : "local",
-        gatewayStatus ?? "unknown",
-        String(agents.length),
-        String(officeCenterSignal),
-      ].join(":"),
-    [agents.length, gatewayStatus, officeCenterSignal, remoteOfficeEnabled],
-  );
+  const canvasResetKey = remoteOfficeEnabled ? "remote" : "local";
+  const [, setVoiceMuteRerender] = useState(0);
   // New Idea 7: heatmap mode.
   const [heatmapMode, setHeatmapMode] = useState(false);
   const [trailMode, setTrailMode] = useState(false);
@@ -3162,6 +3848,7 @@ export function RetroOffice3D({
   const seenCleaningCueIdsRef = useRef<Set<string>>(new Set());
   // E3 Idea 3: spotlight.
   const [spotlightAgentId, setSpotlightAgentId] = useState<string | null>(null);
+  const [meetingHoldActive, setMeetingHoldActive] = useState<boolean>(true);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [graphicsQuality, setGraphicsQualityState] = useState<GraphicsQuality>(() =>
     resolveInitialGraphicsQuality(),
@@ -3198,6 +3885,31 @@ export function RetroOffice3D({
   // Follow cam: which agent to trail with a third-person perspective camera.
   const [followAgentId, setFollowAgentId] = useState<string | null>(null);
   const followAgentIdRef = useRef<string | null>(null);
+
+  const handleTriggerGesture = useCallback((gesture: "wave" | "thumbsUp" | "dance" | "jump") => {
+    cyberAudio.playBlip();
+    const targetAgentId = followAgentIdRef.current || followAgentId || "hermes";
+    const agent = renderAgentsRef.current?.find((a) => a.id === targetAgentId) || renderAgentsRef.current?.[0];
+    if (agent) {
+      agent.gestureClip = gesture;
+      agent.gestureUntil = performance.now() + 3500;
+    }
+  }, [followAgentId]);
+
+  const flyToCameraPreset = useCallback(
+    (presetKey: keyof typeof CAMERA_PRESET_MAP) => {
+      cyberAudio.playWhoosh();
+      setFollowAgentId(null);
+      const preset = CAMERA_PRESET_MAP[presetKey];
+      if (!preset) return;
+      window.dispatchEvent(
+        new CustomEvent("fly_to_camera_preset", {
+          detail: { pos: preset.pos, target: preset.target },
+        }),
+      );
+    },
+    [],
+  );
   const prevMonitorAgentIdRef = useRef<string | null>(null);
   const prevAtmUidRef = useRef<string | null>(null);
   const prevKanbanUidRef = useRef<string | null>(null);
@@ -3280,6 +3992,10 @@ export function RetroOffice3D({
 
   useEffect(() => {
     markQaLabMigrationApplied(storageNamespace);
+  }, [storageNamespace]);
+
+  useEffect(() => {
+    markMeetingRoomMigrationApplied(storageNamespace);
   }, [storageNamespace]);
 
   useEffect(() => {
@@ -3373,6 +4089,23 @@ export function RetroOffice3D({
     [agents, janitorActors],
   );
 
+  // The real roster agents assigned to the boardroom's four fixed seats —
+  // moderator first, then the first three specialists in store order. This
+  // is the single source of truth for "who sits where" in the Meeting
+  // Room: both the scene movement below (useAgentTick) and the HUD/fixtures
+  // roster further down (meetingRoomSeatData) read from it, so they can
+  // never disagree about which agent occupies which seat.
+  const { state: agentStoreState } = useAgentStore();
+  const boardroomOrderedAgents = useMemo(() => {
+    const moderator = agentStoreState.agents.find((agent) => isModeratorAgent(agent)) ?? null;
+    const specialists = agentStoreState.agents.filter((agent) => !isModeratorAgent(agent)).slice(0, 3);
+    return [moderator, specialists[0] ?? null, specialists[1] ?? null, specialists[2] ?? null];
+  }, [agentStoreState.agents]);
+  const boardroomSeatAgentIds = useMemo(
+    () => boardroomOrderedAgents.map((agent) => agent?.agentId ?? null),
+    [boardroomOrderedAgents],
+  );
+
   const {
     renderAgentsRef,
     renderAgentLookupRef,
@@ -3398,6 +4131,10 @@ export function RetroOffice3D({
     standupMeeting,
     conversationGroups,
     conversationExpiryRef,
+    // When true: the roster agents sit at the council table.
+    // When false: agents stand up and roam freely through the office!
+    meetingHoldActive,
+    boardroomSeatAgentIds,
   );
   useEffect(() => {
     const syncRenderAgentUi = () => {
@@ -3483,12 +4220,41 @@ export function RetroOffice3D({
   }, []);
   const handleAgentClick = useCallback(
     (agentId: string) => {
-      const agent = renderAgentLookupRef.current.get(agentId);
-      if (!agent || !orbitRef.current) return;
-      const [wx, , wz] = toWorld(agent.x, agent.y);
-      orbitRef.current.target.set(wx, 0, wz);
-      orbitRef.current.update();
-      onAgentChatSelect?.(agentId);
+      cyberAudio.playChime();
+      const agent =
+        renderAgentLookupRef.current.get(agentId) ||
+        Array.from(renderAgentLookupRef.current.values()).find(
+          (a) =>
+            a.id.toLowerCase() === agentId.toLowerCase() ||
+            a.name.toLowerCase().includes(agentId.toLowerCase()),
+        );
+      if (agent) {
+        // Play individual signature gesture per agent!
+        const lower = (agent.id + " " + agent.name).toLowerCase();
+        let gesture: "wave" | "thumbsUp" | "dance" | "jump" = "thumbsUp";
+        if (lower.includes("hermes")) {
+          gesture = "thumbsUp"; // Boss-Approval
+        } else if (lower.includes("claude")) {
+          gesture = "wave"; // Architekt-Begrüßung
+        } else if (lower.includes("chatgpt") || lower.includes("gpt")) {
+          gesture = "thumbsUp"; // Power-Commit
+        } else if (lower.includes("gemini") || lower.includes("google")) {
+          gesture = "wave"; // Research-Signal
+        } else if (lower.includes("deepseek")) {
+          gesture = "dance"; // Speed-Benchmark Dance!
+        }
+        agent.gestureClip = gesture;
+        agent.gestureUntil = performance.now() + 3200;
+
+        if (orbitRef.current) {
+          const [wx, , wz] = toWorld(agent.x, agent.y);
+          orbitRef.current.target.set(wx, 0.6, wz);
+          orbitRef.current.update();
+        }
+        onAgentChatSelect?.(agent.id);
+      } else {
+        onAgentChatSelect?.(agentId);
+      }
     },
     [onAgentChatSelect, renderAgentLookupRef],
   );
@@ -3643,7 +4409,7 @@ export function RetroOffice3D({
       (activeQaTerminalUid || (qaTestingAgentId && qaCommandArrived)),
     ) && qaImmersiveReady;
   const standupImmersive = Boolean(standupBoardOpen && standupMeeting);
-  const kanbanImmersive = Boolean(activeKanbanBoard);
+  const kanbanImmersive = Boolean(activeKanbanBoard) || wallKanbanOpen;
   const meetingRoomImmersive = meetingRoomOpen;
   const immersiveOverlayActive =
     monitorImmersive ||
@@ -3654,6 +4420,7 @@ export function RetroOffice3D({
     qaImmersive ||
     standupImmersive ||
     kanbanImmersive ||
+    wallDiagramOpen ||
     meetingRoomImmersive;
   const compactRosterAgents = useMemo(
     () => agents.slice(0, COMPACT_AGENT_BADGE_LIMIT),
@@ -4787,6 +5554,21 @@ export function RetroOffice3D({
     };
   }, [meetingTable, standupAutoOpenBoard, standupMeeting]);
 
+  // Meeting Room camera fly-in. Unlike the standup effect above, the target
+  // is a fixed room (not a furniture lookup) and there's no delayed overlay
+  // mount to time against — the HUD renders immediately and the Canvas
+  // itself stays mounted (see the `|| meetingRoomImmersive` Canvas guard),
+  // so the camera is simply left to lerp toward the preset live.
+  useEffect(() => {
+    if (!meetingRoomOpen) return;
+    const [wx, , wz] = toWorld(MEETING_ROOM_CENTER.x, MEETING_ROOM_CENTER.y);
+    cameraPresetRef.current = {
+      pos: [wx + 1.7, 1.55, wz + 2.15],
+      target: [wx, 0.7, wz],
+      zoom: 190,
+    };
+  }, [meetingRoomOpen]);
+
   useEffect(() => {
     if (!monitorAgentId && prevMonitorAgentIdRef.current) {
       cameraPresetRef.current = overviewPreset;
@@ -5300,6 +6082,42 @@ export function RetroOffice3D({
     monitorAgentId,
     overviewPreset,
   ]);
+  const closeMeetingRoom = useCallback(() => {
+    setMeetingRoomOpen(false);
+    cameraPresetRef.current = overviewPreset;
+  }, [overviewPreset]);
+
+  // Real Meeting Room seat data, built from the same boardroomOrderedAgents
+  // list the scene movement (useAgentTick, above) seats agents against —
+  // one source of truth, so the HUD roster and the in-world seating can
+  // never disagree about which agent occupies which of the four seats. A
+  // fifth+ agent simply has no physical seat here, same as any real
+  // four-seat room.
+  const meetingRoomSeatData = useMemo<MeetingRoomSeatData[]>(() => {
+    const nowMs = Date.now();
+    return boardroomOrderedAgents.map((agent, index): MeetingRoomSeatData => {
+      const role: MeetingRoomSeatData["role"] = index === 0 ? "moderator" : "specialist";
+      if (!agent) {
+        return { role, agentName: null, agentModel: null, agentColor: "#4a4d54", status: "available" };
+      }
+      return {
+        role,
+        agentName: agent.name,
+        agentModel: agent.model ?? null,
+        agentColor: agentColorMap.get(agent.agentId) ?? "#8a8f98",
+        status: deriveMeetingParticipantStatus(agent, nowMs),
+      };
+    });
+  }, [agentColorMap, boardroomOrderedAgents]);
+  const meetingRoomApprovalActive = useMemo(
+    () => agentStoreState.agents.some((agent) => agent.awaitingUserInput),
+    [agentStoreState.agents],
+  );
+  const meetingRoomTopic = useMemo(() => {
+    const moderator = agentStoreState.agents.find((agent) => isModeratorAgent(agent));
+    return moderator?.lastUserMessage?.trim() || null;
+  }, [agentStoreState.agents]);
+  const [meetingRoomDetailOpen, setMeetingRoomDetailOpen] = useState(false);
 
   useEffect(() => {
     const hoveredItem = hoverUid
@@ -5608,12 +6426,21 @@ export function RetroOffice3D({
 
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
+      if (e.code !== "Space" && e.key !== " ") return;
+      const target = e.target as HTMLElement | null;
+      const active = document.activeElement as HTMLElement | null;
       if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      )
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable ||
+        target?.closest("input, textarea, select, [contenteditable], [role='dialog'], form") ||
+        active?.tagName === "INPUT" ||
+        active?.tagName === "TEXTAREA" ||
+        active?.isContentEditable ||
+        active?.closest("input, textarea, select, [contenteditable], [role='dialog'], form")
+      ) {
         return;
+      }
       e.preventDefault();
       setSpaceDown(true);
     };
@@ -5666,6 +6493,7 @@ export function RetroOffice3D({
         agentId: event.id,
         key,
         durationMs: speechTurnDurationMs(text.length),
+        text,
       });
     }
     if (seen.size > 64) {
@@ -5780,10 +6608,17 @@ export function RetroOffice3D({
           4. Agent components read from `renderAgentsRef` via useFrame → pure Three.js mutations.
           5. Floor/walls render immediately (no Suspense). Only GLB models are suspended.
         */}
-        {!immersiveOverlayActive ? (
+        {/* Every other immersive screen (Standup, Kanban, ATM, …) is a hard
+            cut to a flat 2D takeover, so the Canvas unmounts entirely once
+            its overlay opens. The Meeting Room is deliberately different —
+            per Onur's explicit call, the camera flies into the room and the
+            3D scene stays live and visible underneath the HUD, instead of
+            being replaced by another 2D screen. */}
+        {!immersiveOverlayActive || meetingRoomImmersive ? (
           <SceneErrorBoundary>
           <Canvas
             key={canvasResetKey}
+            frameloop={isDocumentHidden ? "demand" : "always"}
             dpr={[0.85, graphicsQualityConfig.maxDpr]}
             camera={{
               position: CAM_POS,
@@ -5791,12 +6626,12 @@ export function RetroOffice3D({
               near: 0.3,
               far: 320,
             }}
-            shadows={{ type: THREE.PCFShadowMap }}
+            shadows={{ type: THREE.PCFSoftShadowMap }}
             gl={{
               antialias: true,
               powerPreference: "high-performance",
               toneMapping: THREE.ACESFilmicToneMapping,
-              toneMappingExposure: 1.0,
+              toneMappingExposure: 1.05,
             }}
             style={{ width: "100%", height: "100%" }}
             onCreated={handleCanvasCreated}
@@ -5806,25 +6641,33 @@ export function RetroOffice3D({
           >
             {/* Ensure camera looks at the active office target after mount. */}
             <CameraRig target={cameraTarget} />
+            <DirectCameraController orbitRef={orbitRef} />
             <AdaptiveDprController maxDpr={graphicsQualityConfig.maxDpr} />
 
-            {/* Orbit / pan / zoom controls — disabled while follow cam is active or while editing furniture. */}
+            {/* Orbit / pan / zoom controls — silky smooth responsive damping */}
             <OrbitControls
               ref={orbitRef}
               target={cameraTarget}
-              enabled={followAgentId === null && (!editMode || spaceDown)}
+              enabled={!editMode || spaceDown}
               enableDamping
-              dampingFactor={0.08}
-              rotateSpeed={0.6}
-              zoomSpeed={0.8}
-              panSpeed={0.6}
-              minDistance={4}
-              maxDistance={65}
-              maxPolarAngle={Math.PI / 2.2}
+              dampingFactor={0.15}
+              rotateSpeed={1.15}
+              zoomSpeed={2.4}
+              panSpeed={1.1}
+              minDistance={0.4}
+              maxDistance={35}
+              maxPolarAngle={Math.PI / 2.05}
+              screenSpacePanning={true}
+              onStart={() => {
+                cameraPresetRef.current = null;
+                if (followAgentIdRef.current) {
+                  setFollowAgentId(null);
+                }
+              }}
               enableRotate={!spaceDown}
               mouseButtons={{
                 LEFT: spaceDown ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
-                MIDDLE: THREE.MOUSE.DOLLY,
+                MIDDLE: THREE.MOUSE.ROTATE,
                 RIGHT: THREE.MOUSE.PAN,
               }}
             />
@@ -5832,10 +6675,13 @@ export function RetroOffice3D({
             {/* Game loop — no React state, pure ref mutations. */}
             <SceneGameLoop tick={tick} />
 
-            {/* New Idea 2: Camera preset animator. */}
+            {/* New Idea 2: Camera preset animator & Cinematic Tour. */}
             <CameraPresetAnimator
               presetRef={cameraPresetRef}
               orbitRef={orbitRef}
+              cinematicTourRef={cinematicTourRef}
+              onKontrollfahrtStation={handleKontrollfahrtStation}
+              jumpStationTargetRef={jumpStationTargetRef}
             />
 
             {/* Follow cam: third-person perspective camera trailing the selected agent. */}
@@ -5866,11 +6712,69 @@ export function RetroOffice3D({
               followFocusPointRef={followFocusPointRef}
             />
 
+            {/* Orbital Space Station Floating Deck — weightless harmonic zero-gravity drift */}
+            <OrbitalFloatingStationGroup>
             {/* Floor + walls — always visible, no async loading. */}
-            <SceneFloorAndWalls showRemoteOffice={remoteOfficeEnabled} />
+            <SceneFloorAndWalls
+              showRemoteOffice={remoteOfficeEnabled}
+              holoChandelierVisible={holoChandelierVisible}
+              floorMode={floorMode}
+              whiteboardText={whiteboardText}
+              onWhiteboardClick={handleWhiteboardClick}
+              screenTopic={meetingRoomTopic}
+              onKanbanClick={handleWallKanbanClick}
+              onCouncilScreenClick={handleWallDiagramClick}
+              tableMeetingState={{
+                isActive: tableMeetingActive,
+                isPaused: tableMeetingPaused,
+                stageIndex: tableMeetingStage,
+                speakerName: MEETING_STAGES[tableMeetingStage]?.speaker ?? "Claude",
+                speakerColor: MEETING_STAGES[tableMeetingStage]?.color ?? "#ea580c",
+                question: MEETING_STAGES[tableMeetingStage]?.question ?? "Was wurde erledigt?",
+                timerSeconds: tableMeetingTimer,
+                totalStages: MEETING_STAGES.length,
+              }}
+              onStartMeeting={handleStartTableMeeting}
+              onTogglePause={handleToggleTableMeetingPause}
+              onNextMeetingStage={handleNextTableMeetingStage}
+              onSelectAgent={handleAgentClick}
+            />
 
-            {/* Wall pictures — procedural, no async loading. */}
-            <SceneWallPictures showRemoteOffice={remoteOfficeEnabled} />
+            {/* Flag poles + framed wall pictures removed on request — the
+                clean-slate room shouldn't carry over decor authored for the
+                old, much larger layout. WallPictures (environment.tsx) is
+                kept defined but unrendered rather than deleted, in case
+                decor gets reintroduced deliberately later. */}
+
+            {/* Meeting Room fixtures — real per-seat status, always present
+                (not gated on meetingRoomImmersive) so the room reads as a
+                real, populated part of the office even outside the fly-in
+                view, the same way every other room's furniture already is. */}
+            <MeetingRoomFixtures
+              seats={meetingRoomSeatData}
+              approvalActive={meetingRoomApprovalActive}
+            />
+
+            {/* Humorous Idle AI Thought Bubbles popping up above seated robots */}
+            <IdleAgentThoughtBubbles onSelectAgent={handleAgentClick} />
+
+            {/* Quantum War Room // Hologramm-Archiv (Unterdeck / Sub-Level 1) */}
+            <QuantumWarRoom
+              position={[-11.7, -5.2, -16.2]}
+              metrics={{
+                totalCostToday: 0.0,
+                totalTokensToday: 0,
+                activeTasksCount: agents.filter((a) => a.status === "working").length,
+                reviewTasksCount: 0,
+                doneTasksCount: 0,
+                workingAgentsCount: agents.filter((a) => a.status === "working").length,
+                activeTaskTitle: githubSkill ? githubSkill.name : null,
+                repoName: "Hermes-3D",
+                branchName: "main",
+                failingChecks: false,
+                gatewayLatencyMs: gatewayStatus === "connected" ? 18 : 24,
+              }}
+            />
 
             {/* Furniture models — each loads its GLB asynchronously. */}
             <Suspense fallback={null}>
@@ -5946,6 +6850,18 @@ export function RetroOffice3D({
                   />
                 ) : item.type === "round_table" ? (
                   <PrimitiveRoundTableModel
+                    key={item._uid}
+                    item={item}
+                    isSelected={item._uid === selectedUid}
+                    isHovered={item._uid === hoverUid}
+                    editMode={editMode}
+                    onPointerDown={handleFurniturePointerDown}
+                    onPointerOver={handleFurniturePointerOver}
+                    onPointerOut={handleFurniturePointerOut}
+                    onClick={handleDeskClick}
+                  />
+                ) : item.type === "conference_table" ? (
+                  <PrimitiveConferenceTableModel
                     key={item._uid}
                     item={item}
                     isSelected={item._uid === selectedUid}
@@ -6326,6 +7242,7 @@ export function RetroOffice3D({
                   onUnhover={isJanitor ? undefined : handleAgentUnhover}
                   onClick={isJanitor ? undefined : handleAgentClick}
                   onContextMenu={isJanitor ? undefined : handleAgentContextMenu}
+                  isHovered={hoveredAgentId === agent.id}
                   showSpeech={
                     isJanitor
                       ? false
@@ -6373,6 +7290,7 @@ export function RetroOffice3D({
                 heatGridRef={heatGridRef}
               />
             ) : null}
+            </OrbitalFloatingStationGroup>
 
             {/* Placement ghost. */}
             {editMode &&
@@ -6433,83 +7351,631 @@ export function RetroOffice3D({
         ) : null}
       </div>
 
-      {/* New Idea 2: Camera preset buttons — top left. */}
-      {!readOnly && !immersiveOverlayActive ? (
-        <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2">
-          <div className="flex items-center gap-1">
-            {(
-              [
-                {
-                  key: "overview",
-                  icon: <Maximize size={12} />,
-                  title: "Overview",
-                },
-                {
-                  key: "frontDesk",
-                  icon: <Monitor size={12} />,
-                  title: "Front desk",
-                },
-                {
-                  key: "lounge",
-                  icon: <Armchair size={12} />,
-                  title: "Lounge",
-                },
-              ] as const
-            ).map(({ key, icon, title }) => (
-              <button
-                key={key}
-                title={title}
-                onClick={() => {
-                  cameraPresetRef.current = CAMERA_PRESET_MAP[key];
-                }}
-                className="w-7 h-7 flex items-center justify-center rounded-md bg-[#1c1610]/80 text-amber-500/60 border border-amber-900/20 hover:bg-[#2a1e14] hover:text-amber-400 backdrop-blur-sm transition-colors"
-              >
-                {icon}
-              </button>
-            ))}
+      {/* Executive KPI Bar (Top Center) — Instant 5-Second Answers */}
+      {!readOnly && (!immersiveOverlayActive || meetingRoomImmersive) ? (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-3 rounded-full border border-cyan-500/30 bg-[#050e1c]/92 px-4 py-1.5 font-mono text-[11px] shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-1.5 text-emerald-400">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-semibold">{agents.filter((a) => a.status === "working").length} Aktiv</span>
           </div>
-          {standupMeeting ? (
+          <span className="text-cyan-500/30">|</span>
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+            <span>{agents.filter((a) => a.status !== "working" && a.status !== "error").length} Bereit</span>
+          </div>
+          {agents.some((a) => a.status === "error") && (
+            <>
+              <span className="text-cyan-500/30">|</span>
+              <div className="flex items-center gap-1.5 text-rose-400 font-semibold">
+                <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+                <span>{agents.filter((a) => a.status === "error").length} Fehler</span>
+              </div>
+            </>
+          )}
+          <span className="text-cyan-500/30">|</span>
+          <div className="flex items-center gap-1 text-cyan-200">
+            <span className="text-[10px] text-cyan-400/70">Kosten:</span>
+            <span className="font-semibold">€ 0.00</span>
+          </div>
+          <span className="text-cyan-500/30">|</span>
+          <div className="flex items-center gap-1 text-amber-300">
+            <span className="text-[10px] text-amber-400/70">Status:</span>
+            <span className="font-semibold">{gatewayStatus === "connected" ? "Live" : "Standby"}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Camera preset buttons & Meeting / Light Controls — top left */}
+      {!readOnly && (!immersiveOverlayActive || meetingRoomImmersive) ? (
+        <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2 max-h-[calc(100vh-24px)] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-cyan-500/20">
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
+              {(
+                [
+                  {
+                    key: "overview",
+                    icon: <Maximize size={12} />,
+                    title: "Übersicht",
+                  },
+                  {
+                    key: "frontDesk",
+                    icon: <Monitor size={12} />,
+                    title: "Empfang",
+                  },
+                  {
+                    key: "lounge",
+                    icon: <Armchair size={12} />,
+                    title: "Konferenzraum-Ansicht",
+                  },
+                ] as const
+              ).map(({ key, icon, title }) => (
+                <button
+                  key={key}
+                  title={title}
+                  onClick={() => {
+                    cyberAudio.playBlip();
+                    setFollowAgentId(null);
+                    cameraPresetRef.current = CAMERA_PRESET_MAP[key];
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-md bg-[#1c1610]/80 text-amber-500/60 border border-amber-900/20 hover:bg-[#2a1e14] hover:text-amber-400 backdrop-blur-sm transition-colors"
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+
+            {/* Always-Visible Primary Kontrollfahrt Button */}
             <button
               type="button"
-              onClick={() => setStandupBoardOpen(true)}
-              className="rounded-xl border border-emerald-500/20 bg-[#0b1410]/90 px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-emerald-400/35 hover:bg-[#102017]/95"
+              onClick={() => {
+                cyberAudio.playWhoosh();
+                setCinematicTourActive((prev) => {
+                  const next = !prev;
+                  cinematicTourRef.current = next;
+                  if (next) setFollowAgentId(null);
+                  return next;
+                });
+              }}
+              className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm ${
+                cinematicTourActive
+                  ? "bg-cyan-500/30 text-cyan-100 border-cyan-400 animate-pulse font-bold shadow-cyan-500/25"
+                  : "bg-cyan-950/80 text-cyan-300 border-cyan-500/40 hover:border-cyan-400 hover:text-white"
+              }`}
+              title="Operative Kontrollfahrt starten [ESC zum Abbrechen]"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">
-                Standup
-              </div>
-              <div className="mt-1 text-[11px] font-semibold text-white/90">
-                {standupMeeting.phase === "gathering"
-                  ? "Gathering in meeting room."
-                  : standupMeeting.phase === "in_progress"
-                    ? `Speaking: ${standupSpeakerCard?.agentName ?? "Team"}`
-                    : ""}
-              </div>
-              <div className="mt-1 font-mono text-[10px] text-white/50">
-                {standupMeeting.arrivedAgentIds.length}/
-                {standupMeeting.participantOrder.length} arrived
-              </div>
+              <span>🔍</span>
+              <span className="font-semibold">{cinematicTourActive ? "Fahrt stoppen" : "Kontrollfahrt"}</span>
             </button>
-          ) : null}
-          {kanbanBoardItem ? (
+
+            {/* Obsidian 3D Neural Knowledge Graph */}
             <button
               type="button"
-              onClick={() => openKanbanBoard(kanbanBoardItem)}
-              className="rounded-xl border border-cyan-500/22 bg-[#09111a]/90 px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-cyan-300/40 hover:bg-[#0d1b28]/95"
+              onClick={() => {
+                cyberAudio.playChime();
+                setObsidianGraphOpen(true);
+              }}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm bg-purple-950/85 text-purple-200 border-purple-500/40 hover:border-purple-400 hover:text-white"
+              title="3D Obsidian Knowledge Graph öffnen (252 Notizen aus Life OS)"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-200/80">
-                Kanban board
-              </div>
+              <span>🧠</span>
+              <span className="font-semibold">Obsidian 3D</span>
             </button>
-          ) : null}
+
+            {/* Todoist iPhone Mission Control */}
+            <button
+              type="button"
+              onClick={() => {
+                cyberAudio.playChime();
+                setTodoistModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm bg-red-950/85 text-red-200 border-red-500/40 hover:border-red-400 hover:text-white"
+              title="Todoist iPhone Task Sync öffnen"
+            >
+              <span>📱</span>
+              <span className="font-semibold">Todoist</span>
+            </button>
+
+            {/* HUD Collapse / Visibility Toggle for full unobstructed field of view */}
+            <button
+              type="button"
+              onClick={() => {
+                cyberAudio.playBlip();
+                setHudCollapsed((prev) => !prev);
+              }}
+              className="flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#091524]/90 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-950/80 hover:text-white backdrop-blur-sm transition-all text-[10px] font-mono shadow-md whitespace-nowrap shrink-0"
+              title={hudCollapsed ? "Menüs & Optionen wieder ausklappen" : "Sichtfeld maximieren (HUD einklappen)"}
+            >
+              {hudCollapsed ? <Eye size={12} /> : <EyeOff size={12} />}
+              <span className="whitespace-nowrap">{hudCollapsed ? "Optionen" : "Einklappen"}</span>
+            </button>
+          </div>
+
+          {/* Fixierungspunkte (Kamera-Anker) — Only shown when expanded */}
+          {!hudCollapsed && (
+            <div className="flex flex-col gap-1.5 rounded-2xl border border-cyan-500/25 bg-[#070e1a]/92 p-2 shadow-xl shadow-cyan-950/50 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between px-1 pb-1 border-b border-cyan-500/15">
+                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-cyan-400 font-bold flex items-center gap-1">
+                  <span>🎥</span> Fixierungspunkte
+                </span>
+              </div>
+
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  cyberAudio.playWhoosh();
+                  cinematicTourRef.current = false;
+                  setCinematicTourActive(false);
+                  setFollowAgentId(null);
+                  cameraPresetRef.current = CAMERA_PRESET_MAP.meetingTable;
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#091524]/80 px-2 py-1.5 text-left text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/60 transition group cursor-pointer"
+                title="Fokussiert den Konferenztisch mit Chefsesseln"
+              >
+                <span className="text-xs">🏛️</span>
+                <div className="flex flex-col">
+                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">Tisch</span>
+                  <span className="text-[7px] text-cyan-300/60 font-mono">Meeting-Fokus</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  cyberAudio.playWhoosh();
+                  cinematicTourRef.current = false;
+                  setCinematicTourActive(false);
+                  setFollowAgentId(null);
+                  cameraPresetRef.current = CAMERA_PRESET_MAP.dualDeck;
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#091524]/80 px-2 py-1.5 text-left text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/60 transition group cursor-pointer"
+                title="Zeigt beide Ebenen: Oberdeck, Röhre und Unterdeck im Überblick"
+              >
+                <span className="text-xs">🌐</span>
+                <div className="flex flex-col">
+                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">Dual-Deck</span>
+                  <span className="text-[7px] text-cyan-300/60 font-mono">Beide Ebenen</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  cyberAudio.playWhoosh();
+                  cinematicTourRef.current = false;
+                  setCinematicTourActive(false);
+                  setFollowAgentId(null);
+                  cameraPresetRef.current = CAMERA_PRESET_MAP.warRoom;
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-[#120924]/80 px-2 py-1.5 text-left text-purple-200 hover:border-purple-400 hover:bg-purple-950/60 transition group cursor-pointer"
+                title="Fliegt hinab ins Unterdeck (Level 0: Quantum War Room)"
+              >
+                <span className="text-xs">🛰️</span>
+                <div className="flex flex-col">
+                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">War Room</span>
+                  <span className="text-[7px] text-purple-300/60 font-mono">Unterdeck</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  cyberAudio.playWhoosh();
+                  cinematicTourRef.current = false;
+                  setCinematicTourActive(false);
+                  setFollowAgentId(null);
+                  cameraPresetRef.current = CAMERA_PRESET_MAP.screens;
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#091524]/80 px-2 py-1.5 text-left text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/60 transition group cursor-pointer"
+                title="Fokussiert Whiteboard und Kanban-Board"
+              >
+                <span className="text-xs">📋</span>
+                <div className="flex flex-col">
+                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">Strategie</span>
+                  <span className="text-[7px] text-cyan-300/60 font-mono">Kanban / Wall</span>
+                </div>
+              </button>
+            </div>
+          </div>
+          )}
+
+          {/* Freilauf vs Meeting-Versammlung Toggle Button */}
           <button
             type="button"
-            onClick={() => setMeetingRoomOpen(true)}
-            className="ui-card px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2)_92%,transparent)]"
+            onClick={() => {
+              cyberAudio.playChime();
+              setMeetingHoldActive((prev) => {
+                const nextVal = !prev;
+                if (!nextVal) {
+                  // Freilauf: Agents take on active office worker duties!
+                  cyberAudio.playServo();
+                  // Distinct assignments: Claude to Kanban, Hermes to Whiteboard, ChatGPT & Gemini to War Room
+                  const initialAssignments: Record<string, string> = {
+                    hermes: "whiteboard",
+                    claude: "kanban",
+                    chatgpt: "war_room_pipeline",
+                    gemini: "war_room_metrics",
+                  };
+                  let hasSublevel = false;
+                  renderAgentsRef.current.forEach((agent, idx) => {
+                    agent.interactionTarget = undefined;
+                    agent.state = "walking";
+                    const key = agent.id.toLowerCase();
+                    const assignedId =
+                      initialAssignments[key] ??
+                      OFFICE_WORKSTATIONS[idx % OFFICE_WORKSTATIONS.length].id;
+                    const st =
+                      OFFICE_WORKSTATIONS.find((w) => w.id === assignedId) ??
+                      OFFICE_WORKSTATIONS[0];
+                    if (st.id.startsWith("war_room")) hasSublevel = true;
+                    agent.workstationId = st.id;
+                    agent.workstationActivity = st.activity;
+                    agent.workstationUntil = undefined;
+                    agent.targetX = st.x;
+                    agent.targetY = st.y;
+                    // Unseat forward step so robot smoothly clears chair before pathfinding
+                    const unseatX = agent.x + Math.sin(agent.facing) * 16;
+                    const unseatY = agent.y + Math.cos(agent.facing) * 16;
+                    const remainingPath = planPath(unseatX, unseatY, st.x, st.y);
+                    agent.path = [{ x: unseatX, y: unseatY }, ...remainingPath];
+                  });
+                  if (hasSublevel) {
+                    setTimeout(() => cyberAudio.playTractorBeam("down"), 350);
+                  }
+                } else {
+                  // Summon to meeting table: finish tasks and return to chairs
+                  cyberAudio.playServo();
+                  let hasAscending = false;
+                  renderAgentsRef.current.forEach((agent) => {
+                    if (agent.workstationActivity?.startsWith("war_room")) {
+                      hasAscending = true;
+                    }
+                    agent.workstationId = undefined;
+                    agent.workstationActivity = undefined;
+                    agent.workstationUntil = undefined;
+                    const isHermes = agent.id.toLowerCase().includes("hermes") || agent.id === "main";
+                    let targetIdx = isHermes ? 0 : boardroomSeatAgentIds.indexOf(agent.id);
+                    if (targetIdx < 0) targetIdx = 1;
+                    const seat = MEETING_ROOM_SEATS[Math.min(MEETING_ROOM_SEATS.length - 1, Math.max(0, targetIdx))];
+                    if (seat) {
+                      agent.interactionTarget = "meeting_room";
+                      agent.state = "walking";
+                      agent.targetX = seat.x;
+                      agent.targetY = seat.y;
+                      agent.facing = (seat.chairFacing * Math.PI) / 180;
+                      agent.path = planPath(agent.x, agent.y, seat.x, seat.y);
+                    }
+                  });
+                  if (hasAscending) {
+                    setTimeout(() => cyberAudio.playTractorBeam("up"), 250);
+                  }
+                }
+                return nextVal;
+              });
+            }}
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-all cursor-pointer ${
+              meetingHoldActive
+                ? "border-amber-500/40 bg-[#17120a]/90 text-amber-200 hover:border-amber-400"
+                : "border-emerald-500/40 bg-[#091510]/90 text-emerald-200 hover:border-emerald-400"
+            }`}
+            title={
+              meetingHoldActive
+                ? "Klick: Agenten dürfen frei im Büro rumlaufen"
+                : "Klick: Alle Agenten am Konferenztisch versammeln"
+            }
           >
-            <div className="type-meta uppercase tracking-[0.16em] text-muted-foreground">
-              Meeting Room
+            <span
+              className={`h-2 w-2 rounded-full animate-pulse ${
+                meetingHoldActive ? "bg-amber-400 shadow-sm shadow-amber-400" : "bg-emerald-400 shadow-sm shadow-emerald-400"
+              }`}
+            />
+            <div className="flex flex-col">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] font-semibold">
+                {meetingHoldActive ? "Am Tisch versammelt" : "🚶 Freilauf aktiv"}
+              </span>
+              <span className="text-[8px] opacity-75 font-mono">
+                {meetingHoldActive ? "▶ Klick für Freilauf" : "▶ Zum Tisch rufen"}
+              </span>
             </div>
           </button>
+
+          {/* Einklappbare Optionen: Stand-up, Kanban, Holo-Licht, Boden-Dynamik & Gesten */}
+          {!hudCollapsed ? (
+            <>
+              {standupMeeting ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    cyberAudio.playChime();
+                    handleStartTableMeeting();
+                    setStandupBoardOpen(true);
+                  }}
+                  className="group relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-r from-[#0b1c14]/95 to-[#091410]/95 px-3.5 py-2.5 text-left shadow-xl shadow-emerald-950/40 backdrop-blur-md transition-all hover:border-emerald-400/50 hover:scale-[1.02]"
+                >
+                  <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-300">
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                    Stand-up {standupMeeting.arrivedAgentIds.length >= standupMeeting.participantOrder.length ? "• 4/4 angekommen" : ""}
+                  </div>
+                  <div className="mt-1 text-xs font-bold text-white flex items-center gap-1.5">
+                    {standupMeeting.arrivedAgentIds.length >= standupMeeting.participantOrder.length
+                      ? "▶ Alle sind da – Stand-up starten"
+                      : tableMeetingActive
+                        ? `Sprecher: ${MEETING_STAGES[tableMeetingStage]?.speaker ?? "Team"}`
+                        : "Agenten versammeln sich..."}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-emerald-200/60">
+                    {standupMeeting.arrivedAgentIds.length}/
+                    {standupMeeting.participantOrder.length} anwesend
+                  </div>
+                </button>
+              ) : null}
+
+              {kanbanBoardItem ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    cyberAudio.playWhoosh();
+                    openKanbanBoard(kanbanBoardItem);
+                  }}
+                  className="rounded-xl border border-cyan-500/22 bg-[#09111a]/90 px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-cyan-300/40 hover:bg-[#0d1b28]/95"
+                >
+                  <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-200/80">
+                    Kanban-Board
+                  </div>
+                </button>
+              ) : null}
+
+              {/* Roboter-Sprachausgabe (TTS) & Mute-Manager (Alle / Einzeln muten) */}
+              <div className="flex flex-col gap-1 rounded-xl border border-cyan-500/30 bg-[#050c18]/92 p-1.5 shadow-lg backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-300 font-semibold flex items-center gap-1">
+                    <span>{cyberAudio.isVoiceEnabled() ? "🔊" : "🔇"}</span>
+                    <span>Stimmen (1.5x):</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      cyberAudio.playBlip();
+                      const nextState = !cyberAudio.isVoiceEnabled();
+                      cyberAudio.setVoiceEnabled(nextState);
+                      setVoiceMuteRerender((c) => c + 1);
+                    }}
+                    className={`rounded px-1.5 py-0.5 text-[8px] font-mono border transition cursor-pointer ${
+                      cyberAudio.isVoiceEnabled()
+                        ? "bg-cyan-500/20 text-cyan-300 border-cyan-400/40"
+                        : "bg-rose-950/60 text-rose-300 border-rose-500/40"
+                    }`}
+                    title={cyberAudio.isVoiceEnabled() ? "Alle stummschalten" : "Alle Stimmen aktivieren"}
+                  >
+                    {cyberAudio.isVoiceEnabled() ? "Alle: An" : "Alle: MUTE"}
+                  </button>
+                </div>
+                {/* Einzel-Mute Schalter für jeden der 4 Agenten */}
+                <div className="grid grid-cols-4 gap-1 pt-0.5">
+                  {[
+                    { id: "hermes", name: "Hermes", icon: "👑", voiceDesc: "Dunkel (M)" },
+                    { id: "claude", name: "Claude", icon: "✳", voiceDesc: "Klar (M)" },
+                    { id: "chatgpt", name: "GPT", icon: "🌀", voiceDesc: "Warm (W)" },
+                    { id: "gemini", name: "Gemini", icon: "✦", voiceDesc: "Hell (W)" },
+                  ].map((ag) => {
+                    const isMuted = cyberAudio.isAgentMuted(ag.id);
+                    return (
+                      <button
+                        key={ag.id}
+                        type="button"
+                        onClick={() => {
+                          cyberAudio.playBlip();
+                          cyberAudio.toggleMuteAgent(ag.id);
+                          setVoiceMuteRerender((c) => c + 1);
+                        }}
+                        className={`flex flex-col items-center justify-center rounded-lg px-1 py-1 text-[8px] font-mono border transition cursor-pointer ${
+                          isMuted
+                            ? "bg-rose-950/40 text-rose-400 border-rose-900/40 opacity-50 line-through"
+                            : "bg-cyan-950/40 text-cyan-200 border-cyan-500/20 hover:border-cyan-400"
+                        }`}
+                        title={`${ag.name} (${ag.voiceDesc}) ${isMuted ? "entmuten" : "stummschalten"}`}
+                      >
+                        <span className="text-[10px]">{ag.icon}</span>
+                        <span className="font-semibold leading-tight">{ag.name}</span>
+                        <span className="text-[6px] text-cyan-400/70">{isMuted ? "MUTED" : "AN"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Gravitations-Lift Manueller Auslöser (Zügiger Saugeffekt) */}
+              <button
+                type="button"
+                onClick={() => {
+                  // Focus camera directly onto the transparent gravity lift tube connecting the two decks
+                  cameraPresetRef.current = {
+                    pos: [-8.8, 1.2, -12.6],
+                    target: [-11.7, -2.6, -16.2],
+                    zoom: 62,
+                  };
+
+                  const testAgent =
+                    renderAgentsRef.current.find((a) => a.id.toLowerCase().includes("gemini")) ??
+                    renderAgentsRef.current[0];
+                  if (!testAgent) return;
+
+                  const isSub = Boolean(
+                    testAgent.workstationActivity &&
+                    (testAgent.workstationActivity.startsWith("war_room") ||
+                     testAgent.workstationActivity.includes("dev_desk"))
+                  );
+
+                  // Position right inside the suction tube center at conference table
+                  testAgent.x = 250;
+                  testAgent.y = 200;
+                  testAgent.state = "walking";
+                  testAgent.path = [];
+
+                  if (isSub) {
+                    // SUCK UP: from -5.2 to 0 (brisk upward suction)
+                    cyberAudio.playTractorBeam("up");
+                    let curY = -5.2;
+                    testAgent.verticalSuctionY = curY;
+                    const suctionTimer = setInterval(() => {
+                      curY += 0.45; // takes ~0.2s
+                      testAgent.verticalSuctionY = curY;
+                      if (curY >= 0) {
+                        clearInterval(suctionTimer);
+                        testAgent.verticalSuctionY = undefined;
+                        testAgent.workstationActivity = undefined;
+                        testAgent.workstationId = undefined;
+                        testAgent.targetX = 290;
+                        testAgent.targetY = 240;
+                        testAgent.path = [{ x: 290, y: 240 }];
+                      }
+                    }, 18);
+                  } else {
+                    // SUCK DOWN: from 0 to -5.2 (zügig runter saugen!)
+                    cyberAudio.playTractorBeam("down");
+                    let curY = 0;
+                    testAgent.verticalSuctionY = curY;
+                    const suctionTimer = setInterval(() => {
+                      curY -= 0.45; // takes ~0.2s, zügiger kräftiger Saugeffekt
+                      testAgent.verticalSuctionY = curY;
+                      if (curY <= -5.2) {
+                        clearInterval(suctionTimer);
+                        testAgent.verticalSuctionY = undefined;
+                        testAgent.workstationActivity = "war_room_metrics";
+                        testAgent.workstationId = "war_room_metrics";
+                        testAgent.targetX = 368;
+                        testAgent.targetY = 340;
+                        testAgent.path = [{ x: 368, y: 340 }];
+                      }
+                    }, 18);
+                  }
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-500/35 bg-gradient-to-r from-[#031525]/92 to-[#020b18]/92 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-300 hover:scale-[1.02] cursor-pointer"
+                title="Kamera auf den Gravitations-Tunnel richten und Agenten zügig runter/rauf saugen"
+              >
+                <span className="text-xs animate-spin" style={{ animationDuration: "3s" }}>🌀</span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-300 font-semibold">
+                  Gravitations-Lift
+                </span>
+              </button>
+
+              {/* Holo & Deckenlampe Ein/Aus (Freie Sicht auf Screens) */}
+              <button
+                type="button"
+                onClick={() => {
+                  cyberAudio.playBlip();
+                  setHoloChandelierVisible((prev) => !prev);
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-[#050c18]/90 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-400 hover:bg-cyan-950/40"
+                title="Schaltet Deckenleuchte und Hologramm aus, um freie Sicht auf die Bildschirme zu haben"
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${holoChandelierVisible ? "bg-cyan-400 shadow-sm shadow-cyan-400 animate-pulse" : "bg-slate-600"}`}
+                />
+                <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-200">
+                  {holoChandelierVisible ? "Holo-Licht: An" : "Screens frei (Licht Aus)"}
+                </span>
+              </button>
+
+              {/* Boden-Dynamik Modus Wähler */}
+              <div className="flex items-center gap-1 rounded-xl border border-slate-800/80 bg-[#060c18]/92 p-1 shadow-lg backdrop-blur-md">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-400 px-1 font-semibold">
+                  Boden:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleFloorModeChange("ambient")}
+                  className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
+                    floorMode === "ambient"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                  title="Sanftes, langsames und beruhigendes Atmen der Leitungsadern"
+                >
+                  🌸 Sanft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFloorModeChange("sonar")}
+                  className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
+                    floorMode === "sonar"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                  title="Holographische Sonar-Wellen dehnen sich langsam vom Tischzentrum aus"
+                >
+                  📡 Sonar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFloorModeChange("stream")}
+                  className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
+                    floorMode === "stream"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                  title="Wandernde Lichtleiter-Datenpakete in den Titanfugen"
+                >
+                  ⚡ Stream
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFloorModeChange("all")}
+                  className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
+                    floorMode === "all"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                  title="Kombination aus allen Effekten in beruhigtem Tempo"
+                >
+                  ✨ Alle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFloorModeChange("zen")}
+                  className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
+                    floorMode === "zen"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                  title="Statischer, edler Titanboden ohne jede Bewegung (maximale Ruhe)"
+                >
+                  ⏹️ Zen
+                </button>
+              </div>
+
+              {/* Roboter-Gesten Schnellwahl */}
+              <div className="flex items-center gap-1 rounded-xl border border-slate-800/80 bg-[#060c18]/92 p-1 shadow-lg backdrop-blur-md">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-400 px-1">
+                  Geste:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleTriggerGesture("wave")}
+                  className="rounded-lg px-2 py-0.5 text-[10px] font-mono text-slate-300 hover:text-cyan-300 hover:bg-white/5 transition"
+                  title="Winken lassen"
+                >
+                  👋 Winken
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTriggerGesture("thumbsUp")}
+                  className="rounded-lg px-2 py-0.5 text-[10px] font-mono text-slate-300 hover:text-cyan-300 hover:bg-white/5 transition"
+                  title="Daumen hoch"
+                >
+                  👍 Daumen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTriggerGesture("dance")}
+                  className="rounded-lg px-2 py-0.5 text-[10px] font-mono text-slate-300 hover:text-cyan-300 hover:bg-white/5 transition"
+                  title="Freudentanz"
+                >
+                  💃 Jubel
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -6754,67 +8220,7 @@ export function RetroOffice3D({
         </div>
       ) : null}
 
-      {/* Idea 1: Agent tooltip — shown when hovering an agent in the 3D scene. */}
-      {!immersiveOverlayActive &&
-        hoveredAgent &&
-        (() => {
-          const isError =
-            hoveredAgentStatus?.isError ?? hoveredAgent.status === "error";
-          const working =
-            hoveredAgentStatus?.working ?? hoveredAgent.status === "working";
-          return (
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none">
-              <div className="flex items-center gap-3 bg-[#120e08]/95 backdrop-blur-sm border border-amber-800/30 rounded-lg px-4 py-2.5 shadow-xl">
-                <div className="relative shrink-0">
-                  <div
-                    className="w-6 h-6 rounded-sm"
-                    style={{ backgroundColor: hoveredAgent.color }}
-                  />
-                  <div
-                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#120e08] ${
-                      isError
-                        ? "bg-red-400"
-                        : working
-                          ? "bg-green-400"
-                          : "bg-yellow-400"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-amber-100">
-                    {hoveredAgent.name}
-                  </div>
-                  <div className="text-[10px] text-amber-600 uppercase tracking-widest">
-                    {hoveredAgent.item}
-                  </div>
-                  {/* New Idea 8: last seen timestamp. */}
-                  {(() => {
-                    const ts = lastSeenByAgentId[hoveredAgent.id];
-                    if (!ts || ts <= 0) return null;
-                    const mins = Math.round((Date.now() - ts) / 60_000);
-                    if (mins <= 0) return null;
-                    return (
-                      <div className="text-[9px] text-amber-700/70">
-                        last active {mins}m ago
-                      </div>
-                    );
-                  })()}
-                </div>
-                <div
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ml-1 ${
-                    isError
-                      ? "bg-red-900/40 text-red-400 ring-1 ring-red-800/40"
-                      : working
-                        ? "bg-green-900/40 text-green-400 ring-1 ring-green-800/40"
-                        : "bg-yellow-900/30 text-yellow-500 ring-1 ring-yellow-800/30"
-                  }`}
-                >
-                  {isError ? "error" : working ? "working" : "idle"}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+
 
       {/* Speech bubble image overlay — shows the actual image when an agent's reply contains one. */}
       {!immersiveOverlayActive &&
@@ -7043,8 +8449,22 @@ export function RetroOffice3D({
         />
       ) : null}
 
-      {meetingRoomImmersive ? (
-        <MeetingRoomImmersiveScreen onClose={() => setMeetingRoomOpen(false)} />
+      {meetingRoomImmersive && !meetingRoomDetailOpen ? (
+        <MeetingRoomHud
+          seats={meetingRoomSeatData}
+          topic={meetingRoomTopic}
+          approvalActive={meetingRoomApprovalActive}
+          onExpand={() => setMeetingRoomDetailOpen(true)}
+          onClose={closeMeetingRoom}
+        />
+      ) : null}
+
+      {meetingRoomImmersive && meetingRoomDetailOpen ? (
+        <MeetingRoomImmersiveScreen
+          onClose={() => {
+            setMeetingRoomDetailOpen(false);
+          }}
+        />
       ) : null}
 
       {kanbanImmersive ? (
@@ -7065,9 +8485,35 @@ export function RetroOffice3D({
           }
           onDeleteCard={(cardId) => onTaskBoardDeleteCard?.(cardId)}
           onRefreshCronJobs={() => onTaskBoardRefreshCronJobs?.()}
-          onClose={() => setActiveKanbanUid(null)}
+          onClose={() => {
+            setActiveKanbanUid(null);
+            setWallKanbanOpen(false);
+            cameraPresetRef.current = overviewPreset;
+          }}
         />
       ) : null}
+
+      {wallDiagramOpen ? (
+        <CouncilDiagramModal
+          topic={meetingRoomTopic}
+          agents={agents}
+          onClose={() => {
+            setWallDiagramOpen(false);
+            cameraPresetRef.current = overviewPreset;
+          }}
+        />
+      ) : null}
+
+      <WhiteboardModal
+        isOpen={whiteboardModalOpen}
+        onClose={() => setWhiteboardModalOpen(false)}
+        initialText={whiteboardText}
+        onSave={handleSaveWhiteboard}
+      />
+
+      <CyberJukebox />
+
+      <TeamDispatchBar />
 
       {githubImmersive ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
@@ -7600,18 +9046,21 @@ export function RetroOffice3D({
           ) : null}
           {onAddAgent ? (
             <button
-              onClick={onAddAgent}
-              title="Add agent"
+              onClick={() => {
+                cyberAudio.playBlip();
+                onAddAgent();
+              }}
+              title="Agent hinzufügen"
               className="flex h-7 items-center justify-center gap-1 rounded-md border border-cyan-500/35 bg-[#071018]/92 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-200 transition-all backdrop-blur-sm hover:border-cyan-400/55 hover:text-white"
             >
               <UserPlus size={12} />
-              <span>Add</span>
+              <span>Agent hinzufügen</span>
             </button>
           ) : null}
           {onRenderModeChange ? (
             <button
               onClick={() => onRenderModeChange("2d")}
-              title="Switch to the 2D pixel office"
+              title="Zur 2D-Pixel-Ansicht wechseln"
               className="flex h-7 items-center justify-center gap-1 rounded-md border border-white/15 bg-[#120e08]/92 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/75 transition-all backdrop-blur-sm hover:border-cyan-400/45 hover:text-cyan-100"
             >
               <span>2D</span>
@@ -7627,19 +9076,19 @@ export function RetroOffice3D({
             }`}
             title={`Runtime: ${activeAdapterType} (${gatewayStatus})`}
           >
-            {activeAdapterType} • {gatewayStatus}
+            {activeAdapterType} • {gatewayStatus === "connected" ? "VERBUNDEN" : gatewayStatus === "connecting" ? "VERBINDE..." : "GETRENNT"}
           </div>
-          {/* New Idea 7: Heatmap toggle. */}
+          {/* Heatmap toggle. */}
           <button
             onClick={() => setHeatmapMode((p) => !p)}
-            title="Toggle heatmap"
+            title="Heatmap umschalten"
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all backdrop-blur-sm border ${heatmapMode ? "bg-amber-500/30 text-amber-300 border-amber-500/50" : "bg-[#1c1610]/80 text-amber-500/40 border-amber-900/20 hover:text-amber-400"}`}
           >
             <MapIcon size={12} />
           </button>
           <button
             onClick={() => setTrailMode((p) => !p)}
-            title="Toggle trails"
+            title="Laufspuren umschalten"
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all backdrop-blur-sm border ${trailMode ? "bg-amber-500/30 text-amber-300 border-amber-500/50" : "bg-[#1c1610]/80 text-amber-500/40 border-amber-900/20 hover:text-amber-400"}`}
           >
             <Maximize size={12} />
@@ -7647,7 +9096,7 @@ export function RetroOffice3D({
           {/* Edit office toggle. */}
           <button
             onClick={toggleEdit}
-            title={editMode ? "Done editing" : "Edit office"}
+            title={editMode ? "Bearbeitung abschließen" : "Büro anpassen"}
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all backdrop-blur-sm border ${editMode ? "bg-amber-500/30 text-amber-300 border-amber-500/50" : "bg-[#1c1610]/80 text-amber-500/40 border-amber-900/20 hover:text-amber-400"}`}
           >
             {editMode ? (
@@ -7658,7 +9107,7 @@ export function RetroOffice3D({
           </button>
           <button
             onClick={() => setSettingsModalOpen(true)}
-            title="Voice reply settings"
+            title="Sprach- & Audioeinstellungen"
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all backdrop-blur-sm border ${settingsModalOpen ? "bg-amber-500/30 text-amber-300 border-amber-500/50" : "bg-[#1c1610]/80 text-amber-500/40 border-amber-900/20 hover:text-amber-400"}`}
           >
             <Settings2 size={12} />
@@ -7815,15 +9264,15 @@ export function RetroOffice3D({
             {/* Ideas 6 + 8: Gateway status, agent counts, vibe score. */}
             <div className="flex items-center gap-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-[10px] font-mono">
               <span className="text-amber-500/60">
-                {agents.filter((a) => a.status === "working").length} working
+                {agents.filter((a) => a.status === "working").length} aktiv
               </span>
               <span className="opacity-30">·</span>
               <span className="text-amber-500/60">
-                {agents.filter((a) => a.status === "idle").length} idle
+                {agents.filter((a) => a.status === "idle").length} bereit
               </span>
               <span className="opacity-30">·</span>
               <span className="text-amber-500/60">
-                {agents.filter((a) => a.status === "error").length} error
+                {agents.filter((a) => a.status === "error").length} fehler
               </span>
               {/* New Idea 6: Vibe score with animated EQ bars. */}
               {(() => {
@@ -7832,7 +9281,7 @@ export function RetroOffice3D({
                 ).length;
                 const ratio = workingCount / Math.max(agents.length, 1);
                 const label =
-                  ratio < 0.2 ? "quiet" : ratio < 0.6 ? "active" : "buzzing";
+                  ratio < 0.2 ? "ruhig" : ratio < 0.6 ? "aktiv" : "hohe Auslastung";
                 const animDur = ratio < 0.2 ? "1.8s" : ratio < 0.6 ? "1s" : "0.5s";
                 return (
                   <>
@@ -7860,20 +9309,143 @@ export function RetroOffice3D({
                 <>
                   <span className="opacity-30">·</span>
                   <span className="text-amber-400/40">
-                    drag · scroll · space+drag · dbl-click
+                    Ziehen · Scrollen · Leertaste+Ziehen · Doppelklick
                   </span>
                 </>
               )}
               {spaceDown && (
                 <>
                   <span className="opacity-30">·</span>
-                  <span className="text-amber-300/80">pan mode</span>
+                  <span className="text-amber-300/80">Schwenk-Modus</span>
                 </>
               )}
             </div>
           </div>
         </>
       ) : null}
+
+      {/* Smartphone Access Help Modal */}
+      {mobileHelpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="w-[500px] max-w-[95vw] rounded-2xl border border-cyan-500/40 bg-[#070e1c]/98 p-5 shadow-2xl shadow-cyan-950/80">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-cyan-400" />
+                <h3 className="font-mono text-sm font-bold text-white uppercase tracking-wider">
+                  Handy / Smartphone Zugang
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileHelpOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3">
+              <p className="text-xs text-slate-300">
+                Verbinde dein Smartphone mit demselben WLAN-Netzwerk wie diesen PC und öffne diese Adresse im mobilen Browser (Safari oder Chrome):
+              </p>
+
+              <div className="flex items-center justify-between rounded-xl border border-cyan-500/30 bg-cyan-950/40 p-3">
+                <span className="font-mono text-sm font-bold text-cyan-300 select-all">
+                  http://192.168.178.73:3200/office
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText("http://192.168.178.73:3200/office");
+                    cyberAudio.playBlip();
+                  }}
+                  className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 transition"
+                >
+                  Kopieren
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-[11px] text-amber-200/90 flex flex-col gap-1.5">
+                <span className="font-bold text-amber-300">⚠️ Falls das Handy nicht lädt (Windows-Sicherheit blockiert):</span>
+                <span>Dein Heim-WLAN am PC ist aktuell noch als "Öffentlich" eingestuft, daher blockt die Windows-Firewall das Smartphone ab.</span>
+                <span><b>Lösung (in 10 Sekunden):</b></span>
+                <span>1. Windows-Einstellungen öffnen (Win+I) &rarr; <b>Netzwerk & Internet</b> &rarr; <b>WLAN</b></span>
+                <span>2. Auf dein WLAN ("FRITZ!Box 5530 SM") klicken</span>
+                <span>3. Von "Öffentliches Netzwerk" auf <b>"Privates Netzwerk"</b> umstellen. Sofort lädt das Handy!</span>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-black/40 p-3 text-[11px] text-slate-400 flex flex-col gap-1.5">
+                <span className="font-bold text-slate-300">💡 Tipp für Vollbild am Handy:</span>
+                <span>• <b>iOS (Safari):</b> Auf "Teilen" tippen &rarr; "Zum Home-Bildschirm"</span>
+                <span>• <b>Android (Chrome):</b> Auf Menü (⋮) tippen &rarr; "App installieren" oder "Zum Startbildschirm hinzufügen"</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Kontrollfahrt Exit Banner */}
+      {cinematicTourActive && (
+        <div className="pointer-events-auto fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3.5 rounded-2xl border border-cyan-400/50 bg-[#060e1c]/95 px-6 py-3 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
+          <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 animate-ping" />
+          <div className="flex flex-col">
+            <span className="font-mono text-xs text-cyan-200 font-bold tracking-wide">
+              🔍 KONTROLLFAHRT AKTIV
+            </span>
+            <span className="font-mono text-[10px] text-cyan-400/70">
+              Operative Inspektion: Wandmonitore &rarr; War Room Metriken &rarr; Team-Status &rarr; Tages-Ergebnisse
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              cyberAudio.playWhoosh();
+              cinematicTourRef.current = false;
+              setCinematicTourActive(false);
+            }}
+            className="rounded-lg border border-cyan-400/40 bg-cyan-950/60 px-3 py-1.5 text-[10px] font-mono text-cyan-300 hover:border-cyan-400 hover:text-white transition cursor-pointer ml-3"
+          >
+            Beenden [ESC]
+          </button>
+        </div>
+      )}
+
+      {/* 2D Heads-Up Arrival Panel (High-contrast, razor-sharp information overlay) */}
+      <KontrollfahrtArrivalPanel
+        stationIndex={kontrollfahrtStation}
+        isArrived={kontrollfahrtArrived}
+        onClose={() => {
+          cyberAudio.playWhoosh();
+          cinematicTourRef.current = false;
+          setCinematicTourActive(false);
+          setKontrollfahrtStation(-1);
+          setKontrollfahrtArrived(false);
+        }}
+        onRepeatTour={() => {
+          cyberAudio.playWhoosh();
+          cinematicTourRef.current = true;
+          setCinematicTourActive(true);
+        }}
+        onJumpStation={(targetStation) => {
+          cyberAudio.playBlip();
+          jumpStationTargetRef.current = targetStation;
+          setKontrollfahrtStation(targetStation);
+          setKontrollfahrtArrived(true);
+        }}
+      />
+
+      {/* 3D Neural Knowledge Graph Modal (Obsidian Life OS) */}
+      <ObsidianGraphModal
+        isOpen={obsidianGraphOpen}
+        onClose={() => setObsidianGraphOpen(false)}
+      />
+
+      {/* Todoist iPhone Mission Control Modal */}
+      <TodoistTerminalModal
+        isOpen={todoistModalOpen}
+        onClose={() => setTodoistModalOpen(false)}
+      />
+
       <style>{`
         @keyframes eq-bar {
           from { transform: scaleY(0.3); }

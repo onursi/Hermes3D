@@ -58,6 +58,11 @@ playwright-report
 test-results
 .playwright-home
 /.playwright-cli
+
+# scratch & temporary files
+.scratch/
+scratch/
+scratch_test_coords.js
 /output/playwright
 
 # agent state

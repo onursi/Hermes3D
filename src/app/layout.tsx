@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="de" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -22,7 +22,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <main className="h-screen w-screen overflow-hidden bg-background">{children}</main>
+        <div className="h-screen w-screen overflow-hidden bg-background">{children}</div>
       </body>
     </html>
   );

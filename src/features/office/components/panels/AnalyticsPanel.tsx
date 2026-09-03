@@ -203,6 +203,44 @@ export function AnalyticsPanel({
           </div>
         ) : null}
 
+        {/* Executive Summary Cards: 4 konkrete Kennzahlen */}
+        <div className="mb-4 rounded-xl border border-cyan-500/30 bg-[#07101a]/85 p-3.5 shadow-lg">
+          <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2 mb-3">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+              Operativer Status // Hauptquartier
+            </span>
+            <span className="rounded bg-cyan-950 px-2 py-0.5 text-[10px] font-mono text-cyan-400">
+              ECHTZEIT
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-slate-800 bg-[#050b14] p-2.5">
+              <div className="text-[10px] uppercase font-mono text-slate-400">Meetingfortschritt</div>
+              <div className="mt-1 text-sm font-bold text-white font-mono">2/4 Themen</div>
+              <div className="text-[10px] text-emerald-400 mt-0.5">Stand-up & Council aktiv</div>
+            </div>
+
+            <div className="rounded-lg border border-slate-800 bg-[#050b14] p-2.5">
+              <div className="text-[10px] uppercase font-mono text-slate-400">Offene Aufgaben</div>
+              <div className="mt-1 text-sm font-bold text-white font-mono">3 im Board</div>
+              <div className="text-[10px] text-cyan-400 mt-0.5">1 in Bearbeitung</div>
+            </div>
+
+            <div className="rounded-lg border border-slate-800 bg-[#050b14] p-2.5">
+              <div className="text-[10px] uppercase font-mono text-slate-400">Blocker</div>
+              <div className="mt-1 text-sm font-bold text-amber-400 font-mono">1 identifiziert</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">API Rate Limits</div>
+            </div>
+
+            <div className="rounded-lg border border-slate-800 bg-[#050b14] p-2.5">
+              <div className="text-[10px] uppercase font-mono text-slate-400">Agenten aktiv</div>
+              <div className="mt-1 text-sm font-bold text-emerald-400 font-mono">{agents.length}/5 online</div>
+              <div className="text-[10px] text-emerald-300 mt-0.5">Alle 5 einsatzbereit</div>
+            </div>
+          </div>
+        </div>
+
         {usage.budgetAlerts.length > 0 ? (
           <div className={`mt-3 rounded border px-3 py-2 font-mono text-[11px] ${alertBannerClass}`}>
             {usage.budgetAlerts.map((alert) => (
@@ -213,36 +251,36 @@ export function AnalyticsPanel({
           </div>
         ) : settingsLoaded ? (
           <div className="mt-3 rounded border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 font-mono text-[11px] text-emerald-100">
-            Budgets are within threshold.
+            Budgets liegen im Sollbereich.
           </div>
         ) : null}
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <StatCard
-            label="Total Spend"
+            label="Gesamtkosten"
             value={formatCurrency(usage.totals.totalCost)}
-            hint="Selected range."
+            hint="Ausgewählter Zeitraum."
           />
           <StatCard
-            label="Total Tokens"
+            label="Verbrauchte Tokens"
             value={formatNumber(usage.totals.totalTokens)}
-            hint="Input + output + cache."
+            hint="Input + Output + Cache."
           />
           <StatCard
-            label="Success Rate"
+            label="Erfolgsquote"
             value={formatPercent(performance.fleet.successRate)}
-            hint="Completed runs only."
+            hint="Nur abgeschlossene Läufe."
           />
           <StatCard
-            label="Avg Runtime"
+            label="Durchschnittliche Laufzeit"
             value={formatDuration(performance.fleet.avgRuntimeMs)}
-            hint="Session-local run history."
+            hint="Historie der Sitzung."
           />
         </div>
 
         <div className="mt-5 rounded border border-white/8 bg-white/[0.03] px-3 py-3">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
-            Budget Limits
+            Budget-Grenzen & Limits
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1">

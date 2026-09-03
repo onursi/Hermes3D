@@ -1,74 +1,24 @@
 import type { FacingPoint, GymRoute } from "@/features/retro-office/core/types";
-import {
-  EAST_WING_DOOR_Y,
-  EAST_WING_ROOM_HEIGHT,
-  EAST_WING_ROOM_TOP_Y,
-  GYM_ROOM_END_X,
-  GYM_ROOM_WIDTH,
-  GYM_ROOM_X,
-} from "@/features/retro-office/core/constants";
 
+// The Gym room (walls, equipment) was removed in the HQ v2 layout — see
+// furnitureDefaults.ts. This hold is purely a status animation now: the
+// agent walks straight to an open-floor point and "stage" is always
+// "workout" (no door to stage through). Kept as a resolver function (not
+// inlined at call sites) so RetroOffice3D.tsx's existing hold logic needs no
+// changes.
 export const GYM_DEFAULT_TARGET = {
-  x: GYM_ROOM_X + GYM_ROOM_WIDTH / 2,
-  y: 180,
+  x: 950,
+  y: 720,
   facing: -Math.PI / 2,
 };
-
-const GYM_DOOR_OUTER_TARGET = {
-  x: GYM_ROOM_END_X + 40,
-  y: EAST_WING_DOOR_Y + 20,
-  facing: -Math.PI / 2,
-};
-
-const GYM_DOOR_INNER_TARGET = {
-  x: GYM_ROOM_END_X - 50,
-  y: EAST_WING_DOOR_Y + 20,
-  facing: -Math.PI / 2,
-};
-
-const DOOR_APPROACH_RADIUS = 60;
-const DOOR_INNER_SNAP_RADIUS = 18;
 
 export const resolveGymRoute = (
-  x: number,
-  y: number,
+  _x: number,
+  _y: number,
   workoutTarget: FacingPoint = GYM_DEFAULT_TARGET,
-): GymRoute => {
-  const insideGym =
-    (x >= GYM_ROOM_X && x <= GYM_ROOM_END_X &&
-      y >= EAST_WING_ROOM_TOP_Y &&
-      y <= EAST_WING_ROOM_TOP_Y + EAST_WING_ROOM_HEIGHT) ||
-    Math.hypot(
-      x - GYM_DOOR_INNER_TARGET.x,
-      y - GYM_DOOR_INNER_TARGET.y,
-    ) < DOOR_INNER_SNAP_RADIUS;
-  if (insideGym) {
-    return {
-      stage: "workout",
-      targetX: workoutTarget.x,
-      targetY: workoutTarget.y,
-      facing: workoutTarget.facing,
-    };
-  }
-
-  const withinDoorThreshold =
-    Math.hypot(
-      x - GYM_DOOR_OUTER_TARGET.x,
-      y - GYM_DOOR_OUTER_TARGET.y,
-    ) < DOOR_APPROACH_RADIUS;
-  if (withinDoorThreshold) {
-    return {
-      stage: "door_inner",
-      targetX: GYM_DOOR_INNER_TARGET.x,
-      targetY: GYM_DOOR_INNER_TARGET.y,
-      facing: GYM_DOOR_INNER_TARGET.facing,
-    };
-  }
-
-  return {
-    stage: "door_outer",
-    targetX: GYM_DOOR_OUTER_TARGET.x,
-    targetY: GYM_DOOR_OUTER_TARGET.y,
-    facing: GYM_DOOR_OUTER_TARGET.facing,
-  };
-};
+): GymRoute => ({
+  stage: "workout",
+  targetX: workoutTarget.x,
+  targetY: workoutTarget.y,
+  facing: workoutTarget.facing,
+});

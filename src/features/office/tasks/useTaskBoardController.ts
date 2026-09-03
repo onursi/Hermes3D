@@ -956,8 +956,9 @@ export const useTaskBoardController = ({
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       void refreshSharedTasks();
-    }, 4_000);
+    }, 30_000);
     return () => {
       window.clearInterval(intervalId);
     };
