@@ -59,9 +59,9 @@ export function JarvisPanel({ onFlyToSource, onClose }: Props) {
   }, [question, loading]);
 
   return (
-    <div className="absolute right-6 top-20 z-40 flex max-h-[calc(100vh-160px)] w-96 flex-col rounded-2xl border border-white/[0.09] bg-[#141619]/85 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
+    <div className="absolute right-6 top-20 z-40 flex max-h-[calc(100vh-160px)] w-96 flex-col rounded-2xl border border-white/[0.09] bg-[#0e1013]/55 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.5)] backdrop-blur-3xl backdrop-saturate-150">
       <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-        <span className="text-[11px] font-semibold tracking-[-0.005em] text-white/70">
+        <span className="text-[11px] font-semibold tracking-[-0.005em] text-white/80">
           Jarvis · fragt deinen Vault
         </span>
         <button
@@ -109,7 +109,7 @@ export function JarvisPanel({ onFlyToSource, onClose }: Props) {
         ) : null}
 
         {answer ? (
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/85">{answer}</p>
+          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/95">{answer}</p>
         ) : null}
 
         {reason && !answer ? (
@@ -133,7 +133,7 @@ export function JarvisPanel({ onFlyToSource, onClose }: Props) {
                     <span className="shrink-0 font-mono text-[11px] text-white/35">
                       [{index + 1}]
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-white/75">
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-white/85">
                       {source.title}
                     </span>
                   </button>
