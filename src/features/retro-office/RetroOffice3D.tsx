@@ -219,7 +219,6 @@ import { GALAXY_SITES } from "@/features/retro-office/systems/atmosphere";
 import { CronComets } from "@/features/retro-office/scene/CronComets";
 import { DayProgressRing } from "@/features/retro-office/scene/DayProgressRing";
 import { VaultStars } from "@/features/retro-office/scene/VaultStars";
-import { ProjectOrbits } from "@/features/retro-office/scene/ProjectOrbits";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
   FurnitureModel as GenericFurnitureModel,
@@ -7353,8 +7352,6 @@ export function RetroOffice3D({
 
             {/* Orbital Space Station Floating Deck — weightless harmonic zero-gravity drift */}
             <OrbitalFloatingStationGroup>
-            {/* Projects in orbit above the room — see ProjectOrbits for why every
-                property is measured rather than chosen. */}
             {/* Today under your feet — see DayProgressRing for why it hides when
                 nothing is due. */}
             {/* Scheduled jobs as comets — an empty sky means nothing is scheduled,
@@ -7376,39 +7373,6 @@ export function RetroOffice3D({
               dueToday={todayTally.due}
               doneToday={todayTally.done}
               position={[-11.7, 0.01, -16.2]}
-            />
-
-            <ProjectOrbits
-              projects={projectOrbits}
-              // The office centre, the same point the deck and the lift share.
-  position={[-11.7, 7.5, -16.2]}
-              onSelect={(projectName) => {
-                // Travel rather than open. The orbiting body is the project's beacon
-                // in the room; the galaxy is the project's place in space. Clicking
-                // the beacon takes you to the place — which is what makes the two
-                // representations one system instead of the same thing drawn twice.
-                const index = projectOrbits.findIndex((entry) => entry.name === projectName);
-                const site = index >= 0 ? GALAXY_SITES[index] : undefined;
-                if (!site) {
-                  // No galaxy for this project — more than five, or none matched. The
-                  // tasks are still the useful thing to show.
-                  cyberAudio.playChime();
-                  setTodoistModalOpen(true);
-                  return;
-                }
-                cyberAudio.playWhoosh();
-                cinematicTourRef.current = false;
-                setCinematicTourActive(false);
-                setFollowAgentId(null);
-                const [gx, gy, gz] = site.position;
-                cameraPresetRef.current = {
-                  // Stops short of the galaxy rather than inside it: a spiral seen from
-                  // its own centre is a smear.
-                  pos: [gx * 0.62, gy * 0.62 + 4, gz * 0.62],
-                  target: [gx, gy, gz],
-                  zoom: 42,
-                };
-              }}
             />
 
             {/* Floor + walls — always visible, no async loading. */}
