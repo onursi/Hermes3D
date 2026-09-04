@@ -8198,18 +8198,21 @@ export function RetroOffice3D({
         </div>
       ) : null}
 
-      {/* Title — top center overlay. */}
-      {!immersiveOverlayActive ? (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none z-10">
-          <div className="flex items-center gap-3">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent to-amber-500/40" />
-            <span className="text-sm tracking-[0.3em] text-amber-300/80 font-bold uppercase">
-              {officeTitle}
-            </span>
-            <div className="h-px w-12 bg-gradient-to-l from-transparent to-amber-500/40" />
-          </div>
-        </div>
-      ) : null}
+      {/*
+        The ornamental centre title is gone.
+      
+        It was amber, uppercase, wide-tracked and framed by two gradient rules —
+        the same costume we stripped off every other label today. It also sat in
+        the middle of the top strip, which is exactly where the left toolbar
+        grows into on a narrower window, so it was the thing being covered in
+        Onur's screenshot.
+      
+        Removing it rather than nudging it, because it carried nothing: the room
+        is on screen, the tab is named, and the toolbar says what this is. A
+        title that only announces where you already are is decoration competing
+        with controls. The name still lives in `officeTitle` if it earns a place
+        later.
+      */}
 
       {/* Agent roster — compact top summary with overflow panel. */}
       {!readOnly && !immersiveOverlayActive ? (
