@@ -85,6 +85,12 @@ export function InstancedWallSegmentsModel({
 }
 
 
+type TablePart = {
+  material: THREE.Material & { opacity: number; transparent: boolean };
+  restOpacity: number;
+  restTransparent: boolean;
+};
+
 export function RoundTableModel({
   item,
   isSelected,
@@ -113,25 +119,66 @@ export function RoundTableModel({
    * travelling through it, and closes again afterwards.
    */
   const tableGroupRef = useRef<THREE.Group>(null);
+
+  /**
+   * The table's parts, and what they looked like before anyone rode through.
+   *
+   * Collected once. The previous version traversed the whole group every
+   * frame and set `transparent = true` on every material it found — and
+   * never set it back. So the solid oak top, the brushed metal rim and the
+   * pedestal spent the entire session in the renderer's transparent queue,
+   * which is sorted back-to-front every frame and cannot use early-Z to skip
+   * pixels that something in front already covered. A table nobody was
+   * riding through was costing overdraw all the same.
+   *
+   * Found by Codex reviewing the scene independently, and it was right to
+   * call it the clearest real bug in this area.
+   */
+  const tablePartsRef = useRef<TablePart[] | null>(null);
+  /** False while the table is closed and settled — the frames where there is nothing to do. */
+  const tableAnimatingRef = useRef(false);
+
   useFrame((_, delta) => {
     const group = tableGroupRef.current;
     if (!group) return;
     const riding = activeLiftSuction.agentId !== null;
-    const target = riding ? 0.06 : 1;
-    group.traverse((child) => {
-      const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const material = mesh.material as THREE.Material & { opacity: number; transparent: boolean };
-      if (!material || typeof material.opacity !== "number") return;
-      // Remembered once per material, so closing returns each part to the
-      // opacity it was authored with instead of flattening them all to one.
-      const store = material.userData as { restOpacity?: number };
-      if (store.restOpacity === undefined) store.restOpacity = material.opacity;
-      material.transparent = true;
-      const rest = store.restOpacity;
-      const wanted = riding ? rest * target : rest;
-      material.opacity += (wanted - material.opacity) * Math.min(1, delta * 6);
-    });
+    if (riding) tableAnimatingRef.current = true;
+    if (!tableAnimatingRef.current) return;
+
+    if (!tablePartsRef.current) {
+      const parts: TablePart[] = [];
+      group.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const material = mesh.material as THREE.Material & { opacity: number; transparent: boolean };
+        if (!material || typeof material.opacity !== "number") return;
+        parts.push({
+          material,
+          restOpacity: material.opacity,
+          restTransparent: material.transparent,
+        });
+      });
+      tablePartsRef.current = parts;
+    }
+
+    let settled = true;
+    for (const part of tablePartsRef.current) {
+      const wanted = riding ? part.restOpacity * 0.06 : part.restOpacity;
+      part.material.transparent = true;
+      part.material.opacity += (wanted - part.material.opacity) * Math.min(1, delta * 6);
+      if (Math.abs(part.material.opacity - wanted) > 0.01) settled = false;
+      else part.material.opacity = wanted;
+    }
+
+    // Closed again: hand every part back the transparency flag it was
+    // authored with, so the opaque ones return to the opaque queue.
+    if (settled && !riding) {
+      for (const part of tablePartsRef.current) {
+        part.material.transparent = part.restTransparent;
+        part.material.opacity = part.restOpacity;
+      }
+      tableAnimatingRef.current = false;
+    }
   });
   const height = 0.5;
   const topThickness = 0.04;

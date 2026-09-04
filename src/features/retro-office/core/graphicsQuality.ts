@@ -63,12 +63,18 @@ export type GraphicsQualityConfig = {
    * Resolution of the buffer three renders for refractive materials, relative
    * to the viewport.
    *
-   * Five materials in the room use `transmission` (the smoked glass table top,
-   * its core portal, the war room shell). A single one of them makes the
-   * renderer re-render the whole opaque scene into a separate target and build
-   * its mip chain, every frame. What that buffer actually shows here is the
-   * floor seen through dark glass at 0.88 opacity, so it survives being
-   * rendered smaller far better than the rest of the image does.
+   * Nothing in the room uses `transmission` any more.
+   *
+   * This comment used to name five materials — the smoked glass table top,
+   * its core portal, the war room shell — and warn that each one makes the
+   * renderer re-render the opaque scene into a separate target. They have
+   * since been rebuilt as ordinary transparent materials, and the warning
+   * outlived the thing it warned about. It was then read as evidence during
+   * a performance hunt and sent that hunt down a dead end, until Codex
+   * checked the bundle and found no transmissive material in it at all.
+   *
+   * The setting is kept because the cost it describes is real and would
+   * return with the first transmissive material. Today it does nothing.
    */
   transmissionScale: number;
   /** Depth of field while the follow camera is active. */
@@ -249,7 +255,58 @@ export const resolveInitialGraphicsQuality = (): GraphicsQuality => {
   const stored = loadStoredGraphicsQuality();
   if (stored) return stored;
   if (detectSoftwareWebGL() || isLikelyMobileDevice()) return "low";
+  if (detectIntegratedGpu()) return "medium";
   return "balanced";
+};
+
+/**
+ * Whether the GPU shares its memory with the rest of the machine.
+ *
+ * The old check knew two things: software rendering, and phones. Everything
+ * else was handed "balanced", which on the machine this was written for
+ * meant ambient occlusion, bloom, 4x MSAA and 2048 shadows across a 34"
+ * ultrawide — measured at 7 fps. The same room on "low" ran at 60. So the
+ * first thing the office ever showed its owner was the worst version of
+ * itself, and it took a session of measurement to find out why.
+ *
+ * An integrated GPU is not slow at arithmetic; it is starved of bandwidth,
+ * because every texture read competes with the CPU for the same system
+ * memory. That is precisely what full-screen post-processing spends. Naming
+ * the families is crude and will age — but a name we do not recognise falls
+ * through to the old behaviour, so being wrong here costs nothing that was
+ * not already being paid.
+ */
+const INTEGRATED_GPU_PATTERN =
+  /\b(vega \d|radeon\(tm\) (vega|graphics)|iris|uhd graphics|hd graphics|intel\(r\) (arc )?graphics|adreno|mali|apple gpu)\b/i;
+
+let integratedGpuProbe: boolean | null = null;
+
+export const detectIntegratedGpu = (): boolean => {
+  if (typeof document === "undefined") return false;
+  if (integratedGpuProbe !== null) return integratedGpuProbe;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context =
+      canvas.getContext("webgl2") ??
+      (canvas.getContext("webgl") as WebGLRenderingContext | null);
+    if (!context) {
+      integratedGpuProbe = false;
+      return false;
+    }
+    const debugInfo = context.getExtension("WEBGL_debug_renderer_info");
+    const renderer = String(
+      debugInfo
+        ? context.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+        : context.getParameter(context.RENDERER),
+    );
+    integratedGpuProbe = INTEGRATED_GPU_PATTERN.test(renderer);
+    return integratedGpuProbe;
+  } catch {
+    integratedGpuProbe = false;
+    return false;
+  }
 };
 
 export const saveGraphicsQuality = (quality: GraphicsQuality) => {
