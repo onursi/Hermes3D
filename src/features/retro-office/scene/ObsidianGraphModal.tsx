@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Play, Square, Unlink, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
 import { Obsidian3DGraphCore, AREAL_COLORS, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
+import { JarvisPanel } from "./JarvisPanel";
 
 /**
  * The areas of the vault, in the order their pills appear and their number
@@ -52,6 +53,8 @@ export function ObsidianGraphModal({
   const [tourIndex, setTourIndex] = useState(-1);
   /** Loose ends: the notes nothing links to. */
   const [showOrphans, setShowOrphans] = useState(false);
+  /** Jarvis: die Frage-an-den-Vault-Ansicht. */
+  const [jarvisOpen, setJarvisOpen] = useState(false);
   const tourRunning = tourIndex >= 0;
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -228,6 +231,22 @@ export function ObsidianGraphModal({
   if (!isOpen) return null;
 
   const filters = AREA_FILTERS;
+
+  /**
+   * Fly the brain to a note Jarvis cited.
+   *
+   * Both halves identify a note by its path inside the vault, so an answer's
+   * source needs no translation to become a node — which is the only reason
+   * this is three lines instead of a lookup table.
+   */
+  const handleFlyToSource = (sourceId: string) => {
+    const node = data?.nodes.find((candidate) => candidate.id === sourceId);
+    if (!node) return;
+    cyberAudio.resume();
+    cyberAudio.playSynapseBlip();
+    setSelectedNode(node);
+    setFlyToNode(node);
+  };
 
   const handleFilterClick = (filterId: string) => {
     // Touching anything ends the tour: it is a presentation, not a mode you
@@ -560,6 +579,19 @@ export function ObsidianGraphModal({
           <Unlink size={11} />
           <span>Lose Enden{orphanCount > 0 ? ` (${orphanCount})` : ""}</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setJarvisOpen((prev) => !prev)}
+          className={`flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+            jarvisOpen
+              ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100"
+              : "border-white/[0.09] bg-[#141619]/75 text-white/60 hover:text-white/90 hover:border-white/20"
+          }`}
+          title="Stell deinem Vault eine Frage — die Antwort kommt nur aus deinen Notizen, mit Quellen"
+        >
+          <Sparkles size={11} />
+          <span>Fragen</span>
+        </button>
         </div>
 
         {/* Category Pills */}
@@ -596,6 +628,10 @@ export function ObsidianGraphModal({
             {data?.nodes.filter((node) => node.group === activeFilter).length ?? 0} Notizen
           </div>
         </div>
+      ) : null}
+
+      {jarvisOpen ? (
+        <JarvisPanel onFlyToSource={handleFlyToSource} onClose={() => setJarvisOpen(false)} />
       ) : null}
 
       {/* The vault's busiest notes, bottom left. Clicking one flies to it and
