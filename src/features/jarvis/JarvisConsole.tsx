@@ -8,6 +8,7 @@ import {
   Mic,
   MicOff,
   Volume2,
+  Sunrise,
   VolumeX,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -70,6 +71,8 @@ export function JarvisConsole({
   const [soundOn, setSoundOn] = useState(false);
   const answerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
+  /** Read inside callbacks so they do not have to depend on the phase. */
+  const busyRef = useRef(false);
 
   useEffect(() => () => streamRef.current?.close(), []);
 
@@ -199,7 +202,36 @@ export function JarvisConsole({
     }
   }, [answer, question, sources, saving]);
 
+  /**
+   * The day, as advice rather than as a list.
+   *
+   * Reuses the answer surface deliberately: a briefing is an answer to a
+   * question you did not have to type, so it should arrive in the same place
+   * and be rememberable the same way.
+   */
+  const briefing = useCallback(async () => {
+    if (busyRef.current) return;
+    streamRef.current?.close();
+    setAnswer("");
+    setSources([]);
+    setReason(null);
+    setSavedAs(null);
+    setQuestion("Wie ist mein Stand?");
+    setPhase("thinking");
+    try {
+      const res = await fetch("/api/briefing");
+      const data = await res.json();
+      if (data.ok && data.briefing) setAnswer(data.briefing);
+      else setReason(data.reason ?? "Kein Briefing erhalten.");
+    } catch (error) {
+      setReason(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPhase("idle");
+    }
+  }, []);
+
   const busy = phase === "searching" || phase === "thinking" || phase === "speaking";
+  busyRef.current = busy;
 
   return (
     <>
@@ -286,6 +318,15 @@ export function JarvisConsole({
               title={soundOn ? "Der Raum feuert hörbar mit" : "Klang des Gehirns einschalten"}
             >
               <Activity size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void briefing()}
+              disabled={busy}
+              className="inline-flex items-center rounded-xl border border-white/[0.09] bg-white/[0.04] px-2.5 py-2 text-white/50 transition hover:text-white/80 disabled:opacity-30"
+              title="Wie ist mein Stand? — Aufgaben und Freigaben, mit einer Empfehlung"
+            >
+              <Sunrise size={13} />
             </button>
           </div>
         ) : null}
