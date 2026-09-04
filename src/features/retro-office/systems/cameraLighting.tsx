@@ -106,8 +106,12 @@ export const CAMERA_PRESETS = {
     zoom: 65,
   },
   warRoom: {
-    pos: [OX + 0.1, -3.75, OZ - 0.2],
-    target: [OX + 2.9, -3.85, OZ],
+    // Stood 1.45 m off the war room floor looking dead level at a point 2.8 m
+    // away, which framed the underside of one console and nothing else. The
+    // room's consoles sit on a ring of radius ~3.4, so the view has to be far
+    // enough back to hold the ring and high enough to look down into it.
+    pos: [OX + 0.2, -1.5, OZ + 7.4],
+    target: [OX, -4.5, OZ],
     zoom: 60,
   },
 } satisfies Record<string, CameraPreset>;

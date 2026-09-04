@@ -16,7 +16,35 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const TODOIST_API = "https://api.todoist.com/rest/v2";
+/**
+ * Todoist retired the REST v2 endpoints — they answer 410 with a note telling
+ * you to move to v1 of the unified API. This is that one. It paginates via
+ * `results` plus `next_cursor` and renamed `is_completed` to `checked`.
+ */
+const TODOIST_API = "https://api.todoist.com/api/v1";
+
+/** Follows `next_cursor` so a long list is not silently cut at page one. */
+async function fetchAllPages<T>(path: string, token: string): Promise<T[]> {
+  const items: T[] = [];
+  let cursor: string | null = null;
+  // A guard rather than `while (true)`: a cursor that never clears would
+  // otherwise hang the request forever.
+  for (let page = 0; page < 20; page++) {
+    const url = new URL(`${TODOIST_API}${path}`);
+    url.searchParams.set("limit", "200");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const res: Response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(await describeFailure(res));
+    const body: { results?: T[]; next_cursor?: string | null } = await res.json();
+    items.push(...(body.results ?? []));
+    cursor = body.next_cursor ?? null;
+    if (!cursor) break;
+  }
+  return items;
+}
 
 export type TodoistTask = {
   id: string;
@@ -39,12 +67,16 @@ type TodoistApiTask = {
   id: string;
   content: string;
   description?: string;
+  /** v1 spelling. */
+  checked?: boolean;
+  /** v2 spelling, kept so a rollback does not silently show everything as open. */
   is_completed?: boolean;
+  is_deleted?: boolean;
   priority?: number;
   project_id?: string;
   labels?: string[];
   url?: string;
-  due?: { date?: string; string?: string } | null;
+  due?: { date?: string; string?: string; is_recurring?: boolean } | null;
 };
 
 const readToken = (req: Request) =>
@@ -80,47 +112,33 @@ export async function GET(req: Request) {
   try {
     // Projects come along so a task can show where it lives. The task endpoint
     // only returns `project_id`, and an id on screen helps nobody.
-    const [taskRes, projectRes] = await Promise.all([
-      fetch(`${TODOIST_API}/tasks`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }),
-      fetch(`${TODOIST_API}/projects`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }),
+    const [rawTasks, projects] = await Promise.all([
+      fetchAllPages<TodoistApiTask>("/tasks", token),
+      // A failed project lookup is not worth failing the whole list over; the
+      // tasks are the point and the project name is a nicety.
+      fetchAllPages<{ id: string; name: string }>("/projects", token).catch(() => []),
     ]);
 
-    if (!taskRes.ok) {
-      return NextResponse.json({
-        connected: false,
-        tasks: [],
-        reason: await describeFailure(taskRes),
-      });
-    }
+    const projectNames = new Map(projects.map((project) => [project.id, project.name]));
 
-    const rawTasks: TodoistApiTask[] = await taskRes.json();
-    // A failed project lookup is not worth failing the whole list over; the
-    // tasks are the point and the project name is a nicety.
-    const projectNames = new Map<string, string>();
-    if (projectRes.ok) {
-      const projects: Array<{ id: string; name: string }> = await projectRes.json();
-      projects.forEach((project) => projectNames.set(project.id, project.name));
-    }
-
-    const tasks: TodoistTask[] = rawTasks.map((task) => ({
-      id: task.id,
-      content: task.content,
-      description: task.description || undefined,
-      isCompleted: Boolean(task.is_completed),
-      priority: task.priority ?? 1,
-      projectId: task.project_id,
-      projectName: task.project_id ? projectNames.get(task.project_id) : undefined,
-      dueDate: task.due?.date ?? null,
-      dueText: task.due?.string ?? null,
-      url: task.url,
-      labels: task.labels,
-    }));
+    const tasks: TodoistTask[] = rawTasks
+      .filter((task) => !task.is_deleted)
+      .map((task) => ({
+        id: task.id,
+        content: task.content,
+        description: task.description || undefined,
+        // v1 renamed `is_completed` to `checked`.
+        isCompleted: Boolean(task.checked ?? task.is_completed),
+        priority: task.priority ?? 1,
+        projectId: task.project_id,
+        projectName: task.project_id ? projectNames.get(task.project_id) : undefined,
+        // A due date may arrive as a plain day or with a time attached; the
+        // grouping only cares about the day.
+        dueDate: task.due?.date ? task.due.date.slice(0, 10) : null,
+        dueText: task.due?.string ?? null,
+        url: task.url,
+        labels: task.labels,
+      }));
 
     return NextResponse.json({ connected: true, tasks });
   } catch (error) {

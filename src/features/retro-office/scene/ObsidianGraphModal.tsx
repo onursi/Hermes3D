@@ -45,6 +45,9 @@ export function ObsidianGraphModal({
   const [soundMode, setSoundModeState] = useState<"alpha" | "cosmos" | "matrix" | "zen">("alpha");
   const [showSoundMenu, setShowSoundMenu] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  /** OrbitControls, handed to the graph so a camera fly can borrow the camera. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const graphControlsRef = useRef<any>(null);
 
   useEffect(() => {
     fetch("/api/obsidian-graph")
@@ -201,9 +204,11 @@ export function ObsidianGraphModal({
               activeFilter={activeFilter}
               flyToNode={flyToNode}
               flyToLobe={flyToLobe}
+              controlsRef={graphControlsRef}
             />
 
             <OrbitControls
+              ref={graphControlsRef}
               enableDamping
               dampingFactor={0.05}
               rotateSpeed={1.8}

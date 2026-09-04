@@ -281,6 +281,14 @@ import type { CouncilMessage } from "@/features/office/components/CouncilChat";
 
 const EMPTY_COUNCIL_MESSAGES: CouncilMessage[] = [];
 import type { SystemSignal } from "@/features/retro-office/core/systemSignal";
+import {
+  HUD_BUTTON,
+  HUD_BUTTON_ACTIVE,
+  HUD_DIVIDER,
+  HUD_LABEL,
+  HUD_PILL,
+  HUD_VALUE,
+} from "@/features/retro-office/core/hudStyles";
 
 /**
  * The HUD half of the system signal. The room says it in light; this says it
@@ -289,10 +297,22 @@ import type { SystemSignal } from "@/features/retro-office/core/systemSignal";
  * not the same as being fine.
  */
 const SIGNAL_CHIP: Record<SystemSignal, { label: string; className: string; dot: string }> = {
-  ruhig: { label: "Ruhig", className: "text-emerald-300", dot: "bg-emerald-400" },
-  wartet: { label: "Wartet auf dich", className: "text-amber-300", dot: "bg-amber-400 animate-pulse" },
-  stoert: { label: "Störung", className: "text-rose-300", dot: "bg-rose-500 animate-ping" },
-  unbekannt: { label: "Unbekannt", className: "text-slate-400", dot: "bg-slate-500" },
+  ruhig: {
+    label: "Ruhig",
+    className: "text-white/85",
+    dot: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]",
+  },
+  wartet: {
+    label: "Wartet auf dich",
+    className: "text-amber-200",
+    dot: "bg-amber-400 shadow-[0_0_7px_rgba(251,191,36,0.85)] animate-pulse",
+  },
+  stoert: {
+    label: "Störung",
+    className: "text-red-300",
+    dot: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)] animate-pulse",
+  },
+  unbekannt: { label: "Unbekannt", className: "text-white/45", dot: "bg-white/30" },
 };
 import {
   FloorRaycaster as SceneFloorRaycaster,
@@ -7410,45 +7430,60 @@ export function RetroOffice3D({
 
       {/* Executive KPI Bar (Top Center) — Instant 5-Second Answers */}
       {!readOnly && (!immersiveOverlayActive || meetingRoomImmersive) ? (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-3 rounded-full border border-cyan-500/30 bg-[#050e1c]/92 px-4 py-1.5 font-mono text-[11px] shadow-2xl backdrop-blur-md">
-          <div className="flex items-center gap-1.5 text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold">{agents.filter((a) => a.status === "working").length} Aktiv</span>
+        // Sat centred on `top-3`, which is the same row the toolbar occupies —
+        // and the toolbar is wide enough to reach the middle, so the two
+        // printed straight through each other. Its own row below, clear of
+        // both the buttons on the left and the agent controls on the right.
+        <div
+          className={`absolute top-[52px] left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-2.5 px-3.5 py-1.5 ${HUD_PILL}`}
+        >
+          {/* Counts are neutral. They are facts, not warnings, and colouring
+              every fact leaves nothing left to colour when something is wrong. */}
+          <div className="flex items-center gap-1.5">
+            <span className={HUD_VALUE}>
+              {agents.filter((a) => a.status === "working").length}
+            </span>
+            <span className={HUD_LABEL}>aktiv</span>
           </div>
-          <span className="text-cyan-500/30">|</span>
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-            <span>{agents.filter((a) => a.status !== "working" && a.status !== "error").length} Bereit</span>
+          <span className={HUD_DIVIDER} />
+          <div className="flex items-center gap-1.5">
+            <span className={HUD_VALUE}>
+              {agents.filter((a) => a.status !== "working" && a.status !== "error").length}
+            </span>
+            <span className={HUD_LABEL}>bereit</span>
           </div>
-          {agents.some((a) => a.status === "error") && (
+          {agents.some((a) => a.status === "error") ? (
             <>
-              <span className="text-cyan-500/30">|</span>
-              <div className="flex items-center gap-1.5 text-rose-400 font-semibold">
-                <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
-                <span>{agents.filter((a) => a.status === "error").length} Fehler</span>
+              <span className={HUD_DIVIDER} />
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                <span className="font-mono text-[12px] tabular-nums text-red-300">
+                  {agents.filter((a) => a.status === "error").length}
+                </span>
+                <span className="text-[11px] font-medium text-red-300/70">Fehler</span>
               </div>
             </>
-          )}
+          ) : null}
           {/* A cost chip belongs here, but nothing in this component measures
               spend — it read a literal `€ 0.00` regardless of what the day had
               actually cost. Usage totals live in `useUsageAnalytics`, which
               needs a gateway client this component does not hold; wire that
               through and the chip comes back with a real number behind it. */}
-          <span className="text-cyan-500/30">|</span>
-          {/* The same reading the room's light is showing, in words. Colour
-              alone tells you something changed; this says what. */}
+          <span className={HUD_DIVIDER} />
+          {/* The one place a glow is earned: this is the reading the room's
+              light is showing, said in a word. */}
           <div
-            className={`flex items-center gap-1.5 ${SIGNAL_CHIP[systemSignal].className}`}
+            className="flex items-center gap-1.5"
             title={systemSignalReason || undefined}
           >
-            <span className={`h-2 w-2 rounded-full ${SIGNAL_CHIP[systemSignal].dot}`} />
-            <span className="font-semibold">{SIGNAL_CHIP[systemSignal].label}</span>
+            <span className={`h-1.5 w-1.5 rounded-full ${SIGNAL_CHIP[systemSignal].dot}`} />
+            <span className={`text-[12px] font-medium ${SIGNAL_CHIP[systemSignal].className}`}>
+              {SIGNAL_CHIP[systemSignal].label}
+            </span>
           </div>
-          <span className="text-cyan-500/30">|</span>
-          <div className="flex items-center gap-1 text-amber-300">
-            <span className="text-[10px] text-amber-400/70">Status:</span>
-            <span className="font-semibold">{gatewayStatus === "connected" ? "Live" : "Standby"}</span>
-          </div>
+          {/* No gateway chip here: the top-right already carries
+              "HERMES • VERBUNDEN", and saying the same thing twice in one
+              overlay is how a HUD turns into clutter. */}
         </div>
       ) : null}
 
@@ -7522,11 +7557,7 @@ export function RetroOffice3D({
                   return next;
                 });
               }}
-              className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm ${
-                cinematicTourActive
-                  ? "bg-cyan-500/30 text-cyan-100 border-cyan-400 animate-pulse font-bold shadow-cyan-500/25"
-                  : "bg-cyan-950/80 text-cyan-300 border-cyan-500/40 hover:border-cyan-400 hover:text-white"
-              }`}
+              className={cinematicTourActive ? HUD_BUTTON_ACTIVE : HUD_BUTTON}
               title="Operative Kontrollfahrt starten [ESC zum Abbrechen]"
             >
               <span>🔍</span>
@@ -7540,11 +7571,7 @@ export function RetroOffice3D({
                 cyberAudio.playWhoosh();
                 setGhostActive(true);
               }}
-              className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm ${
-                ghostActive
-                  ? "bg-cyan-500/25 text-white border-cyan-400"
-                  : "bg-slate-950/85 text-cyan-200 border-cyan-500/40 hover:border-cyan-400 hover:text-white"
-              }`}
+              className={ghostActive ? HUD_BUTTON_ACTIVE : HUD_BUTTON}
               title="Betreten: Maus schauen · WASD laufen · Leertaste hoch · Strg runter · Shift schneller · Esc zurück"
             >
               <span>👻</span>
@@ -7558,7 +7585,7 @@ export function RetroOffice3D({
                 cyberAudio.playChime();
                 setObsidianGraphOpen(true);
               }}
-              className="flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm bg-purple-950/85 text-purple-200 border-purple-500/40 hover:border-purple-400 hover:text-white"
+              className={HUD_BUTTON}
               title="3D Obsidian Knowledge Graph öffnen (252 Notizen aus Life OS)"
             >
               <span>🧠</span>
@@ -7572,7 +7599,7 @@ export function RetroOffice3D({
                 cyberAudio.playChime();
                 setTodoistModalOpen(true);
               }}
-              className="flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm bg-red-950/85 text-red-200 border-red-500/40 hover:border-red-400 hover:text-white"
+              className={HUD_BUTTON}
               title="Todoist iPhone Task Sync öffnen"
             >
               <span>📱</span>

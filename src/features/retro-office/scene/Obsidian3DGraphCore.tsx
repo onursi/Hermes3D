@@ -72,6 +72,7 @@ export function Obsidian3DGraphCore({
   activeFilter = "all",
   flyToNode = null,
   flyToLobe = null,
+  controlsRef,
 }: {
   data: ObsidianGraphData;
   selectedNodeId?: string | null;
@@ -80,6 +81,8 @@ export function Obsidian3DGraphCore({
   activeFilter?: string;
   flyToNode?: GraphNode | null;
   flyToLobe?: string | null;
+  /** The scene's OrbitControls, so a camera fly can borrow the camera. */
+  controlsRef?: { current: { enabled: boolean; target: THREE.Vector3; update: () => void } | null };
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
@@ -396,10 +399,26 @@ export function Obsidian3DGraphCore({
     timeRef.current += delta;
     const t = timeRef.current;
 
+    // Flying the camera means taking it away from OrbitControls for the
+    // duration. Controls recompute `camera.position` from their own spherical
+    // angles on every frame, so a plain `position.lerp` here was overwritten
+    // before it could ever be seen — which is why nothing ever moved: not the
+    // space key, not the number keys, not clicking a search result.
+    const controls = controlsRef?.current ?? null;
     if (targetCamPos.current && targetCamLook.current) {
-      camera.position.lerp(targetCamPos.current, 0.2);
+      if (controls) controls.enabled = false;
+      camera.position.lerp(targetCamPos.current, 0.12);
       camera.lookAt(targetCamLook.current);
-      if (camera.position.distanceTo(targetCamPos.current) < 0.04) targetCamPos.current = null;
+      if (camera.position.distanceTo(targetCamPos.current) < 0.08) {
+        targetCamPos.current = null;
+        if (controls) {
+          // Hand the camera back where it now looks, or the controls would
+          // snap it straight back to their stale target on the next frame.
+          controls.target.copy(targetCamLook.current);
+          controls.enabled = true;
+          controls.update();
+        }
+      }
     }
 
     if (groupRef.current && !hoveredNode && !selectedNodeId) {
