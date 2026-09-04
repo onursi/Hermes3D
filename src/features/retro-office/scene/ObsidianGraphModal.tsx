@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
-import { Obsidian3DGraphCore, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
+import { Obsidian3DGraphCore, AREAL_COLORS, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
 /**
@@ -124,6 +124,27 @@ export function ObsidianGraphModal({
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
   }, [isOpen, onClose]);
+
+  /**
+   * Connection count per note, and the busiest dozen.
+   *
+   * A graph that shows dots and lines but never says which note is central
+   * leaves you to guess by squinting at line density. These are the vault's
+   * actual hubs, and clicking one flies to it and lights up everything it is
+   * wired to — the question "how is Religion & Glaube connected?" answered by
+   * looking rather than by reading.
+   */
+  const { degreeById, topHubs } = useMemo(() => {
+    const degree = new Map<string, number>();
+    (data?.links ?? []).forEach((link) => {
+      degree.set(link.source, (degree.get(link.source) ?? 0) + 1);
+      degree.set(link.target, (degree.get(link.target) ?? 0) + 1);
+    });
+    const hubs = [...(data?.nodes ?? [])]
+      .sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0))
+      .slice(0, 10);
+    return { degreeById: degree, topHubs: hubs };
+  }, [data]);
 
   const searchResults = useMemo(() => {
     if (!data || !searchQuery.trim()) return [];
@@ -491,6 +512,39 @@ export function ObsidianGraphModal({
         </div>
       </div>
 
+      {/* The vault's busiest notes, bottom left. Clicking one flies to it and
+          lights up its neighbourhood, so "how is this connected?" is answered
+          by looking instead of by hunting. */}
+      {topHubs.length > 0 && !selectedNode ? (
+        <div className="absolute bottom-6 left-6 z-30 w-60 rounded-2xl border border-white/[0.09] bg-[#141619]/75 p-3 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
+          <h4 className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-widest text-white/45">
+            Größte Knoten
+          </h4>
+          <ul className="space-y-0.5">
+            {topHubs.map((node) => (
+              <li key={node.id}>
+                <button
+                  type="button"
+                  onClick={() => handleSelectAndFly(node)}
+                  className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left transition hover:bg-white/[0.08]"
+                >
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: AREAL_COLORS[node.group] ?? "#38bdf8" }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-white/80">
+                    {node.name}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-white/40">
+                    {degreeById.get(node.id) ?? 0}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {/* Right Side 2D Note Inspector Panel */}
       {selectedNode && (
         <div className="absolute top-20 right-6 w-80 max-h-[calc(100vh-160px)] overflow-y-auto rounded-2xl border border-cyan-500/30 bg-[#070e1c]/95 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-right duration-200 z-30 scrollbar-thin scrollbar-thumb-cyan-500/20">
@@ -501,6 +555,11 @@ export function ObsidianGraphModal({
                 {selectedNode.folder}
               </span>
               <h3 className="font-bold text-sm text-white">{selectedNode.name}</h3>
+              {/* How connected a note is, which is the one number a knowledge
+                  graph exists to show and the panel never showed. */}
+              <span className="mt-0.5 font-mono text-[10px] text-slate-400">
+                {degreeById.get(selectedNode.id) ?? 0} Verbindungen
+              </span>
             </div>
             <button
               type="button"

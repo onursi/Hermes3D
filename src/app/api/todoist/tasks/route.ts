@@ -200,10 +200,8 @@ export async function PUT(req: Request) {
   }
 
   try {
-    const { content, priority, dueString, projectId } = (await req.json()) as {
+    const { content, projectId } = (await req.json()) as {
       content?: string;
-      priority?: number;
-      dueString?: string;
       projectId?: string;
     };
     const trimmed = content?.trim();
@@ -211,17 +209,22 @@ export async function PUT(req: Request) {
       return NextResponse.json({ ok: false, reason: "Kein Text." }, { status: 400 });
     }
 
-    const res = await fetch(`${TODOIST_API}/tasks`, {
+    // Quick-add rather than the plain create endpoint, because it is the one
+    // that reads a sentence the way the app's own input does: "Steuer morgen
+    // 9 Uhr" becomes a task due tomorrow at nine, "#Work" files it, "p1" sets
+    // the priority. Passing the whole line as `due_string` to the plain
+    // endpoint instead — which is what happened before — makes Todoist try to
+    // parse "test 3d Raum" as a date and refuse the task with error 42.
+    const res = await fetch(`${TODOIST_API}/tasks/quick`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        content: trimmed,
-        ...(priority ? { priority } : {}),
-        // Todoist parses this itself, so "morgen 9 Uhr" works as typed.
-        ...(dueString ? { due_string: dueString, due_lang: "de" } : {}),
+        text: trimmed,
+        meta: true,
+        auto_reminder: true,
         ...(projectId ? { project_id: projectId } : {}),
       }),
     });

@@ -33,7 +33,7 @@ export type ObsidianGraphData = {
 };
 
 // Brain Areal Color Map (distinct, vibrant colors per lobe)
-const AREAL_COLORS: Record<string, string> = {
+export const AREAL_COLORS: Record<string, string> = {
   projects:  "#f59e0b",  // Amber Gold
   system:    "#38bdf8",  // Ice Blue
   inbox:     "#60a5fa",  // Sky Blue
@@ -510,8 +510,13 @@ export function Obsidian3DGraphCore({
         const isInActiveAreal = node.group === activeFilter;
         const arealDimmed = isFiltered && !isInActiveAreal;
 
+        // The area palette applies always, not only once a filter is on.
+        // `node.color` comes from the graph route, where Projekte and Wissen
+        // are both #00f0ff and System and Quellen are both #38bdf8 — so in the
+        // overall view four of the nine areas were indistinguishable, which is
+        // the one thing the colours exist to prevent.
         const arealColor = AREAL_COLORS[node.group] || node.color;
-        const displayColor = isFiltered ? arealColor : node.color;
+        const displayColor = arealColor;
 
         // Size carries meaning. Every note used to be 0.05 across the board, so
         // a hub with 190 links looked exactly like an orphan and the galaxy
