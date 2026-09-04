@@ -210,6 +210,7 @@ import {
   AgentModel as AgentObjectModel,
   activeLiftSuction,
 } from "@/features/retro-office/objects/agents";
+import { ProjectOrbits } from "@/features/retro-office/scene/ProjectOrbits";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
   FurnitureModel as GenericFurnitureModel,
@@ -3406,6 +3407,53 @@ export function RetroOffice3D({
    * ask" must never look the same on an indicator whose whole value is being
    * trusted when it is dark.
    */
+  /**
+   * Todoist projects, aggregated for the orbit.
+   *
+   * Counted here rather than asked for as a summary, because the task list
+   * is the only thing Todoist gives us and a second endpoint that returns
+   * pre-chewed numbers would be a second place for them to drift.
+   *
+   * Five minutes between polls: a project's shape does not change faster
+   * than that, and the sky moving on its own would be noise.
+   */
+  const [projectOrbits, setProjectOrbits] = useState<
+    { name: string; open: number; overdue: number }[]
+  >([]);
+  useEffect(() => {
+    if (readOnly) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/todoist/tasks");
+        const data = await res.json();
+        if (cancelled || data.connected === false) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const grouped = new Map<string, { open: number; overdue: number }>();
+        for (const task of data.tasks ?? []) {
+          if (task.isCompleted) continue;
+          const name = task.projectName || "Ohne Projekt";
+          const entry = grouped.get(name) ?? { open: 0, overdue: 0 };
+          entry.open += 1;
+          if (task.dueDate && task.dueDate < today) entry.overdue += 1;
+          grouped.set(name, entry);
+        }
+        setProjectOrbits(
+          [...grouped.entries()].map(([name, counts]) => ({ name, ...counts })),
+        );
+      } catch {
+        // An unreachable Todoist leaves the sky as it was rather than
+        // emptying it: a blink to nothing and back would read as a change.
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 300000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [readOnly]);
+
   const [approvals, setApprovals] = useState<
     { requestId: string; sessionId: string; title: string }[]
   >([]);
@@ -6969,6 +7017,18 @@ export function RetroOffice3D({
 
             {/* Orbital Space Station Floating Deck — weightless harmonic zero-gravity drift */}
             <OrbitalFloatingStationGroup>
+            {/* Projects in orbit above the room — see ProjectOrbits for why every
+                property is measured rather than chosen. */}
+            <ProjectOrbits
+              projects={projectOrbits}
+              // The office centre, the same point the deck and the lift share.
+  position={[-11.7, 7.5, -16.2]}
+              onSelect={() => {
+                cyberAudio.playChime();
+                setTodoistModalOpen(true);
+              }}
+            />
+
             {/* Floor + walls — always visible, no async loading. */}
             <SceneFloorAndWalls
               showRemoteOffice={remoteOfficeEnabled}
