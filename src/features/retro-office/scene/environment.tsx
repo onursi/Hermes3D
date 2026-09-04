@@ -1489,7 +1489,26 @@ function PlanterFoliage({
  * zwei gegenläufig rotierenden Ringen, schwebendem Quanten-Kristall,
  * pulsierender Lichtsäule und wirbelndem bunten Sternenstaub.
  */
-function CouncilChandelier({ position }: { position: [number, number, number] }) {
+/**
+ * The gravity tunnel over the council table — and the way down to the war room.
+ *
+ * It looked like transport and did nothing. The suction it was meant to drive,
+ * `activeLiftSuction`, is read in two places and assigned in none, so no agent
+ * was ever pulled through it; the column simply pulsed above an empty table.
+ *
+ * Giving it the obvious job makes it honest: the war room sits directly below
+ * this spot, and a shaft between two decks is a lift. Clicking the column takes
+ * the camera down, which is faster than orbiting around the floor edge and
+ * teaches the room's own geometry — down is literally down.
+ */
+function CouncilChandelier({
+  position,
+  onDescend,
+}: {
+  position: [number, number, number];
+  /** Ride the tunnel to the deck below. Without it the column is inert. */
+  onDescend?: () => void;
+}) {
   const outerRadius = 1.18;
   const innerRadius = 0.92;
   const particleCount = 180;
@@ -1654,8 +1673,29 @@ function CouncilChandelier({ position }: { position: [number, number, number] })
         );
       })}
 
-      {/* Pulsing Holographic Light Column (Portal Tractor Beam) */}
-      <mesh ref={beamRef} position={[0, -1.05, 0]}>
+      {/* Pulsing Holographic Light Column — the lift to the deck below. */}
+      <mesh
+        ref={beamRef}
+        position={[0, -1.05, 0]}
+        onClick={
+          onDescend
+            ? (event) => {
+                event.stopPropagation();
+                cyberAudio.playTractorBeam("down");
+                onDescend();
+              }
+            : undefined
+        }
+        onPointerOver={
+          onDescend
+            ? (event) => {
+                event.stopPropagation();
+                document.body.style.cursor = "pointer";
+              }
+            : undefined
+        }
+        onPointerOut={onDescend ? () => { document.body.style.cursor = "auto"; } : undefined}
+      >
         <cylinderGeometry args={[outerRadius * 0.95, innerRadius * 0.9, 2.1, 36, 1, true]} />
         <meshBasicMaterial
           ref={beamMatRef}
@@ -1868,6 +1908,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   onKanbanClick,
   onCouncilScreenClick,
   workingAgentCount = 0,
+  onDescendToWarRoom,
   tableMeetingState,
   holoChandelierVisible = true,
   floorMode = "ambient",
@@ -1882,6 +1923,8 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   screenTopic?: string | null;
   onKanbanClick?: () => void;
   onCouncilScreenClick?: () => void;
+  /** Ride the gravity tunnel down to the war room. */
+  onDescendToWarRoom?: () => void;
   /** How many agents are running, for the wall sparkline. */
   workingAgentCount?: number;
   tableMeetingState?: TableMeetingState;
@@ -1997,7 +2040,10 @@ export const FloorAndWalls = memo(function FloorAndWalls({
 
       {/* Floating Cyber LED Chandelier with Stardust over meeting table */}
       {holoChandelierVisible ? (
-        <CouncilChandelier position={[meetingZoneCenterX, 2.2, meetingZoneCenterZ]} />
+        <CouncilChandelier
+          position={[meetingZoneCenterX, 2.2, meetingZoneCenterZ]}
+          onDescend={onDescendToWarRoom}
+        />
       ) : null}
 
       {/* Interactive Table Meeting Hologram Hub directly on the conference table */}

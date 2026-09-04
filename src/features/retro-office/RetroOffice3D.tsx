@@ -6777,6 +6777,12 @@ export function RetroOffice3D({
               onKanbanClick={handleWallKanbanClick}
               onCouncilScreenClick={handleWallDiagramClick}
               workingAgentCount={agents.filter((a) => a.status === "working").length}
+              onDescendToWarRoom={() => {
+                cinematicTourRef.current = false;
+                setCinematicTourActive(false);
+                setFollowAgentId(null);
+                cameraPresetRef.current = CAMERA_PRESET_MAP.warRoom;
+              }}
               tableMeetingState={{
                 isActive: tableMeetingActive,
                 isPaused: tableMeetingPaused,
@@ -7910,43 +7916,42 @@ export function RetroOffice3D({
                   testAgent.state = "walking";
                   testAgent.path = [];
 
-                  if (isSub) {
-                    // SUCK UP: from -5.2 to 0 (brisk upward suction)
-                    cyberAudio.playTractorBeam("up");
-                    let curY = -5.2;
-                    testAgent.verticalSuctionY = curY;
-                    const suctionTimer = setInterval(() => {
-                      curY += 0.45; // takes ~0.2s
-                      testAgent.verticalSuctionY = curY;
-                      if (curY >= 0) {
-                        clearInterval(suctionTimer);
-                        testAgent.verticalSuctionY = undefined;
-                        testAgent.workstationActivity = undefined;
-                        testAgent.workstationId = undefined;
-                        testAgent.targetX = 290;
-                        testAgent.targetY = 240;
-                        testAgent.path = [{ x: 290, y: 240 }];
-                      }
-                    }, 18);
-                  } else {
-                    // SUCK DOWN: from 0 to -5.2 (zügig runter saugen!)
-                    cyberAudio.playTractorBeam("down");
-                    let curY = 0;
-                    testAgent.verticalSuctionY = curY;
-                    const suctionTimer = setInterval(() => {
-                      curY -= 0.45; // takes ~0.2s, zügiger kräftiger Saugeffekt
-                      testAgent.verticalSuctionY = curY;
-                      if (curY <= -5.2) {
-                        clearInterval(suctionTimer);
-                        testAgent.verticalSuctionY = undefined;
-                        testAgent.workstationActivity = "war_room_metrics";
-                        testAgent.workstationId = "war_room_metrics";
-                        testAgent.targetX = 368;
-                        testAgent.targetY = 340;
-                        testAgent.path = [{ x: 368, y: 340 }];
-                      }
-                    }, 18);
-                  }
+                  // The ride used to be over in about 200 ms — 0.45 m every
+                  // 18 ms across 5.2 m — which is why pressing this looked
+                  // like nothing happened at all. It now takes 1.6 s and
+                  // accelerates, so you can actually watch the pull.
+                  const SUCTION_MS = 1600;
+                  const TOP_Y = 0;
+                  const BOTTOM_Y = -5.2;
+                  const startY = isSub ? BOTTOM_Y : TOP_Y;
+                  const endY = isSub ? TOP_Y : BOTTOM_Y;
+                  cyberAudio.playTractorBeam(isSub ? "up" : "down");
+                  testAgent.verticalSuctionY = startY;
+
+                  const startedAt = performance.now();
+                  const suctionTimer = setInterval(() => {
+                    const progress = Math.min(1, (performance.now() - startedAt) / SUCTION_MS);
+                    // Ease-in: gentle release, then the tunnel takes hold.
+                    const eased = progress * progress;
+                    testAgent.verticalSuctionY = startY + (endY - startY) * eased;
+                    if (progress < 1) return;
+
+                    clearInterval(suctionTimer);
+                    testAgent.verticalSuctionY = undefined;
+                    if (isSub) {
+                      testAgent.workstationActivity = undefined;
+                      testAgent.workstationId = undefined;
+                      testAgent.targetX = 290;
+                      testAgent.targetY = 240;
+                      testAgent.path = [{ x: 290, y: 240 }];
+                    } else {
+                      testAgent.workstationActivity = "war_room_metrics";
+                      testAgent.workstationId = "war_room_metrics";
+                      testAgent.targetX = 368;
+                      testAgent.targetY = 340;
+                      testAgent.path = [{ x: 368, y: 340 }];
+                    }
+                  }, 16);
                 }}
                 className="flex items-center gap-1.5 rounded-xl border border-cyan-500/35 bg-gradient-to-r from-[#031525]/92 to-[#020b18]/92 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-300 hover:scale-[1.02] cursor-pointer"
                 title="Kamera auf den Gravitations-Tunnel richten und Agenten zügig runter/rauf saugen"
