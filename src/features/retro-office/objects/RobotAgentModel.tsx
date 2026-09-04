@@ -70,6 +70,14 @@ export function RobotAgentModel({
   name?: string;
   isBoss?: boolean;
   isWorking?: boolean;
+  /**
+   * The agent's real state, not a flattened boolean.
+   *
+   * `isWorking` collapsed three states into two and threw away the one that
+   * matters most: an agent in error looked exactly like an idle one. Posture
+   * is what you read across a room, long before a label.
+   */
+  status?: "working" | "idle" | "error";
   workstationActivity?: string;
 }) {
   const { scene, animations } = useGLTF(ROBOT_GLB_PATH);
@@ -550,6 +558,45 @@ export function RobotAgentModel({
     });
   }, [cloned, isAway]);
 
+  const finalScale = isBoss ? ROBOT_BASE_SCALE * 1.14 : ROBOT_BASE_SCALE;
+
+  /**
+   * Posture that reports the agent's state from across the room.
+   *
+   * The face already blinks, glances and dozes, but none of that survives ten
+   * metres of distance — and distance is the normal viewing condition here.
+   * Body language does survive it, so the three real states get three
+   * silhouettes:
+   *
+   *   working — leaned forward into the work, breathing quickly and shallowly
+   *   idle    — upright, slow and deep
+   *   error   — leaned back and away, and holding still, because stillness is
+   *             what reads as wrong when everything around it is moving
+   *
+   * Small numbers on purpose. A lean of five degrees is legible as a
+   * silhouette without turning the robot into a mime.
+   */
+  useFrame(({ clock }) => {
+    const body = group.current;
+    if (!body) return;
+    const t = clock.getElapsedTime();
+    const seed = agentId ? agentId.charCodeAt(0) : 0;
+
+    const lean = status === "working" ? 0.09 : status === "error" ? -0.11 : 0;
+    const breathRate = status === "working" ? 3.1 : status === "error" ? 0.6 : 1.4;
+    const breathDepth = status === "working" ? 0.012 : status === "error" ? 0.004 : 0.02;
+
+    // Eased rather than snapped: a state change should look like the agent
+    // shifting its weight, not like a new model being swapped in.
+    body.rotation.x += (lean - body.rotation.x) * 0.06;
+
+    // The seed offsets each agent's breathing so four robots in a room do not
+    // rise and fall in unison, which reads as a screensaver.
+    body.scale.y =
+      finalScale * (1 + Math.sin(t * breathRate + seed) * breathDepth);
+  });
+
+
   const crownRef = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (crownRef.current && isBoss) {
@@ -559,7 +606,6 @@ export function RobotAgentModel({
     }
   });
 
-  const finalScale = isBoss ? ROBOT_BASE_SCALE * 1.14 : ROBOT_BASE_SCALE;
 
   return (
     <group ref={group} scale={finalScale}>

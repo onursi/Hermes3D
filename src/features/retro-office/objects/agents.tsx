@@ -491,6 +491,7 @@ export const AgentModel = memo(function AgentModel({
           name={name}
           isBoss={isBoss}
           isWorking={status === "working" || Boolean(workstationActivity)}
+          status={status}
           workstationActivity={workstationActivity ?? undefined}
         />
       </group>
