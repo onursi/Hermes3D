@@ -997,6 +997,31 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
   const frameCounterRef = useRef(0);
   const avgDeltaRef = useRef(1 / 60);
 
+  /**
+   * `?dpr=0.75` pins the render resolution and switches the regulator off.
+   *
+   * Not a setting — a probe. When a frame is spent waiting on the GPU, the
+   * question is whether it is waiting on pixels or on everything else, and
+   * halving the pixel count answers it in one reload. The adaptive regulator
+   * would fight the experiment, so a pinned value disables it.
+   *
+   * Read in an effect: the server cannot know the URL's query string, and
+   * deciding anything during render from it is how this scene broke
+   * hydration three times.
+   */
+  const [pinnedDpr, setPinnedDpr] = useState<number | null>(null);
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("dpr");
+    const value = raw ? Number(raw) : NaN;
+    if (Number.isFinite(value) && value > 0.2 && value <= 3) setPinnedDpr(value);
+  }, []);
+
+  useEffect(() => {
+    if (pinnedDpr === null) return;
+    currentDprRef.current = pinnedDpr;
+    setDpr(pinnedDpr);
+  }, [pinnedDpr, setDpr]);
+
   useEffect(() => {
     const initialDpr = Math.min(window.devicePixelRatio || 1, maxDprCap);
     currentDprRef.current = initialDpr;
@@ -1018,6 +1043,7 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
   }, [setDpr, maxDprCap]);
 
   useFrame((_, delta) => {
+    if (pinnedDpr !== null) return;
     if (document.visibilityState !== "visible") return;
     avgDeltaRef.current = avgDeltaRef.current * 0.92 + delta * 0.08;
     frameCounterRef.current += 1;
