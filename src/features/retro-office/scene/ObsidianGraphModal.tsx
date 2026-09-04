@@ -516,10 +516,10 @@ export function ObsidianGraphModal({
 
       {/* The vault's busiest notes, bottom left. Clicking one flies to it and
           lights up its neighbourhood, so "how is this connected?" is answered
-          by looking instead of by hunting. */}
+          by looking instead of by hunting. Folded, it shrinks to its own title:
+          a folded panel at full width is just an empty box in front of the
+          thing it was hiding. */}
       {topHubs.length > 0 && !selectedNode ? (
-        {/* Collapsed, it shrinks to its own title. A folded panel that keeps its
-            full width is just an empty box in front of the thing it was hiding. */}
         <div
           className={`absolute bottom-6 left-6 z-30 rounded-2xl border border-white/[0.09] bg-[#141619]/75 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.55)] backdrop-blur-2xl transition-all duration-200 ${
             hubsCollapsed ? "w-auto px-2 py-1" : "w-60 p-3"
