@@ -1,7 +1,7 @@
 // Graphics quality presets for the immersive office renderer.
 // Persisted in localStorage so the choice survives reloads.
 
-export type GraphicsQuality = "low" | "balanced" | "ultra";
+export type GraphicsQuality = "low" | "medium" | "balanced" | "ultra";
 
 export const GRAPHICS_QUALITY_STORAGE_KEY = "hermes-office-graphics-quality-v1";
 
@@ -14,6 +14,11 @@ export const GRAPHICS_QUALITY_OPTIONS: Array<{
     id: "low",
     label: "Low",
     description: "Fastest. No post-processing, small shadow maps.",
+  },
+  {
+    id: "medium",
+    label: "Medium",
+    description: "Bloom and smooth edges, without ambient occlusion.",
   },
   {
     id: "balanced",
@@ -83,6 +88,39 @@ const QUALITY_CONFIGS: Record<GraphicsQuality, GraphicsQualityConfig> = {
     transmissionScale: 0.35,
     followDepthOfField: false,
   },
+  /**
+   * The step that was missing between "everything" and "nothing".
+   *
+   * Measured on an integrated Vega 11 driving a 34" ultrawide: "balanced"
+   * gave 7 fps and "low" gave 60 — with the display's own 17 ms as the
+   * ceiling and only about 4 ms of that spent on the GPU. So the machine was
+   * not short of graphics power at "low"; it was drowning at "balanced", and
+   * there was nothing in between to fall back to.
+   *
+   * What separates the two is which effects run across the whole screen.
+   * Ambient occlusion samples the depth buffer many times per pixel and is by
+   * far the most expensive of them, so it is the one that stays off. Bloom
+   * works on a small downsampled copy and costs comparatively little, and it
+   * is also the effect this room is built around — every emissive rail, badge
+   * and hologram edge was authored expecting it. SMAA is a single cheap pass
+   * over the finished image, which is what keeps the wall text from crawling.
+   *
+   * MSAA is kept at 2 rather than 0 for the hard geometric edges SMAA cannot
+   * reconstruct, and rather than 4 because samples are memory bandwidth, and
+   * bandwidth is exactly what an iGPU has least of.
+   */
+  medium: {
+    shadowMapSize: 1024,
+    maxDpr: 1.25,
+    postProcessing: true,
+    ambientOcclusion: false,
+    aoQuality: "performance",
+    bloom: true,
+    smaa: true,
+    msaaSamples: 2,
+    transmissionScale: 0.35,
+    followDepthOfField: false,
+  },
   balanced: {
     shadowMapSize: 2048,
     maxDpr: 1.35,
@@ -114,7 +152,7 @@ export const getGraphicsQualityConfig = (
 ): GraphicsQualityConfig => QUALITY_CONFIGS[quality];
 
 export const isGraphicsQuality = (value: unknown): value is GraphicsQuality =>
-  value === "low" || value === "balanced" || value === "ultra";
+  value === "low" || value === "medium" || value === "balanced" || value === "ultra";
 
 /** The explicit user choice, or null when the user never picked one. */
 export const loadStoredGraphicsQuality = (): GraphicsQuality | null => {
