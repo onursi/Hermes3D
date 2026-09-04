@@ -76,6 +76,8 @@ export function ObsidianGraphModal({
   const [showOrphans, setShowOrphans] = useState(false);
   /** Jarvis: die Frage-an-den-Vault-Ansicht. */
   const [jarvisOpen, setJarvisOpen] = useState(false);
+  /** The notes the current answer cites, so the graph can light exactly those. */
+  const [jarvisSourceIds, setJarvisSourceIds] = useState<string[]>([]);
   const tourRunning = tourIndex >= 0;
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -339,6 +341,7 @@ export function ObsidianGraphModal({
               flyToNode={flyToNode}
               flyToLobe={flyToLobe}
               showOrphans={showOrphans}
+              activeSourceIds={jarvisSourceIds}
               focusShiftX={jarvisOpen ? 1.6 : 0}
               controlsRef={graphControlsRef}
             />
@@ -691,7 +694,12 @@ export function ObsidianGraphModal({
       ) : null}
 
       {jarvisOpen ? (
-        <JarvisPanel onFlyToSource={handleFlyToSource} onClose={() => setJarvisOpen(false)} />
+        <JarvisPanel
+          onFlyToSource={handleFlyToSource}
+          onSourcesChange={setJarvisSourceIds}
+          noteCount={data?.nodes.length ?? 0}
+          onClose={() => setJarvisOpen(false)}
+        />
       ) : null}
 
       {/* The vault's busiest notes, bottom left. Clicking one flies to it and
