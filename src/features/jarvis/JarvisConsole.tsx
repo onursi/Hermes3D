@@ -8,8 +8,10 @@ import {
   Mic,
   MicOff,
   Volume2,
+  ListChecks,
   Sunrise,
   VolumeX,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -95,6 +97,8 @@ export function JarvisConsole({
       setSources([]);
       setReason(null);
       setSavedAs(null);
+      setCandidates(null);
+      setAccepted({});
       setPhase("searching");
 
       const source = new EventSource(`/api/jarvis/stream?q=${encodeURIComponent(text)}`);
@@ -216,6 +220,8 @@ export function JarvisConsole({
     setSources([]);
     setReason(null);
     setSavedAs(null);
+    setCandidates(null);
+    setAccepted({});
     setQuestion("Wie ist mein Stand?");
     setPhase("thinking");
     try {
@@ -227,6 +233,53 @@ export function JarvisConsole({
       setReason(error instanceof Error ? error.message : String(error));
     } finally {
       setPhase("idle");
+    }
+  }, []);
+
+  /**
+   * Tasks the answer implied — proposed, never created.
+   *
+   * Writing them straight into Todoist is how a task list fills with things
+   * nobody decided to do, and a list you stop trusting costs far more than
+   * the typing it saved. So each candidate is accepted or dismissed on its
+   * own, and dismissing leaves no trace.
+   */
+  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const [candidatesBusy, setCandidatesBusy] = useState(false);
+  const [accepted, setAccepted] = useState<Record<string, "saving" | "done" | "failed">>({});
+
+  const findTasks = useCallback(async () => {
+    if (!answer || candidatesBusy) return;
+    setCandidatesBusy(true);
+    setCandidates(null);
+    try {
+      const res = await fetch("/api/jarvis/task-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: answer }),
+      });
+      const data = await res.json();
+      setCandidates(data.candidates ?? []);
+      if (!data.ok && data.reason) setReason(data.reason);
+    } catch (error) {
+      setReason(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCandidatesBusy(false);
+    }
+  }, [answer, candidatesBusy]);
+
+  const acceptCandidate = useCallback(async (line: string) => {
+    setAccepted((prev) => ({ ...prev, [line]: "saving" }));
+    try {
+      const res = await fetch("/api/todoist/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: line }),
+      });
+      const data = await res.json();
+      setAccepted((prev) => ({ ...prev, [line]: data.ok ? "done" : "failed" }));
+    } catch {
+      setAccepted((prev) => ({ ...prev, [line]: "failed" }));
     }
   }, []);
 
@@ -362,11 +415,68 @@ export function JarvisConsole({
               <BookmarkPlus size={11} />
               <span>{savedAs ? "gemerkt" : saving ? "speichert…" : "Merken"}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => void findTasks()}
+              disabled={candidatesBusy}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.09] bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/60 transition hover:border-white/20 hover:text-white/90 disabled:opacity-40"
+              title="Sucht Aufgaben, die aus dieser Antwort folgen — vorschlagen, nicht anlegen"
+            >
+              <ListChecks size={11} />
+              <span>{candidatesBusy ? "sucht…" : "Aufgaben"}</span>
+            </button>
             {savedAs ? (
               <span className="truncate text-[10px] text-white/35" title={savedAs}>
                 {savedAs}
               </span>
             ) : null}
+          </div>
+        ) : null}
+
+        {candidates ? (
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-2">
+            {candidates.length === 0 ? (
+              <p className="px-1 py-0.5 text-[11px] text-white/45">
+                Keine Aufgabe erkennbar — das ist auch eine Antwort.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {candidates.map((line) => {
+                  const state = accepted[line];
+                  return (
+                    <li key={line} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void acceptCandidate(line)}
+                        disabled={Boolean(state)}
+                        className="shrink-0 rounded-md border border-white/[0.09] px-1.5 py-0.5 text-[10px] text-white/60 hover:border-emerald-300/40 hover:text-emerald-200 disabled:opacity-40"
+                        title="In Todoist anlegen"
+                      >
+                        {state === "done" ? "✓" : state === "saving" ? "…" : state === "failed" ? "!" : "+"}
+                      </button>
+                      <span
+                        className={`min-w-0 flex-1 truncate text-[11px] ${
+                          state === "done" ? "text-white/35 line-through" : "text-white/75"
+                        }`}
+                        title={line}
+                      >
+                        {line}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCandidates((prev) => (prev ?? []).filter((entry) => entry !== line))
+                        }
+                        className="shrink-0 text-white/25 hover:text-white/60"
+                        title="Verwerfen — hinterlässt keine Spur"
+                      >
+                        <X size={11} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         ) : null}
 
