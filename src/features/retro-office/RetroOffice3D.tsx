@@ -276,6 +276,20 @@ import {
 } from "@/features/retro-office/core/graphicsQuality";
 import { SceneErrorBoundary } from "@/features/retro-office/systems/SceneErrorBoundary";
 import { PerfProbe } from "@/features/retro-office/systems/perfProbe";
+import type { SystemSignal } from "@/features/retro-office/core/systemSignal";
+
+/**
+ * The HUD half of the system signal. The room says it in light; this says it
+ * in a word, because colour alone tells you something changed without telling
+ * you what. "Unbekannt" is deliberately grey and unremarkable — not knowing is
+ * not the same as being fine.
+ */
+const SIGNAL_CHIP: Record<SystemSignal, { label: string; className: string; dot: string }> = {
+  ruhig: { label: "Ruhig", className: "text-emerald-300", dot: "bg-emerald-400" },
+  wartet: { label: "Wartet auf dich", className: "text-amber-300", dot: "bg-amber-400 animate-pulse" },
+  stoert: { label: "Störung", className: "text-rose-300", dot: "bg-rose-500 animate-ping" },
+  unbekannt: { label: "Unbekannt", className: "text-slate-400", dot: "bg-slate-500" },
+};
 import {
   FloorRaycaster as SceneFloorRaycaster,
   GameLoop as SceneGameLoop,
@@ -3005,6 +3019,8 @@ export function RetroOffice3D({
   monitorByAgentId = EMPTY_MONITOR_MAP,
   githubSkill = null,
   onCouncilDispatch,
+  systemSignal = "unbekannt",
+  systemSignalReason = "",
   taskManagerEnabled = false,
   soundhermesEnabled = false,
   officeTitle = "Hermes Cyber HQ",
@@ -3123,6 +3139,10 @@ export function RetroOffice3D({
   githubSkill?: SkillStatusEntry | null;
   /** Broadcasts one prompt from the council bar to the selected agents. */
   onCouncilDispatch?: (prompt: string, targetAgentIds: string[]) => void;
+  /** How the system is doing, as read by the room's light, floor and sound. */
+  systemSignal?: SystemSignal;
+  /** One short phrase saying why, for the HUD tooltip. */
+  systemSignalReason?: string;
   taskManagerEnabled?: boolean;
   soundhermesEnabled?: boolean;
   officeTitle?: string;
@@ -6715,6 +6735,7 @@ export function RetroOffice3D({
             <SceneAtmosphere
               config={graphicsQualityConfig}
               remoteOfficeEnabled={remoteOfficeEnabled}
+              signal={systemSignal}
             />
 
             {/* Post-processing: AO, bloom, vignette, filmic tone mapping. */}
@@ -7387,6 +7408,16 @@ export function RetroOffice3D({
               actually cost. Usage totals live in `useUsageAnalytics`, which
               needs a gateway client this component does not hold; wire that
               through and the chip comes back with a real number behind it. */}
+          <span className="text-cyan-500/30">|</span>
+          {/* The same reading the room's light is showing, in words. Colour
+              alone tells you something changed; this says what. */}
+          <div
+            className={`flex items-center gap-1.5 ${SIGNAL_CHIP[systemSignal].className}`}
+            title={systemSignalReason || undefined}
+          >
+            <span className={`h-2 w-2 rounded-full ${SIGNAL_CHIP[systemSignal].dot}`} />
+            <span className="font-semibold">{SIGNAL_CHIP[systemSignal].label}</span>
+          </div>
           <span className="text-cyan-500/30">|</span>
           <div className="flex items-center gap-1 text-amber-300">
             <span className="text-[10px] text-amber-400/70">Status:</span>

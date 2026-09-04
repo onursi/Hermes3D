@@ -84,6 +84,7 @@ import {
 import { AgentCreateWizardModal } from "@/features/agents/components/AgentCreateWizardModal";
 import type { AgentIdentityValues } from "@/features/agents/components/AgentIdentityFields";
 import { useChatInteractionController } from "@/features/agents/operations/useChatInteractionController";
+import { useSystemSignal } from "@/features/retro-office/core/useSystemSignal";
 import {
   applyCreateAgentBootstrapPermissions,
   CREATE_AGENT_DEFAULT_PERMISSIONS,
@@ -3041,6 +3042,23 @@ export function OfficeScreen({
     runLog,
     standup: standupController,
   });
+  // One derived reading of "how is it going", shared by the room's light, its
+  // floor and its sound so they cannot contradict each other. Everything here
+  // is already in scope and every field is observed rather than assumed —
+  // `/api/office/presence` is deliberately not among them, because it invents
+  // agent states by hashing a seed into a two-second bucket.
+  const hasConnectedOnceRef = useRef(false);
+  if (status === "connected") hasConnectedOnceRef.current = true;
+  const systemSignal = useSystemSignal({
+    gatewayStatus: status,
+    hasConnectedOnce: hasConnectedOnceRef.current,
+    agentsHydrated: agentsLoaded,
+    agents: state.agents,
+    storeError: state.error,
+    needsAttentionCount: taskBoard.cardsByStatus?.needs_attention?.length ?? null,
+    boardError: taskBoard.sharedTasksError ?? taskBoard.gatewayTasksError ?? null,
+  });
+
   const ingestTaskBoardEvent = taskBoard.ingestGatewayEvent;
   taskBoardEventHandlerRef.current = ingestTaskBoardEvent;
   taskBoardRefreshRef.current = async () => {
@@ -4811,6 +4829,8 @@ export function OfficeScreen({
         <RetroOffice3D
           agents={allVisibleAgents}
           onCouncilDispatch={handleCouncilDispatch}
+          systemSignal={systemSignal.level}
+          systemSignalReason={systemSignal.reason}
           storageNamespace={activeFloor.id}
           layoutPreset="office"
           officeCenterSignal={officeCameraCenterSignal}

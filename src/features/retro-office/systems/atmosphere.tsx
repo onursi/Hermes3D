@@ -24,6 +24,7 @@ import { ToneMappingMode } from "postprocessing";
 import { Suspense, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import type { GraphicsQualityConfig } from "@/features/retro-office/core/graphicsQuality";
+import { SIGNAL_TINT, type SystemSignal } from "@/features/retro-office/core/systemSignal";
 import {
   CANVAS_H,
   CANVAS_W,
@@ -924,14 +925,52 @@ function DustMotes({
   );
 }
 
+/**
+ * Carries the system signal into the room's ambient light.
+ *
+ * Ramped in the frameloop rather than set as a JSX prop for two reasons: a
+ * hard colour swap on a room-filling light is a jolt at the edge of vision,
+ * which is exactly where this is meant to be read; and the sun beside it is
+ * already driven by refs, so mixing the two approaches invites one to quietly
+ * overwrite the other.
+ */
+function SignalTint({
+  lightRef,
+  signal,
+}: {
+  lightRef: MutableRefObject<THREE.HemisphereLight | null>;
+  signal: SystemSignal;
+}) {
+  const targetSky = useMemo(() => new THREE.Color(), []);
+  const targetGround = useMemo(() => new THREE.Color(), []);
+
+  useFrame((_, delta) => {
+    const light = lightRef.current;
+    if (!light) return;
+    const tint = SIGNAL_TINT[signal] ?? SIGNAL_TINT.unbekannt;
+    targetSky.set(tint.sky);
+    targetGround.set(tint.ground);
+    // ~1.2 s to cross, frame-rate independent.
+    const t = Math.min(1, delta * 2.4);
+    light.color.lerp(targetSky, t);
+    light.groundColor.lerp(targetGround, t);
+    light.intensity += (tint.intensity - light.intensity) * t;
+  });
+
+  return null;
+}
+
 export function SceneAtmosphere({
   config,
   remoteOfficeEnabled = true,
+  signal = "unbekannt",
 }: {
   config: GraphicsQualityConfig;
   remoteOfficeEnabled?: boolean;
+  signal?: SystemSignal;
 }) {
   const sunRef = useRef<THREE.DirectionalLight | null>(null);
+  const ambientRef = useRef<THREE.HemisphereLight | null>(null);
 
   // The active grounds match the district when the remote office is shown,
   // otherwise just the local office footprint. Still used to center the
@@ -975,7 +1014,9 @@ export function SceneAtmosphere({
       </Suspense>
 
       {/* Cool, soft ambient fill */}
-      <hemisphereLight args={["#475569", "#090d16", 0.38]} />
+      {/* Starts at the calm palette; SignalTint takes it from here. */}
+      <hemisphereLight ref={ambientRef} args={["#475569", "#090d16", 0.38]} />
+      <SignalTint lightRef={ambientRef} signal={signal} />
 
       {/* Clean, glare-free studio key light — the only shadow caster. */}
       <primitive object={sunTarget} position={[groundCenterX, 0, groundCenterZ]} />
