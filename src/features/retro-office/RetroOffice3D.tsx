@@ -3385,6 +3385,28 @@ export function RetroOffice3D({
   const [wallKanbanOpen, setWallKanbanOpen] = useState(false);
   const [wallDiagramOpen, setWallDiagramOpen] = useState(false);
   const [holoChandelierVisible, setHoloChandelierVisible] = useState(true);
+
+  /**
+   * How loud the hologram core is, rather than only whether it exists.
+   *
+   * Onur's own objection to a second on/off switch was right: there is one
+   * already. What was missing is the middle. The column is the brightest
+   * object in the room and it stands over the meeting table, so at full
+   * strength it competes with the agents and the wall displays it is
+   * supposed to sit among.
+   *
+   * Three steps, because two would just be the existing switch again:
+   *   dezent — small and nearly transparent, for working
+   *   normal — as authored
+   *   show   — full size and glow, for showing the room to someone
+   *
+   * Deliberately not coupled to system state yet. That is a separate step and
+   * needs a real signal behind it; a dimmer that moves on its own before it
+   * means anything would be the decoration this room keeps trying to become.
+   */
+  const [holoIntensity, setHoloIntensity] = useState<"dezent" | "normal" | "show">(
+    "normal",
+  );
   const [hudCollapsed, setHudCollapsed] = useState(true);
 
   /**
@@ -6889,6 +6911,7 @@ export function RetroOffice3D({
             <SceneFloorAndWalls
               showRemoteOffice={remoteOfficeEnabled}
               holoChandelierVisible={holoChandelierVisible}
+              holoIntensity={holoIntensity}
               floorMode={floorMode}
               whiteboardText={whiteboardText}
               onWhiteboardClick={handleWhiteboardClick}
@@ -8131,6 +8154,31 @@ export function RetroOffice3D({
                   {holoChandelierVisible ? "Holo-Licht: An" : "Screens frei (Licht Aus)"}
                 </span>
               </button>
+              {holoChandelierVisible ? (
+                <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.04] p-1">
+                  {(["dezent", "normal", "show"] as const).map((step) => (
+                    <button
+                      key={step}
+                      type="button"
+                      onClick={() => setHoloIntensity(step)}
+                      className={`rounded-lg px-2 py-1 text-[10px] font-medium transition ${
+                        holoIntensity === step
+                          ? "bg-white/[0.12] text-white/90"
+                          : "text-white/45 hover:text-white/75"
+                      }`}
+                      title={
+                        step === "dezent"
+                          ? "Klein und zurückhaltend — freie Sicht auf Agenten und Wände"
+                          : step === "show"
+                            ? "Volle Größe und Leuchtkraft — zum Vorführen"
+                            : "Wie entworfen"
+                      }
+                    >
+                      {step}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
               {/* Boden-Dynamik Modus Wähler */}
               <div className="flex items-center gap-1 rounded-xl border border-slate-800/80 bg-[#060c18]/92 p-1 shadow-lg backdrop-blur-md">

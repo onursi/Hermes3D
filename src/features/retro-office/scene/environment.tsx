@@ -1507,15 +1507,27 @@ function PlanterFoliage({
  * teaches the room's own geometry — down is literally down.
  */
 function CouncilChandelier({
+  intensity = "normal",
   position,
   onDescend,
 }: {
   position: [number, number, number];
   /** Ride the tunnel to the deck below. Without it the column is inert. */
   onDescend?: () => void;
+  /** dezent keeps it out of the way while working; show is for presenting. */
+  intensity?: "dezent" | "normal" | "show";
 }) {
-  const outerRadius = 1.18;
-  const innerRadius = 0.92;
+  /**
+   * One number per step, applied to size and to every glow.
+   *
+   * Scaling the whole thing rather than dimming only the light, because a
+   * large faint column still takes the same space in front of the wall
+   * displays. Taking up less room is most of what "dezent" has to mean.
+   */
+  const strength = intensity === "dezent" ? 0.45 : intensity === "show" ? 1.35 : 1;
+
+  const outerRadius = 1.18 * strength;
+  const innerRadius = 0.92 * strength;
   const particleCount = 180;
 
   const outerGroupRef = useRef<THREE.Group>(null);
@@ -1918,6 +1930,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   onDescendToWarRoom,
   tableMeetingState,
   holoChandelierVisible = true,
+  holoIntensity = "normal",
   floorMode = "ambient",
   onStartMeeting,
   onTogglePause,
@@ -1936,6 +1949,8 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   workingAgentCount?: number;
   tableMeetingState?: TableMeetingState;
   holoChandelierVisible?: boolean;
+  /** How loud the hologram core is: small and quiet, as authored, or full. */
+  holoIntensity?: "dezent" | "normal" | "show";
   floorMode?: FloorAnimationMode;
   onStartMeeting?: () => void;
   onTogglePause?: () => void;
@@ -2083,6 +2098,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
       {holoChandelierVisible ? (
         <CouncilChandelier
           position={[meetingZoneCenterX, 2.2, meetingZoneCenterZ]}
+          intensity={holoIntensity}
           onDescend={onDescendToWarRoom}
         />
       ) : null}
