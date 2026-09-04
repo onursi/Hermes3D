@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
+import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Play, Square, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
 import { Obsidian3DGraphCore, AREAL_COLORS, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
@@ -14,15 +14,15 @@ import { cyberAudio } from "@/lib/sound/cyberAudio";
  * cannot drift apart.
  */
 const AREA_FILTERS = [
-  { id: "all", label: "🧠 Alle Neuronen", color: "#38bdf8" },
-  { id: "projects", label: "🚀 Projekte", color: "#f59e0b" },
-  { id: "knowledge", label: "🧠 Wissen", color: "#ec4899" },
-  { id: "system", label: "⚙️ System", color: "#38bdf8" },
-  { id: "identity", label: "🪪 Identität", color: "#34d399" },
-  { id: "sources", label: "📚 Quellen", color: "#06b6d4" },
-  { id: "ideas", label: "💡 Ideen", color: "#e879f9" },
-  { id: "interests", label: "⭐ Interessen", color: "#fbbf24" },
-  { id: "core", label: "⚡ Core", color: "#ffffff" },
+  { id: "all", label: "Alle Neuronen", color: "#38bdf8" },
+  { id: "projects", label: "Projekte", color: "#f59e0b" },
+  { id: "knowledge", label: "Wissen", color: "#ec4899" },
+  { id: "system", label: "System", color: "#38bdf8" },
+  { id: "identity", label: "Identität", color: "#34d399" },
+  { id: "sources", label: "Quellen", color: "#06b6d4" },
+  { id: "ideas", label: "Ideen", color: "#e879f9" },
+  { id: "interests", label: "Interessen", color: "#fbbf24" },
+  { id: "core", label: "Core", color: "#ffffff" },
 ];
 
 export function ObsidianGraphModal({
@@ -39,6 +39,18 @@ export function ObsidianGraphModal({
   const [flyToLobe, setFlyToLobe] = useState<string | null>(null);
   /** The hub list covers a corner of the brain, so it has to be foldable. */
   const [hubsCollapsed, setHubsCollapsed] = useState(false);
+  /**
+   * The guided flight through the vault.
+   *
+   * It looks like decoration and is not. Thirty seconds of watching the areas
+   * go past tells you the shape of what you know — which regions are dense,
+   * which are a handful of lonely dots, which ones you have not touched. That
+   * is a stock-take nobody ever sits down to do deliberately.
+   *
+   * -1 means the tour is not running.
+   */
+  const [tourIndex, setTourIndex] = useState(-1);
+  const tourRunning = tourIndex >= 0;
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeResultIndex, setActiveResultIndex] = useState(0);
@@ -50,6 +62,29 @@ export function ObsidianGraphModal({
   /** OrbitControls, handed to the graph so a camera fly can borrow the camera. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphControlsRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!isOpen || tourIndex < 0) return;
+    // Skips "all" — the tour is about the areas, and the overview is where
+    // it lands at the end anyway.
+    const stops = AREA_FILTERS.filter((area) => area.id !== "all");
+    const stop = stops[tourIndex % stops.length];
+    if (!stop) return;
+    setActiveFilter(stop.id);
+    setFlyToLobe(stop.id);
+    cyberAudio.playSynapseBlip();
+    const timer = window.setTimeout(() => {
+      if (tourIndex + 1 >= stops.length) {
+        // Home again: the whole brain, unfiltered.
+        setTourIndex(-1);
+        setActiveFilter("all");
+        setFlyToLobe("all");
+        return;
+      }
+      setTourIndex((prev) => (prev < 0 ? prev : prev + 1));
+    }, 2600);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, tourIndex]);
 
   useEffect(() => {
     fetch("/api/obsidian-graph")
@@ -190,6 +225,9 @@ export function ObsidianGraphModal({
   const filters = AREA_FILTERS;
 
   const handleFilterClick = (filterId: string) => {
+    // Touching anything ends the tour: it is a presentation, not a mode you
+    // have to fight your way out of.
+    setTourIndex(-1);
     cyberAudio.resume();
     cyberAudio.playSynapseBlip();
     setActiveFilter(filterId);
@@ -489,6 +527,20 @@ export function ObsidianGraphModal({
           )}
         </div>
 
+        <button
+          type="button"
+          onClick={() => setTourIndex((prev) => (prev >= 0 ? -1 : 0))}
+          className={`mx-auto mb-2 flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+            tourRunning
+              ? "border-white/25 bg-white/[0.12] text-white"
+              : "border-white/[0.09] bg-[#141619]/75 text-white/60 hover:text-white/90 hover:border-white/20"
+          }`}
+          title="Fliegt die Areale nacheinander an — dreißig Sekunden, in denen du die Form deines Wissens siehst"
+        >
+          {tourRunning ? <Square size={11} /> : <Play size={11} />}
+          <span>{tourRunning ? "Rundflug stoppen" : "Rundflug"}</span>
+        </button>
+
         {/* Category Pills */}
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {filters.map((f) => (
@@ -513,6 +565,17 @@ export function ObsidianGraphModal({
           ))}
         </div>
       </div>
+
+      {tourRunning ? (
+        <div className="pointer-events-none absolute left-1/2 top-24 z-40 -translate-x-1/2 text-center">
+          <div className="text-3xl font-semibold tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+            {AREA_FILTERS.find((area) => area.id === activeFilter)?.label ?? ""}
+          </div>
+          <div className="mt-1 text-[11px] font-medium text-white/50">
+            {data?.nodes.filter((node) => node.group === activeFilter).length ?? 0} Notizen
+          </div>
+        </div>
+      ) : null}
 
       {/* The vault's busiest notes, bottom left. Clicking one flies to it and
           lights up its neighbourhood, so "how is this connected?" is answered
