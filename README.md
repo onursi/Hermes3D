@@ -1,5 +1,9 @@
 # Hermes3D — A 3D Workspace for AI Agents
 
+> **Fork-Hinweis:** Dies ist ein Fork von [iamlukethedev/Hermes3D](https://github.com/iamlukethedev/Hermes3D).
+> Was ich (Onur Sinoplu) darauf aufgebaut habe — Jarvis, Sprachmodus, Wissensgraph-Anbindung und
+> die Fehlersuche dahinter — steht in **[WEITERENTWICKLUNG.md](WEITERENTWICKLUNG.md)**.
+
 <p align="center">
     <img src="assets/branding/hermes3d-hero.png" alt="Hermes3D" width="700">
 </p>
