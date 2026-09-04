@@ -293,6 +293,7 @@ import {
 } from "@/features/retro-office/core/graphicsQuality";
 import { SceneErrorBoundary } from "@/features/retro-office/systems/SceneErrorBoundary";
 import { FrameMeter } from "@/features/retro-office/systems/FrameMeter";
+import { ShadowBudget } from "@/features/retro-office/systems/ShadowBudget";
 import { PerfProbe } from "@/features/retro-office/systems/perfProbe";
 import { GhostMode } from "@/features/retro-office/systems/ghostMode";
 import type { CouncilMessage } from "@/features/office/components/CouncilChat";
@@ -7147,6 +7148,7 @@ export function RetroOffice3D({
             {/* Ensure camera looks at the active office target after mount. */}
             <CameraRig target={cameraTarget} />
             <PerfProbe />
+            <ShadowBudget />
             {showMeter ? <FrameMeter onSample={setMeter} /> : null}
             <GhostMode
               active={ghostActive}
