@@ -682,7 +682,10 @@ export function ObsidianGraphModal({
       ) : null}
 
       {/* Right Side 2D Note Inspector Panel */}
-      {selectedNode && (
+      {/* Not while Jarvis is open: both panels live at top-20 right-6, and a
+          source click sets the selection, so the two would stack on the same
+          spot. Jarvis already names the note it flew to. */}
+      {selectedNode && !jarvisOpen && (
         <div className="absolute top-20 right-6 w-80 max-h-[calc(100vh-160px)] overflow-y-auto rounded-2xl border border-cyan-500/30 bg-[#070e1c]/95 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-right duration-200 z-30 scrollbar-thin scrollbar-thumb-cyan-500/20">
           <div className="flex items-start justify-between border-b border-cyan-500/20 pb-2.5">
             <div className="flex flex-col">

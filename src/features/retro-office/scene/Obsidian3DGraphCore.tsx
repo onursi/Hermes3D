@@ -639,8 +639,9 @@ export function Obsidian3DGraphCore({
               </Billboard>
             )}
 
+            {/* No distanceFactor, and a capped stacking range. distanceFactor scales the label by factor/distance, so flying to a note — which ends 3.8 units away — blew its name up to nearly four times size and laid it across the panel that sent you there. A name tag wants a constant readable size, which is what dropping the prop gives. zIndexRange keeps it under the HUD: drei portals this into its own layer, and without a ceiling a label in the scene covers the controls on top of it. */}
             {(isHovered || isSelected) && (
-              <Html distanceFactor={14} center>
+              <Html center zIndexRange={[20, 0]}>
                 <div className="pointer-events-none -translate-y-8 whitespace-nowrap rounded-lg border border-cyan-400/60 bg-[#030712]/95 px-2.5 py-1 font-mono text-[10px] text-cyan-200 shadow-2xl shadow-cyan-500/30 backdrop-blur-md">
                   <span className="font-bold text-white tracking-wide">{node.name}</span>
                   <span className="ml-2 text-[9px] font-medium" style={{ color: arealColor }}>({node.folder})</span>
