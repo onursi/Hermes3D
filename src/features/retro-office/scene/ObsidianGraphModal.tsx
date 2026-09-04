@@ -85,6 +85,25 @@ export function ObsidianGraphModal({
         cyberAudio.playElectricalZap();
         setFlyToLobe((prev) => (prev === "projects" ? "knowledge" : "projects"));
       }
+      // The search field used to take focus the moment the window opened, so
+      // every shortcut below was typed into it instead: space became a space
+      // character, digits became digits, and none of this worked at all unless
+      // you happened to click the scene first. It no longer autofocuses, and a
+      // letter hands focus over instead — which is what "type to search"
+      // promised in the first place.
+      if (
+        isOpen &&
+        document.activeElement !== searchInputRef.current &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        /^[a-zA-ZäöüÄÖÜß]$/.test(e.key)
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setSearchQuery((prev) => prev + e.key);
+        return;
+      }
       // Space only ever toggled between two halves of the brain, which leaves
       // seven of the nine areas unreachable without hunting for their pill.
       // The digits fly straight to any of them, in the order the pills sit.
@@ -419,7 +438,6 @@ export function ObsidianGraphModal({
             onKeyDown={handleSearchKeyDown}
             placeholder="Gedanke, Notiz oder Konzept durchsuchen... (Tippe zum sofortigen Anfliegen)"
             className="w-full bg-transparent font-mono text-xs text-white placeholder:text-slate-500 focus:outline-none"
-            autoFocus
           />
           {searchQuery ? (
             <button
