@@ -84,6 +84,18 @@ export function InstancedWallSegmentsModel({
   );
 }
 
+/**
+ * TEMPORARY — the round table is hidden while we test the gravity lift.
+ *
+ * Onur asked to take the table out entirely rather than fade it, to see
+ * whether anything else is still blocking the shaft. Four layers of this one
+ * bug have been found so far and each looked identical from outside, so
+ * removing the variable is the right move.
+ *
+ * Set back to false to restore the table. Nothing else has to change.
+ */
+const HIDE_ROUND_TABLE_FOR_LIFT_TEST = true;
+
 export function RoundTableModel({
   item,
   isSelected,
@@ -94,6 +106,7 @@ export function RoundTableModel({
   onPointerOut,
   onClick,
 }: InteractiveFurnitureModelProps) {
+  if (HIDE_ROUND_TABLE_FOR_LIFT_TEST) return null;
   const [wx, , wz] = toWorld(item.x, item.y);
   const radius = (item.r ?? 60) * SCALE;
 
@@ -111,16 +124,26 @@ export function RoundTableModel({
    * transparent core: the table gets out of the way while someone is
    * travelling through it, and closes again afterwards.
    */
-  const tableTopRef = useRef<THREE.Mesh>(null);
+  const tableGroupRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
-    const mesh = tableTopRef.current;
-    if (!mesh) return;
-    const material = mesh.material as THREE.MeshPhysicalMaterial;
-    if (!material) return;
+    const group = tableGroupRef.current;
+    if (!group) return;
     const riding = activeLiftSuction.agentId !== null;
-    const target = riding ? 0.12 : 0.88;
-    // Eased, so it dissolves and reforms rather than blinking.
-    material.opacity += (target - material.opacity) * Math.min(1, delta * 6);
+    const target = riding ? 0.06 : 1;
+    group.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const material = mesh.material as THREE.Material & { opacity: number; transparent: boolean };
+      if (!material || typeof material.opacity !== "number") return;
+      // Remembered once per material, so closing returns each part to the
+      // opacity it was authored with instead of flattening them all to one.
+      const store = material.userData as { restOpacity?: number };
+      if (store.restOpacity === undefined) store.restOpacity = material.opacity;
+      material.transparent = true;
+      const rest = store.restOpacity;
+      const wanted = riding ? rest * target : rest;
+      material.opacity += (wanted - material.opacity) * Math.min(1, delta * 6);
+    });
   });
   const height = 0.5;
   const topThickness = 0.04;
@@ -153,9 +176,9 @@ export function RoundTableModel({
         onClick?.(item._uid);
       }}
     >
-      <group position={[radius, 0, radius]}>
+      <group ref={tableGroupRef} position={[radius, 0, radius]}>
         {/* Smoked Obsidian Glass Outer Table Top */}
-        <mesh ref={tableTopRef} position={[0, height, 0]} receiveShadow castShadow>
+        <mesh position={[0, height, 0]} receiveShadow castShadow>
           <cylinderGeometry args={[radius, radius, topThickness, 64]} />
           <meshPhysicalMaterial
             color="#070d16"
