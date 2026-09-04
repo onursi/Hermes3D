@@ -276,6 +276,7 @@ import {
 } from "@/features/retro-office/core/graphicsQuality";
 import { SceneErrorBoundary } from "@/features/retro-office/systems/SceneErrorBoundary";
 import { PerfProbe } from "@/features/retro-office/systems/perfProbe";
+import { GhostMode, GHOST_EYE_HEIGHT } from "@/features/retro-office/systems/ghostMode";
 import type { SystemSignal } from "@/features/retro-office/core/systemSignal";
 
 /**
@@ -3904,6 +3905,11 @@ export function RetroOffice3D({
     },
     [graphicsQualityConfig.transmissionScale],
   );
+  // Standing in the room rather than orbiting it. Entering takes over the
+  // camera and the pointer; Escape releases both and puts the orbit camera
+  // back exactly where it stood.
+  const [ghostActive, setGhostActive] = useState(false);
+
   const followFocusPointRef = useRef(new THREE.Vector3());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const orbitRef = useRef<any>(null);
@@ -6673,6 +6679,11 @@ export function RetroOffice3D({
             {/* Ensure camera looks at the active office target after mount. */}
             <CameraRig target={cameraTarget} />
             <PerfProbe />
+            <GhostMode
+              active={ghostActive}
+              onExit={() => setGhostActive(false)}
+              entry={cameraTarget}
+            />
             <DirectCameraController orbitRef={orbitRef} />
             <AdaptiveDprController maxDpr={graphicsQualityConfig.maxDpr} />
 
@@ -6680,7 +6691,9 @@ export function RetroOffice3D({
             <OrbitControls
               ref={orbitRef}
               target={cameraTarget}
-              enabled={!editMode || spaceDown}
+              // Two camera controllers fighting over the same camera produces
+              // a wrestling match, not a view.
+              enabled={!ghostActive && (!editMode || spaceDown)}
               enableDamping
               dampingFactor={0.15}
               rotateSpeed={1.15}
@@ -7426,6 +7439,25 @@ export function RetroOffice3D({
         </div>
       ) : null}
 
+      {/* Controls for standing in the room. Shown only while inside, because a
+          permanent key legend is clutter for the ninety percent of the time
+          you are orbiting instead. */}
+      {ghostActive ? (
+        <div className="pointer-events-none absolute bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#050e1c]/90 px-4 py-1.5 font-mono text-[11px] text-cyan-200 shadow-2xl backdrop-blur-md">
+          <span className="text-white font-semibold">WASD</span> laufen
+          <span className="mx-2 text-cyan-500/30">·</span>
+          <span className="text-white font-semibold">Maus</span> schauen
+          <span className="mx-2 text-cyan-500/30">·</span>
+          <span className="text-white font-semibold">Leertaste</span> hoch
+          <span className="mx-2 text-cyan-500/30">·</span>
+          <span className="text-white font-semibold">Strg</span> runter
+          <span className="mx-2 text-cyan-500/30">·</span>
+          <span className="text-white font-semibold">Shift</span> schneller
+          <span className="mx-2 text-cyan-500/30">·</span>
+          <span className="text-white font-semibold">Esc</span> zurück
+        </div>
+      ) : null}
+
       {/* Camera preset buttons & Meeting / Light Controls — top left */}
       {!readOnly && (!immersiveOverlayActive || meetingRoomImmersive) ? (
         <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2 max-h-[calc(100vh-24px)] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-cyan-500/20">
@@ -7486,6 +7518,24 @@ export function RetroOffice3D({
             >
               <span>🔍</span>
               <span className="font-semibold">{cinematicTourActive ? "Fahrt stoppen" : "Kontrollfahrt"}</span>
+            </button>
+
+            {/* Stand in the room instead of orbiting it. */}
+            <button
+              type="button"
+              onClick={() => {
+                cyberAudio.playWhoosh();
+                setGhostActive(true);
+              }}
+              className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-mono text-[10px] border transition cursor-pointer shadow-lg backdrop-blur-sm ${
+                ghostActive
+                  ? "bg-cyan-500/25 text-white border-cyan-400"
+                  : "bg-slate-950/85 text-cyan-200 border-cyan-500/40 hover:border-cyan-400 hover:text-white"
+              }`}
+              title="Betreten: Maus schauen · WASD laufen · Leertaste hoch · Strg runter · Shift schneller · Esc zurück"
+            >
+              <span>👻</span>
+              <span className="font-semibold">Betreten</span>
             </button>
 
             {/* Obsidian 3D Neural Knowledge Graph */}
