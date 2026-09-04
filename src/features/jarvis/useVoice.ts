@@ -40,7 +40,18 @@ function recognitionConstructor(): (new () => SpeechRecognitionLike) | null {
 export function useVoice({ onTranscript }: { onTranscript: (text: string) => void }) {
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [supported, setSupported] = useState(false);
+  /**
+   * Computed once on mount rather than assigned from an effect.
+   *
+   * A lazy initialiser runs on the client's first render, where `window`
+   * exists, so this stays server-safe without a second render pass — and
+   * without setting state inside an effect, which cascades renders for a
+   * value that never changes.
+   */
+  const [supported] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(recognitionConstructor()) && "speechSynthesis" in window;
+  });
   const [heard, setHeard] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   /**
@@ -55,9 +66,6 @@ export function useVoice({ onTranscript }: { onTranscript: (text: string) => voi
     onTranscriptRef.current = onTranscript;
   }, [onTranscript]);
 
-  useEffect(() => {
-    setSupported(Boolean(recognitionConstructor()) && typeof window !== "undefined" && "speechSynthesis" in window);
-  }, []);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
