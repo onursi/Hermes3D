@@ -3935,6 +3935,7 @@ export function RetroOffice3D({
   // camera and the pointer; Escape releases both and puts the orbit camera
   // back exactly where it stood.
   const [ghostActive, setGhostActive] = useState(false);
+  const [ghostCruising, setGhostCruising] = useState(true);
 
   const followFocusPointRef = useRef(new THREE.Vector3());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -6709,6 +6710,7 @@ export function RetroOffice3D({
               active={ghostActive}
               onExit={() => setGhostActive(false)}
               entry={cameraTarget}
+              onCruisingChange={setGhostCruising}
             />
             <DirectCameraController orbitRef={orbitRef} />
             <AdaptiveDprController maxDpr={graphicsQualityConfig.maxDpr} />
@@ -7491,18 +7493,20 @@ export function RetroOffice3D({
           permanent key legend is clutter for the ninety percent of the time
           you are orbiting instead. */}
       {ghostActive ? (
-        <div className="pointer-events-none absolute bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#050e1c]/90 px-4 py-1.5 font-mono text-[11px] text-cyan-200 shadow-2xl backdrop-blur-md">
-          <span className="text-white font-semibold">WASD</span> laufen
-          <span className="mx-2 text-cyan-500/30">·</span>
-          <span className="text-white font-semibold">Maus</span> schauen
-          <span className="mx-2 text-cyan-500/30">·</span>
-          <span className="text-white font-semibold">Leertaste</span> hoch
-          <span className="mx-2 text-cyan-500/30">·</span>
-          <span className="text-white font-semibold">Strg</span> runter
-          <span className="mx-2 text-cyan-500/30">·</span>
-          <span className="text-white font-semibold">Shift</span> schneller
-          <span className="mx-2 text-cyan-500/30">·</span>
-          <span className="text-white font-semibold">Esc</span> zurück
+        <div className={`pointer-events-none absolute bottom-24 left-1/2 z-30 -translate-x-1/2 flex items-center gap-2.5 px-4 py-1.5 ${HUD_PILL}`}>
+          <span className={`text-[12px] font-medium ${ghostCruising ? "text-white/85" : "text-amber-200"}`}>
+            {ghostCruising ? "Im Flug" : "Angehalten"}
+          </span>
+          <span className={HUD_DIVIDER} />
+          <span className={HUD_LABEL}>
+            <span className="text-white/80 font-semibold">Maus</span> lenken
+            <span className="mx-1.5 text-white/20">·</span>
+            <span className="text-white/80 font-semibold">Leertaste</span> {ghostCruising ? "anhalten" : "weiter"}
+            <span className="mx-1.5 text-white/20">·</span>
+            <span className="text-white/80 font-semibold">Shift</span> schneller
+            <span className="mx-1.5 text-white/20">·</span>
+            <span className="text-white/80 font-semibold">Esc</span> zurück
+          </span>
         </div>
       ) : null}
 
@@ -7572,7 +7576,7 @@ export function RetroOffice3D({
                 setGhostActive(true);
               }}
               className={ghostActive ? HUD_BUTTON_ACTIVE : HUD_BUTTON}
-              title="Betreten: Maus schauen · WASD laufen · Leertaste hoch · Strg runter · Shift schneller · Esc zurück"
+              title="Betreten: Du gleitest vorwärts, die Maus lenkt. Leertaste hält an zum Schauen, nochmal weiter. Shift schneller, Esc zurück."
             >
               <span>👻</span>
               <span className="font-semibold">Betreten</span>
