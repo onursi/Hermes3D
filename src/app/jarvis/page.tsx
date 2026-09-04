@@ -14,7 +14,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { JarvisCore, type JarvisPhase } from "@/features/jarvis/JarvisCore";
 import { useVoice } from "@/features/jarvis/useVoice";
@@ -197,6 +197,9 @@ export default function JarvisPage() {
     [data],
   );
 
+  /** The ids the current answer cites — the graph lights exactly these. */
+  const sourceIds = useMemo(() => sources.map((source) => source.id), [sources]);
+
   const busy = phase === "searching" || phase === "thinking" || phase === "speaking";
 
   /**
@@ -284,6 +287,7 @@ export default function JarvisPage() {
               onSelectNode={(node) => setSelectedId(node.id)}
               flyToNode={flyToNode}
               focusShiftX={1.2}
+              activeSourceIds={sourceIds}
               controlsRef={controlsRef}
             />
             <FirstFrameSignal onReady={() => setGraphVisible(true)} />

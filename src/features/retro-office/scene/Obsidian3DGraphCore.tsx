@@ -74,6 +74,7 @@ export function Obsidian3DGraphCore({
   flyToLobe = null,
   showOrphans = false,
   focusShiftX = 0,
+  activeSourceIds,
   controlsRef,
 }: {
   data: ObsidianGraphData;
@@ -94,6 +95,15 @@ export function Obsidian3DGraphCore({
    * from behind the panel — which is the whole point of flying to it.
    */
   focusShiftX?: number;
+  /**
+   * The notes an answer was actually built from.
+   *
+   * Not an effect: this is the same list the answer cites. When an agent
+   * reads the vault, these are the notes it read — so lighting them is a
+   * reading, and it is wrong if the retrieval was wrong. That is the
+   * difference between showing something and decorating with it.
+   */
+  activeSourceIds?: string[];
   /** The scene's OrbitControls, so a camera fly can borrow the camera. */
   controlsRef?: { current: { enabled: boolean; target: THREE.Vector3; update: () => void } | null };
 }) {
@@ -101,6 +111,16 @@ export function Obsidian3DGraphCore({
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const { camera } = useThree();
   const timeRef = useRef(0);
+
+  const activeSourceSet = useMemo(
+    () => new Set(activeSourceIds ?? []),
+    [activeSourceIds],
+  );
+  /** Ticks while sources are lit, so the pulse is time-based and not per-node. */
+  const pulseRef = useRef(0);
+  useFrame((_, delta) => {
+    pulseRef.current += delta;
+  });
 
   const nodeMap = useMemo(() => {
     const map = new Map<string, GraphNode>();
@@ -545,11 +565,21 @@ export function Obsidian3DGraphCore({
         // connected to anything, so it is effectively invisible to you. There are
         // a dozen of them, and finding them by scrolling is hopeless — but they
         // are obvious the moment they are the only red things in the sky.
+        // A note the current answer was built from. Lit while it is cited, dark
+        // again when the next question replaces the list — so the light always
+        // means "this one, now" and never accumulates into a decoration.
+        const isSource = activeSourceSet.has(node.id);
         const isOrphan = degree === 0;
-        const displayColor = showOrphans && isOrphan ? "#f43f5e" : arealColor;
+        const displayColor = isSource
+          ? "#ffffff"
+          : showOrphans && isOrphan
+            ? "#f43f5e"
+            : arealColor;
         const baseRadius =
           0.024 + (Math.log1p(degree) / Math.log1p(maxDegree)) * 0.075;
-        const radius = showOrphans && isOrphan
+        const radius = isSource
+          ? baseRadius * 3.2
+          : showOrphans && isOrphan
           ? baseRadius * 2.6
           : isSelected
           ? baseRadius * 2.4
@@ -570,7 +600,9 @@ export function Obsidian3DGraphCore({
         // handed the bloom pass nothing to pick out.
         const degreeWeight = Math.log1p(degree) / Math.log1p(maxDegree);
         const restingEmissive = 0.85 + degreeWeight * 2.75;
-        const emissive = showOrphans && isOrphan
+        const emissive = isSource
+          ? 5.5 + Math.sin(pulseRef.current * 3.4) * 2.2
+          : showOrphans && isOrphan
           ? 4.0
           : isSelected
           ? 4.5
