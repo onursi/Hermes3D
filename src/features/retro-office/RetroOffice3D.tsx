@@ -3393,6 +3393,53 @@ export function RetroOffice3D({
    * you nothing. The room has four agents doing real work and no way to ask
    * one of them what it is doing.
    */
+  /**
+   * What is waiting for a decision, polled from Hermes.
+   *
+   * The waiting station in the room has been furniture since it was built.
+   * This is the data that gives it a job — an agent needs an answer, a
+   * message is about to go out, a paid model wants to run.
+   *
+   * Every twenty seconds, because an approval is not an emergency and a
+   * poll that walks the active sessions costs a round trip each. `ok` is
+   * kept separately from the count: "nothing is waiting" and "I could not
+   * ask" must never look the same on an indicator whose whole value is being
+   * trusted when it is dark.
+   */
+  const [approvals, setApprovals] = useState<
+    { requestId: string; sessionId: string; title: string }[]
+  >([]);
+  const [approvalsReachable, setApprovalsReachable] = useState(true);
+  useEffect(() => {
+    if (readOnly) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/approvals");
+        const data = await res.json();
+        if (cancelled) return;
+        setApprovalsReachable(Boolean(data.ok));
+        setApprovals(
+          (data.approvals ?? []).map((entry: Record<string, unknown>) => ({
+            requestId: String(entry.request_id ?? ""),
+            sessionId: String(entry.sessionId ?? ""),
+            // description first, command second: one is written for a person,
+            // the other is what the machine was about to run.
+            title: String(entry.description ?? entry.command ?? "Entscheidung nötig"),
+          })),
+        );
+      } catch {
+        if (!cancelled) setApprovalsReachable(false);
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [readOnly]);
+
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null);
   const focusedAgent = focusedAgentId
     ? (agents.find((candidate) => candidate.id === focusedAgentId) ?? null)
@@ -7632,6 +7679,47 @@ export function RetroOffice3D({
         last step are not on this type — a panel that showed them would be
         making them up, which is the one thing this room is not allowed to do.
       */}
+      {/*
+        The waiting station, finally with something to say.
+      
+        Shown only when something is actually waiting, or when Hermes could not
+        be asked. A permanently visible "0 Freigaben" would teach you to stop
+        looking at it, which is the one thing an indicator must not do.
+      */}
+      {!immersiveOverlayActive && (approvals.length > 0 || !approvalsReachable) ? (
+        <div className={`absolute left-1/2 top-[92px] z-30 w-72 -translate-x-1/2 rounded-2xl p-3 ${HUD_PANEL}`}>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: approvalsReachable ? "#fbbf24" : "#64748b" }}
+            />
+            <span className="text-[12px] font-semibold text-white/85">
+              {approvalsReachable
+                ? `${approvals.length} wartet auf dich`
+                : "Freigaben nicht abrufbar"}
+            </span>
+          </div>
+          {approvalsReachable ? (
+            <ul className="mt-2 space-y-1">
+              {approvals.slice(0, 4).map((item) => (
+                <li
+                  key={item.requestId}
+                  className="truncate text-[11px] leading-relaxed text-white/60"
+                  title={item.title}
+                >
+                  {item.title}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-white/45">
+              Hermes antwortet gerade nicht. Ob etwas wartet, ist damit unbekannt —
+              nicht null.
+            </p>
+          )}
+        </div>
+      ) : null}
+
       {focusedAgent && !immersiveOverlayActive ? (
         <div className={`absolute right-6 top-[92px] z-30 w-64 rounded-2xl p-3 ${HUD_PANEL}`}>
           <div className="flex items-start justify-between gap-2">

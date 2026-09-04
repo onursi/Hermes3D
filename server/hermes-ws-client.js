@@ -243,6 +243,61 @@ async function listHermesModels() {
   return ids;
 }
 
+/**
+ * Everything waiting for a decision, across sessions.
+ *
+ * Hermes keeps approvals in a queue per session — `_gateway_queues` is keyed
+ * by session key and every public function takes one, so there is no
+ * cross-session listing to call. This walks the active sessions and asks each.
+ *
+ * Active rather than all: there are 59 sessions on this machine and one round
+ * trip each would make a waiting-room indicator more expensive than the work
+ * it reports on. A session with nothing running has nothing pending.
+ */
+async function listPendingApprovals() {
+  const conn = await connect();
+  let sessions = [];
+  try {
+    const active = await conn.call("session.active_list", {});
+    sessions = Array.isArray(active) ? active : (active?.sessions ?? []);
+  } catch {
+    // Older gateways may not have it; an empty list is the honest answer
+    // rather than falling back to scanning everything.
+    sessions = [];
+  }
+
+  const waiting = [];
+  for (const session of sessions) {
+    const sessionId = session?.session_id ?? session?.id;
+    if (typeof sessionId !== "string") continue;
+    try {
+      const result = await conn.call("approval.pending", { session_id: sessionId });
+      for (const approval of result?.approvals ?? []) {
+        waiting.push({ ...approval, sessionId, sessionTitle: session?.title ?? null });
+      }
+    } catch {
+      // One unreachable session must not hide the others.
+    }
+  }
+  return waiting;
+}
+
+/**
+ * Answer one waiting approval.
+ *
+ * `choice` is Hermes' own vocabulary, passed through rather than translated:
+ * inventing a friendlier word here would mean guessing what the other side
+ * accepts.
+ */
+async function respondToApproval(sessionId, requestId, choice) {
+  const conn = await connect();
+  return conn.call("approval.respond", {
+    session_id: sessionId,
+    request_id: requestId,
+    choice,
+  });
+}
+
 /** Whether Hermes is up, for health checks that should not open a socket. */
 async function hermesReachable() {
   try {
@@ -255,6 +310,8 @@ async function hermesReachable() {
 
 module.exports = {
   askHermes,
+  listPendingApprovals,
+  respondToApproval,
   listHermesModels,
   hermesJson,
   hermesReachable,
