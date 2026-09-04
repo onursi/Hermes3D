@@ -7639,9 +7639,9 @@ export function RetroOffice3D({
 
           {/* Fixierungspunkte (Kamera-Anker) — Only shown when expanded */}
           {!hudCollapsed && (
-            <div className="flex flex-col gap-1.5 rounded-2xl border border-cyan-500/25 bg-[#070e1a]/92 p-2 shadow-xl shadow-cyan-950/50 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between px-1 pb-1 border-b border-cyan-500/15">
-                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-cyan-400 font-bold flex items-center gap-1">
+            <div className="flex flex-col gap-1.5 rounded-2xl border border-white/[0.09] bg-[#141619]/75 p-2 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between px-1 pb-1 border-b border-white/[0.07]">
+                <span className="text-[11px] font-medium text-white/45 tracking-[-0.005em] flex items-center gap-1">
                   <span>🎥</span> Fixierungspunkte
                 </span>
               </div>
@@ -7656,7 +7656,7 @@ export function RetroOffice3D({
                   setFollowAgentId(null);
                   cameraPresetRef.current = CAMERA_PRESET_MAP.meetingTable;
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#091524]/80 px-2 py-1.5 text-left text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/60 transition group cursor-pointer"
+                className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1.5 text-left text-white/80 hover:border-white/20 hover:bg-white/[0.08] transition group cursor-pointer"
                 title="Fokussiert den Konferenztisch mit Chefsesseln"
               >
                 <span className="text-xs">🏛️</span>
@@ -7675,7 +7675,7 @@ export function RetroOffice3D({
                   setFollowAgentId(null);
                   cameraPresetRef.current = CAMERA_PRESET_MAP.dualDeck;
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#091524]/80 px-2 py-1.5 text-left text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/60 transition group cursor-pointer"
+                className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1.5 text-left text-white/80 hover:border-white/20 hover:bg-white/[0.08] transition group cursor-pointer"
                 title="Zeigt beide Ebenen: Oberdeck, Röhre und Unterdeck im Überblick"
               >
                 <span className="text-xs">🌐</span>
@@ -7713,7 +7713,7 @@ export function RetroOffice3D({
                   setFollowAgentId(null);
                   cameraPresetRef.current = CAMERA_PRESET_MAP.screens;
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-[#091524]/80 px-2 py-1.5 text-left text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/60 transition group cursor-pointer"
+                className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1.5 text-left text-white/80 hover:border-white/20 hover:bg-white/[0.08] transition group cursor-pointer"
                 title="Fokussiert Whiteboard und Kanban-Board"
               >
                 <span className="text-xs">📋</span>
