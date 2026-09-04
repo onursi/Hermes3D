@@ -7937,9 +7937,9 @@ export function RetroOffice3D({
                 onClick={() => {
                   // Focus camera directly onto the transparent gravity lift tube connecting the two decks
                   cameraPresetRef.current = {
-                    pos: [-8.8, 1.2, -12.6],
+                    pos: [-5.6, 3.4, -8.4],
                     target: [-11.7, -2.6, -16.2],
-                    zoom: 62,
+                    zoom: 74,
                   };
 
                   const testAgent =
@@ -7970,6 +7970,13 @@ export function RetroOffice3D({
                   const endY = isSub ? TOP_Y : BOTTOM_Y;
                   cyberAudio.playTractorBeam(isSub ? "up" : "down");
                   testAgent.verticalSuctionY = startY;
+                  // verticalSuctionY only moves the agent up and down where it already
+                  // stands, which is beside the tube, not inside it. activeLiftSuction is
+                  // the mechanism that actually pins it to the tube's coordinates and spins
+                  // it on the way — and it was read in two places and assigned in none, so
+                  // the ride was never visible. It is assigned now.
+                  activeLiftSuction.agentId = testAgent.id;
+                  activeLiftSuction.currentY = startY;
 
                   const startedAt = performance.now();
                   const suctionTimer = setInterval(() => {
@@ -7977,10 +7984,12 @@ export function RetroOffice3D({
                     // Ease-in: gentle release, then the tunnel takes hold.
                     const eased = progress * progress;
                     testAgent.verticalSuctionY = startY + (endY - startY) * eased;
+                    activeLiftSuction.currentY = testAgent.verticalSuctionY;
                     if (progress < 1) return;
 
                     clearInterval(suctionTimer);
                     testAgent.verticalSuctionY = undefined;
+                    activeLiftSuction.agentId = null;
 
                     // Land the agent by setting its grid position outright
                     // rather than handing pathfinding a destination and hoping.

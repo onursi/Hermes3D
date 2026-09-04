@@ -37,6 +37,8 @@ export function ObsidianGraphModal({
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [flyToNode, setFlyToNode] = useState<GraphNode | null>(null);
   const [flyToLobe, setFlyToLobe] = useState<string | null>(null);
+  /** The hub list covers a corner of the brain, so it has to be foldable. */
+  const [hubsCollapsed, setHubsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeResultIndex, setActiveResultIndex] = useState(0);
@@ -517,9 +519,16 @@ export function ObsidianGraphModal({
           by looking instead of by hunting. */}
       {topHubs.length > 0 && !selectedNode ? (
         <div className="absolute bottom-6 left-6 z-30 w-60 rounded-2xl border border-white/[0.09] bg-[#141619]/75 p-3 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
-          <h4 className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-widest text-white/45">
-            Größte Knoten
-          </h4>
+          <button
+            type="button"
+            onClick={() => setHubsCollapsed((prev) => !prev)}
+            className="flex w-full items-center justify-between px-1 pb-2 text-[10px] font-semibold uppercase tracking-widest text-white/45 hover:text-white/75"
+            title={hubsCollapsed ? "Größte Knoten einblenden" : "Größte Knoten ausblenden — freie Sicht aufs Gehirn"}
+          >
+            <span>Größte Knoten</span>
+            <span aria-hidden>{hubsCollapsed ? "+" : "−"}</span>
+          </button>
+          {!hubsCollapsed ? (
           <ul className="space-y-0.5">
             {topHubs.map((node) => (
               <li key={node.id}>
@@ -542,6 +551,7 @@ export function ObsidianGraphModal({
               </li>
             ))}
           </ul>
+          ) : null}
         </div>
       ) : null}
 

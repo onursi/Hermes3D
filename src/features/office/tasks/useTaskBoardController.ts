@@ -726,11 +726,40 @@ export const useTaskBoardController = ({
     [],
   );
 
+  /**
+   * Fields the user is typing into right now, kept out of reach of the server.
+   *
+   * Saving a card round-trips to the gateway and the answer is written back
+   * into state — which is what feeds the controlled inputs. Anything typed
+   * while that request was in flight got replaced by the server's older copy,
+   * so a character would appear and then vanish. It looked like the space bar
+   * failing because a trailing space is the easiest character to lose sight of,
+   * but every keystroke was at risk; it only bit when the network was slow
+   * enough, which is why it seemed to come and go.
+   *
+   * So a local edit wins over an echo for a few seconds after it was made.
+   * After that the server is the truth again.
+   */
+  const pendingEditsRef = useRef<
+    Map<string, { patch: Partial<TaskBoardCard>; at: number }>
+  >(new Map());
+  const PENDING_EDIT_GRACE_MS = 4000;
+
+  const preserveLocalEdits = useCallback((card: TaskBoardCard): TaskBoardCard => {
+    const pending = pendingEditsRef.current.get(card.id);
+    if (!pending) return card;
+    if (Date.now() - pending.at > PENDING_EDIT_GRACE_MS) {
+      pendingEditsRef.current.delete(card.id);
+      return card;
+    }
+    return { ...card, ...pending.patch };
+  }, []);
+
   const applyGatewayTaskRecord = useCallback(
     (task: GatewayTaskRecord) => {
       const existing =
         stateRef.current.cards.find((card) => card.id === task.id) ?? null;
-      const nextCard = buildCardFromGatewayTask(task, existing);
+      const nextCard = preserveLocalEdits(buildCardFromGatewayTask(task, existing));
       dispatch({ type: "upsert", card: nextCard });
       archiveMatchingInferredCards(nextCard);
       return nextCard;
@@ -742,7 +771,7 @@ export const useTaskBoardController = ({
     (task: SharedTaskRecord) => {
       const existing =
         stateRef.current.cards.find((card) => card.id === task.id) ?? null;
-      const nextCard = buildCardFromSharedTaskRecord(task, existing);
+      const nextCard = preserveLocalEdits(buildCardFromSharedTaskRecord(task, existing));
       dispatch({ type: "upsert", card: nextCard });
       archiveMatchingInferredCards(nextCard);
       return nextCard;
@@ -1112,6 +1141,11 @@ export const useTaskBoardController = ({
     async (cardId: string, patch: Partial<TaskBoardCard>) => {
       const existing =
         stateRef.current.cards.find((card) => card.id === cardId) ?? null;
+      // Claim these fields before the save starts, so the echo cannot undo them.
+      pendingEditsRef.current.set(cardId, {
+        patch: { ...(pendingEditsRef.current.get(cardId)?.patch ?? {}), ...patch },
+        at: Date.now(),
+      });
       dispatch({ type: "update", cardId, patch });
       if (!existing || existing.isInferred) return;
       if (isKanbanManagedTaskId(cardId)) {

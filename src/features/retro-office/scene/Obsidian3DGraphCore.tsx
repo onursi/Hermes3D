@@ -407,7 +407,8 @@ export function Obsidian3DGraphCore({
     const controls = controlsRef?.current ?? null;
     if (targetCamPos.current && targetCamLook.current) {
       if (controls) controls.enabled = false;
-      camera.position.lerp(targetCamPos.current, 0.12);
+      // Doubled: the old approach felt like being towed, not flown.
+      camera.position.lerp(targetCamPos.current, 0.24);
       camera.lookAt(targetCamLook.current);
       if (camera.position.distanceTo(targetCamPos.current) < 0.08) {
         targetCamPos.current = null;
