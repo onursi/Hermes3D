@@ -3638,12 +3638,80 @@ export function RetroOffice3D({
     [vaultProjects, openProjectFolder],
   );
 
-  const handleSelectProjectGalaxy = useCallback((folder: string) => {
-    // The arrival sound. Travelling somewhere should be audible, and this is
-    // the same chime the room already uses for "you opened something".
-    cyberAudio.playChime();
-    setOpenProjectFolder(folder);
+  /**
+   * Fly to the galaxy, then arrive.
+   *
+   * The camera moves *with* its orbit target rather than away from it. The
+   * controls cap the camera at 35 units from whatever it is orbiting, and the
+   * galaxies sit up to fifty out — pushing the camera towards a distant point
+   * while the target stayed on the office would simply be clamped back, and
+   * the flight would look like a twitch. Moving the target to the galaxy and
+   * standing off from it keeps the whole move inside what the controls allow.
+   *
+   * The panel opens when the flight lands, not when the click happens. Half a
+   * second of travel followed by arrival is the thing Onur asked for; a panel
+   * that appears instantly would make the flight decorative, playing behind a
+   * dialog nobody is looking past.
+   */
+  const handleSelectProjectGalaxy = useCallback(
+    (folder: string) => {
+      const index = vaultProjects.findIndex((project) => project.folder === folder);
+      const site = index >= 0 ? GALAXY_SITES[index] : undefined;
+
+      if (!site) {
+        cyberAudio.playChime();
+        setOpenProjectFolder(folder);
+        return;
+      }
+
+      cyberAudio.playWhoosh();
+      setFollowAgentId(null);
+
+      const galaxy = new THREE.Vector3(...site.position);
+      // Stand off on the room's side of it, so the office stays behind you in
+      // frame and you can see how far out you have come.
+      const towardsRoom = new THREE.Vector3(0, 2, 0).sub(galaxy).normalize();
+      const standoff = Math.min(30, site.size * 0.55 + 8);
+      const cameraPosition = galaxy.clone().addScaledVector(towardsRoom, standoff);
+
+      window.dispatchEvent(
+        new CustomEvent("fly_to_camera_preset", {
+          detail: { pos: cameraPosition.toArray(), target: site.position },
+        }),
+      );
+
+      // The flight itself runs 850 ms; the panel meets it at the end.
+      const arrival = window.setTimeout(() => setOpenProjectFolder(folder), 880);
+      projectFlightTimerRef.current = arrival;
+    },
+    [vaultProjects],
+  );
+
+  const projectFlightTimerRef = useRef<number | null>(null);
+
+  /** Leaving a project flies back to where the room is legible again. */
+  const handleCloseProject = useCallback(() => {
+    if (projectFlightTimerRef.current !== null) {
+      window.clearTimeout(projectFlightTimerRef.current);
+      projectFlightTimerRef.current = null;
+    }
+    setOpenProjectFolder(null);
+    cyberAudio.playWhoosh();
+    window.dispatchEvent(
+      new CustomEvent("fly_to_camera_preset", {
+        detail: { pos: CAMERA_PRESET_MAP.overview.pos, target: CAMERA_PRESET_MAP.overview.target },
+      }),
+    );
   }, []);
+
+  useEffect(
+    () => () => {
+      if (projectFlightTimerRef.current !== null) {
+        window.clearTimeout(projectFlightTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const [projectOrbits, setProjectOrbits] = useState<
     { name: string; open: number; overdue: number }[]
@@ -8128,7 +8196,7 @@ export function RetroOffice3D({
       ) : null}
 
       {openProject ? (
-        <ProjectDashboard project={openProject} onClose={() => setOpenProjectFolder(null)} />
+        <ProjectDashboard project={openProject} onClose={handleCloseProject} />
       ) : null}
 
       {showMeter ? (
