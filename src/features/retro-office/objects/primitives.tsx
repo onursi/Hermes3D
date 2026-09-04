@@ -10,6 +10,7 @@ import {
   WALL_THICKNESS,
 } from "@/features/retro-office/core/constants";
 import { getItemRotationRadians, toWorld } from "@/features/retro-office/core/geometry";
+import { activeLiftSuction } from "@/features/retro-office/core/liftState";
 import {
   getBrushedMetalTextures,
   getPlasterTextures,
@@ -95,6 +96,32 @@ export function RoundTableModel({
 }: InteractiveFurnitureModelProps) {
   const [wx, , wz] = toWorld(item.x, item.y);
   const radius = (item.r ?? 60) * SCALE;
+
+  /**
+   * The table opens for a lift ride.
+   *
+   * The shaft, the tube and this table all sit at grid (250, 200) — the same
+   * spot — and the table is 1.08 m across against a 0.45 m glass core. So an
+   * agent riding down passed straight behind the table top and the lift
+   * looked dead. Moving the shaft does not help: the room is 9 by 7 metres
+   * and the meeting zone owns the middle four, so there is nowhere a two
+   * metre shaft fits cleanly.
+   *
+   * Which leaves the thing the design was already reaching for with a
+   * transparent core: the table gets out of the way while someone is
+   * travelling through it, and closes again afterwards.
+   */
+  const tableTopRef = useRef<THREE.Mesh>(null);
+  useFrame((_, delta) => {
+    const mesh = tableTopRef.current;
+    if (!mesh) return;
+    const material = mesh.material as THREE.MeshPhysicalMaterial;
+    if (!material) return;
+    const riding = activeLiftSuction.agentId !== null;
+    const target = riding ? 0.12 : 0.88;
+    // Eased, so it dissolves and reforms rather than blinking.
+    material.opacity += (target - material.opacity) * Math.min(1, delta * 6);
+  });
   const height = 0.5;
   const topThickness = 0.04;
   const wood = useMemo(() => withRepeat(getWoodFloorTextures(), 1.5, 1.5), []);
@@ -128,7 +155,7 @@ export function RoundTableModel({
     >
       <group position={[radius, 0, radius]}>
         {/* Smoked Obsidian Glass Outer Table Top */}
-        <mesh position={[0, height, 0]} receiveShadow castShadow>
+        <mesh ref={tableTopRef} position={[0, height, 0]} receiveShadow castShadow>
           <cylinderGeometry args={[radius, radius, topThickness, 64]} />
           <meshPhysicalMaterial
             color="#070d16"

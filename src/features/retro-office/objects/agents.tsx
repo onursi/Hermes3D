@@ -1,4 +1,5 @@
 import { Billboard, Text } from "@react-three/drei";
+import { activeLiftSuction as liftState } from "@/features/retro-office/core/liftState";
 import { useFrame } from "@react-three/fiber";
 import { memo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -13,28 +14,10 @@ import {
   type RobotClipKey,
 } from "@/features/retro-office/objects/RobotAgentModel";
 
-/**
- * The lift ride, driven by the render loop rather than by a timer.
- *
- * The first version animated with setInterval and wrote the height onto the
- * agent object. Both are unreliable here: the agent list is rebuilt by a
- * `.map()` every tick, so anything written onto an agent is written to an
- * object that is about to be replaced, and an interval running beside the
- * frame loop produces motion that does not match the frames it is drawn in.
- *
- * This module object survives both, and the frame loop computes the height
- * from elapsed time. Nothing has to persist except these numbers.
- */
-export const activeLiftSuction = {
-  agentId: null as string | null,
-  currentY: 0,
-  startedAt: 0,
-  fromY: 0,
-  toY: 0,
-  durationMs: 1600,
-  /** Called once when the ride ends, so the caller can place the agent. */
-  onArrive: null as (() => void) | null,
-};
+// Lives in core/liftState so the furniture can read it without importing the
+// whole cast of agents. Re-exported here because callers already import it
+// from this module.
+export { activeLiftSuction } from "@/features/retro-office/core/liftState";
 
 const MAX_NAMEPLATE_TEXT_LENGTH = 10;
 const MAX_SUBTITLE_TEXT_LENGTH = 20;
@@ -152,23 +135,23 @@ export const AgentModel = memo(function AgentModel({
        agent.workstationActivity.includes("dev_desk"))
     );
     const floorY = isSubLevel ? -5.2 : 0;
-    const isUnderSuction = activeLiftSuction.agentId === agent.id;
+    const isUnderSuction = liftState.agentId === agent.id;
     if (isUnderSuction) {
       // Eased in: the tunnel takes hold rather than snatching.
-      const elapsed = performance.now() - activeLiftSuction.startedAt;
-      const progress = Math.min(1, elapsed / activeLiftSuction.durationMs);
+      const elapsed = performance.now() - liftState.startedAt;
+      const progress = Math.min(1, elapsed / liftState.durationMs);
       const eased = progress * progress;
-      activeLiftSuction.currentY =
-        activeLiftSuction.fromY + (activeLiftSuction.toY - activeLiftSuction.fromY) * eased;
+      liftState.currentY =
+        liftState.fromY + (liftState.toY - liftState.fromY) * eased;
       if (progress >= 1) {
-        const arrive = activeLiftSuction.onArrive;
-        activeLiftSuction.agentId = null;
-        activeLiftSuction.onArrive = null;
+        const arrive = liftState.onArrive;
+        liftState.agentId = null;
+        liftState.onArrive = null;
         arrive?.();
       }
     }
     const targetYPos = isUnderSuction
-      ? activeLiftSuction.currentY
+      ? liftState.currentY
       : agent.verticalSuctionY !== undefined
       ? agent.verticalSuctionY
       : agent.state === "sitting"
