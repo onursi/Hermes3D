@@ -16,7 +16,18 @@ import {
   Smartphone,
   Eye,
   EyeOff,
+  Search,
+  Ghost,
+  Brain,
+  Video,
+  Landmark,
+  Globe,
+  Satellite,
+  ClipboardList,
+  Tornado,
 } from "lucide-react";
+
+import { isTypingTarget } from "@/lib/isTypingTarget";
 import {
   type ComponentProps,
   memo,
@@ -2968,13 +2979,13 @@ function MeetingRoomHud({
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
         className="pointer-events-none fixed top-16 right-4 z-20 flex flex-col items-end gap-1.5"
       >
-        <div className="pointer-events-auto flex w-fit max-w-[260px] flex-col gap-1 rounded-xl border border-cyan-500/30 bg-[#050b14]/95 p-2 shadow-2xl backdrop-blur-md">
+        <div className="pointer-events-auto flex w-fit max-w-[260px] flex-col gap-1 rounded-xl border border-white/[0.09] bg-[#050b14]/95 p-2 shadow-2xl backdrop-blur-md">
           <div
             onMouseDown={handleMouseDown}
             className="flex items-center justify-between cursor-grab active:cursor-grabbing border-b border-cyan-500/20 pb-1 select-none"
             title="Gedrückt halten zum Verschieben"
           >
-            <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-300">
+            <span className="text-[10px] font-medium tracking-[-0.005em] text-white/55">
               ::: TEILNEHMER (CAD DOCK) :::
             </span>
             <button
@@ -3375,6 +3386,26 @@ export function RetroOffice3D({
   const [wallDiagramOpen, setWallDiagramOpen] = useState(false);
   const [holoChandelierVisible, setHoloChandelierVisible] = useState(true);
   const [hudCollapsed, setHudCollapsed] = useState(true);
+
+  /**
+   * H hides the entire overlay.
+   *
+   * Folding panels one at a time is not the same thing as getting a clear
+   * view. Sometimes the answer to "what does the room actually look like" is
+   * one key, and the same key brings everything back — so it costs nothing to
+   * try and there is no menu to hunt for afterwards.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "h" && event.key !== "H") return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event)) return;
+      event.preventDefault();
+      setHudCollapsed((prev) => !prev);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [cinematicTourActive, setCinematicTourActive] = useState(false);
   const cinematicTourRef = useRef(false);
   const [kontrollfahrtStation, setKontrollfahrtStation] = useState<number>(-1);
@@ -7576,7 +7607,7 @@ export function RetroOffice3D({
               className={cinematicTourActive ? HUD_BUTTON_ACTIVE : HUD_BUTTON}
               title="Operative Kontrollfahrt starten [ESC zum Abbrechen]"
             >
-              <span>🔍</span>
+              <Search size={12} />
               <span className="font-semibold">{cinematicTourActive ? "Fahrt stoppen" : "Kontrollfahrt"}</span>
             </button>
 
@@ -7590,7 +7621,7 @@ export function RetroOffice3D({
               className={ghostActive ? HUD_BUTTON_ACTIVE : HUD_BUTTON}
               title="Betreten: Du gleitest vorwärts, die Maus lenkt. Leertaste hält an zum Schauen, nochmal weiter. Shift schneller, Esc zurück."
             >
-              <span>👻</span>
+              <Ghost size={12} />
               <span className="font-semibold">Betreten</span>
             </button>
 
@@ -7604,7 +7635,7 @@ export function RetroOffice3D({
               className={HUD_BUTTON}
               title="3D Obsidian Knowledge Graph öffnen (252 Notizen aus Life OS)"
             >
-              <span>🧠</span>
+              <Brain size={12} />
               <span className="font-semibold">Obsidian 3D</span>
             </button>
 
@@ -7618,7 +7649,7 @@ export function RetroOffice3D({
               className={HUD_BUTTON}
               title="Todoist iPhone Task Sync öffnen"
             >
-              <span>📱</span>
+              <Smartphone size={12} />
               <span className="font-semibold">Todoist</span>
             </button>
 
@@ -7629,7 +7660,7 @@ export function RetroOffice3D({
                 cyberAudio.playBlip();
                 setHudCollapsed((prev) => !prev);
               }}
-              className="flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#091524]/90 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-950/80 hover:text-white backdrop-blur-sm transition-all text-[10px] font-mono shadow-md whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#091524]/90 text-cyan-300 border border-white/[0.09] hover:bg-cyan-950/80 hover:text-white backdrop-blur-sm transition-all text-[10px] font-mono shadow-md whitespace-nowrap shrink-0"
               title={hudCollapsed ? "Menüs & Optionen wieder ausklappen" : "Sichtfeld maximieren (HUD einklappen)"}
             >
               {hudCollapsed ? <Eye size={12} /> : <EyeOff size={12} />}
@@ -7642,7 +7673,7 @@ export function RetroOffice3D({
             <div className="flex flex-col gap-1.5 rounded-2xl border border-white/[0.09] bg-[#141619]/75 p-2 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between px-1 pb-1 border-b border-white/[0.07]">
                 <span className="text-[11px] font-medium text-white/45 tracking-[-0.005em] flex items-center gap-1">
-                  <span>🎥</span> Fixierungspunkte
+                  <Video size={12} /> Fixierungspunkte
                 </span>
               </div>
 
@@ -7659,9 +7690,9 @@ export function RetroOffice3D({
                 className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1.5 text-left text-white/80 hover:border-white/20 hover:bg-white/[0.08] transition group cursor-pointer"
                 title="Fokussiert den Konferenztisch mit Chefsesseln"
               >
-                <span className="text-xs">🏛️</span>
+                <Landmark size={12} />
                 <div className="flex flex-col">
-                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">Tisch</span>
+                  <span className="text-[10px] font-semibold tracking-[-0.005em]">Tisch</span>
                   <span className="text-[7px] text-cyan-300/60 font-mono">Meeting-Fokus</span>
                 </div>
               </button>
@@ -7678,9 +7709,9 @@ export function RetroOffice3D({
                 className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1.5 text-left text-white/80 hover:border-white/20 hover:bg-white/[0.08] transition group cursor-pointer"
                 title="Zeigt beide Ebenen: Oberdeck, Röhre und Unterdeck im Überblick"
               >
-                <span className="text-xs">🌐</span>
+                <Globe size={12} />
                 <div className="flex flex-col">
-                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">Dual-Deck</span>
+                  <span className="text-[10px] font-semibold tracking-[-0.005em]">Dual-Deck</span>
                   <span className="text-[7px] text-cyan-300/60 font-mono">Beide Ebenen</span>
                 </div>
               </button>
@@ -7694,12 +7725,12 @@ export function RetroOffice3D({
                   setFollowAgentId(null);
                   cameraPresetRef.current = CAMERA_PRESET_MAP.warRoom;
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-[#120924]/80 px-2 py-1.5 text-left text-purple-200 hover:border-purple-400 hover:bg-purple-950/60 transition group cursor-pointer"
+                className="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-white/[0.04] px-2 py-1.5 text-left text-purple-200 hover:border-purple-400 hover:bg-purple-950/60 transition group cursor-pointer"
                 title="Fliegt hinab ins Unterdeck (Level 0: Quantum War Room)"
               >
-                <span className="text-xs">🛰️</span>
+                <Satellite size={12} />
                 <div className="flex flex-col">
-                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">War Room</span>
+                  <span className="text-[10px] font-semibold tracking-[-0.005em]">War Room</span>
                   <span className="text-[7px] text-purple-300/60 font-mono">Unterdeck</span>
                 </div>
               </button>
@@ -7716,9 +7747,9 @@ export function RetroOffice3D({
                 className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1.5 text-left text-white/80 hover:border-white/20 hover:bg-white/[0.08] transition group cursor-pointer"
                 title="Fokussiert Whiteboard und Kanban-Board"
               >
-                <span className="text-xs">📋</span>
+                <ClipboardList size={12} />
                 <div className="flex flex-col">
-                  <span className="font-mono text-[9px] uppercase tracking-wider font-semibold">Strategie</span>
+                  <span className="text-[10px] font-semibold tracking-[-0.005em]">Strategie</span>
                   <span className="text-[7px] text-cyan-300/60 font-mono">Kanban / Wall</span>
                 </div>
               </button>
@@ -7817,7 +7848,7 @@ export function RetroOffice3D({
               }`}
             />
             <div className="flex flex-col">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] font-semibold">
+              <span className="text-[11px] font-semibold tracking-[-0.005em]">
                 {meetingHoldActive ? "Am Tisch versammelt" : "🚶 Freilauf aktiv"}
               </span>
               <span className="text-[8px] opacity-75 font-mono">
@@ -7839,7 +7870,7 @@ export function RetroOffice3D({
                   }}
                   className="group relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-r from-[#0b1c14]/95 to-[#091410]/95 px-3.5 py-2.5 text-left shadow-xl shadow-emerald-950/40 backdrop-blur-md transition-all hover:border-emerald-400/50 hover:scale-[1.02]"
                 >
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-300">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-[-0.005em] text-emerald-300">
                     <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
                     Stand-up {standupMeeting.arrivedAgentIds.length >= standupMeeting.participantOrder.length ? "• 4/4 angekommen" : ""}
                   </div>
@@ -7864,18 +7895,18 @@ export function RetroOffice3D({
                     cyberAudio.playWhoosh();
                     openKanbanBoard(kanbanBoardItem);
                   }}
-                  className="rounded-xl border border-cyan-500/22 bg-[#09111a]/90 px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-cyan-300/40 hover:bg-[#0d1b28]/95"
+                  className="rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-cyan-300/40 hover:bg-[#0d1b28]/95"
                 >
-                  <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-200/80">
+                  <div className="text-[11px] font-medium tracking-[-0.005em] text-white/55">
                     Kanban-Board
                   </div>
                 </button>
               ) : null}
 
               {/* Roboter-Sprachausgabe (TTS) & Mute-Manager (Alle / Einzeln muten) */}
-              <div className="flex flex-col gap-1 rounded-xl border border-cyan-500/30 bg-[#050c18]/92 p-1.5 shadow-lg backdrop-blur-sm">
+              <div className="flex flex-col gap-1 rounded-xl border border-white/[0.09] bg-white/[0.04] p-1.5 shadow-lg backdrop-blur-sm">
                 <div className="flex items-center justify-between gap-2 px-1">
-                  <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-300 font-semibold flex items-center gap-1">
+                  <span className="text-[10px] font-medium tracking-[-0.005em] text-white/55 font-semibold flex items-center gap-1">
                     <span>{cyberAudio.isVoiceEnabled() ? "🔊" : "🔇"}</span>
                     <span>Stimmen (1.5x):</span>
                   </span>
@@ -8014,11 +8045,11 @@ export function RetroOffice3D({
                     }
                   }, 16);
                 }}
-                className="flex items-center gap-1.5 rounded-xl border border-cyan-500/35 bg-gradient-to-r from-[#031525]/92 to-[#020b18]/92 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-300 hover:scale-[1.02] cursor-pointer"
+                className="flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-gradient-to-r from-[#031525]/92 to-[#020b18]/92 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-300 hover:scale-[1.02] cursor-pointer"
                 title="Kamera auf den Gravitations-Tunnel richten und Agenten zügig runter/rauf saugen"
               >
-                <span className="text-xs animate-spin" style={{ animationDuration: "3s" }}>🌀</span>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-300 font-semibold">
+                <Tornado size={12} />
+                <span className="text-[11px] font-medium tracking-[-0.005em] text-white/55 font-semibold">
                   Gravitations-Lift
                 </span>
               </button>
@@ -8030,20 +8061,20 @@ export function RetroOffice3D({
                   cyberAudio.playBlip();
                   setHoloChandelierVisible((prev) => !prev);
                 }}
-                className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-[#050c18]/90 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-400 hover:bg-cyan-950/40"
+                className="flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-[#050c18]/90 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-400 hover:bg-cyan-950/40"
                 title="Schaltet Deckenleuchte und Hologramm aus, um freie Sicht auf die Bildschirme zu haben"
               >
                 <span
                   className={`h-2 w-2 rounded-full ${holoChandelierVisible ? "bg-cyan-400 shadow-sm shadow-cyan-400 animate-pulse" : "bg-slate-600"}`}
                 />
-                <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-200">
+                <span className="text-[11px] font-medium tracking-[-0.005em] text-white/55">
                   {holoChandelierVisible ? "Holo-Licht: An" : "Screens frei (Licht Aus)"}
                 </span>
               </button>
 
               {/* Boden-Dynamik Modus Wähler */}
               <div className="flex items-center gap-1 rounded-xl border border-slate-800/80 bg-[#060c18]/92 p-1 shadow-lg backdrop-blur-md">
-                <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-400 px-1 font-semibold">
+                <span className="text-[10px] font-medium tracking-[-0.005em] text-white/55 px-1 font-semibold">
                   Boden:
                 </span>
                 <button
@@ -8051,7 +8082,7 @@ export function RetroOffice3D({
                   onClick={() => handleFloorModeChange("ambient")}
                   className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
                     floorMode === "ambient"
-                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-white/[0.09] font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                   }`}
                   title="Sanftes, langsames und beruhigendes Atmen der Leitungsadern"
@@ -8063,7 +8094,7 @@ export function RetroOffice3D({
                   onClick={() => handleFloorModeChange("sonar")}
                   className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
                     floorMode === "sonar"
-                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-white/[0.09] font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                   }`}
                   title="Holographische Sonar-Wellen dehnen sich langsam vom Tischzentrum aus"
@@ -8075,7 +8106,7 @@ export function RetroOffice3D({
                   onClick={() => handleFloorModeChange("stream")}
                   className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
                     floorMode === "stream"
-                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-white/[0.09] font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                   }`}
                   title="Wandernde Lichtleiter-Datenpakete in den Titanfugen"
@@ -8087,7 +8118,7 @@ export function RetroOffice3D({
                   onClick={() => handleFloorModeChange("all")}
                   className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
                     floorMode === "all"
-                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-white/[0.09] font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                   }`}
                   title="Kombination aus allen Effekten in beruhigtem Tempo"
@@ -8099,7 +8130,7 @@ export function RetroOffice3D({
                   onClick={() => handleFloorModeChange("zen")}
                   className={`rounded-lg px-1.5 py-0.5 text-[10px] font-mono transition ${
                     floorMode === "zen"
-                      ? "bg-cyan-950/80 text-cyan-200 border border-cyan-500/40 font-semibold"
+                      ? "bg-cyan-950/80 text-cyan-200 border border-white/[0.09] font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                   }`}
                   title="Statischer, edler Titanboden ohne jede Bewegung (maximale Ruhe)"
@@ -8110,7 +8141,7 @@ export function RetroOffice3D({
 
               {/* Roboter-Gesten Schnellwahl */}
               <div className="flex items-center gap-1 rounded-xl border border-slate-800/80 bg-[#060c18]/92 p-1 shadow-lg backdrop-blur-md">
-                <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-400 px-1">
+                <span className="text-[10px] font-medium tracking-[-0.005em] text-white/55 px-1">
                   Geste:
                 </span>
                 <button
@@ -8238,7 +8269,7 @@ export function RetroOffice3D({
             <button
               type="button"
               onClick={() => setAgentRosterOpen((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-full border border-amber-900/25 bg-black/20 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-amber-100 transition-colors hover:border-amber-500/35 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-full border border-amber-900/25 bg-black/20 px-3 py-1.5 text-[11px] font-medium tracking-[-0.005em] text-amber-100 transition-colors hover:border-amber-500/35 hover:text-white"
             >
               <Users className="h-3.5 w-3.5" />
               <span>{agents.length}</span>
@@ -8250,7 +8281,7 @@ export function RetroOffice3D({
             <div className="absolute left-1/2 top-full mt-2 w-[min(92vw,560px)] -translate-x-1/2 rounded-2xl border border-amber-900/25 bg-[#120e08]/96 p-3 shadow-2xl backdrop-blur-sm">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-amber-500/70">
+                  <div className="text-[11px] font-medium tracking-[-0.005em] text-amber-500/70">
                     Team roster
                   </div>
                   <div className="mt-1 text-sm font-semibold text-amber-100">
@@ -8308,7 +8339,7 @@ export function RetroOffice3D({
                           <div className="truncate text-sm font-semibold text-amber-100">
                             {agent.name}
                           </div>
-                          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-500/70">
+                          <div className="text-[11px] font-medium tracking-[-0.005em] text-amber-500/70">
                             {isError ? "error" : working ? "working" : "idle"}
                             {isRemoteAgent ? " · remote" : ""}
                             {runCount > 0 ? ` · ${runCount} runs` : ""}
@@ -9220,7 +9251,7 @@ export function RetroOffice3D({
                 onAddAgent();
               }}
               title="Agent hinzufügen"
-              className="flex h-7 items-center justify-center gap-1 rounded-md border border-cyan-500/35 bg-[#071018]/92 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-200 transition-all backdrop-blur-sm hover:border-cyan-400/55 hover:text-white"
+              className="flex h-7 items-center justify-center gap-1 rounded-md border border-white/[0.09] bg-[#071018]/92 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-200 transition-all backdrop-blur-sm hover:border-cyan-400/55 hover:text-white"
             >
               <UserPlus size={12} />
               <span>Agent hinzufügen</span>
@@ -9496,7 +9527,7 @@ export function RetroOffice3D({
       {/* Smartphone Access Help Modal */}
       {mobileHelpOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="w-[500px] max-w-[95vw] rounded-2xl border border-cyan-500/40 bg-[#070e1c]/98 p-5 shadow-2xl shadow-cyan-950/80">
+          <div className="w-[500px] max-w-[95vw] rounded-2xl border border-white/[0.09] bg-[#070e1c]/98 p-5 shadow-2xl shadow-cyan-950/80">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5 text-cyan-400" />
@@ -9518,7 +9549,7 @@ export function RetroOffice3D({
                 Verbinde dein Smartphone mit demselben WLAN-Netzwerk wie diesen PC und öffne diese Adresse im mobilen Browser (Safari oder Chrome):
               </p>
 
-              <div className="flex items-center justify-between rounded-xl border border-cyan-500/30 bg-cyan-950/40 p-3">
+              <div className="flex items-center justify-between rounded-xl border border-white/[0.09] bg-cyan-950/40 p-3">
                 <span className="font-mono text-sm font-bold text-cyan-300 select-all">
                   http://192.168.178.73:3200/office
                 </span>
