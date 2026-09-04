@@ -879,7 +879,19 @@ export const GALAXY_SITES: {
  * and not yet measured. Flip it, press F, compare. Whichever way the number
  * moves settles it.
  */
-const SHOW_GALAXIES = true;
+/** ?nosky=1 removes the whole backdrop, to see what the room alone costs. */
+function skyEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  return !new URLSearchParams(window.location.search).has("nosky");
+}
+
+function galaxiesEnabled(): boolean {
+  // A constant would mean editing code to compare two states, which is no use
+  // to someone holding a phone. As a query parameter the comparison is two
+  // URLs: /office and /office?nogalaxy=1, press F on each, read the numbers.
+  if (typeof window === "undefined") return true;
+  return !new URLSearchParams(window.location.search).has("nogalaxy");
+}
 
 function Starfield({
   center,
@@ -899,7 +911,7 @@ function Starfield({
   return (
     <group ref={groupRef} position={center}>
       {/* 1. KOSMISCHE TIEFEN-NEBELKUPPEL (Raymarched Interstellar Glow) */}
-      <CosmicNebulaDome />
+      {skyEnabled() ? <CosmicNebulaDome /> : null}
 
       {/* 2. 64.000 ASTRONOMISCHE STERNE (100% GPU-Shader, 120 FPS, 1 Draw Call) */}
       {SHOW_INVENTED_STARS ? <CosmicStarfieldShader count={64000} /> : null}
@@ -919,7 +931,7 @@ function Starfield({
           actually working in is visibly larger; the theme stays fixed per slot
           because telling them apart at a glance is itself the function, and a
           colour that also carried urgency would carry neither well. */}
-      {(SHOW_GALAXIES ? GALAXY_SITES : []).map((site, index) => {
+      {(galaxiesEnabled() ? GALAXY_SITES : []).map((site, index) => {
         const project = projects[index];
         const weight = project
           ? 0.7 + Math.min(1, Math.log1p(project.open) / Math.log1p(14)) * 0.6
