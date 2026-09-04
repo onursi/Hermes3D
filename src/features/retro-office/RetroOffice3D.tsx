@@ -3388,6 +3388,48 @@ export function RetroOffice3D({
   const [hudCollapsed, setHudCollapsed] = useState(true);
 
   /**
+   * The HUD folds itself away when you stop touching it.
+   *
+   * The room is the thing worth looking at and the chrome is in front of it,
+   * permanently, whether or not it is being used. Twelve quiet seconds is the
+   * signal that you are watching rather than operating — so it steps back.
+   *
+   * Any input at all brings it straight back, including a mouse move, so it
+   * can never feel like something you have to go and find. That is the whole
+   * bargain: it may only take itself away if it returns without being asked.
+   *
+   * It also gives up on the idea entirely once you fold it by hand — pressing
+   * H or the button is a decision, and a timer that overrides a decision is
+   * a bug wearing a feature's clothes.
+   */
+  const hudManualRef = useRef(false);
+  useEffect(() => {
+    if (readOnly) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = () => {
+      if (timer) clearTimeout(timer);
+      if (hudManualRef.current) return;
+      timer = setTimeout(() => setHudCollapsed(true), 12000);
+    };
+    const wake = () => {
+      if (!hudManualRef.current) setHudCollapsed(false);
+      arm();
+    };
+    arm();
+    window.addEventListener("pointermove", wake, { passive: true });
+    window.addEventListener("pointerdown", wake, { passive: true });
+    window.addEventListener("keydown", wake);
+    window.addEventListener("wheel", wake, { passive: true });
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("pointermove", wake);
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      window.removeEventListener("wheel", wake);
+    };
+  }, [readOnly]);
+
+  /**
    * H hides the entire overlay.
    *
    * Folding panels one at a time is not the same thing as getting a clear
@@ -3401,6 +3443,9 @@ export function RetroOffice3D({
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isTypingTarget(event)) return;
       event.preventDefault();
+      // Folding it by hand ends the automatic behaviour: a timer that
+      // overrides a deliberate choice is a bug in a feature's clothes.
+      hudManualRef.current = true;
       setHudCollapsed((prev) => !prev);
     };
     window.addEventListener("keydown", onKey);
@@ -7682,6 +7727,9 @@ export function RetroOffice3D({
               type="button"
               onClick={() => {
                 cyberAudio.playBlip();
+                // Folding it by hand ends the automatic behaviour: a timer that
+                // overrides a deliberate choice is a bug in a feature's clothes.
+                hudManualRef.current = true;
                 setHudCollapsed((prev) => !prev);
               }}
               className="flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#091524]/90 text-cyan-300 border border-white/[0.09] hover:bg-cyan-950/80 hover:text-white backdrop-blur-sm transition-all text-[10px] font-mono shadow-md whitespace-nowrap shrink-0"
