@@ -1071,7 +1071,16 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
     if (document.visibilityState !== "visible") return;
     avgDeltaRef.current = avgDeltaRef.current * 0.92 + delta * 0.08;
     frameCounterRef.current += 1;
-    if (frameCounterRef.current < 45) return;
+    /**
+     * Counted in frames, but a frame is not a fixed amount of time — and on a
+     * struggling machine it is a very long one. Forty-five frames is under a
+     * second at 60 fps and four seconds at 11, so the regulator deliberated
+     * longest exactly where it was needed soonest. Roughly half a second,
+     * measured in seconds, regardless of how badly it is going.
+     */
+    if (frameCounterRef.current < Math.max(8, Math.round(0.5 / Math.max(avgDeltaRef.current, 1 / 240)))) {
+      return;
+    }
     frameCounterRef.current = 0;
 
     const maxDpr = Math.min(window.devicePixelRatio || 1, maxDprCap);
@@ -1082,12 +1091,40 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
     // existiert, und es kam nie wieder hoch: das Heraufsetzen verlangt 57 fps,
     // die ein Dev-Build selten erreicht, also bleibt es unten kleben. Lieber
     // ein Bild weniger pro Sekunde als ein dauerhaft weiches Bild.
-    const minDpr = Math.min(1, maxDpr);
+    /**
+     * The floor was a full display pixel, and that was decided without
+     * knowing what hardware this runs on.
+     *
+     * The reasoning at the time was sound in the abstract — below one pixel
+     * per pixel is exactly the sharpness the scene exists for. What it did
+     * not account for is a 34" ultrawide in front of an integrated Vega 11:
+     * five million pixels, each touched several times over by transparent
+     * surfaces. Measured there, the frame was 143 ms with only 18 ms of
+     * JavaScript in it. Halving the window halved the pixels and took a
+     * third off the frame — the signature of fill rate, and nothing a floor
+     * of 1.0 can answer.
+     *
+     * So the floor drops. Note what this does *not* do: it does not make the
+     * image softer on a machine that was coping. The regulator only descends
+     * while frames are running long, so a fast machine never leaves 1.0 and
+     * loses nothing. A slow one now has somewhere to go besides stuttering.
+     */
+    const minDpr = Math.min(0.7, maxDpr);
     let nextDpr = currentDprRef.current;
     if (avgDeltaRef.current > 1 / 42) {
-      // Gleich grosse Schritte in beide Richtungen: ein einzelnes Ruckeln
-      // soll nicht mehr Schaerfe kosten, als eine ruhige Sekunde zurueckgibt.
-      nextDpr = Math.max(minDpr, currentDprRef.current - 0.05);
+      /**
+       * Down in proportion to how bad it is, up one cautious step at a time.
+       *
+       * Equal steps in both directions read as fair, and were the wrong call.
+       * A room at 11 fps needs six descents to reach the floor and gets there
+       * long after the person watching has formed an opinion; a room at 40
+       * needs one. The asymmetry is deliberate in the other direction too: a
+       * single stutter should not cost more sharpness than a calm second
+       * gives back, so the climb stays slow.
+       */
+      const shortfall = avgDeltaRef.current / (1 / 42);
+      const step = shortfall > 2 ? 0.15 : shortfall > 1.4 ? 0.1 : 0.05;
+      nextDpr = Math.max(minDpr, currentDprRef.current - step);
     } else if (avgDeltaRef.current < 1 / 57) {
       nextDpr = Math.min(maxDpr, currentDprRef.current + 0.05);
     }
