@@ -291,6 +291,7 @@ import {
   type GraphicsQuality,
 } from "@/features/retro-office/core/graphicsQuality";
 import { SceneErrorBoundary } from "@/features/retro-office/systems/SceneErrorBoundary";
+import { FrameMeter } from "@/features/retro-office/systems/FrameMeter";
 import { PerfProbe } from "@/features/retro-office/systems/perfProbe";
 import { GhostMode } from "@/features/retro-office/systems/ghostMode";
 import type { CouncilMessage } from "@/features/office/components/CouncilChat";
@@ -3422,6 +3423,27 @@ export function RetroOffice3D({
    * than that, and the sky moving on its own would be noise.
    */
   /** Today's tally, from the same poll the orbits use. */
+  /**
+   * The frame meter, off by default and toggled with F.
+   *
+   * Off, because a permanent readout trains you to watch the number instead
+   * of the room. On demand, because "is this faster" deserves an answer and
+   * not an opinion — mine included.
+   */
+  const [showMeter, setShowMeter] = useState(false);
+  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "f" && event.key !== "F") return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event)) return;
+      event.preventDefault();
+      setShowMeter((prev) => !prev);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const [todayTally, setTodayTally] = useState({ due: 0, done: 0 });
   const [projectOrbits, setProjectOrbits] = useState<
     { name: string; open: number; overdue: number }[]
@@ -6948,6 +6970,7 @@ export function RetroOffice3D({
             {/* Ensure camera looks at the active office target after mount. */}
             <CameraRig target={cameraTarget} />
             <PerfProbe />
+            {showMeter ? <FrameMeter onSample={setMeter} /> : null}
             <GhostMode
               active={ghostActive}
               onExit={() => setGhostActive(false)}
@@ -7839,6 +7862,16 @@ export function RetroOffice3D({
               nicht null.
             </p>
           )}
+        </div>
+      ) : null}
+
+      {showMeter ? (
+        <div className={`absolute bottom-6 right-6 z-30 px-3 py-1.5 ${HUD_PILL}`}>
+          <span className={HUD_VALUE}>{meter.fps} fps</span>
+          <span className={`mx-2 ${HUD_DIVIDER} inline-block align-middle`} />
+          <span className={HUD_VALUE}>{meter.calls} Draws</span>
+          <span className={`mx-2 ${HUD_DIVIDER} inline-block align-middle`} />
+          <span className={HUD_VALUE}>{(meter.triangles / 1000).toFixed(0)}k Dreiecke</span>
         </div>
       ) : null}
 
