@@ -21,7 +21,7 @@ import {
 } from "@react-three/postprocessing";
 import type { DepthOfFieldEffect } from "postprocessing";
 import { ToneMappingMode } from "postprocessing";
-import { Suspense, useMemo, useRef, type MutableRefObject } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import type { GraphicsQualityConfig } from "@/features/retro-office/core/graphicsQuality";
 import { SIGNAL_TINT, type SystemSignal } from "@/features/retro-office/core/systemSignal";
@@ -879,18 +879,26 @@ export const GALAXY_SITES: {
  * and not yet measured. Flip it, press F, compare. Whichever way the number
  * moves settles it.
  */
-/** ?nosky=1 removes the whole backdrop, to see what the room alone costs. */
-function skyEnabled(): boolean {
-  if (typeof window === "undefined") return true;
-  return !new URLSearchParams(window.location.search).has("nosky");
-}
-
-function galaxiesEnabled(): boolean {
-  // A constant would mean editing code to compare two states, which is no use
-  // to someone holding a phone. As a query parameter the comparison is two
-  // URLs: /office and /office?nogalaxy=1, press F on each, read the numbers.
-  if (typeof window === "undefined") return true;
-  return !new URLSearchParams(window.location.search).has("nogalaxy");
+/**
+ * Which parts of the backdrop to draw, from the URL — read after mount.
+ *
+ * The first version read window.location.search during render. There is no
+ * window on the server, so it rendered "galaxies on" there and "galaxies off"
+ * on the client, and React aborts hydration on exactly that kind of mismatch.
+ * On the dev server that is a console error; on a production build it would
+ * have quietly invalidated the very measurement this exists to enable.
+ *
+ * That is the third time today the same mistake has cost something, so it is
+ * written down here rather than just fixed: anything the server cannot know
+ * belongs in an effect, never in render.
+ */
+function useBackdropFlags() {
+  const [flags, setFlags] = useState({ sky: true, galaxies: true });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setFlags({ sky: !params.has("nosky"), galaxies: !params.has("nogalaxy") });
+  }, []);
+  return flags;
 }
 
 function Starfield({
@@ -901,6 +909,7 @@ function Starfield({
   /** Named galaxies: one project per site, in order. */
   projects?: { name: string; open: number; overdue: number }[];
 }) {
+  const backdrop = useBackdropFlags();
   const groupRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
     if (groupRef.current) {
@@ -911,7 +920,7 @@ function Starfield({
   return (
     <group ref={groupRef} position={center}>
       {/* 1. KOSMISCHE TIEFEN-NEBELKUPPEL (Raymarched Interstellar Glow) */}
-      {skyEnabled() ? <CosmicNebulaDome /> : null}
+      {backdrop.sky ? <CosmicNebulaDome /> : null}
 
       {/* 2. 64.000 ASTRONOMISCHE STERNE (100% GPU-Shader, 120 FPS, 1 Draw Call) */}
       {SHOW_INVENTED_STARS ? <CosmicStarfieldShader count={64000} /> : null}
@@ -931,7 +940,7 @@ function Starfield({
           actually working in is visibly larger; the theme stays fixed per slot
           because telling them apart at a glance is itself the function, and a
           colour that also carried urgency would carry neither well. */}
-      {(galaxiesEnabled() ? GALAXY_SITES : []).map((site, index) => {
+      {(backdrop.galaxies ? GALAXY_SITES : []).map((site, index) => {
         const project = projects[index];
         const weight = project
           ? 0.7 + Math.min(1, Math.log1p(project.open) / Math.log1p(14)) * 0.6
