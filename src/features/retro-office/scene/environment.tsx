@@ -1348,14 +1348,29 @@ function PerimeterWall({
   length,
   axis,
   glass = false,
+  approvalsWaiting = 0,
   onSelectAgent,
 }: {
   center: [number, number];
   length: number;
   axis: "x" | "z";
   glass?: boolean;
+  /**
+   * How many decisions are waiting for Onur.
+   *
+   * The glass wall's neon rails ran a constant cyan, which is the definition
+   * of a light that says nothing. They are the most visible surface in the
+   * room — readable from any angle, unlike a HUD panel that faces one way —
+   * so they are where a waiting decision belongs.
+   */
+  approvalsWaiting?: number;
   onSelectAgent?: (agentId: string) => void;
 }) {
+  // Amber when something waits, and the same amber the rest of the room uses
+  // for exactly that. Cyan otherwise, which now means "nothing pending"
+  // rather than meaning nothing at all.
+  const waitingColour = approvalsWaiting > 0 ? "#fbbf24" : "#00f0ff";
+
   const thickness = 0.26;
   const wallHeight = 2.6;
   const capHeight = 0.05;
@@ -1390,7 +1405,7 @@ function PerimeterWall({
           {/* Bottom Cyan Ground Rail */}
           <mesh position={[0, 0.03, thickness / 2 + 0.005]}>
             <boxGeometry args={[length * 0.99, 0.015, 0.012]} />
-            <meshBasicMaterial color="#00f0ff" />
+            <meshBasicMaterial color={waitingColour} />
           </mesh>
           {/* Middle Purple LED Accent Rail under the panoramic window */}
           <mesh position={[0, sillHeight - 0.02, thickness / 2 + 0.005]}>
@@ -1431,11 +1446,11 @@ function PerimeterWall({
           {/* Glowing neon top & bottom frame rails */}
           <mesh position={[0, glassHeight / 2 - 0.02, 0]}>
             <boxGeometry args={dims(length * 0.98, 0.03, 0.03)} />
-            <meshBasicMaterial color="#00f0ff" />
+            <meshBasicMaterial color={waitingColour} />
           </mesh>
           <mesh position={[0, -glassHeight / 2 + 0.02, 0]}>
             <boxGeometry args={dims(length * 0.98, 0.03, 0.03)} />
-            <meshBasicMaterial color="#00f0ff" />
+            <meshBasicMaterial color={waitingColour} />
           </mesh>
         </group>
       ) : null}
@@ -1448,7 +1463,7 @@ function PerimeterWall({
       {/* Top Cyan Architectural Ceiling Line */}
       <mesh position={[0, wallHeight + 0.01, isNorthWall ? thickness / 2 + 0.01 : 0]}>
         <boxGeometry args={dims(length * 0.99, 0.015, 0.015)} />
-        <meshBasicMaterial color="#00f0ff" />
+        <meshBasicMaterial color={waitingColour} />
       </mesh>
     </group>
   );
@@ -1931,6 +1946,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   tableMeetingState,
   holoChandelierVisible = true,
   holoIntensity = "normal",
+  approvalsWaiting = 0,
   floorMode = "ambient",
   onStartMeeting,
   onTogglePause,
@@ -1951,6 +1967,8 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   holoChandelierVisible?: boolean;
   /** How loud the hologram core is: small and quiet, as authored, or full. */
   holoIntensity?: "dezent" | "normal" | "show";
+  /** Decisions waiting — the glass rails carry it, see PerimeterWall. */
+  approvalsWaiting?: number;
   floorMode?: FloorAnimationMode;
   onStartMeeting?: () => void;
   onTogglePause?: () => void;
@@ -2212,18 +2230,21 @@ export const FloorAndWalls = memo(function FloorAndWalls({
           so the default camera looks straight into the space instead of
           hitting a wall on every side. */}
       <PerimeterWall
+        approvalsWaiting={approvalsWaiting}
         center={[localOfficeCenterX, localNorthWallZ]}
         length={localOfficeWidth}
         axis="x"
       />
       {showRemoteOffice ? (
         <PerimeterWall
+          approvalsWaiting={approvalsWaiting}
           center={[localOfficeCenterX, localNorthWallZ + remoteOfficeOffsetZ]}
           length={localOfficeWidth}
           axis="x"
         />
       ) : null}
       <PerimeterWall
+        approvalsWaiting={approvalsWaiting}
         center={[localWestWallX, localOfficeCenterZ]}
         length={localOfficeHeight}
         axis="z"
@@ -2232,6 +2253,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
       />
       {showRemoteOffice ? (
         <PerimeterWall
+          approvalsWaiting={approvalsWaiting}
           center={[localWestWallX, localOfficeCenterZ + remoteOfficeOffsetZ]}
           length={localOfficeHeight}
           axis="z"

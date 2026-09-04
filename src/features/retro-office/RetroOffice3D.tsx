@@ -210,6 +210,7 @@ import {
   AgentModel as AgentObjectModel,
   activeLiftSuction,
 } from "@/features/retro-office/objects/agents";
+import { DayProgressRing } from "@/features/retro-office/scene/DayProgressRing";
 import { ProjectOrbits } from "@/features/retro-office/scene/ProjectOrbits";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
@@ -3417,6 +3418,8 @@ export function RetroOffice3D({
    * Five minutes between polls: a project's shape does not change faster
    * than that, and the sky moving on its own would be noise.
    */
+  /** Today's tally, from the same poll the orbits use. */
+  const [todayTally, setTodayTally] = useState({ due: 0, done: 0 });
   const [projectOrbits, setProjectOrbits] = useState<
     { name: string; open: number; overdue: number }[]
   >([]);
@@ -3430,6 +3433,14 @@ export function RetroOffice3D({
         if (cancelled || data.connected === false) return;
         const today = new Date().toISOString().slice(0, 10);
         const grouped = new Map<string, { open: number; overdue: number }>();
+        let dueToday = 0;
+        let doneToday = 0;
+        for (const task of data.tasks ?? []) {
+          if (task.dueDate !== today) continue;
+          dueToday += 1;
+          if (task.isCompleted) doneToday += 1;
+        }
+        setTodayTally({ due: dueToday, done: doneToday });
         for (const task of data.tasks ?? []) {
           if (task.isCompleted) continue;
           const name = task.projectName || "Ohne Projekt";
@@ -7019,6 +7030,14 @@ export function RetroOffice3D({
             <OrbitalFloatingStationGroup>
             {/* Projects in orbit above the room — see ProjectOrbits for why every
                 property is measured rather than chosen. */}
+            {/* Today under your feet — see DayProgressRing for why it hides when
+                nothing is due. */}
+            <DayProgressRing
+              dueToday={todayTally.due}
+              doneToday={todayTally.done}
+              position={[-11.7, 0.01, -16.2]}
+            />
+
             <ProjectOrbits
               projects={projectOrbits}
               // The office centre, the same point the deck and the lift share.
@@ -7034,6 +7053,7 @@ export function RetroOffice3D({
               showRemoteOffice={remoteOfficeEnabled}
               holoChandelierVisible={holoChandelierVisible}
               holoIntensity={holoIntensity}
+              approvalsWaiting={approvalsReachable ? approvals.length : 0}
               floorMode={floorMode}
               whiteboardText={whiteboardText}
               onWhiteboardClick={handleWhiteboardClick}
