@@ -8,7 +8,7 @@
 // dust motes, and the post-processing chain (ambient occlusion, bloom,
 // vignette, filmic tone mapping, SMAA, follow-cam depth of field).
 
-import { Billboard, Environment, useGLTF } from "@react-three/drei";
+import { Billboard, Environment, Text, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import {
   Bloom,
@@ -840,7 +840,39 @@ function SpaceXRocket({
  */
 const SHOW_INVENTED_STARS = false;
 
-function Starfield({ center }: { center: [number, number, number] }) {
+/**
+ * Where the five galaxies hang, as data rather than as five call sites.
+ *
+ * They were decoration in fixed places. Onur's reading is better: a galaxy
+ * is a project, and you travel to it. Naming the places makes them
+ * destinations a camera can be sent to, which is the difference between a
+ * backdrop and a map.
+ *
+ * Five slots and five Todoist projects is a coincidence worth using rather
+ * than engineering around; a sixth project simply does not get a galaxy, and
+ * that is better than shrinking all of them to fit.
+ */
+export const GALAXY_SITES: {
+  position: [number, number, number];
+  size: number;
+  theme: GalaxyColorTheme;
+  arms: number;
+}[] = [
+  { position: [-46, 12, 12], size: 38, theme: "cyan", arms: 2 },
+  { position: [0, 9, -26], size: 30, theme: "violet", arms: 3 },
+  { position: [-24, 18, -36], size: 28, theme: "gold", arms: 2 },
+  { position: [26, 7, 12], size: 30, theme: "rose", arms: 2 },
+  { position: [16, -5, 26], size: 26, theme: "emerald", arms: 3 },
+];
+
+function Starfield({
+  center,
+  projects = [],
+}: {
+  center: [number, number, number];
+  /** Named galaxies: one project per site, in order. */
+  projects?: { name: string; open: number; overdue: number }[];
+}) {
   const groupRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
     if (groupRef.current) {
@@ -867,20 +899,40 @@ function Starfield({ center }: { center: [number, number, number] }) {
       <SpaceXRocket startPos={[24, 9, -28]} direction={[-0.8, -0.06, 0.35]} speed={1.6} />
 
       {/* 4. FARBENFROHE, STERNENREICHE SPIRALGALAXIEN (Sauber räumlich gestaffelt) */}
-      {/* West Galaxy (Aqua Cyan Whirlpool) — weit im tiefen Hintergrund */}
-      <SpiralGalaxy position={[-46, 12, 12]} size={38} theme="cyan" arms={2} tilt={0.5} />
-
-      {/* North Galaxy (Andromeda Tiefviolett/Purpur) */}
-      <SpiralGalaxy position={[0, 9, -26]} size={30} theme="violet" arms={3} tilt={0.6} />
-
-      {/* North-West Galaxy (Goldener Supernova-Kern) */}
-      <SpiralGalaxy position={[-24, 18, -36]} size={28} theme="gold" arms={2} tilt={0.45} />
-
-      {/* East Galaxy (Cosmic Rose / Pinke Spirale) */}
-      <SpiralGalaxy position={[26, 7, 12]} size={30} theme="rose" arms={2} tilt={0.55} />
-
-      {/* South-East Galaxy (Smaragdgrüne Helix) */}
-      <SpiralGalaxy position={[16, -5, 26]} size={26} theme="emerald" arms={3} tilt={0.6} />
+      {/* Galaxies are projects. Size follows open tasks so a project you are
+          actually working in is visibly larger; the theme stays fixed per slot
+          because telling them apart at a glance is itself the function, and a
+          colour that also carried urgency would carry neither well. */}
+      {GALAXY_SITES.map((site, index) => {
+        const project = projects[index];
+        const weight = project
+          ? 0.7 + Math.min(1, Math.log1p(project.open) / Math.log1p(14)) * 0.6
+          : 1;
+        return (
+          <group key={site.theme}>
+            <SpiralGalaxy
+              position={site.position}
+              size={site.size * weight}
+              theme={site.theme}
+              arms={site.arms}
+            />
+            {project ? (
+              <Billboard position={[site.position[0], site.position[1] + site.size * 0.42, site.position[2]]}>
+                <Text
+                  fontSize={2.1}
+                  color={project.overdue > 0 ? "#fbbf24" : "#cbd5e1"}
+                  anchorX="center"
+                  anchorY="middle"
+                  outlineWidth={0.08}
+                  outlineColor="#000000"
+                >
+                  {`${project.name}  ·  ${project.open}`}
+                </Text>
+              </Billboard>
+            ) : null}
+          </group>
+        );
+      })}
 
       {/* 5. MESSERSCHARFE 8K STERNSCHNUPPEN & RELATIVISTISCHE PLASMASCHWEIFE */}
       <PinpointShootingStars count={5} />
@@ -984,10 +1036,13 @@ export function SceneAtmosphere({
   config,
   remoteOfficeEnabled = true,
   signal = "unbekannt",
+  projects = [],
 }: {
   config: GraphicsQualityConfig;
   remoteOfficeEnabled?: boolean;
   signal?: SystemSignal;
+  /** Todoist projects, one per galaxy site. See GALAXY_SITES. */
+  projects?: { name: string; open: number; overdue: number }[];
 }) {
   const sunRef = useRef<THREE.DirectionalLight | null>(null);
   const ambientRef = useRef<THREE.HemisphereLight | null>(null);
@@ -1021,7 +1076,7 @@ export function SceneAtmosphere({
     <>
       {/* Black-space void with an infinite twinkling starfield in 360 degrees — no fog culling */}
       <color attach="background" args={["#03040a"]} />
-      <Starfield center={[localCenterX, 0, localCenterZ]} />
+      <Starfield center={[localCenterX, 0, localCenterZ]} projects={projects} />
 
       {/* HDRI kept for image-based reflections — soft satin speculars */}
       <Suspense fallback={null}>

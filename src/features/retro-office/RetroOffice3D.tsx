@@ -210,6 +210,7 @@ import {
   AgentModel as AgentObjectModel,
   activeLiftSuction,
 } from "@/features/retro-office/objects/agents";
+import { GALAXY_SITES } from "@/features/retro-office/systems/atmosphere";
 import { CronComets } from "@/features/retro-office/scene/CronComets";
 import { DayProgressRing } from "@/features/retro-office/scene/DayProgressRing";
 import { VaultStars } from "@/features/retro-office/scene/VaultStars";
@@ -7019,6 +7020,7 @@ export function RetroOffice3D({
               config={graphicsQualityConfig}
               remoteOfficeEnabled={remoteOfficeEnabled}
               signal={systemSignal}
+              projects={projectOrbits}
             />
 
             {/* Post-processing: AO, bloom, vignette, filmic tone mapping. */}
@@ -7059,9 +7061,32 @@ export function RetroOffice3D({
               projects={projectOrbits}
               // The office centre, the same point the deck and the lift share.
   position={[-11.7, 7.5, -16.2]}
-              onSelect={() => {
-                cyberAudio.playChime();
-                setTodoistModalOpen(true);
+              onSelect={(projectName) => {
+                // Travel rather than open. The orbiting body is the project's beacon
+                // in the room; the galaxy is the project's place in space. Clicking
+                // the beacon takes you to the place — which is what makes the two
+                // representations one system instead of the same thing drawn twice.
+                const index = projectOrbits.findIndex((entry) => entry.name === projectName);
+                const site = index >= 0 ? GALAXY_SITES[index] : undefined;
+                if (!site) {
+                  // No galaxy for this project — more than five, or none matched. The
+                  // tasks are still the useful thing to show.
+                  cyberAudio.playChime();
+                  setTodoistModalOpen(true);
+                  return;
+                }
+                cyberAudio.playWhoosh();
+                cinematicTourRef.current = false;
+                setCinematicTourActive(false);
+                setFollowAgentId(null);
+                const [gx, gy, gz] = site.position;
+                cameraPresetRef.current = {
+                  // Stops short of the galaxy rather than inside it: a spiral seen from
+                  // its own centre is a smear.
+                  pos: [gx * 0.62, gy * 0.62 + 4, gz * 0.62],
+                  target: [gx, gy, gz],
+                  zoom: 42,
+                };
               }}
             />
 
