@@ -6776,6 +6776,7 @@ export function RetroOffice3D({
               screenTopic={meetingRoomTopic}
               onKanbanClick={handleWallKanbanClick}
               onCouncilScreenClick={handleWallDiagramClick}
+              workingAgentCount={agents.filter((a) => a.status === "working").length}
               tableMeetingState={{
                 isActive: tableMeetingActive,
                 isPaused: tableMeetingPaused,

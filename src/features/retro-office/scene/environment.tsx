@@ -612,7 +612,7 @@ function WallKanbanBoard({
  * waveform + scanline flicker), not a flat emissive color, so the mounted
  * screen reads as an actual digital display playing something instead of a
  * painted panel. */
-function useAnimatedScreenTexture() {
+function useAnimatedScreenTexture(workingCount: number) {
   const canvas = useMemo(() => {
     const element = document.createElement("canvas");
     element.width = 256;
@@ -637,15 +637,39 @@ function useAnimatedScreenTexture() {
   }, [canvas]);
 
   const lastUpdateRef = useRef(0);
+  const lastSampleRef = useRef(0);
+  /**
+   * One sample per second of how many agents were working, oldest first.
+   *
+   * This screen used to draw two out-of-phase sine waves. They looked exactly
+   * like a monitoring dashboard and reported nothing at all — the definition
+   * of a display that costs attention and returns none. The waveform is the
+   * same shape now; it just says something.
+   */
+  const historyRef = useRef<number[]>([]);
+
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
-    if (t - lastUpdateRef.current < 0.05) return;
+
+    if (t - lastSampleRef.current >= 1) {
+      lastSampleRef.current = t;
+      const history = historyRef.current;
+      history.push(workingCount);
+      // 64 samples across 256 px: about a minute of history at 4 px each.
+      if (history.length > 64) history.shift();
+    }
+
+    if (t - lastUpdateRef.current < 0.1) return;
     lastUpdateRef.current = t;
     const ctx = ctxRef.current;
     if (!ctx) return;
+
+    const history = historyRef.current;
+    const peak = Math.max(1, ...history);
+
     ctx.fillStyle = "#0a1820";
     ctx.fillRect(0, 0, 256, 144);
-    // Faint grid, like a monitoring dashboard.
+
     ctx.strokeStyle = "rgba(143, 212, 236, 0.12)";
     ctx.lineWidth = 1;
     for (let x = 0; x < 256; x += 32) {
@@ -654,32 +678,46 @@ function useAnimatedScreenTexture() {
       ctx.lineTo(x, 144);
       ctx.stroke();
     }
-    // Two scrolling waveforms, out of phase.
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#8fd4ec";
-    ctx.beginPath();
-    for (let x = 0; x <= 256; x += 4) {
-      const y = 50 + Math.sin(x * 0.045 + t * 2.2) * 16 + Math.sin(x * 0.11 - t * 1.3) * 6;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+
+    ctx.fillStyle = "rgba(143, 212, 236, 0.75)";
+    ctx.font = "bold 11px monospace";
+    ctx.fillText("AGENTEN AKTIV", 8, 16);
+    ctx.fillStyle = "#e6f7ff";
+    ctx.font = "bold 30px monospace";
+    ctx.fillText(String(workingCount), 8, 46);
+    ctx.fillStyle = "rgba(143, 212, 236, 0.45)";
+    ctx.font = "9px monospace";
+    ctx.fillText(`SPITZE ${peak} · LETZTE MINUTE`, 8, 60);
+
+    if (history.length < 2) {
+      // Honest empty state: a flat line here would read as "zero activity
+      // measured", which is a different claim from "not measured yet".
+      ctx.fillStyle = "rgba(143, 212, 236, 0.35)";
+      ctx.font = "10px monospace";
+      ctx.fillText("… sammelt Verlauf", 8, 110);
+    } else {
+      const stepX = 256 / 63;
+      const baseY = 132;
+      const spanY = 58;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#4fd6a8";
+      ctx.beginPath();
+      history.forEach((value, index) => {
+        const x = index * stepX;
+        const y = baseY - (value / peak) * spanY;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Fill under the curve so the shape reads at a glance from the far wall.
+      ctx.lineTo((history.length - 1) * stepX, baseY);
+      ctx.lineTo(0, baseY);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(79, 214, 168, 0.16)";
+      ctx.fill();
     }
-    ctx.stroke();
-    ctx.strokeStyle = "#4fd6a8";
-    ctx.beginPath();
-    for (let x = 0; x <= 256; x += 4) {
-      const y = 100 + Math.sin(x * 0.06 - t * 1.7) * 12 + Math.sin(x * 0.02 + t * 0.6) * 8;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    // A slow horizontal scanline sweep for a "live feed" flicker.
-    const scanY = ((t * 30) % 144 + 144) % 144;
-    const gradient = ctx.createLinearGradient(0, scanY - 10, 0, scanY + 10);
-    gradient.addColorStop(0, "rgba(143,212,236,0)");
-    gradient.addColorStop(0.5, "rgba(143,212,236,0.15)");
-    gradient.addColorStop(1, "rgba(143,212,236,0)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, scanY - 10, 256, 20);
+
     if (textureRef.current) textureRef.current.needsUpdate = true;
   });
 
@@ -1058,6 +1096,7 @@ function WallCouncilScreen({
   h = 1.05,
   topic,
   onClick,
+  workingCount = 0,
 }: {
   position: [number, number, number];
   rotY?: number;
@@ -1065,6 +1104,8 @@ function WallCouncilScreen({
   h?: number;
   topic: string | null;
   onClick?: () => void;
+  /** Live count driving the wall sparkline. */
+  workingCount?: number;
 }) {
   const [hovered, setHovered] = useState(false);
   const frameThickness = 0.045;
@@ -1074,7 +1115,7 @@ function WallCouncilScreen({
   const frameCenterZ = (backingZ + frameFrontZ) / 2;
   const innerW = w - frameThickness * 2;
   const innerH = h - frameThickness * 2;
-  const screenTexture = useAnimatedScreenTexture();
+  const screenTexture = useAnimatedScreenTexture(workingCount);
 
   return (
     <group
@@ -1826,6 +1867,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   screenTopic = null,
   onKanbanClick,
   onCouncilScreenClick,
+  workingAgentCount = 0,
   tableMeetingState,
   holoChandelierVisible = true,
   floorMode = "ambient",
@@ -1840,6 +1882,8 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   screenTopic?: string | null;
   onKanbanClick?: () => void;
   onCouncilScreenClick?: () => void;
+  /** How many agents are running, for the wall sparkline. */
+  workingAgentCount?: number;
   tableMeetingState?: TableMeetingState;
   holoChandelierVisible?: boolean;
   floorMode?: FloorAnimationMode;
@@ -2105,6 +2149,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
         position={[localOfficeCenterX, 1.5, localNorthWallZ + 0.13]}
         topic={screenTopic}
         onClick={onCouncilScreenClick}
+        workingCount={workingAgentCount}
       />
       <WallKanbanBoard
         position={[localOfficeCenterX + 140 * SCALE, 1.5, localNorthWallZ + 0.13]}
@@ -2129,6 +2174,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
             ]}
             topic={screenTopic}
             onClick={onCouncilScreenClick}
+            workingCount={workingAgentCount}
           />
           <WallKanbanBoard
             position={[
