@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { JarvisCore, type JarvisPhase } from "@/features/jarvis/JarvisCore";
 import { useVoice } from "@/features/jarvis/useVoice";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
+import { KNOWLEDGE_PULSE_EVENT } from "@/features/retro-office/scene/VaultStars";
 
 /**
  * Jarvis, in one place.
@@ -108,7 +109,26 @@ export function JarvisConsole({
         setPhase(JSON.parse((event as MessageEvent).data).phase as JarvisPhase);
       });
       source.addEventListener("sources", (event) => {
-        setSources(JSON.parse((event as MessageEvent).data).sources ?? []);
+        const found = JSON.parse((event as MessageEvent).data).sources ?? [];
+        setSources(found);
+        /**
+         * Tell the room which notes were actually read.
+         *
+         * The office turns each one into a pulse of light travelling from that
+         * note's own star down to the table, so an answer visibly comes from
+         * somewhere. Fired here and nowhere else: only a real retrieval sends
+         * it, so a quiet sky means nothing was read rather than that the
+         * effect is between loops. An animation that runs on a timer would say
+         * the same thing whether or not anything happened.
+         */
+        const ids = found
+          .map((hit: { id?: string }) => hit.id)
+          .filter((id: string | undefined): id is string => Boolean(id));
+        if (ids.length > 0) {
+          window.dispatchEvent(
+            new CustomEvent(KNOWLEDGE_PULSE_EVENT, { detail: { ids } }),
+          );
+        }
       });
       source.addEventListener("delta", (event) => {
         setAnswer((prev) => prev + JSON.parse((event as MessageEvent).data).text);

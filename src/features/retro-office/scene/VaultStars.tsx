@@ -80,6 +80,30 @@ const STAR_FRAGMENT = `
   }
 `;
 
+/**
+ * The event that makes a note visibly travel.
+ *
+ * Dispatched by the Jarvis console the moment retrieval returns, carrying the
+ * vault-relative paths it actually read. Same identifiers the graph uses for
+ * its nodes, so the sky can find them without a lookup table.
+ */
+export const KNOWLEDGE_PULSE_EVENT = "hermes_knowledge_pulse";
+
+/** How long a note takes to reach the room, in seconds. */
+const PULSE_FLIGHT = 2.1;
+
+/** Ceiling on simultaneous pulses. Jarvis returns six sources; eight is slack. */
+const MAX_PULSES = 8;
+
+/** Where a note is heading: the room, a little above the table. */
+const PULSE_TARGET = new THREE.Vector3(0, 1.2, 0);
+
+type Pulse = { from: THREE.Vector3; born: number };
+
+/** Reused every frame. Allocating a matrix per pulse per frame is litter. */
+const pulseScratch = new THREE.Matrix4();
+const pulsePoint = new THREE.Vector3();
+
 export function VaultStars({ position = [0, 0, 0] }: { position?: [number, number, number] }) {
   const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] } | null>(null);
   const orphanRef = useRef<THREE.Points>(null);
@@ -152,8 +176,64 @@ export function VaultStars({ position = [0, 0, 0] }: { position?: [number, numbe
     return { linked: linkedGeometry, orphans: orphanGeometry };
   }, [data]);
 
+  /**
+   * Where each note sits, by its vault path.
+   *
+   * Built from the same numbers as the stars themselves, so a pulse leaves
+   * exactly the point of light that stands for the note — not an approximation
+   * of it. If the two ever disagreed, the effect would be a lie about which
+   * note was read, which is worse than not showing it at all.
+   */
+  const positionsById = useMemo(() => {
+    const map = new Map<string, THREE.Vector3>();
+    if (!data) return map;
+    for (const node of data.nodes) {
+      map.set(
+        node.id,
+        new THREE.Vector3(
+          node.x * SKY_SCALE,
+          node.y * SKY_SCALE + SKY_LIFT,
+          node.z * SKY_SCALE,
+        ),
+      );
+    }
+    return map;
+  }, [data]);
+
   /** One uniform, shared by every star. Created once, not per frame. */
   const starUniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+
+  /**
+   * Notes in flight.
+   *
+   * Held in a ref rather than in state on purpose: a pulse changes sixty times
+   * a second, and putting that in state would re-render the whole star field
+   * on every frame of every flight — the exact class of mistake that cost this
+   * room its frame rate this morning.
+   */
+  const pulsesRef = useRef<Pulse[]>([]);
+  const pulseMeshRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    const onPulse = (event: Event) => {
+      const ids = (event as CustomEvent<{ ids?: string[] }>).detail?.ids;
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const now = performance.now() / 1000;
+      const next: Pulse[] = [];
+      ids.forEach((id, index) => {
+        const from = positionsById.get(id);
+        // A source the graph does not know simply does not fly. Inventing a
+        // launch point would put a note in the sky that is not there.
+        if (!from) return;
+        // Staggered, so six sources read as six answers arriving rather than
+        // as one burst.
+        next.push({ from, born: now + index * 0.16 });
+      });
+      pulsesRef.current = [...pulsesRef.current, ...next].slice(-MAX_PULSES);
+    };
+    window.addEventListener(KNOWLEDGE_PULSE_EVENT, onPulse);
+    return () => window.removeEventListener(KNOWLEDGE_PULSE_EVENT, onPulse);
+  }, [positionsById]);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
@@ -168,11 +248,52 @@ export function VaultStars({ position = [0, 0, 0] }: { position?: [number, numbe
     if (group) group.rotation.y = t * 0.0052;
 
     const orphanPoints = orphanRef.current;
-    if (!orphanPoints) return;
-    const material = orphanPoints.material as THREE.PointsMaterial;
-    // Irregular, not a blink: a loose end should read as unsettled rather than
-    // as an indicator lamp.
-    material.opacity = 0.35 + Math.abs(Math.sin(t * 1.7) * Math.sin(t * 0.63)) * 0.6;
+    if (orphanPoints) {
+      const material = orphanPoints.material as THREE.PointsMaterial;
+      // Irregular, not a blink: a loose end should read as unsettled rather
+      // than as an indicator lamp.
+      material.opacity = 0.35 + Math.abs(Math.sin(t * 1.7) * Math.sin(t * 0.63)) * 0.6;
+    }
+
+    // ---- Notes in flight -------------------------------------------------
+    const pulseMesh = pulseMeshRef.current;
+    if (!pulseMesh) return;
+
+    const now = performance.now() / 1000;
+    const live = pulsesRef.current.filter(
+      (pulse) => now - pulse.born < PULSE_FLIGHT && now >= pulse.born,
+    );
+    const pending = pulsesRef.current.filter((pulse) => now < pulse.born);
+    pulsesRef.current = [...pending, ...live];
+
+    // Nothing in flight costs nothing: the mesh is not drawn at all. This is
+    // the whole reason the effect is affordable on a machine with no headroom.
+    if (live.length === 0) {
+      pulseMesh.visible = false;
+      return;
+    }
+    pulseMesh.visible = true;
+
+    for (let index = 0; index < MAX_PULSES; index += 1) {
+      const pulse = live[index];
+      if (!pulse) {
+        // Scale to nothing rather than leave a stale instance behind.
+        pulseScratch.makeScale(0, 0, 0);
+        pulseMesh.setMatrixAt(index, pulseScratch);
+        continue;
+      }
+      const progress = (now - pulse.born) / PULSE_FLIGHT;
+      // Eased so it leaves the star unhurried and arrives quickly — a note
+      // being fetched, not a projectile.
+      const eased = progress * progress * (3 - 2 * progress);
+      pulsePoint.lerpVectors(pulse.from, PULSE_TARGET, eased);
+      // Swells on the way out, shrinks into the room as it lands.
+      const size = 0.35 + Math.sin(progress * Math.PI) * 0.55;
+      pulseScratch.makeScale(size, size, size);
+      pulseScratch.setPosition(pulsePoint);
+      pulseMesh.setMatrixAt(index, pulseScratch);
+    }
+    pulseMesh.instanceMatrix.needsUpdate = true;
   });
 
   if (!linked || !orphans) return null;
@@ -189,6 +310,24 @@ export function VaultStars({ position = [0, 0, 0] }: { position?: [number, numbe
           blending={THREE.AdditiveBlending}
         />
       </points>
+      {/* Notes on their way to the room. One instanced mesh, invisible until
+          Jarvis actually reads something. */}
+      <instancedMesh
+        ref={pulseMeshRef}
+        args={[undefined, undefined, MAX_PULSES]}
+        visible={false}
+        frustumCulled={false}
+      >
+        <sphereGeometry args={[0.5, 10, 8]} />
+        <meshBasicMaterial
+          color="#7dd3fc"
+          transparent
+          opacity={0.9}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </instancedMesh>
+
       <points ref={orphanRef} geometry={orphans}>
         <pointsMaterial
           size={0.8}
