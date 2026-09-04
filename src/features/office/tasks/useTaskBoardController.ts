@@ -1139,7 +1139,14 @@ export const useTaskBoardController = ({
           ...existing,
           ...patch,
           id: cardId,
-          title: (patch.title ?? existing.title).trim() || existing.title,
+          // Not trimmed. This value travels straight back into the controlled
+          // input the user is typing in, so trimming here deletes the space the
+          // moment it is typed: letters arrive, spaces never do. The guard that
+          // mattered was "do not let an empty title replace a real one", and that
+          // is what is kept.
+          title: (patch.title ?? existing.title).trim()
+            ? (patch.title ?? existing.title)
+            : existing.title,
           updatedAt: new Date().toISOString(),
           isInferred: false,
         });
