@@ -969,6 +969,9 @@ const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
   );
 });
 
+/** Waehrend der Tab versteckt ist: so grob wie erlaubt, es sieht ja niemand. */
+const HIDDEN_DPR = 0.6;
+
 function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number }) {
   const { gl, setDpr } = useThree();
   const currentDprRef = useRef(1.25);
@@ -981,8 +984,8 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
     setDpr(initialDpr);
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible") {
-        currentDprRef.current = 0.85;
-        setDpr(0.85);
+        currentDprRef.current = HIDDEN_DPR;
+        setDpr(HIDDEN_DPR);
         return;
       }
       const restoredDpr = Math.min(window.devicePixelRatio || 1, maxDprCap);
@@ -1003,10 +1006,19 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
     frameCounterRef.current = 0;
 
     const maxDpr = Math.min(window.devicePixelRatio || 1, maxDprCap);
-    const minDpr = 0.85;
+    // Native Aufloesung ist der Boden, nicht der Rettungsanker.
+    //
+    // Vorher durfte der Regler auf 0.85 fallen, also unter einen echten
+    // Bildschirmpixel. Das kostet genau die Schaerfe, wegen der die Szene
+    // existiert, und es kam nie wieder hoch: das Heraufsetzen verlangt 57 fps,
+    // die ein Dev-Build selten erreicht, also bleibt es unten kleben. Lieber
+    // ein Bild weniger pro Sekunde als ein dauerhaft weiches Bild.
+    const minDpr = Math.min(1, maxDpr);
     let nextDpr = currentDprRef.current;
     if (avgDeltaRef.current > 1 / 42) {
-      nextDpr = Math.max(minDpr, currentDprRef.current - 0.1);
+      // Gleich grosse Schritte in beide Richtungen: ein einzelnes Ruckeln
+      // soll nicht mehr Schaerfe kosten, als eine ruhige Sekunde zurueckgibt.
+      nextDpr = Math.max(minDpr, currentDprRef.current - 0.05);
     } else if (avgDeltaRef.current < 1 / 57) {
       nextDpr = Math.min(maxDpr, currentDprRef.current + 0.05);
     }
@@ -6677,7 +6689,7 @@ export function RetroOffice3D({
           <Canvas
             key={canvasResetKey}
             frameloop={isDocumentHidden ? "demand" : "always"}
-            dpr={[0.85, graphicsQualityConfig.maxDpr]}
+            dpr={[Math.min(1, graphicsQualityConfig.maxDpr), graphicsQualityConfig.maxDpr]}
             camera={{
               position: CAM_POS,
               fov: SCENE_CAMERA_FOV,
