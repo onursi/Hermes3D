@@ -27,7 +27,7 @@ import { useEffect, useRef } from "react";
 export function FrameMeter({
   onSample,
 }: {
-  onSample: (sample: { fps: number; calls: number; triangles: number; jsMs: number }) => void;
+  onSample: (sample: { fps: number; calls: number; triangles: number; jsMs: number; renderMs: number }) => void;
 }) {
   const gl = useThree((state) => state.gl);
   const frames = useRef(0);
@@ -35,6 +35,7 @@ export function FrameMeter({
   const calls = useRef(0);
   const triangles = useRef(0);
   const jsTotal = useRef(0);
+  const renderTotal = useRef(0);
 
   /**
    * The counters have to be read after the frame, not before it.
@@ -69,6 +70,31 @@ export function FrameMeter({
    * that number sits close to the frame time the CPU is the wall; if it is a
    * fraction of it, the rest is the GPU and the browser waiting on it.
    */
+  /**
+   * Of the JavaScript in a frame, how much is three.js drawing.
+   *
+   * "23 ms of JavaScript" is not yet an instruction. Inside gl.render sits
+   * matrix updates, frustum culling and the sorting of every transparent
+   * object in the room — costs that scale with how many objects exist, and
+   * that no amount of tuning the per-frame callbacks would touch. Outside it
+   * sits everything the scene's own code does each frame.
+   *
+   * The two have different fixes, so the meter separates them rather than
+   * inviting another confident guess.
+   */
+  useEffect(() => {
+    const originalRender = gl.render.bind(gl);
+    const patched = gl as unknown as { render: typeof gl.render };
+    patched.render = ((scene, camera) => {
+      const start = performance.now();
+      originalRender(scene, camera);
+      renderTotal.current += performance.now() - start;
+    }) as typeof gl.render;
+    return () => {
+      patched.render = originalRender;
+    };
+  }, [gl]);
+
   useEffect(() => {
     const native = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb: FrameRequestCallback) =>
@@ -95,10 +121,12 @@ export function FrameMeter({
       calls: calls.current,
       triangles: triangles.current,
       jsMs: Math.round((jsTotal.current / frames.current) * 10) / 10,
+      renderMs: Math.round((renderTotal.current / frames.current) * 10) / 10,
     });
     frames.current = 0;
     elapsed.current = 0;
     jsTotal.current = 0;
+    renderTotal.current = 0;
   });
 
   return null;

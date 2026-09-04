@@ -3535,7 +3535,7 @@ export function RetroOffice3D({
   }, [focusMode]);
 
   const [showMeter, setShowMeter] = useState(false);
-  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, jsMs: 0 });
+  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, jsMs: 0, renderMs: 0 });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "f" && event.key !== "F") return;
@@ -8048,7 +8048,7 @@ export function RetroOffice3D({
           {/* Of the whole frame, how much was JavaScript. This is the number
               that says whether to cut objects or cut pixels. */}
           <span className={HUD_VALUE}>
-            {meter.jsMs} ms JS
+            {meter.jsMs} ms JS ({meter.renderMs} render)
             {meter.fps > 0 ? ` / ${Math.round(1000 / meter.fps)} ms Frame` : ""}
           </span>
         </div>
