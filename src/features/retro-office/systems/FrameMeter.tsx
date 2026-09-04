@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * What the room actually costs, per frame.
@@ -32,16 +32,39 @@ export function FrameMeter({
   const gl = useThree((state) => state.gl);
   const frames = useRef(0);
   const elapsed = useRef(0);
+  const calls = useRef(0);
+  const triangles = useRef(0);
+
+  /**
+   * The counters have to be read after the frame, not before it.
+   *
+   * useFrame runs ahead of the render, and three.js clears gl.info at the
+   * start of each one, so reading there reports the state before anything was
+   * drawn — which is how this first shipped saying "1 Draws, 0k Dreiecke" for
+   * a scene with a planet, a galaxy and four robots in it.
+   *
+   * With autoReset off the counters accumulate instead, so each frame reads
+   * what the *previous* one cost and then clears it by hand.
+   */
+  useEffect(() => {
+    gl.info.autoReset = false;
+    return () => {
+      gl.info.autoReset = true;
+    };
+  }, [gl]);
 
   useFrame((_, delta) => {
     frames.current += 1;
     elapsed.current += delta;
-    if (elapsed.current < 0.5) return;
+    calls.current = gl.info.render.calls;
+    triangles.current = gl.info.render.triangles;
+    gl.info.reset();
 
+    if (elapsed.current < 0.5) return;
     onSample({
       fps: Math.round(frames.current / elapsed.current),
-      calls: gl.info.render.calls,
-      triangles: gl.info.render.triangles,
+      calls: calls.current,
+      triangles: triangles.current,
     });
     frames.current = 0;
     elapsed.current = 0;

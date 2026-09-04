@@ -865,6 +865,22 @@ export const GALAXY_SITES: {
   { position: [16, -5, 26], size: 26, theme: "emerald", arms: 3 },
 ];
 
+/**
+ * Whether the five galaxy shaders are drawn.
+ *
+ * Each galaxy is a large additively blended quad whose fragment shader runs
+ * nine noise lookups per pixel. Additive means no early depth rejection, so
+ * where two overlap the work happens twice, and where all five do it happens
+ * five times — over most of the screen. That is the shape of a fill-rate
+ * problem, and it is the leading suspect for the seven frames per second
+ * Onur measured.
+ *
+ * Exposed as a switch rather than removed, because the suspicion is reasoned
+ * and not yet measured. Flip it, press F, compare. Whichever way the number
+ * moves settles it.
+ */
+const SHOW_GALAXIES = true;
+
 function Starfield({
   center,
   projects = [],
@@ -903,7 +919,7 @@ function Starfield({
           actually working in is visibly larger; the theme stays fixed per slot
           because telling them apart at a glance is itself the function, and a
           colour that also carried urgency would carry neither well. */}
-      {GALAXY_SITES.map((site, index) => {
+      {(SHOW_GALAXIES ? GALAXY_SITES : []).map((site, index) => {
         const project = projects[index];
         const weight = project
           ? 0.7 + Math.min(1, Math.log1p(project.open) / Math.log1p(14)) * 0.6
