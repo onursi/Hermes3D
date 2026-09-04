@@ -3,7 +3,7 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { CornerDownLeft, Loader2 } from "lucide-react";
+import { BookmarkPlus, CornerDownLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -44,6 +44,9 @@ export default function JarvisPage() {
   const [phase, setPhase] = useState<JarvisPhase>("idle");
   const [flyToNode, setFlyToNode] = useState<GraphNode | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Where a remembered answer landed, so the panel can say so and stop. */
+  const [savedAs, setSavedAs] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const controlsRef = useRef<never>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
@@ -68,6 +71,7 @@ export default function JarvisPage() {
     setAnswer("");
     setSources([]);
     setReason(null);
+    setSavedAs(null);
     setPhase("searching");
 
     const source = new EventSource(`/api/jarvis/stream?q=${encodeURIComponent(text)}`);
@@ -120,6 +124,34 @@ export default function JarvisPage() {
       answerRef.current.scrollTop = 0;
     }
   }, [answer, phase]);
+
+  /**
+   * Keep this answer as a note in the vault.
+   *
+   * Asking only reads. Without a way back in, everything worked out in a
+   * conversation is gone when the tab closes, and the second brain quietly
+   * falls behind what you actually know. The note lands in the Inbox with
+   * the question and the sources it was built from, so it can be checked
+   * later rather than trusted now.
+   */
+  const remember = useCallback(async () => {
+    if (!answer || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/jarvis/remember", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: answer, question, sources }),
+      });
+      const data = await res.json();
+      setSavedAs(data.ok ? data.file : null);
+      if (!data.ok) setReason(data.reason ?? "Konnte nicht gespeichert werden.");
+    } catch (error) {
+      setReason(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }, [answer, question, sources, saving]);
 
   const flyTo = useCallback(
     (sourceId: string) => {
@@ -216,6 +248,26 @@ export default function JarvisPage() {
 
           {reason ? (
             <p className="text-[12px] leading-relaxed text-amber-200/80">{reason}</p>
+          ) : null}
+
+          {answer && phase === "idle" ? (
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void remember()}
+                disabled={saving || Boolean(savedAs)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.09] bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/60 transition hover:border-white/20 hover:text-white/90 disabled:opacity-40"
+                title="Legt diese Antwort mit Frage und Quellen als Notiz in der Inbox ab"
+              >
+                <BookmarkPlus size={11} />
+                <span>{savedAs ? "gemerkt" : saving ? "speichert…" : "Merken"}</span>
+              </button>
+              {savedAs ? (
+                <span className="truncate text-[10px] text-white/35" title={savedAs}>
+                  {savedAs}
+                </span>
+              ) : null}
+            </div>
           ) : null}
 
           {sources.length > 0 ? (
