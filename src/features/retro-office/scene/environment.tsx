@@ -1977,14 +1977,49 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   const pathGrass = useMemo(() => withRepeat(getGrassTextures(), 14, 2), []);
   const pathConcrete = useMemo(() => withRepeat(getConcreteTextures(), 8, 1), []);
 
+  /**
+   * The deck, with the lift shaft actually cut out of it.
+   *
+   * It was a solid box spanning the whole office, and the gravity tube stands
+   * at exactly its centre — toWorld(250, 200) is (-11.70, -16.20), and so is
+   * the tube. So an agent riding down went behind the floor rather than
+   * through it, and the lift looked broken while working perfectly. Onur
+   * asked whether the slab needed a hole; it did.
+   *
+   * Extruded from a shape with a circular hole rather than assembled from
+   * four slabs around a square gap, because the tube is round and a square
+   * hatch around a round shaft reads as a mistake.
+   */
+  const deckGeometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-localOfficeWidth / 2, -localOfficeHeight / 2);
+    shape.lineTo(localOfficeWidth / 2, -localOfficeHeight / 2);
+    shape.lineTo(localOfficeWidth / 2, localOfficeHeight / 2);
+    shape.lineTo(-localOfficeWidth / 2, localOfficeHeight / 2);
+    shape.closePath();
+    const shaft = new THREE.Path();
+    // A little wider than the 0.92 tube, so the rim reads as clearance
+    // rather than as the floor gripping the glass.
+    shaft.absarc(0, 0, 1.02, 0, Math.PI * 2, true);
+    shape.holes.push(shaft);
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: FLOOR_SLAB_THICKNESS,
+      bevelEnabled: false,
+    });
+    // Extrusion grows along +Z; the deck is horizontal, so lay it flat once
+    // here instead of rotating the mesh and fighting its position.
+    geometry.rotateX(-Math.PI / 2);
+    return geometry;
+  }, [localOfficeWidth, localOfficeHeight]);
+
   return (
     <group>
       {/* Sci-Fi Space Shuttle / Orbital Station Bridge Deck Slab */}
       <mesh
-        position={[localOfficeCenterX, -FLOOR_SLAB_THICKNESS / 2, localOfficeCenterZ]}
+        position={[localOfficeCenterX, -FLOOR_SLAB_THICKNESS, localOfficeCenterZ]}
+        geometry={deckGeometry}
         receiveShadow
       >
-        <boxGeometry args={[localOfficeWidth, FLOOR_SLAB_THICKNESS, localOfficeHeight]} />
         <meshStandardMaterial
           map={shuttleDeckTextures.map}
           roughnessMap={shuttleDeckTextures.roughnessMap}
