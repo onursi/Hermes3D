@@ -24,6 +24,7 @@ import {
   Globe,
   Satellite,
   ClipboardList,
+  Crosshair,
   Tornado,
 } from "lucide-react";
 
@@ -3430,6 +3431,59 @@ export function RetroOffice3D({
    * of the room. On demand, because "is this faster" deserves an answer and
    * not an opinion — mine included.
    */
+  /**
+   * Focus: one task, a timer, and a room that stops competing with them.
+   *
+   * Everything else built today was about seeing more. This is the opposite,
+   * and it needs to be, because a system that only ever adds signal ends up
+   * as noise with good intentions.
+   *
+   * Entering folds the HUD, dims the hologram core and quiets the floor. It
+   * restores all three on the way out, including whatever they were before —
+   * a mode that leaves your settings changed has taken something from you.
+   */
+  const [focusMode, setFocusMode] = useState(false);
+  const [focusSeconds, setFocusSeconds] = useState(25 * 60);
+  const focusRestoreRef = useRef<{
+    hud: boolean;
+    holo: "dezent" | "normal" | "show";
+    floor: FloorAnimationMode;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!focusMode) return;
+    focusRestoreRef.current = {
+      hud: hudCollapsed,
+      holo: holoIntensity,
+      floor: floorMode,
+    };
+    setHudCollapsed(true);
+    hudManualRef.current = true;
+    setHoloIntensity("dezent");
+    setFloorMode("zen");
+    setFocusSeconds(25 * 60);
+    return () => {
+      const previous = focusRestoreRef.current;
+      if (!previous) return;
+      setHudCollapsed(previous.hud);
+      setHoloIntensity(previous.holo);
+      setFloorMode(previous.floor);
+      hudManualRef.current = false;
+      focusRestoreRef.current = null;
+    };
+    // Captured once on entry on purpose: reacting to later changes would
+    // mean focus mode fighting the settings it just made.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode]);
+
+  useEffect(() => {
+    if (!focusMode) return;
+    const timer = setInterval(() => {
+      setFocusSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [focusMode]);
+
   const [showMeter, setShowMeter] = useState(false);
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
   useEffect(() => {
@@ -3445,6 +3499,14 @@ export function RetroOffice3D({
   }, []);
 
   const [todayTally, setTodayTally] = useState({ due: 0, done: 0 });
+  /**
+   * The single most pressing task, for the focus mode.
+   *
+   * Overdue beats due-today, and within each the higher Todoist priority
+   * wins. Deliberately one, not three: a focus mode that offers a choice has
+   * not focused anything.
+   */
+  const [topTask, setTopTask] = useState<{ content: string; project: string } | null>(null);
   const [projectOrbits, setProjectOrbits] = useState<
     { name: string; open: number; overdue: number }[]
   >([]);
@@ -3466,6 +3528,34 @@ export function RetroOffice3D({
           if (task.isCompleted) doneToday += 1;
         }
         setTodayTally({ due: dueToday, done: doneToday });
+        type PollTask = {
+          content: string;
+          isCompleted?: boolean;
+          dueDate?: string | null;
+          priority?: number;
+          projectName?: string | null;
+        };
+        const openTasks: PollTask[] = (data.tasks ?? []).filter(
+          (task: PollTask) => !task.isCompleted,
+        );
+        const ranked = openTasks
+          .map((task) => ({
+            task,
+            overdue: Boolean(task.dueDate && task.dueDate < today),
+            dueToday: task.dueDate === today,
+          }))
+          .filter((entry) => entry.overdue || entry.dueToday)
+          .sort((first, second) => {
+            // Overdue first, then Todoist's own priority. One ordering, stated
+            // once, so the focus mode and the briefing cannot disagree.
+            if (first.overdue !== second.overdue) return first.overdue ? -1 : 1;
+            return (second.task.priority ?? 1) - (first.task.priority ?? 1);
+          });
+        setTopTask(
+          ranked[0]
+            ? { content: ranked[0].task.content, project: ranked[0].task.projectName ?? "" }
+            : null,
+        );
         for (const task of data.tasks ?? []) {
           if (task.isCompleted) continue;
           const name = task.projectName || "Ohne Projekt";
@@ -7865,6 +7955,38 @@ export function RetroOffice3D({
         </div>
       ) : null}
 
+      {focusMode ? (
+        <div className="pointer-events-none absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-[#05070a]/72 backdrop-blur-sm">
+          <span className="text-[11px] font-medium tracking-[0.18em] text-white/35">JETZT</span>
+          {topTask ? (
+            <>
+              <p className="max-w-2xl px-8 text-center text-2xl font-semibold leading-snug text-white/95">
+                {topTask.content}
+              </p>
+              {topTask.project ? (
+                <span className="text-[12px] text-white/40">{topTask.project}</span>
+              ) : null}
+            </>
+          ) : (
+            <p className="max-w-xl px-8 text-center text-lg leading-relaxed text-white/60">
+              Nichts ist überfällig und nichts ist für heute fällig. Das ist kein
+              leerer Bildschirm, das ist ein freier Tag.
+            </p>
+          )}
+          <span className="font-mono text-5xl tabular-nums text-white/80">
+            {String(Math.floor(focusSeconds / 60)).padStart(2, "0")}:
+            {String(focusSeconds % 60).padStart(2, "0")}
+          </span>
+          <button
+            type="button"
+            onClick={() => setFocusMode(false)}
+            className="pointer-events-auto rounded-full border border-white/[0.12] bg-white/[0.06] px-4 py-1.5 text-[12px] font-medium text-white/70 hover:text-white"
+          >
+            Fokus beenden
+          </button>
+        </div>
+      ) : null}
+
       {showMeter ? (
         <div className={`absolute bottom-6 right-6 z-30 px-3 py-1.5 ${HUD_PILL}`}>
           <span className={HUD_VALUE}>{meter.fps} fps</span>
@@ -8475,6 +8597,15 @@ export function RetroOffice3D({
                 <span className="text-[11px] font-medium tracking-[-0.005em] text-white/55">
                   {holoChandelierVisible ? "Holo-Licht: An" : "Screens frei (Licht Aus)"}
                 </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFocusMode(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 hover:border-white/20"
+                title="Eine Aufgabe, ein Timer, ein Raum der still hält"
+              >
+                <Crosshair size={12} />
+                <span className="text-[11px] font-medium tracking-[-0.005em] text-white/55">Fokus</span>
               </button>
               {holoChandelierVisible ? (
                 <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.04] p-1">
