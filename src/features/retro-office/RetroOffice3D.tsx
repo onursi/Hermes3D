@@ -296,6 +296,7 @@ import {
   HUD_BUTTON,
   HUD_BUTTON_ACTIVE,
   HUD_DIVIDER,
+  HUD_PANEL,
   HUD_LABEL,
   HUD_PILL,
   HUD_VALUE,
@@ -1088,6 +1089,7 @@ function useAgentTick(
 ) {
   const renderAgentsRef = useRef<RenderAgent[]>([]);
   const renderAgentLookupRef = useRef<Map<string, RenderAgent>>(new Map());
+
   const deskByAgentRef = useRef<Map<string, number>>(new Map());
   const gymByAgentRef = useRef<Map<string, number>>(new Map());
   const qaByAgentRef = useRef<Map<string, number>>(new Map());
@@ -3384,6 +3386,18 @@ export function RetroOffice3D({
   const [activeKanbanUid, setActiveKanbanUid] = useState<string | null>(null);
   const [wallKanbanOpen, setWallKanbanOpen] = useState(false);
   const [wallDiagramOpen, setWallDiagramOpen] = useState(false);
+  /**
+   * The agent you clicked, and therefore the one the panel is about.
+   *
+   * Clicking a robot already played a gesture, which is charming and tells
+   * you nothing. The room has four agents doing real work and no way to ask
+   * one of them what it is doing.
+   */
+  const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null);
+  const focusedAgent = focusedAgentId
+    ? (agents.find((candidate) => candidate.id === focusedAgentId) ?? null)
+    : null;
+
   const [holoChandelierVisible, setHoloChandelierVisible] = useState(true);
 
   /**
@@ -4397,6 +4411,7 @@ export function RetroOffice3D({
   const handleAgentClick = useCallback(
     (agentId: string) => {
       cyberAudio.playChime();
+      setFocusedAgentId((prev) => (prev === agentId ? null : agentId));
       const agent =
         renderAgentLookupRef.current.get(agentId) ||
         Array.from(renderAgentLookupRef.current.values()).find(
@@ -7606,6 +7621,70 @@ export function RetroOffice3D({
           {/* No gateway chip here: the top-right already carries
               "HERMES • VERBUNDEN", and saying the same thing twice in one
               overlay is how a HUD turns into clutter. */}
+        </div>
+      ) : null}
+
+      {/*
+        What the clicked agent is actually doing.
+      
+        Four fields, and only four, because those are the four this app really
+        knows: name, role, state, and where it is working. Model, runtime and
+        last step are not on this type — a panel that showed them would be
+        making them up, which is the one thing this room is not allowed to do.
+      */}
+      {focusedAgent && !immersiveOverlayActive ? (
+        <div className={`absolute right-6 top-[92px] z-30 w-64 rounded-2xl p-3 ${HUD_PANEL}`}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate text-[13px] font-semibold text-white/90">
+                {focusedAgent.name}
+              </div>
+              {"subtitle" in focusedAgent && focusedAgent.subtitle ? (
+                <div className="truncate text-[11px] text-white/45">{focusedAgent.subtitle}</div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setFocusedAgentId(null)}
+              className="shrink-0 text-white/35 hover:text-white/80"
+              title="Schließen"
+            >
+              <X size={13} />
+            </button>
+          </div>
+      
+          <div className="mt-3 flex items-center gap-2">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{
+                backgroundColor:
+                  focusedAgent.status === "error"
+                    ? "#f43f5e"
+                    : focusedAgent.status === "working"
+                      ? "#4ade80"
+                      : "#64748b",
+              }}
+            />
+            <span className={HUD_LABEL}>
+              {focusedAgent.status === "error"
+                ? "gestört"
+                : focusedAgent.status === "working"
+                  ? "arbeitet"
+                  : "wartet"}
+            </span>
+          </div>
+      
+      
+          <button
+            type="button"
+            onClick={() =>
+              setFollowAgentId((prev) => (prev === focusedAgent.id ? null : focusedAgent.id))
+            }
+            className={`mt-3 w-full ${HUD_BUTTON} justify-center`}
+            title="Die Kamera bleibt an diesem Agenten"
+          >
+            {followAgentId === focusedAgent.id ? "Folgen beenden" : "Kamera folgt"}
+          </button>
         </div>
       ) : null}
 
