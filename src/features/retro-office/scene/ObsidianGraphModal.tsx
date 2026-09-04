@@ -290,6 +290,7 @@ export function ObsidianGraphModal({
               flyToNode={flyToNode}
               flyToLobe={flyToLobe}
               showOrphans={showOrphans}
+              focusShiftX={jarvisOpen ? 1.6 : 0}
               controlsRef={graphControlsRef}
             />
 

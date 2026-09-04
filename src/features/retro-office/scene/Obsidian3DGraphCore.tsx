@@ -73,6 +73,7 @@ export function Obsidian3DGraphCore({
   flyToNode = null,
   flyToLobe = null,
   showOrphans = false,
+  focusShiftX = 0,
   controlsRef,
 }: {
   data: ObsidianGraphData;
@@ -84,6 +85,15 @@ export function Obsidian3DGraphCore({
   flyToLobe?: string | null;
   /** Paint the notes nothing links to, so the loose ends become findable. */
   showOrphans?: boolean;
+  /**
+   * Slide the flown-to node sideways in the frame, in world units.
+   *
+   * A panel covering the right of the screen means the centre of the canvas
+   * is not the centre of what you can see. Shifting camera and target by the
+   * same amount leaves the viewing direction alone and moves the subject out
+   * from behind the panel — which is the whole point of flying to it.
+   */
+  focusShiftX?: number;
   /** The scene's OrbitControls, so a camera fly can borrow the camera. */
   controlsRef?: { current: { enabled: boolean; target: THREE.Vector3; update: () => void } | null };
 }) {
@@ -380,11 +390,17 @@ export function Obsidian3DGraphCore({
   useEffect(() => {
     if (flyToNode) {
       targetCamPos.current = new THREE.Vector3(
-        flyToNode.x + (flyToNode.x > 0 ? 1.5 : -1.5), flyToNode.y + 0.6, flyToNode.z + 3.8
+        flyToNode.x + (flyToNode.x > 0 ? 1.5 : -1.5) + focusShiftX,
+        flyToNode.y + 0.6,
+        flyToNode.z + 3.8,
       );
-      targetCamLook.current = new THREE.Vector3(flyToNode.x, flyToNode.y, flyToNode.z);
+      targetCamLook.current = new THREE.Vector3(
+        flyToNode.x + focusShiftX,
+        flyToNode.y,
+        flyToNode.z,
+      );
     }
-  }, [flyToNode]);
+  }, [flyToNode, focusShiftX]);
 
   // Auto-fly camera to lobe when filter changes
   useEffect(() => {
