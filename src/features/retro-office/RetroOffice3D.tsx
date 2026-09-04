@@ -62,6 +62,10 @@ import { WhiteboardModal } from "@/features/office/screens/WhiteboardModal";
 import { CyberJukebox } from "@/features/office/components/CyberJukebox";
 import { TeamDispatchBar } from "@/features/office/components/TeamDispatchBar";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
+import {
+  ProjectDashboard,
+  type VaultProjectSummary,
+} from "@/features/retro-office/scene/ProjectDashboard";
 import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
 import type { AgentState } from "@/features/agents/state/store";
 import type { CronJobSummary } from "@/lib/cron/types";
@@ -3595,6 +3599,52 @@ export function RetroOffice3D({
    * not focused anything.
    */
   const [topTask, setTopTask] = useState<{ content: string; project: string } | null>(null);
+  /**
+   * The projects the galaxies stand for, read from the vault.
+   *
+   * Onur: "die Galaxien sind eigentlich Projekte, zu denen ich reise". They
+   * used to be Todoist projects, where a project is a name and a task count.
+   * His real projects are folders of notes in `05 🚀 Projekte` — that is the
+   * thing worth travelling to, because there is something to read when you
+   * arrive.
+   *
+   * Fetched once. Notes change when he writes one, not on a timer, and
+   * polling the disk to watch a number that moves a few times a day is how a
+   * room ends up busy doing nothing.
+   */
+  const [vaultProjects, setVaultProjects] = useState<VaultProjectSummary[]>([]);
+  const [openProjectFolder, setOpenProjectFolder] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (readOnly) return;
+    let cancelled = false;
+    fetch("/api/vault/projects")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data?.reachable) return;
+        setVaultProjects(data.projects ?? []);
+      })
+      .catch(() => {
+        // An unreachable vault leaves the galaxies unlabelled, which reads as
+        // "not known" rather than as a project list that happens to be wrong.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [readOnly]);
+
+  const openProject = useMemo(
+    () => vaultProjects.find((project) => project.folder === openProjectFolder) ?? null,
+    [vaultProjects, openProjectFolder],
+  );
+
+  const handleSelectProjectGalaxy = useCallback((folder: string) => {
+    // The arrival sound. Travelling somewhere should be audible, and this is
+    // the same chime the room already uses for "you opened something".
+    cyberAudio.playChime();
+    setOpenProjectFolder(folder);
+  }, []);
+
   const [projectOrbits, setProjectOrbits] = useState<
     { name: string; open: number; overdue: number }[]
   >([]);
@@ -7222,7 +7272,8 @@ export function RetroOffice3D({
               config={graphicsQualityConfig}
               remoteOfficeEnabled={remoteOfficeEnabled}
               signal={systemSignal}
-              projects={projectOrbits}
+              projects={vaultProjects}
+              onSelectProject={handleSelectProjectGalaxy}
             />
 
             {/* Post-processing: AO, bloom, vignette, filmic tone mapping. */}
@@ -8074,6 +8125,10 @@ export function RetroOffice3D({
             Fokus beenden
           </button>
         </div>
+      ) : null}
+
+      {openProject ? (
+        <ProjectDashboard project={openProject} onClose={() => setOpenProjectFolder(null)} />
       ) : null}
 
       {showMeter ? (

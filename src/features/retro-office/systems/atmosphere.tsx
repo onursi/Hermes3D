@@ -866,6 +866,150 @@ export const GALAXY_SITES: {
 ];
 
 /**
+ * A project, as the sky needs to know it. Mirrors /api/vault/projects.
+ */
+export type GalaxyProject = {
+  name: string;
+  folder: string;
+  noteCount: number;
+  lastTouched: string | null;
+};
+
+/** Beyond this many days untouched, a project is as dim as it gets. */
+const DORMANT_AFTER_DAYS = 45;
+
+const daysSince = (iso: string | null): number => {
+  if (!iso) return DORMANT_AFTER_DAYS;
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return DORMANT_AFTER_DAYS;
+  return Math.max(0, (Date.now() - then) / 86_400_000);
+};
+
+/**
+ * One galaxy, standing for one project you can travel to.
+ *
+ * Onur's words: "die Galaxien sind eigentlich Projekte, zu denen ich reise".
+ * Two properties carry meaning and both are read off disk:
+ *
+ *   size       how much is written. Hermes Agent OS has fifteen notes and
+ *              Content has one, on a log scale so the big one does not
+ *              swallow the sky.
+ *   brightness when you last touched it. What you worked on today burns; a
+ *              project untouched for six weeks fades towards the background
+ *              without ever disappearing, because a project you have not
+ *              opened in a while has not stopped existing.
+ *
+ * Colour stays fixed per slot. Telling five galaxies apart at a glance is
+ * itself the function, and a hue that also carried freshness would carry
+ * neither well.
+ *
+ * The click target is an invisible sphere rather than the galaxy quad: the
+ * quad is a flat billboard whose visible shape is painted by a shader, so
+ * its actual geometry is a rectangle of mostly-empty space and clicking the
+ * dark corner between two arms would still count as a hit.
+ */
+function ProjectGalaxy({
+  site,
+  project,
+  onSelect,
+}: {
+  site: (typeof GALAXY_SITES)[number];
+  project?: GalaxyProject;
+  onSelect?: (folder: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const weight = project
+    ? 0.7 + Math.min(1, Math.log1p(project.noteCount) / Math.log1p(15)) * 0.6
+    : 1;
+  const freshness = project
+    ? 1 - Math.min(1, daysSince(project.lastTouched) / DORMANT_AFTER_DAYS)
+    : 1;
+  const size = site.size * weight;
+
+  return (
+    <group>
+      <SpiralGalaxy
+        position={site.position}
+        size={size}
+        theme={site.theme}
+        arms={site.arms}
+      />
+
+      {project ? (
+        <>
+          {/* The reachable part. Invisible, but it takes the pointer. */}
+          <mesh
+            position={site.position}
+            visible={false}
+            onPointerOver={(event) => {
+              event.stopPropagation();
+              setHovered(true);
+              if (typeof document !== "undefined") document.body.style.cursor = "pointer";
+            }}
+            onPointerOut={() => {
+              setHovered(false);
+              if (typeof document !== "undefined") document.body.style.cursor = "auto";
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect?.(project.folder);
+            }}
+          >
+            <sphereGeometry args={[size * 0.45, 12, 8]} />
+            <meshBasicMaterial />
+          </mesh>
+
+          <Billboard position={[site.position[0], site.position[1] + size * 0.42, site.position[2]]}>
+            <Text
+              fontSize={hovered ? 2.5 : 2.1}
+              // Dormant projects fade rather than vanish. The floor of 0.28
+              // is deliberate: something you have not touched in months
+              // should still be findable when you go looking for it.
+              color={hovered ? "#ffffff" : "#cbd5e1"}
+              fillOpacity={hovered ? 1 : 0.28 + freshness * 0.72}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.08}
+              outlineColor="#000000"
+            >
+              {project.name}
+            </Text>
+          </Billboard>
+
+          {hovered ? (
+            <Billboard position={[site.position[0], site.position[1] + size * 0.42 - 2.6, site.position[2]]}>
+              <Text
+                fontSize={1.35}
+                color="#7dd3fc"
+                anchorX="center"
+                anchorY="middle"
+                outlineWidth={0.05}
+                outlineColor="#000000"
+              >
+                {`${project.noteCount} Notizen  ·  ${describeAge(project.lastTouched)}`}
+              </Text>
+            </Billboard>
+          ) : null}
+        </>
+      ) : null}
+    </group>
+  );
+}
+
+/** "heute", "vor 3 Tagen", "vor 2 Wochen" — never a bare timestamp. */
+function describeAge(iso: string | null): string {
+  if (!iso) return "unbekannt";
+  const days = Math.floor(daysSince(iso));
+  if (days <= 0) return "heute";
+  if (days === 1) return "gestern";
+  if (days < 14) return `vor ${days} Tagen`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 9) return `vor ${weeks} Wochen`;
+  return `vor ${Math.floor(days / 30)} Monaten`;
+}
+
+/**
  * Whether the five galaxy shaders are drawn.
  *
  * Each galaxy is a large additively blended quad whose fragment shader runs
@@ -904,10 +1048,12 @@ function useBackdropFlags() {
 function Starfield({
   center,
   projects = [],
+  onSelectProject,
 }: {
   center: [number, number, number];
   /** Named galaxies: one project per site, in order. */
-  projects?: { name: string; open: number; overdue: number }[];
+  projects?: GalaxyProject[];
+  onSelectProject?: (folder: string) => void;
 }) {
   const backdrop = useBackdropFlags();
   const groupRef = useRef<THREE.Group>(null);
@@ -942,32 +1088,13 @@ function Starfield({
           colour that also carried urgency would carry neither well. */}
       {(backdrop.galaxies ? GALAXY_SITES : []).map((site, index) => {
         const project = projects[index];
-        const weight = project
-          ? 0.7 + Math.min(1, Math.log1p(project.open) / Math.log1p(14)) * 0.6
-          : 1;
         return (
-          <group key={site.theme}>
-            <SpiralGalaxy
-              position={site.position}
-              size={site.size * weight}
-              theme={site.theme}
-              arms={site.arms}
-            />
-            {project ? (
-              <Billboard position={[site.position[0], site.position[1] + site.size * 0.42, site.position[2]]}>
-                <Text
-                  fontSize={2.1}
-                  color={project.overdue > 0 ? "#fbbf24" : "#cbd5e1"}
-                  anchorX="center"
-                  anchorY="middle"
-                  outlineWidth={0.08}
-                  outlineColor="#000000"
-                >
-                  {`${project.name}  ·  ${project.open}`}
-                </Text>
-              </Billboard>
-            ) : null}
-          </group>
+          <ProjectGalaxy
+            key={site.theme}
+            site={site}
+            project={project}
+            onSelect={onSelectProject}
+          />
         );
       })}
 
@@ -1074,12 +1201,14 @@ export function SceneAtmosphere({
   remoteOfficeEnabled = true,
   signal = "unbekannt",
   projects = [],
+  onSelectProject,
 }: {
   config: GraphicsQualityConfig;
   remoteOfficeEnabled?: boolean;
   signal?: SystemSignal;
-  /** Todoist projects, one per galaxy site. See GALAXY_SITES. */
-  projects?: { name: string; open: number; overdue: number }[];
+  /** Vault projects, one per galaxy site. See GALAXY_SITES and GalaxyProject. */
+  projects?: GalaxyProject[];
+  onSelectProject?: (folder: string) => void;
 }) {
   const sunRef = useRef<THREE.DirectionalLight | null>(null);
   const ambientRef = useRef<THREE.HemisphereLight | null>(null);
@@ -1113,7 +1242,11 @@ export function SceneAtmosphere({
     <>
       {/* Black-space void with an infinite twinkling starfield in 360 degrees — no fog culling */}
       <color attach="background" args={["#03040a"]} />
-      <Starfield center={[localCenterX, 0, localCenterZ]} projects={projects} />
+      <Starfield
+        center={[localCenterX, 0, localCenterZ]}
+        projects={projects}
+        onSelectProject={onSelectProject}
+      />
 
       {/* HDRI kept for image-based reflections — soft satin speculars */}
       <Suspense fallback={null}>
