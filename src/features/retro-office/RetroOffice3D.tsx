@@ -210,7 +210,9 @@ import {
   AgentModel as AgentObjectModel,
   activeLiftSuction,
 } from "@/features/retro-office/objects/agents";
+import { CronComets } from "@/features/retro-office/scene/CronComets";
 import { DayProgressRing } from "@/features/retro-office/scene/DayProgressRing";
+import { VaultStars } from "@/features/retro-office/scene/VaultStars";
 import { ProjectOrbits } from "@/features/retro-office/scene/ProjectOrbits";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
@@ -7032,6 +7034,21 @@ export function RetroOffice3D({
                 property is measured rather than chosen. */}
             {/* Today under your feet — see DayProgressRing for why it hides when
                 nothing is due. */}
+            {/* Scheduled jobs as comets — an empty sky means nothing is scheduled,
+                which is the feature working rather than missing. */}
+            <CronComets
+              jobs={taskBoardCronJobs.map((job) => ({
+                id: job.id,
+                name: job.name,
+                enabled: job.enabled,
+              }))}
+              position={[-11.7, 10, -16.2]}
+            />
+
+            {/* The vault overhead: one star per note, hubs bright, loose ends
+                flickering. One draw call — see VaultStars. */}
+            <VaultStars position={[-11.7, 0, -16.2]} />
+
             <DayProgressRing
               dueToday={todayTally.due}
               doneToday={todayTally.done}
