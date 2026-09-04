@@ -266,6 +266,15 @@ export function ObsidianGraphModal({
     }
   };
 
+  // Above the early return, with the other hooks. React counts hooks per
+  // render, so one placed after `if (!isOpen) return null` is only called
+  // once the window opens — and the count changing between renders is what
+  // throws "Rendered more hooks than during the previous render". That crash
+  // is what made the brain unopenable; nothing was wrong with the graph.
+  useEffect(() => {
+    if (!isOpen) setGraphVisible(false);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const filters = AREA_FILTERS;
@@ -286,9 +295,6 @@ export function ObsidianGraphModal({
     setFlyToNode(node);
   };
 
-  useEffect(() => {
-    if (!isOpen) setGraphVisible(false);
-  }, [isOpen]);
 
   const handleFilterClick = (filterId: string) => {
     // Touching anything ends the tour: it is a presentation, not a mode you
