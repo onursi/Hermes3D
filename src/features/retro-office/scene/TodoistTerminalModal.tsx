@@ -237,6 +237,36 @@ export function TodoistTerminalModal({
     (task) => !task.isCompleted && bucketFor(task.dueDate) === "overdue",
   ).length;
 
+  /**
+   * Which notes in the vault relate to a task.
+   *
+   * This is the one thing a normal task app cannot do. A task says *what*;
+   * the vault holds *what you already worked out about it*, and those two
+   * have been living in separate windows. Opening a task now asks the same
+   * retrieval Jarvis uses and shows what it finds — or says plainly that it
+   * found nothing, which is also information.
+   */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [relatedById, setRelatedById] = useState<
+    Record<string, { id: string; title: string; folder: string }[] | "loading" | "none">
+  >({});
+
+  const openTask = useCallback(async (task: { id: string; content: string }) => {
+    setExpandedId((prev) => (prev === task.id ? null : task.id));
+    if (relatedById[task.id]) return;
+    setRelatedById((prev) => ({ ...prev, [task.id]: "loading" }));
+    try {
+      const res = await fetch(
+        `/api/jarvis/search?q=${encodeURIComponent(task.content)}&limit=3`,
+      );
+      const data = await res.json();
+      const hits = Array.isArray(data.results) ? data.results : [];
+      setRelatedById((prev) => ({ ...prev, [task.id]: hits.length ? hits : "none" }));
+    } catch {
+      setRelatedById((prev) => ({ ...prev, [task.id]: "none" }));
+    }
+  }, [relatedById]);
+
   if (!isOpen) return null;
 
   // z-[60], above every overlay in the room. The office also uses z-50, and at
@@ -377,13 +407,14 @@ export function TodoistTerminalModal({
                     const busy = busyIds.has(task.id);
                     return (
                       <li key={task.id}>
-                        <button
-                          type="button"
-                          onClick={() => void toggle(task)}
-                          disabled={busy}
-                          className="group flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-slate-800/50 disabled:opacity-50"
-                        >
-                          <span
+                        <div className="group flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-slate-800/50">
+                          <button
+                            type="button"
+                            onClick={() => void toggle(task)}
+                            disabled={busy}
+                            title="Erledigt"
+                            className="disabled:opacity-50"
+                          ><span
                             className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition ${
                               task.isCompleted
                                 ? "border-emerald-500 bg-emerald-500"
@@ -393,8 +424,13 @@ export function TodoistTerminalModal({
                             {task.isCompleted ? (
                               <Check size={11} className="text-slate-900" strokeWidth={3} />
                             ) : null}
-                          </span>
-                          <span className="min-w-0 flex-1">
+                          </span></button>
+                          <button
+                            type="button"
+                            onClick={() => void openTask(task)}
+                            title="Zeigt, was im Vault dazu steht"
+                            className="min-w-0 flex-1 text-left"
+                          >
                             <span
                               className={`block text-[13px] leading-snug ${
                                 task.isCompleted
@@ -422,8 +458,33 @@ export function TodoistTerminalModal({
                                 </span>
                               ) : null}
                             </span>
-                          </span>
-                        </button>
+                          </button>
+                        </div>
+                        {expandedId === task.id ? (
+                          <div className="mb-1 ml-9 border-l border-slate-700/60 pl-3">
+                            {relatedById[task.id] === "loading" ? (
+                              <p className="py-1 text-[11px] text-slate-500">Sucht im Vault…</p>
+                            ) : relatedById[task.id] === "none" ? (
+                              <p className="py-1 text-[11px] text-slate-500">
+                                Nichts im Vault, das dazu passt.
+                              </p>
+                            ) : (
+                              <ul className="py-1">
+                                {(relatedById[task.id] as { id: string; title: string; folder: string }[]).map(
+                                  (note) => (
+                                    <li
+                                      key={note.id}
+                                      className="truncate py-0.5 text-[11px] text-slate-300"
+                                      title={note.folder}
+                                    >
+                                      {note.title}
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}
