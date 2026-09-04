@@ -409,7 +409,12 @@ export const AgentModel = memo(function AgentModel({
       : status === "working"
         ? "#93f57d"
         : "#8dc4ff"
-    : "transparent";
+    : "#8dc4ff";
+  // Not "transparent": three.js has no such colour and warns on every frame
+  // for every agent, which is where the console flood came from. A border
+  // that should not be seen is a border at zero opacity, not one painted
+  // in a colour that does not exist.
+  const speechBubbleBorderOpacity = activeSpeechBubble ? 1 : 0;
   const speechBubbleBorderInset = activeSpeechBubble ? 0.03 : 0;
   const isBoss = agentId.toLowerCase().includes("hermes") || (name?.toLowerCase().includes("hermes") ?? false);
   const nameplateText = name ? formatAgentNameplateText(name) : "";
@@ -643,12 +648,20 @@ export const AgentModel = memo(function AgentModel({
           </mesh>
           <lineSegments position={[0, 0, 0.001]}>
             <edgesGeometry args={[new THREE.PlaneGeometry(speechBubbleWidth, speechBubbleHeight)]} />
-            <lineBasicMaterial color={speechBubbleBorderColor} transparent opacity={0.75} />
+            <lineBasicMaterial
+              color={speechBubbleBorderColor}
+              transparent
+              opacity={0.75 * speechBubbleBorderOpacity}
+            />
           </lineSegments>
           {/* Subtle micro emitter ray down to logo */}
           <mesh position={[0, -speechBubbleHeight / 2 - 0.04, 0]}>
             <cylinderGeometry args={[0.002, 0.008, 0.08, 8]} />
-            <meshBasicMaterial color={speechBubbleBorderColor} transparent opacity={0.35} />
+            <meshBasicMaterial
+              color={speechBubbleBorderColor}
+              transparent
+              opacity={0.35 * speechBubbleBorderOpacity}
+            />
           </mesh>
           <Text
             position={

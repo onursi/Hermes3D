@@ -239,8 +239,12 @@ export function TodoistTerminalModal({
 
   if (!isOpen) return null;
 
+  // z-[60], above every overlay in the room. The office also uses z-50, and at
+  // equal depth the winner is decided by DOM order — not something to leave to
+  // chance for a window that was reported as not opening at all.
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="flex h-[78vh] w-[min(720px,94vw)] flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-[#0b1017]/98 shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b border-slate-800 px-5 py-3.5">
           <div className="min-w-0">

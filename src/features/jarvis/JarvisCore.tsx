@@ -16,10 +16,17 @@ import { useEffect, useRef } from "react";
  * React re-renders a second to animate a circle would be absurd.
  */
 
-export type JarvisPhase = "idle" | "searching" | "thinking" | "speaking" | "error";
+export type JarvisPhase =
+  | "idle"
+  | "listening"
+  | "searching"
+  | "thinking"
+  | "speaking"
+  | "error";
 
 const PHASE_LABEL: Record<JarvisPhase, string> = {
   idle: "bereit",
+  listening: "hört zu",
   searching: "durchsucht den Vault",
   thinking: "denkt nach",
   speaking: "antwortet",
@@ -34,6 +41,9 @@ const PHASE_LABEL: Record<JarvisPhase, string> = {
  */
 const PHASE_COLOR: Record<JarvisPhase, string> = {
   idle: "#64748b",
+  // Green while listening: the one state where the microphone is live, and
+  // that deserves a colour nothing else uses.
+  listening: "#4ade80",
   searching: "#fbbf24",
   thinking: "#fbbf24",
   speaking: "#22d3ee",
@@ -43,6 +53,7 @@ const PHASE_COLOR: Record<JarvisPhase, string> = {
 /** How fast each state turns. Idle barely moves; speaking is alive. */
 const PHASE_SPEED: Record<JarvisPhase, number> = {
   idle: 0.08,
+  listening: 2.2,
   searching: 0.9,
   thinking: 0.5,
   speaking: 1.6,

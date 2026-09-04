@@ -3,11 +3,12 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { BookmarkPlus, CornerDownLeft, Loader2 } from "lucide-react";
+import { BookmarkPlus, CornerDownLeft, Loader2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { JarvisCore, type JarvisPhase } from "@/features/jarvis/JarvisCore";
+import { useVoice } from "@/features/jarvis/useVoice";
 import {
   Obsidian3DGraphCore,
   type GraphNode,
@@ -47,6 +48,9 @@ export default function JarvisPage() {
   /** Where a remembered answer landed, so the panel can say so and stop. */
   const [savedAs, setSavedAs] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Whether answers are read aloud. Off by default — a room that starts
+   *  talking unprompted is startling, and it should be your choice. */
+  const [voiceReply, setVoiceReply] = useState(false);
   const controlsRef = useRef<never>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
@@ -64,8 +68,9 @@ export default function JarvisPage() {
   // answer nobody will read.
   useEffect(() => () => streamRef.current?.close(), []);
 
-  const ask = useCallback(() => {
-    const text = question.trim();
+  const ask = useCallback((spoken?: string) => {
+    const text = (spoken ?? question).trim();
+    if (spoken) setQuestion(spoken);
     if (!text || phase === "searching" || phase === "thinking" || phase === "speaking") return;
     streamRef.current?.close();
     setAnswer("");
@@ -165,6 +170,36 @@ export default function JarvisPage() {
 
   const busy = phase === "searching" || phase === "thinking" || phase === "speaking";
 
+  /**
+   * Voice, both directions.
+   *
+   * The recogniser hands over a finished sentence and it is asked straight
+   * away — a transcript that lands in a box you then have to click is not
+   * voice control, it is dictation with extra steps.
+   */
+  const voice = useVoice({ onTranscript: (text) => ask(text) });
+
+  /**
+   * What the reactor shows: the microphone outranks the server.
+   *
+   * While it listens, the only thing worth knowing is that the microphone is
+   * live — that is the state with a consequence if you get it wrong.
+   */
+  const displayPhase: JarvisPhase = voice?.listening
+    ? "listening"
+    : voice?.speaking
+      ? "speaking"
+      : phase;
+
+  // Speak the answer once it is complete, not while it streams: a synthesiser
+  // fed word by word reads with the rhythm of a telegram.
+  const spokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (phase !== "idle" || !answer || spokenRef.current === answer) return;
+    spokenRef.current = answer;
+    if (voice.supported && voiceReply) voice.speak(answer);
+  }, [phase, answer, voice, voiceReply]);
+
   return (
     <main className="flex h-screen w-screen overflow-hidden bg-[#05070a] text-white">
       <section className="relative min-w-0 flex-1">
@@ -205,7 +240,7 @@ export default function JarvisPage() {
 
       <aside className="flex w-[420px] shrink-0 flex-col border-l border-white/[0.07] bg-[#0b0d10]/80 backdrop-blur-2xl">
         <div className="flex flex-col items-center gap-1 border-b border-white/[0.07] px-6 py-6">
-          <JarvisCore phase={phase} />
+          <JarvisCore phase={displayPhase} />
           <p className="mt-3 text-center text-[11px] leading-relaxed text-white/35">
             Antworten kommen ausschließlich aus deinen {data?.nodes.length ?? 0} Notizen — mit
             Quellen, oder gar nicht.
@@ -226,7 +261,7 @@ export default function JarvisPage() {
             />
             <button
               type="button"
-              onClick={ask}
+              onClick={() => ask()}
               disabled={busy || !question.trim()}
               className="shrink-0 text-white/50 hover:text-white disabled:opacity-25"
               title="Fragen"
@@ -234,6 +269,39 @@ export default function JarvisPage() {
               {busy ? <Loader2 size={15} className="animate-spin" /> : <CornerDownLeft size={15} />}
             </button>
           </div>
+          {voice.supported ? (
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}
+                disabled={busy}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-medium transition disabled:opacity-30 ${
+                  voice.listening
+                    ? "border-green-400/40 bg-green-400/15 text-green-200"
+                    : "border-white/[0.09] bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"
+                }`}
+                title="Sprich deine Frage — die Erkennung läuft im Browser, es geht kein Ton nach draußen"
+              >
+                {voice.listening ? <MicOff size={13} /> : <Mic size={13} />}
+                <span>{voice.listening ? "Ich höre… (zum Beenden klicken)" : "Hey Hermes"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (voice.speaking) voice.stopSpeaking(); setVoiceReply((prev) => !prev); }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] transition ${
+                  voiceReply
+                    ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100"
+                    : "border-white/[0.09] bg-white/[0.04] text-white/50 hover:text-white/80"
+                }`}
+                title={voiceReply ? "Antworten werden vorgelesen" : "Antworten still anzeigen"}
+              >
+                {voiceReply ? <Volume2 size={13} /> : <VolumeX size={13} />}
+              </button>
+            </div>
+          ) : null}
+          {voice.listening && voice.heard ? (
+            <p className="mt-2 text-[12px] italic leading-relaxed text-green-200/70">„{voice.heard}“</p>
+          ) : null}
         </div>
 
         <div ref={answerRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
