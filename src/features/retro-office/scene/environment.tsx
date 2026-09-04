@@ -775,17 +775,24 @@ function useAvatarScreenTexture({
     ctxRef.current = canvas.getContext("2d");
   }, [canvas]);
 
-  const lastUpdateRef = useRef(0);
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    // Was 0.016, i.e. a full repaint and re-upload of a 2048x512 canvas on
-    // every frame: 4 MB per frame, about 240 MB/s across the bus, plus the
-    // Canvas2D work on the main thread — for a wall of avatars that changes
-    // when an agent does, which is nothing like sixty times a second. At 12 Hz
-    // the panel still animates smoothly and the cost drops fivefold.
-    if (t - lastUpdateRef.current < 0.083) return;
-    lastUpdateRef.current = t;
-
+  /**
+   * Repainted when something changes, not on a clock.
+   *
+   * This panel used to repaint every frame, then every 12th of a second — a
+   * 2048x512 canvas redrawn and re-uploaded to the GPU, 4 MB a time, roughly
+   * 48 MB/s. The measurement that finally caught it read 22 ms JavaScript in
+   * a 100 ms frame: the main thread was nearly idle while the GPU was pinned,
+   * and a texture upload is exactly the kind of cost that lands there and
+   * shows up in no JavaScript profile at all.
+   *
+   * The only reason it needed a clock was decoration: a scanline sweep,
+   * two counter-rotating rings and a blinking status dot. None of that says
+   * anything the room does not already say, and it was costing more than the
+   * galaxies everyone suspected. What is left repaints when an agent's status
+   * changes, when the pointer moves across it, or when the mode switches —
+   * which is to say, almost never.
+   */
+  useEffect(() => {
     const ctx = ctxRef.current;
     if (!ctx) return;
     const W = 2048;
@@ -835,15 +842,6 @@ function useAvatarScreenTexture({
       ctx.font = "bold 13px monospace";
       ctx.fillText(m.label, bx + 18, by + 20);
     });
-
-    // 4. Subtle Animated Scanline Sweep
-    const scanY = ((t * 90) % (H + 80)) - 40;
-    const scanGrad = ctx.createLinearGradient(0, scanY - 30, 0, scanY + 10);
-    scanGrad.addColorStop(0, "rgba(0, 240, 255, 0)");
-    scanGrad.addColorStop(0.5, "rgba(0, 240, 255, 0.08)");
-    scanGrad.addColorStop(1, "rgba(0, 240, 255, 0)");
-    ctx.fillStyle = scanGrad;
-    ctx.fillRect(0, scanY - 30, W, 40);
 
     // 5. Draw the 4 Avatar Station Pods
     const bayW = (W - 120) / 4;
@@ -898,18 +896,18 @@ function useAvatarScreenTexture({
       ctx.arc(cx, cy, r + 20, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rotating portal ring 1
+      // Two open rings, fixed. They used to counter-rotate, which is what
+      // forced the whole 4 MB panel to be re-uploaded on a clock.
       ctx.strokeStyle = color;
       ctx.lineWidth = isHovered ? 2.5 : 1.5;
       ctx.beginPath();
-      ctx.arc(cx, cy, r, t * 1.2, t * 1.2 + Math.PI * 1.4);
+      ctx.arc(cx, cy, r, 0, Math.PI * 1.4);
       ctx.stroke();
 
-      // Rotating portal ring 2 (counter-rotation)
       ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(cx, cy, r - 6, -t * 0.9, -t * 0.9 + Math.PI * 0.9);
+      ctx.arc(cx, cy, r - 6, Math.PI, Math.PI * 1.9);
       ctx.stroke();
 
       // Avatar Initial / Hologram Silhouette
@@ -939,9 +937,9 @@ function useAvatarScreenTexture({
       ctx.lineWidth = 1.2;
       ctx.strokeRect(spX, spY, statusPillW, statusPillH);
 
-      // Status blinking LED dot
-      const isDotOn = Math.sin(t * 4 + i) > -0.2;
-      ctx.fillStyle = isDotOn ? color : "rgba(100, 100, 100, 0.5)";
+      // Status LED. It used to blink, which meant the panel could never stop
+      // repainting; the colour already carries the agent's state.
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(spX + 16, spY + statusPillH / 2, 4, 0, Math.PI * 2);
       ctx.fill();
@@ -967,25 +965,21 @@ function useAvatarScreenTexture({
       ctx.textAlign = "center";
       ctx.fillText(isHovered ? "▶ ANSPRECHEN" : "STATUS ONLINE", cx, btnY + 22);
 
-      // Click Ripple / Shockwave Effect
+      // The click mark. An animated shockwave would need a clock again, so
+      // the acknowledgement is a static halo that the next repaint clears.
       if (clickEffect && clickEffect.index === i) {
-        const dt = t - clickEffect.time;
-        if (dt >= 0 && dt < 0.6) {
-          const progress = dt / 0.6;
-          const waveR = r + progress * 80;
-          ctx.strokeStyle = `rgba(0, 240, 255, ${1 - progress})`;
-          ctx.lineWidth = 3 * (1 - progress);
-          ctx.beginPath();
-          ctx.arc(cx, cy, waveR, 0, Math.PI * 2);
-          ctx.stroke();
-        }
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.75)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 26, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       ctx.restore();
     });
 
     texture.needsUpdate = true;
-  });
+  }, [texture, agentsList, hoveredIndex, clickEffect, screenMode]);
 
   return texture;
 }

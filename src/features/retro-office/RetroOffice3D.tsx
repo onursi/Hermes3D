@@ -3485,7 +3485,7 @@ export function RetroOffice3D({
   }, [focusMode]);
 
   const [showMeter, setShowMeter] = useState(false);
-  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
+  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, jsMs: 0 });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "f" && event.key !== "F") return;
@@ -7994,6 +7994,13 @@ export function RetroOffice3D({
           <span className={HUD_VALUE}>{meter.calls} Draws</span>
           <span className={`mx-2 ${HUD_DIVIDER} inline-block align-middle`} />
           <span className={HUD_VALUE}>{(meter.triangles / 1000).toFixed(0)}k Dreiecke</span>
+          <span className={`mx-2 ${HUD_DIVIDER} inline-block align-middle`} />
+          {/* Of the whole frame, how much was JavaScript. This is the number
+              that says whether to cut objects or cut pixels. */}
+          <span className={HUD_VALUE}>
+            {meter.jsMs} ms JS
+            {meter.fps > 0 ? ` / ${Math.round(1000 / meter.fps)} ms Frame` : ""}
+          </span>
         </div>
       ) : null}
 

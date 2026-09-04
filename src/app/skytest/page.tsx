@@ -35,7 +35,7 @@ export default function SkyTestPage() {
     setMounted(true);
   }, []);
 
-  const [sample, setSample] = useState({ fps: 0, calls: 0, triangles: 0 });
+  const [sample, setSample] = useState({ fps: 0, calls: 0, triangles: 0, jsMs: 0 });
   const [history, setHistory] = useState<number[]>([]);
   const samples = useRef<number[]>([]);
 
@@ -86,6 +86,7 @@ export default function SkyTestPage() {
         <div>{sample.fps} fps (Median {median})</div>
         <div>{sample.calls} Draws</div>
         <div>{(sample.triangles / 1000).toFixed(0)}k Dreiecke</div>
+        <div>{sample.jsMs} ms JS</div>
         <div className="mt-1 text-[11px] text-white/40">{history.length} Messungen</div>
       </div>
     </main>

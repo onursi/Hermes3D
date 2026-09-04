@@ -27,13 +27,14 @@ import { useEffect, useRef } from "react";
 export function FrameMeter({
   onSample,
 }: {
-  onSample: (sample: { fps: number; calls: number; triangles: number }) => void;
+  onSample: (sample: { fps: number; calls: number; triangles: number; jsMs: number }) => void;
 }) {
   const gl = useThree((state) => state.gl);
   const frames = useRef(0);
   const elapsed = useRef(0);
   const calls = useRef(0);
   const triangles = useRef(0);
+  const jsTotal = useRef(0);
 
   /**
    * The counters have to be read after the frame, not before it.
@@ -53,6 +54,34 @@ export function FrameMeter({
     };
   }, [gl]);
 
+  /**
+   * How much of each frame is spent in JavaScript.
+   *
+   * fps alone cannot say why a scene is slow. A frame that takes 125ms is
+   * either the CPU building it or the GPU drawing it, and the two have
+   * opposite fixes: fewer objects and less per-frame logic on one side,
+   * fewer pixels and simpler shaders on the other. Guessing wrong costs a
+   * day — which is what happened when the galaxies were blamed and removing
+   * them changed nothing at all.
+   *
+   * Every frame runs inside a requestAnimationFrame callback, so wrapping
+   * rAF times all of it: React, every useFrame, and the draw submission. If
+   * that number sits close to the frame time the CPU is the wall; if it is a
+   * fraction of it, the rest is the GPU and the browser waiting on it.
+   */
+  useEffect(() => {
+    const native = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb: FrameRequestCallback) =>
+      native((time) => {
+        const start = performance.now();
+        cb(time);
+        jsTotal.current += performance.now() - start;
+      });
+    return () => {
+      window.requestAnimationFrame = native;
+    };
+  }, []);
+
   useFrame((_, delta) => {
     frames.current += 1;
     elapsed.current += delta;
@@ -65,9 +94,11 @@ export function FrameMeter({
       fps: Math.round(frames.current / elapsed.current),
       calls: calls.current,
       triangles: triangles.current,
+      jsMs: Math.round((jsTotal.current / frames.current) * 10) / 10,
     });
     frames.current = 0;
     elapsed.current = 0;
+    jsTotal.current = 0;
   });
 
   return null;
