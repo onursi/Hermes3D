@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Play, Square, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
+import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Play, Square, Unlink, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
 import { Obsidian3DGraphCore, AREAL_COLORS, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 
@@ -50,6 +50,8 @@ export function ObsidianGraphModal({
    * -1 means the tour is not running.
    */
   const [tourIndex, setTourIndex] = useState(-1);
+  /** Loose ends: the notes nothing links to. */
+  const [showOrphans, setShowOrphans] = useState(false);
   const tourRunning = tourIndex >= 0;
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -171,7 +173,7 @@ export function ObsidianGraphModal({
    * wired to — the question "how is Religion & Glaube connected?" answered by
    * looking rather than by reading.
    */
-  const { degreeById, topHubs } = useMemo(() => {
+  const { degreeById, topHubs, orphanCount } = useMemo(() => {
     const degree = new Map<string, number>();
     (data?.links ?? []).forEach((link) => {
       degree.set(link.source, (degree.get(link.source) ?? 0) + 1);
@@ -180,7 +182,10 @@ export function ObsidianGraphModal({
     const hubs = [...(data?.nodes ?? [])]
       .sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0))
       .slice(0, 10);
-    return { degreeById: degree, topHubs: hubs };
+    // Counted here rather than in the scene, so the button can say how many
+    // loose ends there are before you decide whether to go looking.
+    const orphans = (data?.nodes ?? []).filter((node) => !degree.get(node.id)).length;
+    return { degreeById: degree, topHubs: hubs, orphanCount: orphans };
   }, [data]);
 
   const searchResults = useMemo(() => {
@@ -265,6 +270,7 @@ export function ObsidianGraphModal({
               activeFilter={activeFilter}
               flyToNode={flyToNode}
               flyToLobe={flyToLobe}
+              showOrphans={showOrphans}
               controlsRef={graphControlsRef}
             />
 
@@ -527,10 +533,11 @@ export function ObsidianGraphModal({
           )}
         </div>
 
+        <div className="mx-auto mb-2 flex items-center justify-center gap-2">
         <button
           type="button"
           onClick={() => setTourIndex((prev) => (prev >= 0 ? -1 : 0))}
-          className={`mx-auto mb-2 flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+          className={`flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium transition ${
             tourRunning
               ? "border-white/25 bg-white/[0.12] text-white"
               : "border-white/[0.09] bg-[#141619]/75 text-white/60 hover:text-white/90 hover:border-white/20"
@@ -540,6 +547,20 @@ export function ObsidianGraphModal({
           {tourRunning ? <Square size={11} /> : <Play size={11} />}
           <span>{tourRunning ? "Rundflug stoppen" : "Rundflug"}</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setShowOrphans((prev) => !prev)}
+          className={`flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+            showOrphans
+              ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
+              : "border-white/[0.09] bg-[#141619]/75 text-white/60 hover:text-white/90 hover:border-white/20"
+          }`}
+          title="Färbt die Notizen rot ein, auf die nichts verweist — die losen Enden im Vault"
+        >
+          <Unlink size={11} />
+          <span>Lose Enden{orphanCount > 0 ? ` (${orphanCount})` : ""}</span>
+        </button>
+        </div>
 
         {/* Category Pills */}
         <div className="flex flex-wrap items-center justify-center gap-1.5">

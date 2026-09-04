@@ -72,6 +72,7 @@ export function Obsidian3DGraphCore({
   activeFilter = "all",
   flyToNode = null,
   flyToLobe = null,
+  showOrphans = false,
   controlsRef,
 }: {
   data: ObsidianGraphData;
@@ -81,6 +82,8 @@ export function Obsidian3DGraphCore({
   activeFilter?: string;
   flyToNode?: GraphNode | null;
   flyToLobe?: string | null;
+  /** Paint the notes nothing links to, so the loose ends become findable. */
+  showOrphans?: boolean;
   /** The scene's OrbitControls, so a camera fly can borrow the camera. */
   controlsRef?: { current: { enabled: boolean; target: THREE.Vector3; update: () => void } | null };
 }) {
@@ -517,28 +520,43 @@ export function Obsidian3DGraphCore({
         // overall view four of the nine areas were indistinguishable, which is
         // the one thing the colours exist to prevent.
         const arealColor = AREAL_COLORS[node.group] || node.color;
-        const displayColor = arealColor;
 
         // Size carries meaning. Every note used to be 0.05 across the board, so
         // a hub with 190 links looked exactly like an orphan and the galaxy
         // read as even dust.
         const degree = degreeById.get(node.id) ?? 0;
+        // A note nothing links to is a loose end: written down once and never
+        // connected to anything, so it is effectively invisible to you. There are
+        // a dozen of them, and finding them by scrolling is hopeless — but they
+        // are obvious the moment they are the only red things in the sky.
+        const isOrphan = degree === 0;
+        const displayColor = showOrphans && isOrphan ? "#f43f5e" : arealColor;
         const baseRadius =
           0.024 + (Math.log1p(degree) / Math.log1p(maxDegree)) * 0.075;
-        const radius = isSelected
+        const radius = showOrphans && isOrphan
+          ? baseRadius * 2.6
+          : isSelected
           ? baseRadius * 2.4
           : isHovered
             ? baseRadius * 1.8
             : isInActiveAreal && isFiltered
               ? baseRadius * 1.35
               : baseRadius;
-        const opacity = isDimmed ? 0.18 : arealDimmed ? 0.15 : 1.0;
+        const opacity = isDimmed
+          ? 0.18
+          : arealDimmed
+            ? 0.15
+            : showOrphans && !isOrphan
+              ? 0.22
+              : 1.0;
         // Brightness follows the same signal as size, so the hubs read as suns
         // and the rest as dust. Every note used to glow at a flat 1.5, which
         // handed the bloom pass nothing to pick out.
         const degreeWeight = Math.log1p(degree) / Math.log1p(maxDegree);
         const restingEmissive = 0.85 + degreeWeight * 2.75;
-        const emissive = isSelected
+        const emissive = showOrphans && isOrphan
+          ? 4.0
+          : isSelected
           ? 4.5
           : isHovered
             ? 3.0

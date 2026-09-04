@@ -24,6 +24,8 @@ export type GraphNode = {
   group: string;
   color: string;
   wordCount: number;
+  /** Last modified, epoch ms. Lets the graph show what has gone quiet. */
+  mtimeMs: number;
   excerpt: string;
   x: number;
   y: number;
@@ -96,6 +98,20 @@ function firstProseLine(body: string) {
   return "";
 }
 
+/**
+ * A file's modification time, or 0 when it cannot be read.
+ *
+ * 0 reads as "unknown" downstream rather than as "1970", so an unreadable
+ * file is not painted as the stalest note in the vault.
+ */
+function safeMtime(filePath: string): number {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
 function scanDir(dir: string, baseDir: string, results: { filePath: string; relPath: string; folder: string }[] = []) {
   if (!fs.existsSync(dir)) return results;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -166,6 +182,7 @@ export async function GET(req: Request) {
         group: reg.group,
         color: reg.color,
         wordCount: 0,
+        mtimeMs: safeMtime(file.filePath),
         excerpt: "",
         x,
         y,
