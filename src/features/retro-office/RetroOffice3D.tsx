@@ -276,7 +276,10 @@ import {
 } from "@/features/retro-office/core/graphicsQuality";
 import { SceneErrorBoundary } from "@/features/retro-office/systems/SceneErrorBoundary";
 import { PerfProbe } from "@/features/retro-office/systems/perfProbe";
-import { GhostMode, GHOST_EYE_HEIGHT } from "@/features/retro-office/systems/ghostMode";
+import { GhostMode } from "@/features/retro-office/systems/ghostMode";
+import type { CouncilMessage } from "@/features/office/components/CouncilChat";
+
+const EMPTY_COUNCIL_MESSAGES: CouncilMessage[] = [];
 import type { SystemSignal } from "@/features/retro-office/core/systemSignal";
 
 /**
@@ -3020,6 +3023,7 @@ export function RetroOffice3D({
   monitorByAgentId = EMPTY_MONITOR_MAP,
   githubSkill = null,
   onCouncilDispatch,
+  councilMessages = EMPTY_COUNCIL_MESSAGES,
   systemSignal = "unbekannt",
   systemSignalReason = "",
   taskManagerEnabled = false,
@@ -3140,6 +3144,8 @@ export function RetroOffice3D({
   githubSkill?: SkillStatusEntry | null;
   /** Broadcasts one prompt from the council bar to the selected agents. */
   onCouncilDispatch?: (prompt: string, targetAgentIds: string[]) => void;
+  /** Every agent's spoken turns, merged chronologically for the council view. */
+  councilMessages?: CouncilMessage[];
   /** How the system is doing, as read by the room's light, floor and sound. */
   systemSignal?: SystemSignal;
   /** One short phrase saying why, for the HUD tooltip. */
@@ -8608,6 +8614,7 @@ export function RetroOffice3D({
         onDispatch={(prompt, targetAgentIds) =>
           onCouncilDispatch?.(prompt, targetAgentIds)
         }
+        messages={councilMessages}
       />
 
       {githubImmersive ? (

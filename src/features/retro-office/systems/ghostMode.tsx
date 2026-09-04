@@ -2,7 +2,7 @@
 
 import { PointerLockControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 /**
@@ -59,10 +59,12 @@ type Props = {
 export function GhostMode({ active, onExit, entry }: Props) {
   const camera = useThree((state) => state.camera);
   const keys = useRef<Record<string, boolean>>({});
-  const velocity = useMemo(() => new THREE.Vector3(), []);
-  const forward = useMemo(() => new THREE.Vector3(), []);
-  const right = useMemo(() => new THREE.Vector3(), []);
-  const desired = useMemo(() => new THREE.Vector3(), []);
+  // Refs rather than memos: these are scratch vectors reused every frame, and
+  // a value the compiler believes is immutable is not one you may write into.
+  const velocityRef = useRef(new THREE.Vector3());
+  const forwardRef = useRef(new THREE.Vector3());
+  const rightRef = useRef(new THREE.Vector3());
+  const desiredRef = useRef(new THREE.Vector3());
   /** Where the orbit camera stood, so leaving puts it back exactly. */
   const restoreRef = useRef<{ position: THREE.Vector3; quaternion: THREE.Quaternion } | null>(null);
 
@@ -116,6 +118,10 @@ export function GhostMode({ active, onExit, entry }: Props) {
     // the first frame back teleports you across the map.
     const delta = Math.min(rawDelta, 0.1);
     const pressed = keys.current;
+    const forward = forwardRef.current;
+    const right = rightRef.current;
+    const desired = desiredRef.current;
+    const velocity = velocityRef.current;
 
     camera.getWorldDirection(forward);
     forward.y = 0;
@@ -141,7 +147,7 @@ export function GhostMode({ active, onExit, entry }: Props) {
     const blend = 1 - Math.exp(-DAMPING * delta);
     velocity.lerp(desired, blend);
     camera.position.addScaledVector(velocity, delta);
-    camera.position.y = THREE.MathUtils.clamp(camera.position.y, MIN_Y, MAX_Y);
+    camera.position.setY(THREE.MathUtils.clamp(camera.position.y, MIN_Y, MAX_Y));
   });
 
   if (!active) return null;

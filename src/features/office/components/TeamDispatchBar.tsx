@@ -16,7 +16,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
-import { CyberIDEStudioModal } from "./CyberIDEStudioModal";
+import { CouncilChat, type CouncilMessage } from "./CouncilChat";
 
 export interface TeamAgent {
   id: string;
@@ -35,8 +35,11 @@ const DEFAULT_AGENTS: TeamAgent[] = [
 
 export function TeamDispatchBar({
   onDispatch,
+  messages = [],
 }: {
   onDispatch?: (prompt: string, targetAgentIds: string[], attachments: File[]) => void;
+  /** The real transcript, shown when the history is opened. */
+  messages?: CouncilMessage[];
 }) {
   const [promptText, setPromptText] = useState("");
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(
@@ -133,11 +136,12 @@ export function TeamDispatchBar({
     }
   };
 
+  const targets = DEFAULT_AGENTS.filter((a) => selectedAgentIds.includes(a.id));
+
   const handleSend = () => {
     if (!promptText.trim() && attachments.length === 0) return;
     cyberAudio.playChime();
 
-    const targets = DEFAULT_AGENTS.filter((a) => selectedAgentIds.includes(a.id));
     const targetNames = targets.map((t) => t.name);
 
     // The bar used to compose a reply for each agent right here — a fixed
@@ -453,14 +457,17 @@ export function TeamDispatchBar({
         ) : null}
       </div>
 
-      {/* High-End Cyber IDE Studio Cockpit & Right Dock Sidebar */}
-      <CyberIDEStudioModal
-        isOpen={responseModalOpen}
-        onClose={() => setResponseModalOpen(false)}
-        initialPrompt={activeDispatchSummary?.prompt}
-        targetAgentIds={selectedAgentIds}
-        initialResponses={activeDispatchSummary?.responses}
-      />
+      {/* The real transcript, replacing the scripted cockpit that used to open
+          here and play a fixed conversation between four agents whether or not
+          anything had been asked. */}
+      {responseModalOpen ? (
+        <CouncilChat
+          messages={messages}
+          agentNames={targets.map((agent) => agent.name)}
+          onSend={(prompt) => onDispatch?.(prompt, selectedAgentIds, [])}
+          onClose={() => setResponseModalOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

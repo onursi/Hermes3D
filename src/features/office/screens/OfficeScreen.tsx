@@ -4373,6 +4373,33 @@ export function OfficeScreen({
       ),
     [officeAgents, remoteOfficeAgents],
   );
+
+  /**
+   * Every agent's transcript merged into one chronological feed — which is
+   * what a group conversation is, and what the council view had been faking
+   * with fixed paragraphs on timers.
+   *
+   * Only spoken turns: `thinking` and `tool` entries are the machinery behind
+   * an answer, and putting them in the same stream as the answer buries it.
+   */
+  const councilMessages = useMemo(() => {
+    const colorByAgentId = new Map(allVisibleAgents.map((agent) => [agent.id, agent.color]));
+    return state.agents.flatMap((agent) =>
+      (agent.transcriptEntries ?? [])
+        .filter((entry) => (entry.kind === "user" || entry.kind === "assistant") && entry.text.trim())
+        .map((entry) => ({
+          id: entry.entryId,
+          agentId: agent.agentId,
+          agentName: agent.name,
+          color: colorByAgentId.get(agent.agentId) ?? "#38bdf8",
+          role: entry.kind === "user" ? ("user" as const) : ("assistant" as const),
+          text: entry.text,
+          timestampMs: entry.timestampMs ?? 0,
+          confirmed: entry.confirmed,
+        })),
+    );
+  }, [state.agents, allVisibleAgents]);
+
   const remoteOfficeVisible =
     remoteOfficeEnabled &&
     (remoteOfficeSourceKind === "presence_endpoint"
@@ -4831,6 +4858,7 @@ export function OfficeScreen({
           onCouncilDispatch={handleCouncilDispatch}
           systemSignal={systemSignal.level}
           systemSignalReason={systemSignal.reason}
+          councilMessages={councilMessages}
           storageNamespace={activeFloor.id}
           layoutPreset="office"
           officeCenterSignal={officeCameraCenterSignal}
