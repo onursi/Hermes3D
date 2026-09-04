@@ -109,7 +109,7 @@ export function VaultStars({ position = [0, 0, 0] }: { position?: [number, numbe
       <points geometry={linked}>
         <pointsMaterial
           ref={materialRef}
-          size={0.42}
+          size={0.62}
           vertexColors
           transparent
           opacity={0.9}
@@ -119,7 +119,7 @@ export function VaultStars({ position = [0, 0, 0] }: { position?: [number, numbe
       </points>
       <points ref={orphanRef} geometry={orphans}>
         <pointsMaterial
-          size={0.55}
+          size={0.8}
           color="#f43f5e"
           transparent
           opacity={0.6}

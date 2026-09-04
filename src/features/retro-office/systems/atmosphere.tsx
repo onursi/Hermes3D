@@ -822,6 +822,24 @@ function SpaceXRocket({
 
 
 /** Starfield + nebula glow ringing the office */
+/**
+ * Whether the invented sky is drawn at all.
+ *
+ * There were 73,500 points up there that meant nothing: 64,000 procedural
+ * stars and a 9,500-point Milky Way band. Onur asked the obvious question —
+ * why not only the real ones? The vault supplies 261 stars that each stand
+ * for a note, and the room's own rule is that a visible thing has a
+ * function.
+ *
+ * The honest cost of saying yes: the sky becomes much emptier, because 261
+ * is what a vault of 261 notes actually looks like. The compensation is that
+ * it fills in as he writes — a sky that grows with the work is worth more
+ * than a dense one that was always going to look the same.
+ *
+ * Set to true to bring the invented stars back. Nothing else has to change.
+ */
+const SHOW_INVENTED_STARS = false;
+
 function Starfield({ center }: { center: [number, number, number] }) {
   const groupRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
@@ -836,10 +854,10 @@ function Starfield({ center }: { center: [number, number, number] }) {
       <CosmicNebulaDome />
 
       {/* 2. 64.000 ASTRONOMISCHE STERNE (100% GPU-Shader, 120 FPS, 1 Draw Call) */}
-      <CosmicStarfieldShader count={64000} />
+      {SHOW_INVENTED_STARS ? <CosmicStarfieldShader count={64000} /> : null}
 
       {/* 3. MILCHSTRASSE: Gewaltiges galaktisches Band aus Sternenstaub & Wolken */}
-      <MilkyWayBand />
+      {SHOW_INVENTED_STARS ? <MilkyWayBand /> : null}
 
       {/* Photorealistic Planet Earth rotating in clear foreground outside station window */}
       <PlanetEarth position={[-18, 1.2, -6]} radius={3.6} />
