@@ -217,11 +217,9 @@ export function QuantumWarRoom({
           <meshPhysicalMaterial
             color="#00f0ff"
             transparent
-            opacity={0.42}
+            opacity={0.46}
             roughness={0.05}
             metalness={0.95}
-            transmission={0.65}
-            thickness={0.5}
             side={THREE.DoubleSide}
           />
         </mesh>

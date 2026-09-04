@@ -136,7 +136,6 @@ export function RoundTableModel({
             metalness={0.7}
             clearcoat={1}
             clearcoatRoughness={0.04}
-            transmission={0.55}
             transparent
             opacity={0.88}
             emissive={highlightColor}
@@ -150,10 +149,8 @@ export function RoundTableModel({
             color="#00f0ff"
             roughness={0.02}
             metalness={0.1}
-            transmission={0.92}
-            ior={1.5}
             transparent
-            opacity={0.22}
+            opacity={0.24}
           />
         </mesh>
         {/* Brushed Titanium Rim */}
@@ -260,7 +257,6 @@ export function ConferenceTableModel({
           metalness={0.55}
           clearcoat={0.3}
           clearcoatRoughness={0.45}
-          transmission={0.35}
           transparent
           opacity={0.94}
           emissive={highlightColor}

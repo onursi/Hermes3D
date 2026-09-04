@@ -5,6 +5,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+import { isTypingTarget } from "@/lib/isTypingTarget";
+
 /**
  * Gliding through the room rather than steering around it.
  *
@@ -130,6 +132,9 @@ export function GhostMode({ active, onExit, entry, onCruisingChange }: Props) {
       return;
     }
     const down = (event: KeyboardEvent) => {
+      // Never steal a key from someone writing: the ghost keeps flying while
+      // a panel is open, and Space belongs to the text field then, not to us.
+      if (isTypingTarget(event)) return;
       if (event.code === "Space") {
         // Space is the whole control scheme: stop to look, press again to go.
         event.preventDefault();

@@ -594,12 +594,12 @@ export function Obsidian3DGraphCore({
               <>
                 <mesh rotation={[Math.PI / 2, 0, 0]}>
                   <ringGeometry args={[radius * 2.5, radius * 3.2, 32]} />
-                  <meshBasicMaterial color={displayColor} transparent opacity={0.9} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                  <meshBasicMaterial color={displayColor} transparent opacity={0.9} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
                 </mesh>
                 {/* Secondary expanding bio-electric shockwave ring */}
                 <mesh rotation={[Math.PI / 2, 0, 0]}>
                   <ringGeometry args={[radius * 4.2, radius * 4.9, 32]} />
-                  <meshBasicMaterial color="#ffffff" transparent opacity={0.65} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                  <meshBasicMaterial color="#ffffff" transparent opacity={0.65} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
                 </mesh>
               </>
             )}

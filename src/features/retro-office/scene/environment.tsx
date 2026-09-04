@@ -1846,6 +1846,7 @@ function AnimatedFloorConduits({
             color="#00f0ff"
             transparent
             opacity={0.5}
+            depthWrite={false}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
@@ -1858,6 +1859,7 @@ function AnimatedFloorConduits({
             color="#00f0ff"
             transparent
             opacity={0.5}
+            depthWrite={false}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
@@ -1868,36 +1870,36 @@ function AnimatedFloorConduits({
         <group ref={dataNodesRef}>
           <mesh position={[-2.2, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.04, 0.22]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           <mesh position={[-0.8, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.04, 0.26]} />
-            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           <mesh position={[0.8, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.04, 0.26]} />
-            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           <mesh position={[2.2, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.04, 0.22]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           {/* Horizontal moving packets */}
           <mesh position={[0, 0.001, -1.8]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.26, 0.04]} />
-            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           <mesh position={[0, 0.001, -0.6]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.22, 0.04]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           <mesh position={[0, 0.001, 0.6]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.22, 0.04]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
           <mesh position={[0, 0.001, 1.8]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.26, 0.04]} />
-            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#00f0ff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
         </group>
       )}
@@ -2009,6 +2011,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
             color="#00f0ff"
             transparent
             opacity={0.65}
+            depthWrite={false}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
@@ -2018,11 +2021,9 @@ export const FloorAndWalls = memo(function FloorAndWalls({
           <meshPhysicalMaterial
             color="#010612"
             transparent
-            opacity={0.45}
+            opacity={0.4}
             roughness={0.06}
             metalness={0.15}
-            transmission={0.6}
-            ior={1.4}
           />
         </mesh>
       </group>

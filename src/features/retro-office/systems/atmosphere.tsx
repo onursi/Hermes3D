@@ -136,10 +136,13 @@ const COSMIC_STAR_FRAGMENT = `
   void main() {
     vec2 coord = gl_PointCoord - vec2(0.5);
     float dist = length(coord);
-    if (dist > 0.5) discard;
+    // Maske statt discard: discard schaltet den fruehen Tiefentest fuer den
+    // gesamten Shader ab, also laeuft er auch fuer verdeckte Fragmente voll
+    // durch. Bei additivem Blending traegt Alpha 0 ohnehin nichts bei.
+    float mask = step(dist, 0.5);
     float core = smoothstep(0.5, 0.04, dist);
     float glow = exp(-dist * 4.2);
-    float alpha = (core * 0.85 + glow * 0.45) * vTwinkle;
+    float alpha = (core * 0.85 + glow * 0.45) * vTwinkle * mask;
     gl_FragColor = vec4(vColor * 1.35, alpha);
   }
 `;
@@ -381,7 +384,6 @@ const PINPOINT_8K_GALAXY_FRAGMENT = `
   void main() {
     vec2 p = vUv * 2.0 - 1.0;
     float r = length(p);
-    if (r > 1.0) discard;
 
     float angle = atan(p.y, p.x);
     float rotSpeed = uSpeed * (0.12 + 0.35 / (r + 0.12));
