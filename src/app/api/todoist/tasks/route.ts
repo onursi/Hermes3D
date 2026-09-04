@@ -1,113 +1,235 @@
 import { NextResponse } from "next/server";
 
+/**
+ * Todoist, as a thin honest proxy.
+ *
+ * The previous version answered a missing or broken token with five invented
+ * tasks — "Executive 3D Dashboard auf 120 FPS optimieren" and friends — so a
+ * disconnected account was indistinguishable from a working one, and an
+ * outage looked like a tidy day. Nothing here fabricates a task. No token
+ * means no tasks and a reason; a failed call means an error and no tasks.
+ *
+ * The token is read from the Authorization header rather than the query
+ * string, because a query string ends up in server logs, browser history and
+ * referrers, and this one grants full access to somebody's task list.
+ */
+
 export const dynamic = "force-dynamic";
 
-const DEMO_TASKS = [
-  { id: "demo-1", content: "Executive 3D Dashboard auf 120 FPS optimieren", is_completed: false, priority: 4, project_name: "Hermes 3D", due: { string: "Heute" } },
-  { id: "demo-2", content: "Obsidian 3D Neural Graph mit Life OS verknüpfen", is_completed: true, priority: 3, project_name: "Life OS", due: { string: "Heute" } },
-  { id: "demo-3", content: "Todoist iPhone Synchronisation einrichten", is_completed: false, priority: 4, project_name: "Life OS", due: { string: "Heute" } },
-  { id: "demo-4", content: "QMD Vektor-Index für veränderte Dokumente nachziehen", is_completed: true, priority: 2, project_name: "System", due: { string: "Erledigt" } },
-  { id: "demo-5", content: "Möbel- und Tischoberflächen auf Satin-Matte entspiegeln", is_completed: true, priority: 1, project_name: "Optik", due: { string: "Erledigt" } },
-];
+const TODOIST_API = "https://api.todoist.com/rest/v2";
+
+export type TodoistTask = {
+  id: string;
+  content: string;
+  description?: string;
+  isCompleted: boolean;
+  /** Todoist counts 4 as urgent down to 1 as none. Kept in their scale. */
+  priority: number;
+  projectId?: string;
+  projectName?: string;
+  /** ISO date (no time) when the task is due, if it has a date at all. */
+  dueDate?: string | null;
+  /** Todoist's own human phrasing, e.g. "jeden Montag". */
+  dueText?: string | null;
+  url?: string;
+  labels?: string[];
+};
+
+type TodoistApiTask = {
+  id: string;
+  content: string;
+  description?: string;
+  is_completed?: boolean;
+  priority?: number;
+  project_id?: string;
+  labels?: string[];
+  url?: string;
+  due?: { date?: string; string?: string } | null;
+};
+
+const readToken = (req: Request) =>
+  req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ||
+  process.env.TODOIST_API_TOKEN?.trim() ||
+  "";
+
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+/** Todoist returns plain text on failure; surface it instead of a generic 400. */
+async function describeFailure(res: Response) {
+  const body = await res.text().catch(() => "");
+  const detail = body.trim().slice(0, 200);
+  if (res.status === 401 || res.status === 403) {
+    return "Token abgelehnt. Prüfe ihn in den Todoist-Einstellungen unter Integrationen.";
+  }
+  if (res.status === 429) return "Todoist drosselt gerade. In einer Minute erneut versuchen.";
+  return `Todoist antwortete mit ${res.status}${detail ? `: ${detail}` : ""}`;
+}
 
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const token =
-      req.headers.get("authorization")?.replace("Bearer ", "") ||
-      url.searchParams.get("token") ||
-      process.env.TODOIST_API_TOKEN;
+  const token = readToken(req);
+  if (!token) {
+    return NextResponse.json({
+      connected: false,
+      tasks: [],
+      reason:
+        "Kein Todoist-Token hinterlegt. Über den Schlüssel oben rechts eintragen — er bleibt in diesem Browser.",
+    });
+  }
 
-    if (!token) {
+  try {
+    // Projects come along so a task can show where it lives. The task endpoint
+    // only returns `project_id`, and an id on screen helps nobody.
+    const [taskRes, projectRes] = await Promise.all([
+      fetch(`${TODOIST_API}/tasks`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+      fetch(`${TODOIST_API}/projects`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+    ]);
+
+    if (!taskRes.ok) {
       return NextResponse.json({
-        isConnected: false,
-        tasks: DEMO_TASKS,
-        message: "Kein Todoist-Token hinterlegt. Zeige LifeOS-Aufgaben. Trage deinen Token ein, um direkt mit deinem iPhone zu synchronisieren.",
+        connected: false,
+        tasks: [],
+        reason: await describeFailure(taskRes),
       });
     }
 
-    const res = await fetch("https://api.todoist.com/rest/v2/tasks", {
+    const rawTasks: TodoistApiTask[] = await taskRes.json();
+    // A failed project lookup is not worth failing the whole list over; the
+    // tasks are the point and the project name is a nicety.
+    const projectNames = new Map<string, string>();
+    if (projectRes.ok) {
+      const projects: Array<{ id: string; name: string }> = await projectRes.json();
+      projects.forEach((project) => projectNames.set(project.id, project.name));
+    }
+
+    const tasks: TodoistTask[] = rawTasks.map((task) => ({
+      id: task.id,
+      content: task.content,
+      description: task.description || undefined,
+      isCompleted: Boolean(task.is_completed),
+      priority: task.priority ?? 1,
+      projectId: task.project_id,
+      projectName: task.project_id ? projectNames.get(task.project_id) : undefined,
+      dueDate: task.due?.date ?? null,
+      dueText: task.due?.string ?? null,
+      url: task.url,
+      labels: task.labels,
+    }));
+
+    return NextResponse.json({ connected: true, tasks });
+  } catch (error) {
+    console.error("Todoist tasks request failed:", error);
+    return NextResponse.json({
+      connected: false,
+      tasks: [],
+      reason: `Todoist nicht erreichbar: ${errorMessage(error)}`,
+    });
+  }
+}
+
+/** Complete or reopen. Both directions exist so the checkbox cannot lie. */
+export async function POST(req: Request) {
+  const token = readToken(req);
+  if (!token) {
+    return NextResponse.json(
+      { ok: false, reason: "Kein Todoist-Token hinterlegt." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const { taskId, completed } = (await req.json()) as {
+      taskId?: string;
+      completed?: boolean;
+    };
+    if (!taskId) {
+      return NextResponse.json({ ok: false, reason: "taskId fehlt." }, { status: 400 });
+    }
+
+    const action = completed ? "close" : "reopen";
+    const res = await fetch(`${TODOIST_API}/tasks/${taskId}/${action}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // Todoist answers 204 with no body on success.
+    if (!res.ok && res.status !== 204) {
+      return NextResponse.json(
+        { ok: false, reason: await describeFailure(res) },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ ok: false, reason: errorMessage(error) }, { status: 500 });
+  }
+}
+
+/** Create. Returns the task Todoist actually stored, not the one we sent. */
+export async function PUT(req: Request) {
+  const token = readToken(req);
+  if (!token) {
+    return NextResponse.json(
+      { ok: false, reason: "Kein Todoist-Token hinterlegt." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const { content, priority, dueString, projectId } = (await req.json()) as {
+      content?: string;
+      priority?: number;
+      dueString?: string;
+      projectId?: string;
+    };
+    const trimmed = content?.trim();
+    if (!trimmed) {
+      return NextResponse.json({ ok: false, reason: "Kein Text." }, { status: 400 });
+    }
+
+    const res = await fetch(`${TODOIST_API}/tasks`, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      cache: "no-store",
+      body: JSON.stringify({
+        content: trimmed,
+        ...(priority ? { priority } : {}),
+        // Todoist parses this itself, so "morgen 9 Uhr" works as typed.
+        ...(dueString ? { due_string: dueString, due_lang: "de" } : {}),
+        ...(projectId ? { project_id: projectId } : {}),
+      }),
     });
 
     if (!res.ok) {
-      const err = await res.text();
       return NextResponse.json(
-        { isConnected: false, error: `Todoist API Fehler: ${res.status} ${err}`, tasks: DEMO_TASKS },
-        { status: 200 }
+        { ok: false, reason: await describeFailure(res) },
+        { status: 502 },
       );
     }
 
-    const tasks = await res.json();
-    return NextResponse.json({
-      isConnected: true,
-      tasks,
-    });
-  } catch (error: any) {
-    console.error("Todoist API error:", error);
-    return NextResponse.json({ isConnected: false, error: error.message, tasks: DEMO_TASKS }, { status: 500 });
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const { taskId, token } = body;
-    const activeToken = token || process.env.TODOIST_API_TOKEN;
-
-    if (!activeToken) {
-      return NextResponse.json({ success: true, simulated: true });
-    }
-
-    const res = await fetch(`https://api.todoist.com/rest/v2/tasks/${taskId}/close`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${activeToken}`,
-      },
-    });
-
-    if (!res.ok && res.status !== 204) {
-      return NextResponse.json({ error: "Fehler beim Abhaken auf Todoist" }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-export async function PUT(req: Request) {
-  try {
-    const body = await req.json();
-    const { content, priority = 1, token } = body;
-    const activeToken = token || process.env.TODOIST_API_TOKEN;
-
-    if (!activeToken) {
-      return NextResponse.json({
-        task: { id: `demo-${Date.now()}`, content, priority, is_completed: false, due: { string: "Heute" } },
-        simulated: true,
-      });
-    }
-
-    const res = await fetch("https://api.todoist.com/rest/v2/tasks", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${activeToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ content, priority }),
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ error: "Fehler beim Erstellen auf Todoist" }, { status: 400 });
-    }
-
-    const created = await res.json();
-    return NextResponse.json({ task: created, success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const created: TodoistApiTask = await res.json();
+    const task: TodoistTask = {
+      id: created.id,
+      content: created.content,
+      description: created.description || undefined,
+      isCompleted: Boolean(created.is_completed),
+      priority: created.priority ?? 1,
+      projectId: created.project_id,
+      dueDate: created.due?.date ?? null,
+      dueText: created.due?.string ?? null,
+      url: created.url,
+      labels: created.labels,
+    };
+    return NextResponse.json({ ok: true, task });
+  } catch (error) {
+    return NextResponse.json({ ok: false, reason: errorMessage(error) }, { status: 500 });
   }
 }

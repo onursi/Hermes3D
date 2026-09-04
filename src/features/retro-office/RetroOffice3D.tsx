@@ -7938,18 +7938,27 @@ export function RetroOffice3D({
 
                     clearInterval(suctionTimer);
                     testAgent.verticalSuctionY = undefined;
+
+                    // Land the agent by setting its grid position outright
+                    // rather than handing pathfinding a destination and hoping.
+                    // Only a target was set before, so whenever the tick did
+                    // not walk that path the agent simply stayed on the
+                    // tunnel's own coordinates — standing inside the beam,
+                    // which is exactly how it looked.
+                    const [exitX, exitY] = isSub ? [290, 240] : [368, 340];
+                    testAgent.x = exitX;
+                    testAgent.y = exitY;
+                    testAgent.targetX = exitX;
+                    testAgent.targetY = exitY;
+                    testAgent.path = [];
+                    testAgent.state = "standing";
+
                     if (isSub) {
                       testAgent.workstationActivity = undefined;
                       testAgent.workstationId = undefined;
-                      testAgent.targetX = 290;
-                      testAgent.targetY = 240;
-                      testAgent.path = [{ x: 290, y: 240 }];
                     } else {
                       testAgent.workstationActivity = "war_room_metrics";
                       testAgent.workstationId = "war_room_metrics";
-                      testAgent.targetX = 368;
-                      testAgent.targetY = 340;
-                      testAgent.path = [{ x: 368, y: 340 }];
                     }
                   }, 16);
                 }}
