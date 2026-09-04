@@ -9965,7 +9965,12 @@ export function RetroOffice3D({
           </button>
           <button
             onClick={() => setSettingsModalOpen(true)}
-            title="Sprach- & Audioeinstellungen"
+            // The panel behind this button grew graphics quality, render mode
+            // and gateway settings, and the tooltip still promised speech and
+            // audio. Onur went looking for the quality setting and could not
+            // find it, which is what a label that describes an older version
+            // of a thing costs.
+            title="Einstellungen — Grafik, Sprache, Verbindung"
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all backdrop-blur-sm border ${settingsModalOpen ? "bg-amber-500/30 text-amber-300 border-amber-500/50" : "bg-[#1c1610]/80 text-amber-500/40 border-amber-900/20 hover:text-amber-400"}`}
           >
             <Settings2 size={12} />
