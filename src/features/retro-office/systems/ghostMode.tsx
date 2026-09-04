@@ -62,9 +62,24 @@ type Props = {
   entry?: [number, number, number];
   /** Told whether the camera is drifting, so the HUD can say which. */
   onCruisingChange?: (cruising: boolean) => void;
+  /**
+   * Speed multiplier, 1 is the walking pace the room was tuned for.
+   *
+   * At the top of the range the room goes past faster than you can read it,
+   * which is the point: crossing the map is a different act from looking at
+   * it. Held as a ref so the frame loop follows the slider without the
+   * controls being torn down and rebuilt on every change.
+   */
+  speedMultiplier?: number;
 };
 
-export function GhostMode({ active, onExit, entry, onCruisingChange }: Props) {
+export function GhostMode({
+  active,
+  onExit,
+  entry,
+  onCruisingChange,
+  speedMultiplier = 1,
+}: Props) {
   const camera = useThree((state) => state.camera);
   /**
    * The camera, held by reference.
@@ -85,6 +100,10 @@ export function GhostMode({ active, onExit, entry, onCruisingChange }: Props) {
   const rightRef = useRef(new THREE.Vector3());
   const desiredRef = useRef(new THREE.Vector3());
   const cruisingRef = useRef(true);
+  const speedRef = useRef(speedMultiplier);
+  useEffect(() => {
+    speedRef.current = speedMultiplier;
+  }, [speedMultiplier]);
   /** Where the orbit camera stood, so leaving puts it back exactly. */
   const restoreRef = useRef<{
     position: THREE.Vector3;
@@ -179,7 +198,8 @@ export function GhostMode({ active, onExit, entry, onCruisingChange }: Props) {
     desired.set(0, 0, 0);
     if (cruising) {
       const boosted = pressed.ShiftLeft || pressed.ShiftRight;
-      desired.addScaledVector(forward, boosted ? CRUISE_BOOST : CRUISE_SPEED);
+      const speed = (boosted ? CRUISE_BOOST : CRUISE_SPEED) * speedRef.current;
+      desired.addScaledVector(forward, speed);
     }
     // Nudges work in both states, so a halt can still be lined up precisely.
     if (pressed.KeyD || pressed.ArrowRight) desired.addScaledVector(right, NUDGE_SPEED);

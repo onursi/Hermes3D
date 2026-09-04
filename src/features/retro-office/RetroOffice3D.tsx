@@ -3979,6 +3979,14 @@ export function RetroOffice3D({
   // back exactly where it stood.
   const [ghostActive, setGhostActive] = useState(false);
   const [ghostCruising, setGhostCruising] = useState(true);
+  /**
+   * Ghost flight speed, 1 being the walking pace the room was tuned for.
+   *
+   * Crossing the map and looking at it are different acts and want different
+   * speeds. Kept in the HUD rather than as a hidden shortcut, because a
+   * setting nobody can find is a setting nobody has.
+   */
+  const [ghostSpeed, setGhostSpeed] = useState(1);
 
   const followFocusPointRef = useRef(new THREE.Vector3());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -6754,6 +6762,7 @@ export function RetroOffice3D({
               onExit={() => setGhostActive(false)}
               entry={cameraTarget}
               onCruisingChange={setGhostCruising}
+              speedMultiplier={ghostSpeed}
             />
             <DirectCameraController orbitRef={orbitRef} />
             <AdaptiveDprController maxDpr={graphicsQualityConfig.maxDpr} />
@@ -7549,6 +7558,21 @@ export function RetroOffice3D({
             <span className="text-white/80 font-semibold">Shift</span> schneller
             <span className="mx-1.5 text-white/20">·</span>
             <span className="text-white/80 font-semibold">Esc</span> zurück
+          </span>
+          <span className={HUD_DIVIDER} />
+          <span className="pointer-events-auto flex items-center gap-2">
+            <span className={HUD_LABEL}>Tempo</span>
+            <input
+              type="range"
+              min={0.5}
+              max={12}
+              step={0.5}
+              value={ghostSpeed}
+              onChange={(event) => setGhostSpeed(Number(event.target.value))}
+              className="h-1 w-24 cursor-pointer accent-cyan-300"
+              title="Von Schrittgeschwindigkeit bis quer durch den Raum in einem Atemzug"
+            />
+            <span className={`${HUD_VALUE} w-9 text-right`}>{ghostSpeed.toFixed(1)}×</span>
           </span>
         </div>
       ) : null}
