@@ -97,6 +97,7 @@ export function JarvisConsole({
       setSources([]);
       setReason(null);
       setSavedAs(null);
+      setPreview(null);
       setCandidates(null);
       setAccepted({});
       setPhase("searching");
@@ -187,24 +188,59 @@ export function JarvisConsole({
     }
   }, [answer, phase]);
 
-  const remember = useCallback(async () => {
+  /**
+   * Remembering, in two steps: show first, write second.
+   *
+   * The first version wrote straight to disk. That is fine until the derived
+   * title is wrong — and it is derived from the answer's first line, so it
+   * often is. A note filed under a bad name is worse than no note: it is
+   * findable by nothing and still counts against you when you scan the Inbox.
+   *
+   * So the preview shows the filename, the folder and the sources that will
+   * be linked, and the title is editable before anything touches the disk.
+   */
+  const [preview, setPreview] = useState<
+    { title: string; file: string; sources: string[] } | null
+  >(null);
+
+  const proposeNote = useCallback(async () => {
     if (!answer || saving) return;
     setSaving(true);
     try {
       const res = await fetch("/api/jarvis/remember", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: answer, question, sources }),
+        body: JSON.stringify({ text: answer, question, sources, preview: true }),
       });
       const data = await res.json();
-      setSavedAs(data.ok ? data.file : null);
-      if (!data.ok) setReason(data.reason ?? "Konnte nicht gespeichert werden.");
+      if (data.ok) setPreview({ title: data.title, file: data.file, sources: data.sources ?? [] });
+      else setReason(data.reason ?? "Vorschau fehlgeschlagen.");
     } catch (error) {
       setReason(error instanceof Error ? error.message : String(error));
     } finally {
       setSaving(false);
     }
   }, [answer, question, sources, saving]);
+
+  const confirmNote = useCallback(async () => {
+    if (!preview || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/jarvis/remember", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: answer, question, sources, title: preview.title }),
+      });
+      const data = await res.json();
+      setSavedAs(data.ok ? data.file : null);
+      if (data.ok) setPreview(null);
+      else setReason(data.reason ?? "Konnte nicht gespeichert werden.");
+    } catch (error) {
+      setReason(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }, [preview, answer, question, sources, saving]);
 
   /**
    * The day, as advice rather than as a list.
@@ -220,7 +256,8 @@ export function JarvisConsole({
     setSources([]);
     setReason(null);
     setSavedAs(null);
-    setCandidates(null);
+    setPreview(null);
+      setCandidates(null);
     setAccepted({});
     setQuestion("Wie ist mein Stand?");
     setPhase("thinking");
@@ -251,7 +288,8 @@ export function JarvisConsole({
   const findTasks = useCallback(async () => {
     if (!answer || candidatesBusy) return;
     setCandidatesBusy(true);
-    setCandidates(null);
+    setPreview(null);
+      setCandidates(null);
     try {
       const res = await fetch("/api/jarvis/task-candidates", {
         method: "POST",
@@ -407,7 +445,7 @@ export function JarvisConsole({
           <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void remember()}
+              onClick={() => void proposeNote()}
               disabled={saving || Boolean(savedAs)}
               className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.09] bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/60 transition hover:border-white/20 hover:text-white/90 disabled:opacity-40"
               title="Legt diese Antwort mit Frage und Quellen als Notiz in der Inbox ab"
@@ -430,6 +468,47 @@ export function JarvisConsole({
                 {savedAs}
               </span>
             ) : null}
+          </div>
+        ) : null}
+
+        {preview ? (
+          <div className="mt-3 rounded-xl border border-white/[0.09] bg-white/[0.04] p-3">
+            <p className="pb-2 text-[10px] font-semibold tracking-[-0.005em] text-white/45">
+              Wird so abgelegt — Titel änderbar
+            </p>
+            <input
+              value={preview.title}
+              onChange={(event) =>
+                setPreview((prev) => (prev ? { ...prev, title: event.target.value } : prev))
+              }
+              onKeyDown={(event) => event.stopPropagation()}
+              className="w-full rounded-lg border border-white/[0.09] bg-black/40 px-2 py-1.5 text-[12px] text-white/90 outline-none"
+            />
+            <p className="mt-2 truncate text-[10px] text-white/35" title={preview.file}>
+              {preview.file}
+            </p>
+            {preview.sources.length > 0 ? (
+              <p className="mt-1 text-[10px] leading-relaxed text-white/35">
+                verlinkt: {preview.sources.join(" · ")}
+              </p>
+            ) : null}
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void confirmNote()}
+                disabled={saving || !preview.title.trim()}
+                className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-medium text-emerald-100 hover:border-emerald-300/60 disabled:opacity-40"
+              >
+                {saving ? "speichert…" : "In die Inbox"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreview(null)}
+                className="text-[11px] text-white/40 hover:text-white/70"
+              >
+                Abbrechen
+              </button>
+            </div>
           </div>
         ) : null}
 

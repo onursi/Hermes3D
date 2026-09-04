@@ -54,7 +54,15 @@ function titleFrom(text: string): string {
 }
 
 export async function POST(req: Request) {
-  let body: { text?: string; question?: string; sources?: { id: string; title: string }[] };
+  let body: {
+    text?: string;
+    question?: string;
+    sources?: { id: string; title: string }[];
+    /** Show what would be written without writing it. */
+    preview?: boolean;
+    /** An overridden title, once Onur has seen the proposed one. */
+    title?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -67,7 +75,9 @@ export async function POST(req: Request) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const title = titleFrom(text);
+  // A title Onur has already seen and corrected beats one derived again from
+  // the first line — which is the whole point of showing it first.
+  const title = (body.title ?? "").trim() || titleFrom(text);
   const fileName = `${safeFileName(title)} ${today}.md`;
   const target = path.join(VAULT_PATH, INBOX, fileName);
 
@@ -103,6 +113,21 @@ export async function POST(req: Request) {
     text,
     "",
   ].join("\n");
+
+  if (body.preview) {
+    // Nothing touches the disk on this path, deliberately. A preview that
+    // writes is not a preview, and "shown before saved" is the only reason
+    // this mode exists.
+    return NextResponse.json({
+      ok: true,
+      preview: true,
+      title,
+      file: path.join(INBOX, fileName).split(path.sep).join("/"),
+      folder: INBOX,
+      sources: (body.sources ?? []).map((source) => source.title),
+      contents,
+    });
+  }
 
   try {
     fs.mkdirSync(inboxDir, { recursive: true });
