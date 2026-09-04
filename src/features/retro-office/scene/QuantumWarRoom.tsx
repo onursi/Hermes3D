@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo } from "react";
+import React, { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text, Billboard } from "@react-three/drei";
 import * as THREE from "three";
@@ -16,6 +16,80 @@ import { cyberAudio } from "@/lib/sound/cyberAudio";
  * value now reads as unmeasured.
  */
 const UNKNOWN = "—";
+
+/**
+ * The globe's data nodes, as one object instead of thirty-six.
+ *
+ * Written as `points.map(p => <mesh>)` they were thirty-six meshes, each with
+ * its own geometry, its own material and its own draw call, for thirty-six
+ * identical two-millimetre spheres differing only in position and colour.
+ * That is the shape of mistake that does not look like a mistake in JSX — it
+ * reads as the obvious way to write it — and it is why this scene arrived at
+ * five hundred draw calls without anyone doing anything reckless.
+ *
+ * An InstancedMesh sends one geometry and one material, with the positions
+ * and colours as per-instance data. Same picture, one draw.
+ */
+function GlobeNodes({ points }: { points: [number, number, number][] }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const matrix = new THREE.Matrix4();
+    const colour = new THREE.Color();
+    points.forEach((point, index) => {
+      matrix.setPosition(point[0], point[1], point[2]);
+      mesh.setMatrixAt(index, matrix);
+      // The original coloured every third node in turn; kept exactly, so the
+      // globe looks the way it looked.
+      colour.set(index % 3 === 0 ? "#fbbf24" : index % 3 === 1 ? "#00f0ff" : "#22c55e");
+      mesh.setColorAt(index, colour);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [points]);
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, points.length]}>
+      <sphereGeometry args={[0.024, 8, 8]} />
+      <meshBasicMaterial />
+    </instancedMesh>
+  );
+}
+
+const SHAFT_RING_HEIGHTS = [0.65, 1.3, 1.95, 2.6, 3.25, 3.9, 4.55];
+
+/** The same seven rings, drawn once. See GlobeNodes for the reasoning. */
+function ShaftRings({ heights }: { heights: number[] }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const matrix = new THREE.Matrix4();
+    const lieFlat = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(-Math.PI / 2, 0, 0),
+    );
+    const scale = new THREE.Vector3(1, 1, 1);
+    const position = new THREE.Vector3();
+    heights.forEach((height, index) => {
+      position.set(0, height, 0);
+      matrix.compose(position, lieFlat, scale);
+      mesh.setMatrixAt(index, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [heights]);
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, heights.length]}>
+      <ringGeometry args={[0.91, 0.99, 32]} />
+      <meshBasicMaterial color="#00f0ff" transparent opacity={0.85} />
+    </instancedMesh>
+  );
+}
 
 const showNumber = (
   value: number | null | undefined,
@@ -234,13 +308,9 @@ export function QuantumWarRoom({
           />
         </mesh>
 
-        {/* Outer Neon Magnetic Rings along the Elevator Shaft */}
-        {[0.65, 1.3, 1.95, 2.6, 3.25, 3.9, 4.55].map((ringY) => (
-          <mesh key={ringY} position={[0, ringY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.91, 0.99, 32]} />
-            <meshBasicMaterial color="#00f0ff" transparent opacity={0.85} />
-          </mesh>
-        ))}
+        {/* Outer neon magnetic rings along the shaft — seven identical rings
+            at seven heights, so one instanced draw rather than seven. */}
+        <ShaftRings heights={SHAFT_RING_HEIGHTS} />
 
         {/* Animated Ascending/Descending Energy Pulse Rings inside Tube */}
         <group ref={liftRingsRef}>
@@ -309,15 +379,9 @@ export function QuantumWarRoom({
           <sphereGeometry args={[0.42, 16, 16]} />
           <meshBasicMaterial color="#38bdf8" transparent opacity={0.65} />
         </mesh>
-        {/* Active Orbital Data Nodes on Globe */}
-        {globePoints.map((pt, i) => (
-          <mesh key={i} position={pt}>
-            <sphereGeometry args={[0.024, 8, 8]} />
-            <meshBasicMaterial
-              color={i % 3 === 0 ? "#fbbf24" : i % 3 === 1 ? "#00f0ff" : "#22c55e"}
-            />
-          </mesh>
-        ))}
+        {/* Active orbital data nodes. One draw call, not thirty-six — see
+            GlobeNodes for why that was worth changing. */}
+        <GlobeNodes points={globePoints} />
       </group>
 
       {/* 3 Concentric Floating Quantum Data Rings */}
