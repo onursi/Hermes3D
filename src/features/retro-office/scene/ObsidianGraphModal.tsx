@@ -45,18 +45,22 @@ export function ObsidianGraphModal({
   const [graphVisible, setGraphVisible] = useState(false);
 
   /**
-   * The indicator gives up after eight seconds, whatever the scene is doing.
+   * The indicator gives up eight seconds after the window opens.
    *
-   * The frame signal inside the canvas is the good measurement and the wrong
-   * place for a safety net: while the subtree is suspended — drei's Text
-   * waits on a font — none of its children mount, so a timer in there never
-   * runs either. A cover that can outlive the thing it covers is worse than
-   * no cover at all, so this one sits outside and cannot be suspended with it.
+   * The first version ran once on mount with an empty dependency list. The
+   * modal mounts while it is closed, so the timer burned itself there, the
+   * close-handler reset the flag right after, and by the time the window was
+   * actually opened there was nothing left to lift the cover — it hid a
+   * working graph permanently. Exactly the failure this net exists to
+   * prevent, introduced by the net itself.
+   *
+   * Tied to isOpen, so every opening gets its own deadline.
    */
   useEffect(() => {
+    if (!isOpen) return;
     const timer = setTimeout(() => setGraphVisible(true), 8000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isOpen]);
   /**
    * The guided flight through the vault.
    *

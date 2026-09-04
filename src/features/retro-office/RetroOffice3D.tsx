@@ -8018,56 +8018,44 @@ export function RetroOffice3D({
                   // 18 ms across 5.2 m — which is why pressing this looked
                   // like nothing happened at all. It now takes 1.6 s and
                   // accelerates, so you can actually watch the pull.
-                  const SUCTION_MS = 1600;
                   const TOP_Y = 0;
                   const BOTTOM_Y = -5.2;
                   const startY = isSub ? BOTTOM_Y : TOP_Y;
                   const endY = isSub ? TOP_Y : BOTTOM_Y;
                   cyberAudio.playTractorBeam(isSub ? "up" : "down");
-                  testAgent.verticalSuctionY = startY;
-                  // verticalSuctionY only moves the agent up and down where it already
-                  // stands, which is beside the tube, not inside it. activeLiftSuction is
-                  // the mechanism that actually pins it to the tube's coordinates and spins
-                  // it on the way — and it was read in two places and assigned in none, so
-                  // the ride was never visible. It is assigned now.
+                  
+                  // Handed to the frame loop as a whole ride: where from, where to, how
+                  // long. No interval, and nothing written onto the agent — the agent list
+                  // is rebuilt every tick, so anything set on one is set on an object about
+                  // to be discarded. That was why pressing this looked like nothing.
                   activeLiftSuction.agentId = testAgent.id;
+                  activeLiftSuction.fromY = startY;
+                  activeLiftSuction.toY = endY;
                   activeLiftSuction.currentY = startY;
-
-                  const startedAt = performance.now();
-                  const suctionTimer = setInterval(() => {
-                    const progress = Math.min(1, (performance.now() - startedAt) / SUCTION_MS);
-                    // Ease-in: gentle release, then the tunnel takes hold.
-                    const eased = progress * progress;
-                    testAgent.verticalSuctionY = startY + (endY - startY) * eased;
-                    activeLiftSuction.currentY = testAgent.verticalSuctionY;
-                    if (progress < 1) return;
-
-                    clearInterval(suctionTimer);
-                    testAgent.verticalSuctionY = undefined;
-                    activeLiftSuction.agentId = null;
-
-                    // Land the agent by setting its grid position outright
-                    // rather than handing pathfinding a destination and hoping.
-                    // Only a target was set before, so whenever the tick did
-                    // not walk that path the agent simply stayed on the
-                    // tunnel's own coordinates — standing inside the beam,
-                    // which is exactly how it looked.
+                  activeLiftSuction.durationMs = 1600;
+                  activeLiftSuction.startedAt = performance.now();
+                  activeLiftSuction.onArrive = () => {
+                    // Placed outright rather than handed to pathfinding, which was the
+                    // earlier bug: only a target was set, so whenever the walk did not
+                    // happen the agent simply stood inside the beam.
                     const [exitX, exitY] = isSub ? [290, 240] : [368, 340];
-                    testAgent.x = exitX;
-                    testAgent.y = exitY;
-                    testAgent.targetX = exitX;
-                    testAgent.targetY = exitY;
-                    testAgent.path = [];
-                    testAgent.state = "standing";
-
+                    const landed = renderAgentsRef.current.find((a) => a.id === testAgent.id);
+                    if (!landed) return;
+                    landed.x = exitX;
+                    landed.y = exitY;
+                    landed.targetX = exitX;
+                    landed.targetY = exitY;
+                    landed.path = [];
+                    landed.state = "standing";
+                    landed.verticalSuctionY = undefined;
                     if (isSub) {
-                      testAgent.workstationActivity = undefined;
-                      testAgent.workstationId = undefined;
+                      landed.workstationActivity = undefined;
+                      landed.workstationId = undefined;
                     } else {
-                      testAgent.workstationActivity = "war_room_metrics";
-                      testAgent.workstationId = "war_room_metrics";
+                      landed.workstationActivity = "war_room_metrics";
+                      landed.workstationId = "war_room_metrics";
                     }
-                  }, 16);
+                  };
                 }}
                 className="flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-gradient-to-r from-[#031525]/92 to-[#020b18]/92 px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-all hover:border-cyan-300 hover:scale-[1.02] cursor-pointer"
                 title="Kamera auf den Gravitations-Tunnel richten und Agenten zügig runter/rauf saugen"
