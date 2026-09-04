@@ -46,10 +46,16 @@ export function FirstFrameSignal({
    * canvas it was built to replace. So whichever comes first wins, and the
    * failure mode is a visible scene rather than a permanent spinner.
    */
-  const fireRef = useRef(fire);
-  fireRef.current = fire;
+  const onReadyRef = useRef(onReady);
   useEffect(() => {
-    const timer = setTimeout(() => fireRef.current(), timeoutMs);
+    onReadyRef.current = onReady;
+  }, [onReady]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (fired.current) return;
+      fired.current = true;
+      onReadyRef.current();
+    }, timeoutMs);
     return () => clearTimeout(timer);
   }, [timeoutMs]);
 

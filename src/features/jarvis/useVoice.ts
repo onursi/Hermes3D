@@ -52,6 +52,9 @@ export function useVoice({ onTranscript }: { onTranscript: (text: string) => voi
    */
   const [supported, setSupported] = useState(false);
   useEffect(() => {
+    // Moving this into render breaks hydration, which is worse than one extra
+    // render for a value that settles once and never changes again.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSupported(Boolean(recognitionConstructor()) && "speechSynthesis" in window);
   }, []);
   const [heard, setHeard] = useState("");
