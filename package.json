@@ -17,7 +17,9 @@
     "smoke:dev-server": "node scripts/smoke-dev-server.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "measure": "node scripts/measure-office.mjs",
+    "smoke": "playwright test office-scene-smoke --reporter=line"
   },
   "dependencies": {
     "@noble/ed25519": "^3.0.0",
