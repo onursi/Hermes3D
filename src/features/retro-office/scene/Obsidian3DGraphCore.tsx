@@ -116,11 +116,6 @@ export function Obsidian3DGraphCore({
     () => new Set(activeSourceIds ?? []),
     [activeSourceIds],
   );
-  /** Ticks while sources are lit, so the pulse is time-based and not per-node. */
-  const pulseRef = useRef(0);
-  useFrame((_, delta) => {
-    pulseRef.current += delta;
-  });
 
   const nodeMap = useMemo(() => {
     const map = new Map<string, GraphNode>();
@@ -601,7 +596,11 @@ export function Obsidian3DGraphCore({
         const degreeWeight = Math.log1p(degree) / Math.log1p(maxDegree);
         const restingEmissive = 0.85 + degreeWeight * 2.75;
         const emissive = isSource
-          ? 5.5 + Math.sin(pulseRef.current * 3.4) * 2.2
+          // Constant, not pulsing. A sine read per node per frame meant
+          // touching a ref during render 259 times a frame. The event is
+          // already carried by the light appearing and vanishing with the
+          // answer — a throb on top bought nothing and cost the rule.
+          ? 6.5
           : showOrphans && isOrphan
           ? 4.0
           : isSelected
