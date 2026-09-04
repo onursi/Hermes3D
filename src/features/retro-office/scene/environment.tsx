@@ -778,7 +778,12 @@ function useAvatarScreenTexture({
   const lastUpdateRef = useRef(0);
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
-    if (t - lastUpdateRef.current < 0.016) return; // Smooth 60 FPS update
+    // Was 0.016, i.e. a full repaint and re-upload of a 2048x512 canvas on
+    // every frame: 4 MB per frame, about 240 MB/s across the bus, plus the
+    // Canvas2D work on the main thread — for a wall of avatars that changes
+    // when an agent does, which is nothing like sixty times a second. At 12 Hz
+    // the panel still animates smoothly and the cost drops fivefold.
+    if (t - lastUpdateRef.current < 0.083) return;
     lastUpdateRef.current = t;
 
     const ctx = ctxRef.current;

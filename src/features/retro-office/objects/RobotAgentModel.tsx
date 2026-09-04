@@ -14,6 +14,9 @@ import { SkeletonUtils } from "three-stdlib";
  * instead of faking limb swing with per-frame rotation math on primitive
  * meshes.
  */
+/** Seconds between face repaints. Twenty per second reads as continuous. */
+const VISOR_REDRAW_INTERVAL = 0.05;
+
 const ROBOT_GLB_PATH = "/office-assets/models/agents/robot.glb";
 const CLIP_PREFIX = "RobotArmature|Robot_";
 
@@ -96,6 +99,17 @@ export function RobotAgentModel({
   const group = useRef<THREE.Group>(null);
   const { actions } = useAnimations(animations, cloned);
   const currentClipRef = useRef<RobotClipKey | null>(null);
+
+  /**
+   * Last time this robot repainted its face, offset per robot so a roomful of
+   * them do not all repaint on the same frame. Seeded from the agent's colour
+   * so the stagger is stable across reloads rather than random each mount.
+   */
+  const visorLastDrawRef = useRef(
+    -((Array.from(color ?? "x").reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0) % 50) /
+      50 *
+      VISOR_REDRAW_INTERVAL,
+  );
 
   // Build dynamic high-contrast Cyberpunk OLED Face Screen Texture
   const visorCanvas = useMemo(() => {
@@ -182,6 +196,14 @@ export function RobotAgentModel({
     const ctx = visorCtxRef.current;
     if (!ctx || !visorCanvas || !visorTexture) return;
     const t = clock.getElapsedTime();
+
+    // Every robot repainted its face on every frame — eight Canvas2D redraws
+    // and eight 128 KB uploads per frame, all in the same instant. A face
+    // blinks and glances; it does not need sixty updates a second. Twenty is
+    // indistinguishable, and the per-robot offset spreads the remaining work
+    // across frames instead of spiking one.
+    if (t - visorLastDrawRef.current < VISOR_REDRAW_INTERVAL) return;
+    visorLastDrawRef.current = t;
 
     ctx.clearRect(0, 0, 256, 128);
 
