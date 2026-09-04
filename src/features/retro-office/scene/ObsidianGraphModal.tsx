@@ -122,11 +122,14 @@ export function ObsidianGraphModal({
     if (isOpen && !isMuted) {
       cyberAudio.resume();
       cyberAudio.startNeuralAmbience();
+      cyberAudio.startNeuralFiring();
     } else {
       cyberAudio.stopNeuralAmbience();
+      cyberAudio.stopNeuralFiring();
     }
     return () => {
       cyberAudio.stopNeuralAmbience();
+      cyberAudio.stopNeuralFiring();
     };
   }, [isOpen, isMuted]);
 
@@ -207,6 +210,20 @@ export function ObsidianGraphModal({
     const orphans = (data?.nodes ?? []).filter((node) => !degree.get(node.id)).length;
     return { degreeById: degree, topHubs: hubs, orphanCount: orphans };
   }, [data]);
+
+  /**
+   * The firing rate reports something true about the vault.
+   *
+   * Loose ends — notes nothing links to — are the vault's unfinished
+   * business, so the more of them there are in proportion, the more restless
+   * the brain sounds. A rate pulled from nowhere would be an effect; this
+   * one is a reading, and it changes when the vault does.
+   */
+  useEffect(() => {
+    if (!isOpen || !data) return;
+    const share = orphanCount / Math.max(1, data.nodes.length);
+    cyberAudio.setNeuralActivity(Math.min(1, 0.15 + share * 6));
+  }, [isOpen, data, orphanCount]);
 
   const searchResults = useMemo(() => {
     if (!data || !searchQuery.trim()) return [];

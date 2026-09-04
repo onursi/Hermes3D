@@ -3,12 +3,22 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { BookmarkPlus, CornerDownLeft, Loader2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import {
+  Activity,
+  BookmarkPlus,
+  CornerDownLeft,
+  Loader2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { JarvisCore, type JarvisPhase } from "@/features/jarvis/JarvisCore";
 import { useVoice } from "@/features/jarvis/useVoice";
+import { cyberAudio } from "@/lib/sound/cyberAudio";
 import { FirstFrameSignal } from "@/features/retro-office/scene/FirstFrameSignal";
 import {
   Obsidian3DGraphCore,
@@ -68,6 +78,8 @@ export default function JarvisPage() {
   /** Whether answers are read aloud. Off by default — a room that starts
    *  talking unprompted is startling, and it should be your choice. */
   const [voiceReply, setVoiceReply] = useState(false);
+  /** Ambient firing. Off until asked for — see the reply switch above. */
+  const [soundOn, setSoundOn] = useState(false);
   const controlsRef = useRef<never>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
@@ -208,6 +220,40 @@ export default function JarvisPage() {
       ? "speaking"
       : phase;
 
+  /**
+   * The room reports its state through sound, not only through the ring.
+   *
+   * Firing quickens while the vault is being searched and while an answer is
+   * being written, and falls back to almost nothing at rest. It is the same
+   * reading the reactor shows, in a channel you do not have to be looking at
+   * — which is the only good reason for a machine to make noise.
+   *
+   * Only while listening does it go silent: a microphone that is open should
+   * not have to compete with the room it is in.
+   */
+  useEffect(() => {
+    if (!soundOn) return;
+    cyberAudio.setNeuralActivity(
+      displayPhase === "listening"
+        ? 0
+        : displayPhase === "searching" || displayPhase === "thinking"
+          ? 0.85
+          : displayPhase === "speaking"
+            ? 0.6
+            : 0.12,
+    );
+  }, [displayPhase, soundOn]);
+
+  useEffect(() => {
+    if (!soundOn) {
+      cyberAudio.stopNeuralFiring();
+      return;
+    }
+    cyberAudio.resume();
+    cyberAudio.startNeuralFiring();
+    return () => cyberAudio.stopNeuralFiring();
+  }, [soundOn]);
+
   // Speak the answer once it is complete, not while it streams: a synthesiser
   // fed word by word reads with the rhythm of a telegram.
   const spokenRef = useRef<string | null>(null);
@@ -324,6 +370,18 @@ export default function JarvisPage() {
                 title={voiceReply ? "Antworten werden vorgelesen" : "Antworten still anzeigen"}
               >
                 {voiceReply ? <Volume2 size={13} /> : <VolumeX size={13} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSoundOn((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] transition ${
+                  soundOn
+                    ? "border-violet-300/40 bg-violet-400/15 text-violet-100"
+                    : "border-white/[0.09] bg-white/[0.04] text-white/50 hover:text-white/80"
+                }`}
+                title={soundOn ? "Der Raum feuert hörbar mit — schneller, wenn Jarvis arbeitet" : "Klang des Gehirns einschalten"}
+              >
+                <Activity size={13} />
               </button>
             </div>
           ) : null}

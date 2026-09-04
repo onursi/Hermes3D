@@ -632,7 +632,62 @@ class CyberAudioController {
   }
 
   /** Crystal synaptic impulse ping when hovering or focusing a neuron */
-  playSynapseBlip() {
+  /**
+   * Sparse, irregular firing over the drone — what makes a brain sound like a
+   * brain rather than like a machine.
+   *
+   * The four ambience modes are steady drones, and a steady tone is the sound
+   * of something running, not of something thinking. Synapses are sparse and
+   * they are irregular: the interval between two firings is random, never a
+   * beat. A rhythm would read as a metronome within seconds and be switched
+   * off within a minute.
+   *
+   * The rate carries meaning, which is the whole reason to build it this way
+   * rather than as decoration. Quiet system, quiet brain. When something is
+   * waiting or wrong, the firing quickens — so the room reports its state
+   * even when nobody is looking at the screen, and the sound is a claim that
+   * can be wrong rather than an effect that cannot.
+   */
+  private firingTimer: ReturnType<typeof setTimeout> | null = null;
+  private firingLevel = 0.25;
+
+  /**
+   * How busy the brain sounds, from 0 (barely alive) to 1 (agitated).
+   *
+   * Takes effect on the next firing rather than immediately: interrupting a
+   * scheduled event to reschedule it faster produces a stutter, and the point
+   * of an irregular rhythm is that no single gap means anything.
+   */
+  setNeuralActivity(level: number) {
+    this.firingLevel = Math.max(0, Math.min(1, level));
+  }
+
+  startNeuralFiring() {
+    if (this.firingTimer) return;
+    const schedule = () => {
+      // Between roughly 2.4 s when calm and 0.35 s when agitated, jittered by
+      // half again either way so it never settles into a pattern.
+      const base = 2400 - this.firingLevel * 2050;
+      const jitter = base * (0.5 + Math.random());
+      this.firingTimer = setTimeout(() => {
+        // Not every window fires. A brain that never skips is a clock.
+        if (Math.random() < 0.35 + this.firingLevel * 0.4) {
+          this.playSynapseBlip(0.35 + this.firingLevel * 0.5);
+        }
+        this.firingTimer = null;
+        schedule();
+      }, jitter);
+    };
+    schedule();
+  }
+
+  stopNeuralFiring() {
+    if (this.firingTimer) clearTimeout(this.firingTimer);
+    this.firingTimer = null;
+  }
+
+
+  playSynapseBlip(intensity = 1) {
     try {
       this.init();
       if (!this.ctx) return;
@@ -650,7 +705,7 @@ class CyberAudioController {
       osc.frequency.exponentialRampToValueAtTime(freq * 1.35, t + 0.09);
 
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.09, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.09 * intensity * this.currentVolume, t + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
 
       osc.connect(gain);
