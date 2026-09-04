@@ -41,17 +41,19 @@ export function useVoice({ onTranscript }: { onTranscript: (text: string) => voi
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   /**
-   * Computed once on mount rather than assigned from an effect.
+   * Detected after mount, and deliberately not during render.
    *
-   * A lazy initialiser runs on the client's first render, where `window`
-   * exists, so this stays server-safe without a second render pass — and
-   * without setting state inside an effect, which cascades renders for a
-   * value that never changes.
+   * A lazy initialiser looks cleaner and breaks the page: the server has no
+   * window, so it renders "no voice", the client renders "voice", and React
+   * aborts hydration on the mismatch — after which nothing on the page
+   * updates at all. An effect runs only on the client, so both passes agree
+   * and the buttons appear a frame later. That is the correct trade for a
+   * capability that only the browser can know about.
    */
-  const [supported] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(recognitionConstructor()) && "speechSynthesis" in window;
-  });
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported(Boolean(recognitionConstructor()) && "speechSynthesis" in window);
+  }, []);
   const [heard, setHeard] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   /**

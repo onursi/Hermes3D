@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { JarvisCore, type JarvisPhase } from "@/features/jarvis/JarvisCore";
 import { useVoice } from "@/features/jarvis/useVoice";
+import { FirstFrameSignal } from "@/features/retro-office/scene/FirstFrameSignal";
 import {
   Obsidian3DGraphCore,
   type GraphNode,
@@ -38,6 +39,22 @@ type Source = { id: string; title: string; folder: string; excerpt: string };
 
 export default function JarvisPage() {
   const [data, setData] = useState<ObsidianGraphData | null>(null);
+  /** True once the scene has actually drawn, not merely once data arrived. */
+  const [graphVisible, setGraphVisible] = useState(false);
+
+  /**
+   * The indicator gives up after eight seconds, whatever the scene is doing.
+   *
+   * The frame signal inside the canvas is the good measurement and the wrong
+   * place for a safety net: while the subtree is suspended — drei's Text
+   * waits on a font — none of its children mount, so a timer in there never
+   * runs either. A cover that can outlive the thing it covers is worse than
+   * no cover at all, so this one sits outside and cannot be suspended with it.
+   */
+  useEffect(() => {
+    const timer = setTimeout(() => setGraphVisible(true), 8000);
+    return () => clearTimeout(timer);
+  }, []);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<Source[]>([]);
@@ -204,6 +221,7 @@ export default function JarvisPage() {
     <main className="flex h-screen w-screen overflow-hidden bg-[#05070a] text-white">
       <section className="relative min-w-0 flex-1">
         {data ? (
+          <>
           <Canvas
             camera={{ position: [0, 5, 22], fov: 48, near: 0.1, far: 500 }}
             dpr={[1, 2]}
@@ -222,8 +240,18 @@ export default function JarvisPage() {
               focusShiftX={1.2}
               controlsRef={controlsRef}
             />
+            <FirstFrameSignal onReady={() => setGraphVisible(true)} />
             <OrbitControls ref={controlsRef} enableDamping dampingFactor={0.05} maxDistance={70} />
           </Canvas>
+          {!graphVisible ? (
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#020409]">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+              <span className="text-[12px] text-white/45">
+                {data.nodes.length} Notizen werden zu Neuronen — das dauert einen Moment.
+              </span>
+            </div>
+          ) : null}
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-[13px] text-white/40">
             Wissensgraph wird geladen…

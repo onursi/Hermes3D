@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { X, Search, FileText, ExternalLink, Network, CornerDownLeft, Sparkles, Play, Square, Unlink, Volume2, VolumeX, Sliders, Waves, Radio, Music } from "lucide-react";
 import { Obsidian3DGraphCore, AREAL_COLORS, GraphNode, ObsidianGraphData } from "./Obsidian3DGraphCore";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
+import { FirstFrameSignal } from "./FirstFrameSignal";
 import { JarvisPanel } from "./JarvisPanel";
 
 /**
@@ -40,6 +41,22 @@ export function ObsidianGraphModal({
   const [flyToLobe, setFlyToLobe] = useState<string | null>(null);
   /** The hub list covers a corner of the brain, so it has to be foldable. */
   const [hubsCollapsed, setHubsCollapsed] = useState(false);
+  /** True once the scene has drawn. Data arriving is not the same thing. */
+  const [graphVisible, setGraphVisible] = useState(false);
+
+  /**
+   * The indicator gives up after eight seconds, whatever the scene is doing.
+   *
+   * The frame signal inside the canvas is the good measurement and the wrong
+   * place for a safety net: while the subtree is suspended — drei's Text
+   * waits on a font — none of its children mount, so a timer in there never
+   * runs either. A cover that can outlive the thing it covers is worse than
+   * no cover at all, so this one sits outside and cannot be suspended with it.
+   */
+  useEffect(() => {
+    const timer = setTimeout(() => setGraphVisible(true), 8000);
+    return () => clearTimeout(timer);
+  }, []);
   /**
    * The guided flight through the vault.
    *
@@ -248,6 +265,10 @@ export function ObsidianGraphModal({
     setFlyToNode(node);
   };
 
+  useEffect(() => {
+    if (!isOpen) setGraphVisible(false);
+  }, [isOpen]);
+
   const handleFilterClick = (filterId: string) => {
     // Touching anything ends the tour: it is a presentation, not a mode you
     // have to fight your way out of.
@@ -270,6 +291,7 @@ export function ObsidianGraphModal({
       {/* 3D Neural Canvas */}
       <div className="absolute inset-0">
         {data && data.nodes.length > 0 ? (
+          <>
           <Canvas
             camera={{ position: [0, 5, 22], fov: 48, near: 0.1, far: 500 }}
             dpr={[1, 2]}
@@ -294,6 +316,7 @@ export function ObsidianGraphModal({
               controlsRef={graphControlsRef}
             />
 
+            <FirstFrameSignal onReady={() => setGraphVisible(true)} />
             <OrbitControls
               ref={graphControlsRef}
               enableDamping
@@ -304,6 +327,15 @@ export function ObsidianGraphModal({
               maxDistance={70}
             />
           </Canvas>
+          {!graphVisible ? (
+            <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#020409]">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-400/25 border-t-cyan-300/80" />
+              <span className="text-[12px] text-white/45">
+                {data?.nodes.length ?? 0} Notizen werden zu Neuronen — das dauert einen Moment.
+              </span>
+            </div>
+          ) : null}
+          </>
         ) : loading ? (
           <div className="flex h-full w-full items-center justify-center font-mono text-cyan-400">
             <div className="flex flex-col items-center gap-3">
