@@ -996,6 +996,8 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
   const currentDprRef = useRef(1.25);
   const frameCounterRef = useRef(0);
   const avgDeltaRef = useRef(1 / 60);
+  /** What the regulator had arrived at before the tab was hidden. */
+  const settledDprRef = useRef(1);
 
   /**
    * `?dpr=0.75` pins the render resolution and switches the regulator off.
@@ -1023,16 +1025,38 @@ function AdaptiveDprController({ maxDpr: maxDprCap = 1.5 }: { maxDpr?: number })
   }, [pinnedDpr, setDpr]);
 
   useEffect(() => {
-    const initialDpr = Math.min(window.devicePixelRatio || 1, maxDprCap);
+    /**
+     * Start at the floor and climb, rather than start high and fall.
+     *
+     * This used to open at the display's own pixel ratio — 1.28 on the
+     * machine this was measured on, which is 64% more pixels than the floor.
+     * The regulator then walks down in steps of 0.05 every 45 frames, and at
+     * the frame rate that ratio causes, arriving at 1.0 takes about half a
+     * minute. So the room was at its slowest exactly when it was being looked
+     * at for the first time, and the first performance reading of any session
+     * was the worst one it would give. Two measurements today disagreed for
+     * no other reason.
+     *
+     * Climbing has the opposite property: the scene is responsive from the
+     * first frame, and the sharpness arrives a few seconds later on a machine
+     * that can afford it. On one that cannot, it simply never arrives, which
+     * is the correct outcome rather than a slow-motion apology for it.
+     */
+    const initialDpr = Math.min(1, window.devicePixelRatio || 1, maxDprCap);
     currentDprRef.current = initialDpr;
     setDpr(initialDpr);
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible") {
+        // Remember what the regulator had settled on. Restoring to the
+        // display's ratio instead would undo every downward step the moment
+        // the tab came back, and then spend another half minute finding the
+        // same answer again.
+        settledDprRef.current = currentDprRef.current;
         currentDprRef.current = HIDDEN_DPR;
         setDpr(HIDDEN_DPR);
         return;
       }
-      const restoredDpr = Math.min(window.devicePixelRatio || 1, maxDprCap);
+      const restoredDpr = Math.min(settledDprRef.current, maxDprCap);
       currentDprRef.current = restoredDpr;
       setDpr(restoredDpr);
     };
