@@ -84,17 +84,6 @@ export function InstancedWallSegmentsModel({
   );
 }
 
-/**
- * TEMPORARY — the round table is hidden while we test the gravity lift.
- *
- * Onur asked to take the table out entirely rather than fade it, to see
- * whether anything else is still blocking the shaft. Four layers of this one
- * bug have been found so far and each looked identical from outside, so
- * removing the variable is the right move.
- *
- * Set back to false to restore the table. Nothing else has to change.
- */
-const HIDE_ROUND_TABLE_FOR_LIFT_TEST = true;
 
 export function RoundTableModel({
   item,
@@ -106,7 +95,6 @@ export function RoundTableModel({
   onPointerOut,
   onClick,
 }: InteractiveFurnitureModelProps) {
-  if (HIDE_ROUND_TABLE_FOR_LIFT_TEST) return null;
   const [wx, , wz] = toWorld(item.x, item.y);
   const radius = (item.r ?? 60) * SCALE;
 

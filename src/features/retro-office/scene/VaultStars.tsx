@@ -31,7 +31,6 @@ const SKY_LIFT = 26;
 
 export function VaultStars({ position = [0, 0, 0] }: { position?: [number, number, number] }) {
   const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] } | null>(null);
-  const materialRef = useRef<THREE.PointsMaterial>(null);
   const orphanRef = useRef<THREE.Points>(null);
 
   useEffect(() => {
@@ -108,7 +107,6 @@ export function VaultStars({ position = [0, 0, 0] }: { position?: [number, numbe
     <group position={position}>
       <points geometry={linked}>
         <pointsMaterial
-          ref={materialRef}
           size={0.62}
           vertexColors
           transparent
