@@ -13,7 +13,18 @@ const AT = (label, ok, detail) =>
   console.log(`${ok ? "OK  " : "FEHL"}  ${label}${detail ? "  — " + detail : ""}`);
 
 (async () => {
-  const browser = await chromium.launch({ channel: "chrome" });
+  const browser = await chromium.launch({
+    channel: "chrome",
+    // Ohne diese drei misst man Chromes Sparmodus und nicht die Szene: ein
+    // Fenster, das hinter einem anderen liegt, wird auf 30 Bilder gedrosselt.
+    // Genau das hat hier ein Leck vorgetaeuscht — 56 fps im Vordergrund, 32
+    // im Hintergrund, bei identischem Build und identischen Draw Calls.
+    args: [
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--disable-features=CalculateNativeWinOcclusion",
+    ],
+  });
   const page = await browser.newPage({ viewport: { width: 1720, height: 1250 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 120)));
@@ -21,6 +32,46 @@ const AT = (label, ok, detail) =>
   await page.goto("http://localhost:3400/v2", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(13000);
   await page.getByLabel("Entwicklerwerte").click().catch(() => {});
+
+  /**
+   * Einmal messen, bevor irgendetwas passiert ist.
+   *
+   * Der Wert am Ende des Durchlaufs und der Wert im frischen Zustand sind
+   * zwei verschiedene Aussagen, und der Unterschied zwischen ihnen ist die
+   * interessantere: er sagt, ob die Anwendung mit der Benutzung langsamer
+   * wird. Genau so wurde das Geometrie-Leck gefunden — gleiche Draw Calls,
+   * fallende Bildrate, wachsende Geometriezahl.
+   */
+  const sampleMeter = async (label, ms) => {
+    const taken = [];
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      const text = await page
+        .evaluate(() => {
+          const nodes = Array.from(document.querySelectorAll("div"));
+          const el = nodes.find((n) => /^[0-9]+ fps/.test((n.textContent || "").trim()));
+          return el ? el.textContent : "";
+        })
+        .catch(() => "");
+      const m = (text || "").match(/([0-9]+) fps.*?([0-9]+) Draws.*?([0-9]+)k Dreiecke.*?([0-9]+) Geo.*?([0-9]+) Tex/);
+      if (m) taken.push({ fps: +m[1], draws: +m[2], tri: +m[3], geo: +m[4], tex: +m[5] });
+      await page.waitForTimeout(500);
+    }
+    if (!taken.length) {
+      console.log(`\nMESSUNG ${label}: keine Proben`);
+      return null;
+    }
+    const fps = taken.map((t) => t.fps).sort((a, b) => a - b);
+    const last = taken[taken.length - 1];
+    const median = fps[Math.floor(fps.length / 2)];
+    console.log(
+      `\nMESSUNG ${label} @1720x1250: fps Median ${median} (${fps[0]}–${fps[fps.length - 1]}), ` +
+        `${last.draws} Draws, ${last.tri}k Dreiecke, ${last.geo} Geometrien, ${taken.length} Proben`,
+    );
+    return { median, geo: last.geo };
+  };
+
+  const fresh = await sampleMeter("Zuhause frisch", 8000);
 
   // --- Jarvis: a real question with real sources ----------------------------
   await page.getByRole("button", { name: /jarvis/i }).first().click();
@@ -293,6 +344,47 @@ const AT = (label, ok, detail) =>
     AT("Escape schließt nur den Leser", !stillOpen && selectionSurvived);
   }
 
+  // --- C2b: the flat neighbourhood, which the room cannot show --------------
+
+  const graphPanel = page.locator("section").filter({ hasText: "NACHBARSCHAFT" }).first();
+  const graphShown = await graphPanel.isVisible().catch(() => false);
+  AT("Flaches Netz erscheint bei Auswahl", graphShown);
+
+  if (graphShown) {
+    // Both numbers come from the vault's own links. A view that drew more
+    // edges than the graph records would be inventing relationships, which is
+    // the one thing V6-05 forbids outright.
+    const summary = await graphPanel.locator("text=/belegte Verbindung/").first().textContent();
+    const claimed = Number((summary || "").match(/(\d+) belegte/)?.[1] ?? -1);
+    const real = await page.evaluate(async () => {
+      const graph = await fetch("/api/obsidian-graph").then((r) => r.json());
+      const nodes = graph.nodes || [];
+      const links = graph.links || [];
+      const id = nodes.find((n) => /Zielbild und Entwurfsregeln/.test(n.name))?.id;
+      if (!id) return -1;
+      const ids = new Set();
+      for (const l of links) {
+        const source = typeof l.source === "string" ? l.source : l.source?.id;
+        const target = typeof l.target === "string" ? l.target : l.target?.id;
+        if (source === id) ids.add(target);
+        else if (target === id) ids.add(source);
+      }
+      return ids.size;
+    });
+    AT(
+      "Netz zeigt genau die belegten Verbindungen",
+      claimed > 0 && claimed === real,
+      `Panel ${claimed}, Graph ${real}`,
+    );
+
+    // Clicking a neighbour re-centres on it: the same id the room uses.
+    const before = await graphPanel.locator("p").nth(1).textContent();
+    await graphPanel.locator("svg g").first().click();
+    await page.waitForTimeout(1200);
+    const after = await graphPanel.locator("p").nth(1).textContent();
+    AT("Nachbar im Netz wechselt die Auswahl", Boolean(after) && after !== before, (after || "").slice(0, 40));
+  }
+
   await page.getByPlaceholder(/Notiz oder Ordner suchen/i).first().fill("");
   await page.getByRole("button", { name: /^zuhause$/i }).first().click();
   await page.waitForTimeout(3000);
@@ -393,6 +485,21 @@ const AT = (label, ok, detail) =>
   const homeAgain = await page.locator("header").first().textContent();
   AT("Heimkehr aus dem Flug", /Kommandodeck/.test(homeAgain || ""));
 
+  /**
+   * Jarvis zu, bevor gemessen wird — und das ist keine Kosmetik.
+   *
+   * Die Konsole bringt eine zweite WebGL-Canvas mit. Solange sie offen steht,
+   * misst dieser Wert zwei Renderer und nicht die Szene. Der Unterschied ist
+   * groß genug, um die Schranke zu reißen: 32 fps mit offener Konsole gegen
+   * 56 ohne, im selben Build gemessen. Beide Zahlen sind wahr; nur die zweite
+   * beantwortet die Frage, die diese Prüfung stellt.
+   */
+  const jarvisToggle = page.getByRole("button", { name: /^jarvis$/i }).first();
+  if (await jarvisToggle.isVisible().catch(() => false)) {
+    await jarvisToggle.click().catch(() => {});
+    await page.waitForTimeout(1500);
+  }
+
   // --- Measurement, once it has settled ------------------------------------
   const samples = [];
   const until = Date.now() + 16000;
@@ -424,6 +531,14 @@ const AT = (label, ok, detail) =>
   // currently holds: this is here to catch a collapse, not to argue about
   // five frames on a machine that is also compiling something.
   const MIN_FPS = 40;
+  if (fresh) {
+    console.log(
+      `
+VERGLEICH: frisch ${fresh.median} fps / ${fresh.geo} Geometrien, nach dem Durchlauf ` +
+        `${samples.length ? samples[samples.length - 1].fps : "?"} fps. Faellt der zweite Wert deutlich ab, ` +
+        `sammelt sich etwas an — dann zuerst die Geometriezahl vergleichen.`,
+    );
+  }
   if (samples.length) {
     const fps = samples.map((s) => s.fps).sort((a, b) => a - b);
     const median = fps[Math.floor(fps.length / 2)];

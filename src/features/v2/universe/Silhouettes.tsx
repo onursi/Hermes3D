@@ -2,7 +2,7 @@
 
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { AREA_COLORS, DISTANT_TINT, SELECTION_COLOR } from "@/features/v2/palette";
@@ -253,6 +253,13 @@ function KnowledgeBody({ radius, tint }: { radius: number; tint: string }) {
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     return geo;
   }, [radius]);
+
+  // Freigeben, wenn die Silhouette verschwindet. Ohne das bleibt bei jedem
+  // Weltwechsel eine Punktwolke im Grafikspeicher liegen — gemessen: 54 auf
+  // 73 Geometrien nach vier Wechseln, und die Bildrate halbiert sich, weil
+  // eine Vega 11 sich den Speicher mit dem System teilt. Horizon und
+  // WarpStreaks machen das seit dem ersten Tag; hier hatte ich es vergessen.
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
     <group>

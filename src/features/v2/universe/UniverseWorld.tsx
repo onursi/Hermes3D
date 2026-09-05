@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 
 import { FreeFlight } from "@/features/v2/universe/FreeFlight";
@@ -100,6 +100,10 @@ function FixedStars() {
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     return geo;
   }, []);
+
+  // Dasselbe Versäumnis wie bei der Punktwolke im Tor: 1.400 Punkte, die bei
+  // jedem Verlassen des Universums im Speicher blieben.
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
     <points geometry={geometry} frustumCulled={false}>

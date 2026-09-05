@@ -2,7 +2,18 @@ import { chromium } from "playwright";
 const OUT = process.argv[2];
 
 (async () => {
-  const browser = await chromium.launch({ channel: "chrome" });
+  const browser = await chromium.launch({
+    channel: "chrome",
+    // Ohne diese drei misst man Chromes Sparmodus und nicht die Szene: ein
+    // Fenster, das hinter einem anderen liegt, wird auf 30 Bilder gedrosselt.
+    // Genau das hat hier ein Leck vorgetaeuscht — 56 fps im Vordergrund, 32
+    // im Hintergrund, bei identischem Build und identischen Draw Calls.
+    args: [
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--disable-features=CalculateNativeWinOcclusion",
+    ],
+  });
   const page = await browser.newPage({ viewport: { width: 1720, height: 1250 } });
   const errors = [];
   page.on("console", (m) => {
@@ -126,6 +137,10 @@ const OUT = process.argv[2];
       console.log("12 leser");
     }
   }
+
+  // Das flache Netz neben dem Raum.
+  await page.screenshot({ path: OUT + "/13-netz.png" });
+  console.log("13 netz");
 
   const meter = await page
     .evaluate(() => {

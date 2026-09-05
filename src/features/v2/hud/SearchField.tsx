@@ -100,7 +100,12 @@ export function SearchField({
         ) : null}
       </div>
 
-      {needle ? (
+      {/* Die Liste verschwindet, sobald einer ihrer Treffer gewählt ist.
+          Sie hat dann ihre Aufgabe erfüllt, und sie stand genau dort, wo die
+          Nachbarschaft des Gewählten steht — zwei Panels übereinander, von
+          denen das obere nur noch wiederholt, was schon entschieden ist.
+          Der Suchbegriff bleibt: er dimmt weiterhin den Raum. */}
+      {needle && !results.some((node) => node.id === selectedId) ? (
         <div className="mt-1.5 overflow-hidden rounded-xl border border-white/10 bg-[#0a1018]/92 backdrop-blur-md">
           <p className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-white/30">
             {results.length === 0

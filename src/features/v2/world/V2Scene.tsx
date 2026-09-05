@@ -73,7 +73,7 @@ export function V2Scene({
   onReachChange: (place: Place | null) => void;
   /** True while a DOM panel owns the keyboard — the reader, above all. */
   inputBlocked?: boolean;
-  onFrame?: (sample: { fps: number; calls: number; triangles: number }) => void;
+  onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
   crashWorld?: string | null;
 }) {
@@ -442,7 +442,7 @@ function Boom({ world }: { world: string }): null {
 function FrameProbe({
   onSample,
 }: {
-  onSample: (sample: { fps: number; calls: number; triangles: number }) => void;
+  onSample: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number }) => void;
 }) {
   const gl = useThree((state) => state.gl);
   const frames = useRef(0);
@@ -473,6 +473,11 @@ function FrameProbe({
       fps: Math.round(frames.current / elapsed.current),
       calls: calls.current,
       triangles: triangles.current,
+      // Was der Renderer noch hält. Draw Calls sagen nichts über ein Leck —
+      // eine Szene kann bei gleicher Zahl von Zeichenaufrufen langsam werden,
+      // weil Geometrien und Texturen sich stapeln, die niemand mehr braucht.
+      geometries: gl.info.memory.geometries,
+      textures: gl.info.memory.textures,
     });
     frames.current = 0;
     elapsed.current = 0;

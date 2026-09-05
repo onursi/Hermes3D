@@ -12,12 +12,14 @@ import { useVault, type VaultNode } from "@/features/v2/useVault";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
 import { Inspector } from "@/features/v2/hud/Inspector";
+import { Neighbourhood } from "@/features/v2/hud/Neighbourhood";
 import { Reader } from "@/features/v2/hud/Reader";
 import { SearchField } from "@/features/v2/hud/SearchField";
 import { Settings } from "@/features/v2/hud/Settings";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
+import { neighboursOf } from "@/features/v2/graph";
 import { playArrive, playSelect } from "@/features/v2/sound";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
@@ -47,7 +49,7 @@ export function V2Screen() {
   const [jarvisOpen, setJarvisOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
-  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
+  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
@@ -61,6 +63,15 @@ export function V2Screen() {
    * leaves the selection standing where it was.
    */
   const [readerId, setReaderId] = useState<string | null>(null);
+  /**
+   * Die Notiz, deren Nachbarschaft er zugeklappt hat — nicht ein Ja/Nein.
+   *
+   * Ein Schalter müsste beim Wechsel der Auswahl zurückgesetzt werden, und
+   * das wäre wieder ein Effekt, der Zustand schreibt. Die weggeklickte ID zu
+   * merken beantwortet dieselbe Frage beim Rendern: das Netz ist offen,
+   * solange die Auswahl nicht die ist, die er geschlossen hat.
+   */
+  const [dismissedGraphId, setDismissedGraphId] = useState<string | null>(null);
   /**
    * `?lab=1` — read after mount, never during render.
    *
@@ -199,18 +210,16 @@ export function V2Screen() {
    * footer is empty rather than filled with things that merely look related.
    */
   const readerNode = readerId ? (vault.byId.get(readerId) ?? null) : null;
-  const readerNeighbours = useMemo(() => {
-    if (!readerId) return [];
-    const ids = new Set<string>();
-    for (const link of vault.links) {
-      if (link.source === readerId) ids.add(link.target);
-      else if (link.target === readerId) ids.add(link.source);
-    }
-    return [...ids]
-      .map((id) => vault.byId.get(id))
-      .filter((node): node is VaultNode => Boolean(node))
-      .sort((a, b) => b.degree - a.degree);
-  }, [readerId, vault.links, vault.byId]);
+  const readerNeighbours = useMemo(
+    () => (readerId ? neighboursOf(readerId, vault.links, vault.byId) : []),
+    [readerId, vault.links, vault.byId],
+  );
+
+  /** Die Notiz, um die das flache Netz gerade gezeichnet wird. */
+  const graphNode =
+    selection.kind === "source" && selection.id !== dismissedGraphId
+      ? (vault.byId.get(selection.id) ?? null)
+      : null;
 
   const selectProject = useCallback(
     (project: Project) => select({ kind: "project", folder: project.folder, name: project.name }),
@@ -457,6 +466,18 @@ export function V2Screen() {
         neighbours={readerNeighbours}
       />
 
+      {/* Flach neben dem Raum: der Raum sagt, wo etwas liegt, das Netz sagt,
+          woran es hängt. In 3D ist die zweite Frage nicht beantwortbar —
+          zwei Punkte überdecken sich oder verstecken sich hintereinander. */}
+      <Neighbourhood
+        node={graphNode}
+        links={vault.links}
+        byId={vault.byId}
+        onSelect={selectSourceId}
+        onRead={setReaderId}
+        onClose={() => setDismissedGraphId(graphNode?.id ?? null)}
+      />
+
       {world === "universe" ? <TravelBar reachable={reachable} onEnter={enterPlace} /> : null}
 
       <Dock
@@ -489,7 +510,8 @@ export function V2Screen() {
           fps and draw calls are not part of the room. */}
       {devOpen ? (
         <div className="pointer-events-none absolute bottom-5 right-5 z-30 rounded-xl border border-white/10 bg-[#0a1018]/90 px-3 py-2 font-mono text-[11px] text-cyan-200/80 backdrop-blur-md">
-          {meter.fps} fps · {meter.calls} Draws · {(meter.triangles / 1000).toFixed(0)}k Dreiecke
+          {meter.fps} fps · {meter.calls} Draws · {(meter.triangles / 1000).toFixed(0)}k Dreiecke ·{" "}
+          {meter.geometries} Geo · {meter.textures} Tex
           <span className="ml-2 text-white/25">
             {prefs.bloom ? "Bloom an" : "Bloom aus"}
           </span>
