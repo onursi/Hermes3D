@@ -39,6 +39,40 @@ const OUT = process.argv[2];
   await page.screenshot({ path: OUT + "/3-kosmos.png" });
   console.log("3 kosmos");
 
+  // The search: the same cosmos, asked a question.
+  const searchBox = page.getByPlaceholder(/Notiz oder Ordner suchen/i).first();
+  if (await searchBox.count()) {
+    await searchBox.fill("hermes");
+    await page.waitForTimeout(2200);
+    await page.screenshot({ path: OUT + "/4-kosmos-suche.png" });
+    console.log("4 suche");
+    await searchBox.fill("");
+    await page.waitForTimeout(600);
+  }
+
+  // The yard, with a berth selected so the panel shows real vault data.
+  await page.getByRole("button", { name: /projekte/i }).first().click().catch(() => {});
+  await page.waitForTimeout(7000);
+  const box = await page.locator("canvas").first().boundingBox();
+  if (box) {
+    outer: for (let fy = 0.42; fy <= 0.82; fy += 0.08) {
+      for (let fx = 0.2; fx <= 0.8; fx += 0.075) {
+        await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+        await page.waitForTimeout(300);
+        const hit = await page
+          .locator("aside")
+          .filter({ hasText: /Zuletzt bearbeitet/ })
+          .first()
+          .isVisible()
+          .catch(() => false);
+        if (hit) break outer;
+      }
+    }
+  }
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: OUT + "/5-ergebniswerft.png" });
+  console.log("5 werft");
+
   const meter = await page
     .evaluate(() => {
       const nodes = Array.from(document.querySelectorAll("div"));

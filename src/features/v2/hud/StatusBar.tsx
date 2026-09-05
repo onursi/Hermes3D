@@ -20,6 +20,8 @@ export function StatusBar({
   vaultCount,
   vaultReachable,
   approvalsWaiting,
+  approvalsReachable,
+  onOpenApprovals,
   onOpenSettings,
   onToggleDev,
   devOpen,
@@ -29,17 +31,22 @@ export function StatusBar({
   vaultCount: number;
   vaultReachable: boolean;
   approvalsWaiting: number;
+  /** False means the queue could not be read — not "nothing waits". */
+  approvalsReachable: boolean;
+  onOpenApprovals: () => void;
   onOpenSettings: () => void;
   onToggleDev: () => void;
   devOpen: boolean;
 }) {
   const { world, travelling } = useV2();
+  const worldName =
+    world === "home" ? "Kommandodeck" : world === "cosmos" ? "Wissenskosmos" : "Ergebniswerft";
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 py-3">
       <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-[#0a1018]/85 px-4 py-1.5 backdrop-blur-md">
         <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/85">
-          {world === "home" ? "Kommandodeck" : "Wissenskosmos"}
+          {worldName}
         </span>
         {travelling ? (
           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">
@@ -49,10 +56,19 @@ export function StatusBar({
       </div>
 
       <div className="pointer-events-auto flex items-center gap-2">
-        {approvalsWaiting > 0 ? (
-          <Pill tone="amber">
-            {approvalsWaiting} {approvalsWaiting === 1 ? "Freigabe" : "Freigaben"}
-          </Pill>
+        {/* Clickable, because a light you cannot interrogate is a light you
+            learn to ignore. Unreachable is its own state and its own colour —
+            "could not ask" must never render as "nothing waits". */}
+        {!approvalsReachable ? (
+          <button type="button" onClick={onOpenApprovals} className="cursor-pointer">
+            <Pill tone="rose">Freigaben unbekannt</Pill>
+          </button>
+        ) : approvalsWaiting > 0 ? (
+          <button type="button" onClick={onOpenApprovals} className="cursor-pointer">
+            <Pill tone="amber">
+              {approvalsWaiting} {approvalsWaiting === 1 ? "Freigabe" : "Freigaben"}
+            </Pill>
+          </button>
         ) : null}
 
         {/* Reachability and emptiness are shown apart. "Keine Agenten" and

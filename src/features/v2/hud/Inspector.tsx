@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useV2 } from "@/features/v2/state";
+import type { Project } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultNode } from "@/features/v2/useVault";
 import { providerTone } from "@/features/v2/world/HomeWorld";
@@ -22,11 +23,13 @@ import { providerTone } from "@/features/v2/world/HomeWorld";
 export function Inspector({
   agents,
   nodes,
+  projects,
   onOpenSource,
   onDiveToSource,
 }: {
   agents: RosterAgent[];
   nodes: VaultNode[];
+  projects: Project[];
   /** Opens the note through the existing safe file route. */
   onOpenSource: (id: string) => void;
   /** Travels to the cosmos with this note selected. */
@@ -56,6 +59,14 @@ export function Inspector({
           world={world}
           onOpen={() => onOpenSource(selection.id)}
           onDive={() => onDiveToSource(selection.id)}
+        />
+      ) : null}
+
+      {selection.kind === "project" ? (
+        <ProjectBody
+          project={projects.find((p) => p.folder === selection.folder)}
+          name={selection.name}
+          onOpenNote={onOpenSource}
         />
       ) : null}
 
@@ -186,6 +197,101 @@ function SourceBody({
           </button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A project, with only what the disk can prove.
+ *
+ * No progress bar, and the reason is written into the panel itself rather than
+ * left implicit: the project notes use no checkboxes, so a percentage would be
+ * a number with nothing behind it. Notes, tasks where they genuinely exist,
+ * recency and the documents last touched are all provable — that is the list.
+ */
+function ProjectBody({
+  project,
+  name,
+  onOpenNote,
+}: {
+  project?: Project;
+  name: string;
+  onOpenNote: (path: string) => void;
+}) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+  }, [project?.lastTouched]);
+
+  if (!project) return <Empty text={`„${name}" liegt nicht mehr im Vault.`} />;
+
+  const touched = project.lastTouched ? new Date(project.lastTouched) : null;
+  // The clock is read after mount, not during render. Reading it while
+  // rendering makes the same panel produce two different answers across two
+  // renders it did not ask for — the rule is right, and "vor 3 Tagen" is
+  // exactly the kind of value that would flicker.
+  const ageDays =
+    touched && now !== null ? Math.floor((now - touched.getTime()) / 86_400_000) : null;
+
+  return (
+    <div className="px-4 pb-3 pt-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-300/55">Projekt</p>
+      <h2 className="mt-1 text-[15px] font-semibold leading-snug text-white">{project.name}</h2>
+      <p className="mt-1 truncate font-mono text-[10px] text-white/30">{project.folder}</p>
+
+      <dl className="mt-4 space-y-2">
+        <Row label="Notizen" value={String(project.noteCount)} />
+        <Row
+          label="Zuletzt bearbeitet"
+          value={
+            touched
+              ? ageDays === 0
+                ? "heute"
+                : ageDays === 1
+                  ? "gestern"
+                  : `vor ${ageDays} Tagen`
+              : null
+          }
+        />
+        {/* Tasks appear only where they exist. A row reading "0 offen" in a
+            project that never used checkboxes would state something false
+            about the project rather than about the data. */}
+        {project.openTasks + project.doneTasks > 0 ? (
+          <Row
+            label="Aufgaben"
+            value={`${project.openTasks} offen · ${project.doneTasks} erledigt`}
+          />
+        ) : null}
+      </dl>
+
+      {project.openTasks + project.doneTasks === 0 ? (
+        <p className="mt-3 font-mono text-[10px] leading-relaxed text-white/25">
+          Diese Notizen benutzen keine Checkboxen. Das heißt: kein messbarer
+          Fortschritt — und auch nicht, dass nichts offen wäre.
+        </p>
+      ) : null}
+
+      {project.recentNotes.length > 0 ? (
+        <div className="mt-3 border-t border-white/8 pt-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-white/30">
+            Zuletzt geändert
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {project.recentNotes.map((note) => (
+              <li key={note.path}>
+                <button
+                  type="button"
+                  onClick={() => onOpenNote(note.path)}
+                  className="w-full truncate rounded-md px-1 py-1 text-left text-[12.5px] text-white/65 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  {note.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

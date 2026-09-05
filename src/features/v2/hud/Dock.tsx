@@ -6,8 +6,8 @@ import { useV2 } from "@/features/v2/state";
  * Four places, one line, at the bottom.
  *
  * Home, knowledge, projects, Jarvis — the plan's dock, and no more than that.
- * Projects is present and honestly disabled: section C builds it, and a button
- * that leads nowhere is better than one that pretends.
+ * Projects led nowhere while section C was unbuilt, and said so rather than
+ * pretending. It is a place now, so the button is a button.
  *
  * Home is always here. That is the structural half of "you cannot get lost":
  * the way back is never more than one thing away, and it is always in the
@@ -52,7 +52,12 @@ export function Dock({
         </svg>
       </DockButton>
 
-      <DockButton active={false} disabled label="Projekte — folgt in Abschnitt C">
+      <DockButton
+        active={world === "projects"}
+        disabled={travelling}
+        onClick={() => goTo("projects")}
+        label="Projekte"
+      >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
         </svg>

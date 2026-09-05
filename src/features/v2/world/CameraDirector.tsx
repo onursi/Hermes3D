@@ -51,14 +51,28 @@ export function cosmosView(
   };
 }
 
+/**
+ * The yard, seen from the outside and slightly above.
+ *
+ * Fixed rather than derived, and for a reason the cosmos does not share: the
+ * berths stand on a ring of known radius, so the framing cannot drift when the
+ * data changes. A seventh project moves the ring not at all.
+ */
+export const PROJECTS_VIEW = {
+  position: new THREE.Vector3(0.6, 8.4, 15.2),
+  target: new THREE.Vector3(0, 1.7, 0),
+};
+
 export function viewFor(
   world: V2World,
   cosmosRadius = 12,
   cosmosCentre = new THREE.Vector3(),
 ): CameraGoal {
-  return world === "cosmos"
-    ? { ...cloneView(cosmosView(cosmosRadius, cosmosCentre)), duration: 1.15 }
-    : { ...cloneView(HOME_VIEW), duration: 1.15 };
+  if (world === "cosmos") {
+    return { ...cloneView(cosmosView(cosmosRadius, cosmosCentre)), duration: 1.15 };
+  }
+  if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
+  return { ...cloneView(HOME_VIEW), duration: 1.15 };
 }
 
 const cloneView = (view: { position: THREE.Vector3; target: THREE.Vector3 }) => ({

@@ -90,6 +90,134 @@ const AT = (label, ok, detail) =>
   const afterEscape = await page.locator("header").first().textContent();
   AT("Escape führt heim", /Kommandodeck/.test(afterEscape || ""), (afterEscape || "").slice(0, 30));
 
+  // --- Section C: the search ------------------------------------------------
+  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await page.waitForTimeout(4500);
+
+  const searchBox = page.getByPlaceholder(/Notiz oder Ordner suchen/i).first();
+  const searchVisible = await searchBox.isVisible().catch(() => false);
+  AT("Suchfeld erscheint im Kosmos", searchVisible);
+
+  await searchBox.fill("hermes");
+  await page.waitForTimeout(900);
+  const resultLine = await page
+    .locator("text=/\\d+ Treffer|kein Treffer/")
+    .first()
+    .textContent()
+    .catch(() => null);
+  const hits = Number((resultLine || "").match(/(\d+) Treffer/)?.[1] ?? 0);
+  AT("Suche findet echte Notizen", hits > 0, resultLine || "keine Anzeige");
+
+  // Picking a result must select it — the map answers, not just the list.
+  // Addressed through the search field itself rather than by guessing at the
+  // DOM: the results are the buttons that follow it inside the same panel.
+  await searchBox
+    .locator("xpath=ancestor::div[2]")
+    .locator("button")
+    .filter({ hasNotText: "×" })
+    .first()
+    .click()
+    .catch(() => {});
+  await page.waitForTimeout(900);
+  const pickedPanel = await page
+    .locator("aside")
+    .filter({ hasText: "QUELLE" })
+    .first()
+    .textContent()
+    .catch(() => null);
+  AT("Treffer auswählbar", Boolean(pickedPanel), (pickedPanel || "keine").slice(0, 40));
+
+  // Escape inside the field clears the search rather than doing nothing.
+  await searchBox.click();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
+  const cleared = await searchBox.inputValue().catch(() => "x");
+  AT("Escape leert die Suche", cleared === "", `Feld: "${cleared}"`);
+
+  // --- Section C: the yard ---------------------------------------------------
+  await page.getByRole("button", { name: /projekte/i }).first().click();
+  await page.waitForTimeout(5000);
+  const inYard = await page.locator("header").first().textContent();
+  AT("Reise in die Ergebniswerft", /Ergebniswerft/.test(inYard || ""), (inYard || "").slice(0, 30));
+
+  // Not equality: the earlier baseline was taken with the Jarvis console open,
+  // which contributes a canvas of its own. What must hold is that a third
+  // world adds no scene — so the count may fall, never rise.
+  const yardCanvases = await page.locator("canvas").count();
+  AT(
+    "Dritte Welt fügt keine Szene hinzu",
+    yardCanvases >= 1 && yardCanvases <= canvasesBefore,
+    `${canvasesBefore} → ${yardCanvases} Canvas`,
+  );
+
+  // The yard has to agree with the route it claims to draw.
+  const apiProjects = await page.evaluate(async () => {
+    const response = await fetch("/api/vault/projects");
+    const data = await response.json();
+    return (data.projects || []).map((p) => ({ folder: p.folder, notes: p.noteCount }));
+  });
+  AT(
+    "Projekte kommen aus dem Vault",
+    apiProjects.length > 0,
+    apiProjects.map((p) => `${p.folder}(${p.notes})`).join(", ").slice(0, 90),
+  );
+
+  // Click the middle of the yard floor to hit a berth: the ring is centred, so
+  // a click at the front-most dais lands on a project rather than on nothing.
+  const box = await page.locator("canvas").first().boundingBox();
+  // A grid rather than four guessed points. Where a berth lands on screen
+  // depends on the viewport aspect and on how many projects the vault has, and
+  // three rounds of hand-tuned coordinates only ever proved that hand-tuned
+  // coordinates are the wrong tool. The scan stops at the first hit.
+  const aimPoints = [];
+  for (let fy = 0.42; fy <= 0.82; fy += 0.08) {
+    for (let fx = 0.2; fx <= 0.8; fx += 0.075) aimPoints.push([fx, fy]);
+  }
+  for (const [fx, fy] of aimPoints) {
+    if (!box) break;
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+    await page.waitForTimeout(320);
+    const hit = await page.locator("aside").filter({ hasText: /Zuletzt bearbeitet/ }).first().isVisible().catch(() => false);
+    if (hit) break;
+  }
+  // Filtered on the recency row, not on the word "Projekt": a source whose
+  // path contains "05 Projekte" matched that and made the check pass on the
+  // wrong panel — a test that can be satisfied by the thing it is not testing.
+  const projectPanel = await page
+    .locator("aside")
+    .filter({ hasText: /Zuletzt bearbeitet/ })
+    .first()
+    .textContent()
+    .catch(() => null);
+  AT(
+    "Projekt auswählbar mit echten Daten",
+    Boolean(projectPanel) && /Notizen/.test(projectPanel || ""),
+    (projectPanel || "keines").replace(/\s+/g, " ").slice(0, 70),
+  );
+
+  await page.getByRole("button", { name: /zuhause/i }).first().click();
+  await page.waitForTimeout(4500);
+
+  // --- Section C: approvals are legible, not just a light -------------------
+  const approvalState = await page.evaluate(async () => {
+    const response = await fetch("/api/approvals");
+    return response.json();
+  });
+  const pill = await page
+    .locator("text=/Freigabe|Freigaben unbekannt/")
+    .first()
+    .textContent()
+    .catch(() => null);
+  // Reachable and empty means no pill at all; unreachable or waiting means a
+  // pill that can be opened. Both are correct — silently showing nothing while
+  // the queue is unknown is the one outcome that is not.
+  const expectPill = !approvalState.ok || (approvalState.approvals || []).length > 0;
+  AT(
+    "Freigaben: Anzeige entspricht der Lage",
+    expectPill === Boolean(pill),
+    `ok=${approvalState.ok} wartend=${(approvalState.approvals || []).length} Pille=${pill || "keine"}`,
+  );
+
   // --- Measurement, once it has settled ------------------------------------
   const samples = [];
   const until = Date.now() + 16000;

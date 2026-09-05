@@ -4,12 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
 import { useV2 } from "@/features/v2/state";
+import { useProjects, type Project } from "@/features/v2/useProjects";
 import { useRoster } from "@/features/v2/useRoster";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
+import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
 import { Inspector } from "@/features/v2/hud/Inspector";
+import { SearchField } from "@/features/v2/hud/SearchField";
 import { Settings } from "@/features/v2/hud/Settings";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
+import { SystemState } from "@/features/v2/hud/SystemState";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 
 /**
@@ -31,25 +35,44 @@ const APPROVAL_POLL_MS = 45_000;
 export function V2Screen() {
   const roster = useRoster();
   const vault = useVault();
+  const projects = useProjects();
   const { world, selection, select, goTo, prefs, clearSelection } = useV2();
 
   const [jarvisOpen, setJarvisOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
-  const [approvals, setApprovals] = useState(0);
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  /**
+   * The queue itself, not just its length.
+   *
+   * The count alone was enough to make the core pulse and not enough to answer
+   * the only question the pulse raises. `reachable` is carried beside the list
+   * because a failed request must never clear an amber light that is genuinely
+   * lit — nor render as an empty queue.
+   */
+  const [approvalState, setApprovalState] = useState<{
+    items: PendingApproval[];
+    reachable: boolean;
+  }>({ items: [], reachable: true });
+  const approvals = approvalState.items.length;
 
   useEffect(() => {
     let cancelled = false;
     const poll = () => {
       fetch("/api/approvals")
         .then((response) => response.json())
-        .then((data: { ok?: boolean; count?: number }) => {
-          // Only a successful answer changes the number. A failed request must
-          // never clear an amber light that is genuinely lit.
-          if (!cancelled && data.ok) setApprovals(data.count ?? 0);
+        .then((data: { ok?: boolean; approvals?: PendingApproval[] }) => {
+          if (cancelled) return;
+          if (data.ok) setApprovalState({ items: data.approvals ?? [], reachable: true });
+          // A failed poll keeps the last known list and says it is stale,
+          // rather than reporting an empty queue it never actually saw.
+          else setApprovalState((previous) => ({ ...previous, reachable: false }));
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (!cancelled) setApprovalState((previous) => ({ ...previous, reachable: false }));
+        });
     };
     poll();
     const timer = window.setInterval(poll, APPROVAL_POLL_MS);
@@ -64,6 +87,11 @@ export function V2Screen() {
       select({ kind: "agent", id });
       setJarvisOpen(false);
     },
+    [select],
+  );
+
+  const selectProject = useCallback(
+    (project: Project) => select({ kind: "project", folder: project.folder, name: project.name }),
     [select],
   );
 
@@ -124,14 +152,14 @@ export function V2Screen() {
    * A keyboard shortcut that depends on render timing is a shortcut that works
    * on the developer's machine.
    */
-  const escapeState = useRef({ settingsOpen, selection, jarvisOpen, world });
+  const escapeState = useRef({ settingsOpen, approvalsOpen, query, selection, jarvisOpen, world });
   // Written in an effect, not during render. Assigning to a ref while
   // rendering is a rule this project has broken before, and the reason it is
   // a rule is that React may render without committing — the handler would
   // then act on a state that never reached the screen.
   useEffect(() => {
-    escapeState.current = { settingsOpen, selection, jarvisOpen, world };
-  }, [settingsOpen, selection, jarvisOpen, world]);
+    escapeState.current = { settingsOpen, approvalsOpen, query, selection, jarvisOpen, world };
+  }, [settingsOpen, approvalsOpen, query, selection, jarvisOpen, world]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -141,6 +169,17 @@ export function V2Screen() {
       const state = escapeState.current;
       if (state.settingsOpen) {
         setSettingsOpen(false);
+        return;
+      }
+      if (state.approvalsOpen) {
+        setApprovalsOpen(false);
+        return;
+      }
+      // A search is a layer too: clearing it before the selection means Escape
+      // undoes the last thing done, which is the only order a person can
+      // predict without learning a table.
+      if (state.query) {
+        setQuery("");
         return;
       }
       if (state.selection.kind !== "none") {
@@ -164,8 +203,11 @@ export function V2Screen() {
         rosterReachable={roster.reachable}
         approvalsWaiting={approvals}
         vault={vault}
+        projects={projects.projects}
+        query={world === "cosmos" ? query : ""}
         onSelectAgent={selectAgent}
         onSelectSource={selectSource}
+        onSelectProject={selectProject}
         onFrame={devOpen ? setMeter : undefined}
       />
 
@@ -175,17 +217,40 @@ export function V2Screen() {
         vaultCount={vault.nodes.length}
         vaultReachable={vault.reachable}
         approvalsWaiting={approvals}
+        approvalsReachable={approvalState.reachable}
+        onOpenApprovals={() => setApprovalsOpen((open) => !open)}
         onOpenSettings={() => setSettingsOpen(true)}
         onToggleDev={() => setDevOpen((open) => !open)}
         devOpen={devOpen}
       />
 
-      <Inspector
-        agents={roster.agents}
-        nodes={vault.nodes}
-        onOpenSource={openSource}
-        onDiveToSource={diveToSource}
-      />
+      {/* The search belongs to the cosmos: it is the world with 273 things in
+          it and no other way to ask where one of them is. */}
+      {world === "cosmos" ? (
+        <SearchField
+          nodes={vault.nodes}
+          query={query}
+          onQuery={setQuery}
+          onPick={selectSource}
+          selectedId={selection.kind === "source" ? selection.id : null}
+        />
+      ) : null}
+
+      {approvalsOpen ? (
+        <Approvals
+          approvals={approvalState.items}
+          reachable={approvalState.reachable}
+          onClose={() => setApprovalsOpen(false)}
+        />
+      ) : (
+        <Inspector
+          agents={roster.agents}
+          nodes={vault.nodes}
+          projects={projects.projects}
+          onOpenSource={openSource}
+          onDiveToSource={diveToSource}
+        />
+      )}
 
       <Dock jarvisOpen={jarvisOpen} onToggleJarvis={() => setJarvisOpen((open) => !open)} />
 
@@ -220,13 +285,33 @@ export function V2Screen() {
         </div>
       ) : null}
 
-      {/* A dark room is the design. A dark room that is still loading has to
-          say so — otherwise the two are indistinguishable. */}
-      {roster.loading || vault.loading ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-32 z-20 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-white/35">
-          Verbindung wird hergestellt…
-        </div>
-      ) : null}
+      {/* A dark room is the design. A dark room that is still loading, one
+          whose backend is down, and one that is genuinely empty produced the
+          same picture — which is the most common way a system lies quietly. */}
+      <SystemState
+        sources={[
+          {
+            label: "Hermes",
+            loading: roster.loading,
+            reachable: roster.reachable,
+            count: roster.agents.length,
+            error: roster.error,
+          },
+          {
+            label: "Vault",
+            loading: vault.loading,
+            reachable: vault.reachable,
+            count: vault.nodes.length,
+          },
+          {
+            label: "Projekte",
+            loading: projects.loading,
+            reachable: projects.reachable,
+            count: projects.projects.length,
+            error: projects.error,
+          },
+        ]}
+      />
     </main>
   );
 }

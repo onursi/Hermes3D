@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
+import { SELECTION_COLOR } from "@/features/v2/palette";
 import type { VaultNode } from "@/features/v2/useVault";
 
 /**
@@ -227,7 +228,7 @@ export function Horizon({
       {highlighted ? (
         <mesh ref={markerRef} position={highlighted.skyPosition}>
           <ringGeometry args={[0.9, 1.15, 24]} />
-          <meshBasicMaterial color="#fbbf24" transparent opacity={0.85} side={THREE.DoubleSide} />
+          <meshBasicMaterial color={SELECTION_COLOR} transparent opacity={0.85} side={THREE.DoubleSide} />
         </mesh>
       ) : null}
 

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
+import { DECISION_COLOR } from "@/features/v2/palette";
 import type { RosterAgent } from "@/features/v2/useRoster";
 
 /**
@@ -28,7 +29,7 @@ const DOCK_RADIUS = 3.15;
 
 /** Cyan = information, mint = confirmed, amber = a decision is waiting. */
 const COLOR_INFO = "#38bdf8";
-const COLOR_AMBER = "#fbbf24";
+const COLOR_AMBER = DECISION_COLOR;
 
 export function HomeWorld({
   agents,

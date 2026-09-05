@@ -7,12 +7,14 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
+import type { Project } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultNode, VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { CosmosWorld } from "@/features/v2/world/CosmosWorld";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { Horizon } from "@/features/v2/world/Horizon";
+import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 
 /**
@@ -34,16 +36,23 @@ export function V2Scene({
   rosterReachable,
   approvalsWaiting,
   vault,
+  projects,
+  query,
   onSelectAgent,
   onSelectSource,
+  onSelectProject,
   onFrame,
 }: {
   agents: RosterAgent[];
   rosterReachable: boolean;
   approvalsWaiting: number;
   vault: VaultState;
+  projects: Project[];
+  /** The cosmos search term. Empty everywhere else. */
+  query: string;
   onSelectAgent: (id: string) => void;
   onSelectSource: (node: VaultNode) => void;
+  onSelectProject: (project: Project) => void;
   onFrame?: (sample: { fps: number; calls: number; triangles: number }) => void;
 }) {
   const { world, travelling, selection, focus, prefs, setTravelling, rememberHomeCamera } = useV2();
@@ -96,11 +105,17 @@ export function V2Scene({
   );
 
   const selectedSourceId = selection.kind === "source" ? selection.id : null;
+  const selectedProjectFolder = selection.kind === "project" ? selection.folder : null;
 
   return (
     <Canvas
       dpr={[1, 1.35]}
-      shadows
+      // Explicit, because the default is PCFSoftShadowMap and this version of
+      // three deprecates it: every frame logged a warning and silently fell
+      // back to exactly this. Naming the fallback removes the noise without
+      // changing a single pixel — the console has to stay readable, or the
+      // one warning that matters gets lost among a thousand that do not.
+      shadows={{ type: THREE.PCFShadowMap }}
       camera={{ position: HOME_VIEW.position.toArray(), fov: 46, near: 0.1, far: 260 }}
       gl={{
         // Inert while the composer is mounted, which is why it is tied to the
@@ -177,13 +192,20 @@ export function V2Scene({
               highlightId={selectedSourceId}
             />
           </>
-        ) : (
+        ) : world === "cosmos" ? (
           <CosmosWorld
             nodes={vault.nodes}
             links={vault.links}
             radius={vault.radius}
             selectedId={selectedSourceId}
+            query={query}
             onSelect={onSelectSource}
+          />
+        ) : (
+          <ProjectsWorld
+            projects={projects}
+            selectedFolder={selectedProjectFolder}
+            onSelect={onSelectProject}
           />
         )}
       </Suspense>
