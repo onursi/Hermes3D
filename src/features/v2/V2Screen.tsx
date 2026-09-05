@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
+import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
 import { useProjects, type Project } from "@/features/v2/useProjects";
 import { useRoster } from "@/features/v2/useRoster";
@@ -44,6 +45,18 @@ export function V2Screen() {
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  /**
+   * `?lab=1` — read after mount, never during render.
+   *
+   * V1 aborted its tree three separate times by reading a URL flag while
+   * rendering: the server has no `window`, so the two passes disagreed. The
+   * flag defaults to off, which is also the correct answer for the server.
+   */
+  const [labMode, setLabMode] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLabMode(new URLSearchParams(window.location.search).get("lab") === "1");
+  }, []);
   /**
    * The queue itself, not just its length.
    *
@@ -88,6 +101,28 @@ export function V2Screen() {
       setJarvisOpen(false);
     },
     [select],
+  );
+
+  /**
+   * The shelf, derived rather than fetched.
+   *
+   * The library reads the same vault the cosmos and the horizon read — one
+   * source, three ways of standing in front of it. There is no second request
+   * and no second copy; a shelf that fetched its own notes could disagree with
+   * the sky about what the vault contains.
+   */
+  const libraryItems = useMemo(
+    () => shelfFor(vault.nodes, vault.links, selection.kind === "source" ? selection.id : null),
+    [vault.nodes, vault.links, selection],
+  );
+
+  /** The library hands back an id; the vault turns it into a selection. */
+  const selectSourceId = useCallback(
+    (id: string) => {
+      const node = vault.byId.get(id);
+      if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+    },
+    [vault.byId, select],
   );
 
   const selectProject = useCallback(
@@ -204,9 +239,11 @@ export function V2Screen() {
         approvalsWaiting={approvals}
         vault={vault}
         projects={projects.projects}
+        libraryItems={libraryItems}
         query={world === "cosmos" ? query : ""}
         onSelectAgent={selectAgent}
         onSelectSource={selectSource}
+        onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
         onFrame={devOpen ? setMeter : undefined}
       />
@@ -252,7 +289,11 @@ export function V2Screen() {
         />
       )}
 
-      <Dock jarvisOpen={jarvisOpen} onToggleJarvis={() => setJarvisOpen((open) => !open)} />
+      <Dock
+        jarvisOpen={jarvisOpen}
+        onToggleJarvis={() => setJarvisOpen((open) => !open)}
+        showLibrary={labMode}
+      />
 
       {jarvisOpen ? (
         <section className="pointer-events-auto absolute bottom-20 left-1/2 z-30 w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">

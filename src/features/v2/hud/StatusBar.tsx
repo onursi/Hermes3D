@@ -40,7 +40,13 @@ export function StatusBar({
 }) {
   const { world, travelling } = useV2();
   const worldName =
-    world === "home" ? "Kommandodeck" : world === "cosmos" ? "Wissenskosmos" : "Ergebniswerft";
+    world === "home"
+      ? "Kommandodeck"
+      : world === "cosmos"
+        ? "Wissenskosmos"
+        : world === "projects"
+          ? "Ergebniswerft"
+          : "Bibliothek";
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 py-3">

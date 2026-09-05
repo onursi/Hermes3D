@@ -63,6 +63,17 @@ export const PROJECTS_VIEW = {
   target: new THREE.Vector3(0, 1.7, 0),
 };
 
+/**
+ * The library, from the reading table looking into the shelves.
+ *
+ * Closer than the other worlds on purpose: a library is a room you stand in,
+ * not a landscape you survey. The other three are seen from outside.
+ */
+export const LIBRARY_VIEW = {
+  position: new THREE.Vector3(6.8, 4.6, 8.2),
+  target: new THREE.Vector3(-1.2, 2.0, -2.4),
+};
+
 export function viewFor(
   world: V2World,
   cosmosRadius = 12,
@@ -72,6 +83,7 @@ export function viewFor(
     return { ...cloneView(cosmosView(cosmosRadius, cosmosCentre)), duration: 1.15 };
   }
   if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
+  if (world === "library") return { ...cloneView(LIBRARY_VIEW), duration: 1.15 };
   return { ...cloneView(HOME_VIEW), duration: 1.15 };
 }
 

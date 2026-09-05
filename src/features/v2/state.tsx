@@ -29,7 +29,7 @@ import * as THREE from "three";
  * adding a dependency to hold four numbers would be a poor trade.
  */
 
-export type V2World = "home" | "cosmos" | "projects";
+export type V2World = "home" | "cosmos" | "projects" | "library";
 
 /** What the inspector is about. One thing at a time, by design. */
 export type V2Selection =

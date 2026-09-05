@@ -17,9 +17,20 @@ import { useV2 } from "@/features/v2/state";
 export function Dock({
   jarvisOpen,
   onToggleJarvis,
+  showLibrary = false,
 }: {
   jarvisOpen: boolean;
   onToggleJarvis: () => void;
+  /**
+   * The library appears only with `?lab=1`.
+   *
+   * It is integrated and it works, but it is Antigravity's room in Onur's
+   * system for the first time, and ASTRA has not seen it. A fifth button in
+   * the dock is a claim that the room is finished; a flag is an invitation to
+   * look. It costs nothing to leave it behind the flag until someone says
+   * otherwise — and the room is unmounted, so it costs nothing to render.
+   */
+  showLibrary?: boolean;
 }) {
   const { world, goTo, travelling } = useV2();
 
@@ -62,6 +73,19 @@ export function Dock({
           <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
         </svg>
       </DockButton>
+
+      {showLibrary ? (
+        <DockButton
+          active={world === "library"}
+          disabled={travelling}
+          onClick={() => goTo("library")}
+          label="Bibliothek"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M4 4h4v16H4zM10 4h4v16h-4zM16.5 4.6l3.4.9-3.6 15.1-3.4-.9z" />
+          </svg>
+        </DockButton>
+      ) : null}
 
       <span className="mx-1 h-5 w-px bg-white/10" />
 

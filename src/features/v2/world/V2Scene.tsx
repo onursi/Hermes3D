@@ -13,6 +13,7 @@ import type { VaultNode, VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { CosmosWorld } from "@/features/v2/world/CosmosWorld";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
+import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
@@ -37,9 +38,11 @@ export function V2Scene({
   approvalsWaiting,
   vault,
   projects,
+  libraryItems,
   query,
   onSelectAgent,
   onSelectSource,
+  onSelectSourceId,
   onSelectProject,
   onFrame,
 }: {
@@ -48,10 +51,14 @@ export function V2Scene({
   approvalsWaiting: number;
   vault: VaultState;
   projects: Project[];
+  /** What stands on the library shelf right now. Derived from the vault. */
+  libraryItems: LibraryItem[];
   /** The cosmos search term. Empty everywhere else. */
   query: string;
   onSelectAgent: (id: string) => void;
   onSelectSource: (node: VaultNode) => void;
+  /** The library speaks in ids, not in nodes — the module knows nothing of the vault. */
+  onSelectSourceId: (id: string) => void;
   onSelectProject: (project: Project) => void;
   onFrame?: (sample: { fps: number; calls: number; triangles: number }) => void;
 }) {
@@ -134,6 +141,12 @@ export function V2Scene({
         gl.setClearColor("#05080d");
       }}
     >
+      {/* The stage lighting belongs to the three open worlds. The library
+          brings its own — it is an interior, lit from inside, and stacking the
+          outdoor key light on top of it washes out exactly the thing that
+          makes it read as a room. One lighting concept at a time. */}
+      {world !== "library" ? (
+        <>
       {/* Key light, low and from the side, so the figures get a rim rather
           than being lit flat from above. One shadow caster, 1024 map. */}
       <directionalLight
@@ -153,6 +166,8 @@ export function V2Scene({
       />
       {/* Cool fill from below-left, so the graphite does not go pure black. */}
       <hemisphereLight args={["#5b7fa6", "#080c12", 0.55]} />
+        </>
+      ) : null}
 
       <CameraDirector
         goal={goal}
@@ -201,11 +216,18 @@ export function V2Scene({
             query={query}
             onSelect={onSelectSource}
           />
-        ) : (
+        ) : world === "projects" ? (
           <ProjectsWorld
             projects={projects}
             selectedFolder={selectedProjectFolder}
             onSelect={onSelectProject}
+          />
+        ) : (
+          <LibraryWorld
+            items={libraryItems}
+            selectedId={selectedSourceId}
+            onSelect={onSelectSourceId}
+            reducedMotion={prefs.reducedMotion}
           />
         )}
       </Suspense>
