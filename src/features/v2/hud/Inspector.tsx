@@ -26,6 +26,7 @@ export function Inspector({
   projects,
   onOpenSource,
   onDiveToSource,
+  councilAvailable = false,
 }: {
   agents: RosterAgent[];
   nodes: VaultNode[];
@@ -34,6 +35,16 @@ export function Inspector({
   onOpenSource: (id: string) => void;
   /** Travels to the cosmos with this note selected. */
   onDiveToSource: (id: string) => void;
+  /**
+   * Ob der Upstream  tatsächlich anbietet.
+   *
+   * Vorher stand hier ein fest geschriebener Satz. Ein fest geschriebener
+   * Satz über den Zustand eines anderen Systems ist genau so lange wahr, wie
+   * niemand das andere System ändert — und dann sagt die Oberfläche etwas
+   * Falsches, ohne dass es jemandem auffällt. Jetzt kommt die Antwort aus der
+   * Methodenliste, die der Server beim Verbinden selbst nennt.
+   */
+  councilAvailable?: boolean;
 }) {
   const { selection, focus, setFocus, clearSelection, world } = useV2();
 
@@ -48,7 +59,7 @@ export function Inspector({
   return (
     <aside className="pointer-events-auto absolute right-4 top-16 z-30 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
       {selection.kind === "agent" ? (
-        <AgentBody agent={agents.find((a) => a.id === selection.id)} />
+        <AgentBody agent={agents.find((a) => a.id === selection.id)} councilAvailable={councilAvailable} />
       ) : null}
 
       {selection.kind === "source" ? (
@@ -94,7 +105,7 @@ export function Inspector({
   );
 }
 
-function AgentBody({ agent }: { agent?: RosterAgent }) {
+function AgentBody({ agent, councilAvailable }: { agent?: RosterAgent; councilAvailable: boolean }) {
   if (!agent) {
     return <Empty text="Dieser Agent ist nicht mehr im Roster." />;
   }
@@ -129,8 +140,10 @@ function AgentBody({ agent }: { agent?: RosterAgent }) {
       {/* Honest about what is not built yet. The plan says the room stays
           truthful about single agents while Hermes builds the council. */}
       <p className="mt-3 font-mono text-[10px] leading-relaxed text-white/25">
-        Gespräch mit einzelnen Agenten läuft über das bestehende HQ. Council
-        noch nicht verbunden.
+        Gespräch mit einzelnen Agenten läuft über das bestehende HQ.{" "}
+        {councilAvailable
+          ? "Council ist verbunden, hat hier aber noch keine Oberfläche."
+          : "Council nicht verbunden — der Upstream bietet council.start nicht an."}
       </p>
     </div>
   );

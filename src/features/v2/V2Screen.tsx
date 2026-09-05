@@ -8,6 +8,7 @@ import { useV2 } from "@/features/v2/state";
 import { WorldBoundary } from "@/features/v2/WorldBoundary";
 import { useProjects, type Project } from "@/features/v2/useProjects";
 import { useRoster } from "@/features/v2/useRoster";
+import { useHermesLive } from "@/features/v2/useHermesLive";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
@@ -44,6 +45,16 @@ export function V2Screen() {
   const roster = useRoster();
   const vault = useVault();
   const projects = useProjects();
+  /**
+   * Die offene Leitung zu Hermes.
+   *
+   * Bisher hat V2 gefragt und Antworten aufgehoben. Was gerade passiert —
+   * ein Agent, der arbeitet, eine Freigabe, die eintrifft — kommt über diese
+   * Verbindung, oder es kommt gar nicht. Sie erzeugt keinen zweiten
+   * Zustandsspeicher: der Roster bleibt der Roster.
+   */
+  const [liveMode, setLiveMode] = useState(false);
+  const live = useHermesLive(liveMode);
   const { world, selection, select, goTo, prefs, clearSelection, setTravelling } = useV2();
 
   const [jarvisOpen, setJarvisOpen] = useState(false);
@@ -94,6 +105,16 @@ export function V2Screen() {
     const params = new URLSearchParams(window.location.search);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLabMode(params.get("lab") === "1");
+    // `?live=1` schaltet die offene Leitung zu Hermes ein.
+    //
+    // Sie funktioniert — der Server nimmt sie an, die Methodenliste kommt an,
+    // und der Council waere darueber erreichbar. Sie kostet in meiner Messung
+    // aber reproduzierbar Bildrate: 56 fps ohne, 32 fps mit, nach vier
+    // Weltwechseln, bei gleicher Draw- und Geometriezahl. Warum, weiss ich
+    // noch nicht. Etwas Ungeklaertes, das die Haelfte der Bildrate kostet,
+    // gehoert nicht als Standard in ein Produkt — also hinter einen Schalter,
+    // bis die Ursache bekannt ist.
+    setLiveMode(params.get("live") === "1");
     setCrashWorld(params.get("boom"));
   }, []);
   /**
@@ -449,6 +470,7 @@ export function V2Screen() {
           projects={projects.projects}
           onOpenSource={openSource}
           onDiveToSource={diveToSource}
+          councilAvailable={live.methods.includes("council.start")}
         />
       )}
 
@@ -511,7 +533,8 @@ export function V2Screen() {
       {devOpen ? (
         <div className="pointer-events-none absolute bottom-5 right-5 z-30 rounded-xl border border-white/10 bg-[#0a1018]/90 px-3 py-2 font-mono text-[11px] text-cyan-200/80 backdrop-blur-md">
           {meter.fps} fps · {meter.calls} Draws · {(meter.triangles / 1000).toFixed(0)}k Dreiecke ·{" "}
-          {meter.geometries} Geo · {meter.textures} Tex
+          {meter.geometries} Geo · {meter.textures} Tex ·{" "}
+          <span title="Zustand der Live-Verbindung zu Hermes">Live: {live.status}</span>
           <span className="ml-2 text-white/25">
             {prefs.bloom ? "Bloom an" : "Bloom aus"}
           </span>
@@ -535,6 +558,15 @@ export function V2Screen() {
             loading: vault.loading,
             reachable: vault.reachable,
             count: vault.nodes.length,
+          },
+          {
+            // Die Leitung selbst ist eine Quelle wie jede andere: sie kann
+            // laden, nicht erreichbar oder da sein, und das muss man sehen.
+            label: "Live-Verbindung",
+            loading: live.status === "idle" || live.status === "connecting",
+            reachable: live.status === "connected",
+            count: live.methods.length,
+            error: live.detail,
           },
           {
             label: "Projekte",

@@ -73,6 +73,29 @@ const AT = (label, ok, detail) =>
 
   const fresh = await sampleMeter("Zuhause frisch", 8000);
 
+  /**
+   * Die Live-Verbindung zu Hermes.
+   *
+   * Geprueft an der Anzeige, nicht am Code: der Zustand steht in den
+   * Entwicklerwerten, weil eine Verbindung, deren Zustand man nur im
+   * Quelltext nachlesen kann, im Zweifel keiner nachliest.
+   *
+   * Achtung beim Betrieb: mit NODE_ENV=production verweigert der Proxy den
+   * Upstream, solange UPSTREAM_ALLOWLIST leer ist. Das ist eine Schutzregel
+   * und kein Fehler — der Server dieser Abnahme muss die Liste gesetzt haben.
+   */
+  const liveLine = await page
+    .evaluate(() => {
+      const nodes = Array.from(document.querySelectorAll("div"));
+      const el = nodes.find((n) => /Live: /.test((n.textContent || "").trim()));
+      const m = el ? (el.textContent || "").match(/Live: ([a-z]+)/) : null;
+      return m ? m[1] : null;
+    })
+    .catch(() => null);
+  // Standardmaessig aus, also ist "idle" hier das richtige Ergebnis. Die
+  // Verbindung selbst wird in einem eigenen Tab mit ?live=1 geprueft.
+  AT("Live-Verbindung standardmaessig aus", liveLine === "idle", liveLine ?? "keine Anzeige");
+
   // --- Jarvis: a real question with real sources ----------------------------
   await page.getByRole("button", { name: /jarvis/i }).first().click();
   await page.waitForTimeout(1200);
@@ -501,42 +524,18 @@ const AT = (label, ok, detail) =>
   }
 
   // --- Measurement, once it has settled ------------------------------------
-  const samples = [];
-  const until = Date.now() + 16000;
-  while (Date.now() < until) {
-    const text = await page
-      .evaluate(() => {
-        const nodes = Array.from(document.querySelectorAll("div"));
-        const el = nodes.find((n) => /^\d+ fps · /.test((n.textContent || "").trim()));
-        return el ? el.textContent : "";
-      })
-      .catch(() => "");
-    const m = (text || "").match(/(\d+) fps · (\d+) Draws · (\d+)k/);
-    if (m) samples.push({ fps: +m[1], draws: +m[2], tri: +m[3] });
-    await page.waitForTimeout(600);
-  }
-  if (samples.length) {
-    const fps = samples.map((s) => s.fps).sort((a, b) => a - b);
-    console.log(
-      `\nMESSUNG Zuhause @1720x1250: fps Median ${fps[Math.floor(fps.length / 2)]} ` +
-        `(${fps[0]}–${fps[fps.length - 1]}), ${samples[0].draws} Draws, ${samples[0].tri}k Dreiecke, ` +
-        `${samples.length} Proben`,
-    );
-  } else {
-    console.log("\nMESSUNG: keine Proben (Entwicklerwerte aus?)");
-  }
+  // Dieselbe Funktion wie oben, damit beide Messungen dieselben Zahlen zeigen.
+  // Zwei Messwege waeren zwei Definitionen von "gemessen".
+  const used = await sampleMeter("Zuhause nach dem Durchlauf", 14000);
+  const samples = used ? [{ fps: used.median }] : [];
 
-  // A measurement that is only printed cannot fail, and a check that cannot
-  // fail is a note. The floor is deliberately well below the 60 the scene
-  // currently holds: this is here to catch a collapse, not to argue about
-  // five frames on a machine that is also compiling something.
   const MIN_FPS = 40;
   if (fresh) {
     console.log(
       `
 VERGLEICH: frisch ${fresh.median} fps / ${fresh.geo} Geometrien, nach dem Durchlauf ` +
-        `${samples.length ? samples[samples.length - 1].fps : "?"} fps. Faellt der zweite Wert deutlich ab, ` +
-        `sammelt sich etwas an — dann zuerst die Geometriezahl vergleichen.`,
+        `${used ? used.median : "?"} fps / ${used ? used.geo : "?"} Geometrien. Faellt der zweite Wert ` +
+        `deutlich ab, sammelt sich etwas an — die Geometriezahl daneben sagt, ob es Geometrien sind.`,
     );
   }
   if (samples.length) {
