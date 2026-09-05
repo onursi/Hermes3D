@@ -19,7 +19,9 @@
     "test": "vitest",
     "e2e": "playwright test",
     "measure": "node scripts/measure-office.mjs",
-    "smoke": "playwright test office-scene-smoke --reporter=line"
+    "smoke": "playwright test office-scene-smoke --reporter=line",
+    "v2:verify": "node scripts/verify-v2.mjs",
+    "v2:shots": "node scripts/shots-v2.mjs ./v2-shots"
   },
   "dependencies": {
     "@noble/ed25519": "^3.0.0",
