@@ -73,7 +73,7 @@ export function V2Scene({
   onReachChange: (place: Place | null) => void;
   /** True while a DOM panel owns the keyboard — the reader, above all. */
   inputBlocked?: boolean;
-  onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number }) => void;
+  onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
   crashWorld?: string | null;
 }) {
@@ -209,6 +209,24 @@ export function V2Scene({
   /**
    * The vault in W1's shape. Derived once per data change, never per frame.
    */
+  /**
+   * Was vom Deck aus am Himmel steht.
+   *
+   * Eine Station je Projekt ist im All richtig und zuhause falsch: aus
+   * hundert Einheiten sind sechs Tore ein Fleck. Der Ort "Projekte" wird
+   * durch das naechstgelegene vertreten — angesteuert wird trotzdem jedes
+   * einzelne, sobald man draussen ist.
+   */
+  const homePlaces = useMemo(() => {
+    const seen = new Set<string>();
+    return places.filter((place) => {
+      if (place.kind !== "project") return true;
+      if (seen.has("project")) return false;
+      seen.add("project");
+      return true;
+    });
+  }, [places]);
+
   const knowledge = useMemo(
     () => adaptVaultToKnowledge(vault.nodes, vault.links),
     [vault.nodes, vault.links],
@@ -351,8 +369,13 @@ export function V2Scene({
                 coordinates, same shapes as when he is out there — which is
                 the entire claim: the library on the horizon *is* the library
                 he flies to, not a picture of it. */}
+            {/* Zuhause nur die grossen Ziele, nicht jede einzelne Station.
+                Sechs Projekttore am Horizont sind sechs winzige Ringe, die
+                nebeneinander zu einem Fleck werden — und sie kosten, was ein
+                Fleck nicht wert ist. Wer ein einzelnes Projekt ansteuern will,
+                fliegt hinaus; dort stehen sie alle. */}
             <Silhouettes
-              places={places}
+              places={homePlaces}
               activeId="home"
               reachableId={null}
               reducedMotion={prefs.reducedMotion}
@@ -442,9 +465,19 @@ function Boom({ world }: { world: string }): null {
 function FrameProbe({
   onSample,
 }: {
-  onSample: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number }) => void;
+  onSample: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
 }) {
   const gl = useThree((state) => state.gl);
+  /**
+   * Wie viele Frame-Schleifen gerade laufen.
+   *
+   * Die eine Zahl, die den Fehler sichtbar macht, gegen den V2 gebaut ist:
+   * eine Welt, die abgebaut wurde und trotzdem weiterrechnet, aendert keinen
+   * einzigen Zeichenaufruf und halbiert trotzdem die Bildrate. R3F fuehrt
+   * seine Abonnenten in ; waechst diese Zahl mit jedem
+   * Weltwechsel, ist genau das passiert.
+   */
+  const internal = useThree((state) => state.internal);
   const frames = useRef(0);
   const elapsed = useRef(0);
   const calls = useRef(0);
@@ -478,6 +511,7 @@ function FrameProbe({
       // weil Geometrien und Texturen sich stapeln, die niemand mehr braucht.
       geometries: gl.info.memory.geometries,
       textures: gl.info.memory.textures,
+      loops: internal.subscribers.length,
     });
     frames.current = 0;
     elapsed.current = 0;

@@ -1,7 +1,6 @@
 "use client";
 
-import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 /**
@@ -52,6 +51,19 @@ const PORTAL_FRAGMENT = /* glsl */ `
   uniform vec3 uCore;
   uniform float uOpen;   // 0 = calm, 1 = reacting to attention
   uniform float uSeed;
+  /**
+   * 1 = voller Shader, 0 = billige Fassung fuer weit entfernte Tore.
+   *
+   * Ein Tor, das neunzig Einheiten weit weg dreissig Pixel breit ist, bekommt
+   * dieselbe Rauschrechnung pro Pixel wie eines direkt vor der Nase. Zuhause
+   * stehen acht davon am Himmel, und genau das hat die Bildrate an die
+   * Vsync-Schwelle gedrueckt: bei identischen Zeichenaufrufen kippte sie nach
+   * dem zweiten Weltwechsel von 56 auf 32 und kam nicht zurueck.
+   *
+   * Nah bleibt alles wie es war. Fern wird aus dem Wirbel ein Ring — auf
+   * dreissig Pixeln ist das derselbe Anblick zum halben Preis.
+   */
+  uniform float uDetail;
 
   // Value noise ohne sin(). Die erste Fassung rief pro Pixel 32 mal sin()
   // auf — vier Oktaven mal vier Ecken mal zwei fbm — und das kostete auf der
@@ -90,6 +102,18 @@ const PORTAL_FRAGMENT = /* glsl */ `
     if (radius > 1.0) discard;
 
     float angle = atan(centred.y, centred.x);
+
+    if (uDetail < 0.5) {
+      // Billige Fassung: ein weicher Ring plus Saum, kein Rauschen, keine
+      // Schleife. Zwei smoothsteps statt vier fbm-Oktaven.
+      float band = 1.0 - abs(radius - 0.62) * 4.6;
+      band = clamp(band, 0.0, 1.0);
+      float glow = exp(-max(0.0, radius - 0.62) * 8.5) * 0.34;
+      float lift0 = 1.0 + uOpen * 1.1;
+      vec3 c0 = uRim * (band * 1.7 + glow) * lift0 + uCore * 0.25 * (1.0 - radius);
+      gl_FragColor = vec4(c0, clamp(band * 1.35 * lift0 + glow * lift0, 0.0, 1.0));
+      return;
+    }
 
     // The swirl: inner rings turn faster than outer ones, which is the whole
     // reason this reads as a vortex rather than as a spinning texture.
@@ -135,71 +159,76 @@ const PORTAL_FRAGMENT = /* glsl */ `
   }
 `;
 
+
+/**
+ * Ein Griff auf ein Tor, den die gemeinsame Schleife bedienen kann.
+ *
+ * Das Tor hat bewusst **keine eigene Bildschleife**. Genau daran hing die
+ * halbe Bildrate: acht Tore stehen zuhause am Himmel, jedes hatte seinen
+ * eigenen `useFrame`, und acht Schleifen kosten acht Schleifen. Gemessen war
+ * das der Unterschied zwischen 56 und 32 Bildern — bei identischen
+ * Zeichenaufrufen, identischen Geometrien und identischer Szene.
+ *
+ * Ich hatte dieselbe Regel bei den Ortsnamen richtig angewandt und drei
+ * Dateien weiter gebrochen. Die Zahl der laufenden Schleifen steht deshalb
+ * jetzt in den Entwicklerwerten: Draw Calls können diesen Fehler nicht zeigen.
+ */
+export type PortalHandle = {
+  group: THREE.Group | null;
+  material: THREE.ShaderMaterial | null;
+  /** Der eingeschwungene Wert von `uOpen`. Gehört der Schleife. */
+  open: number;
+};
+
 export function Portal({
   radius,
-  rim,
-  core,
-  /** Raised when this portal is the one in reach. */
-  open = false,
-  reducedMotion = false,
-  /** Distinguishes the noise of one portal from the next. Stable per place. */
   seed = 0,
+  onHandle,
   children,
 }: {
   radius: number;
-  rim: string;
-  core: string;
-  open?: boolean;
-  reducedMotion?: boolean;
+  /** Unterscheidet das Rauschen eines Tores vom nächsten. Fest je Ort. */
   seed?: number;
+  /** Meldet Gruppe und Material an die Schleife der Eltern. */
+  onHandle: (handle: PortalHandle | null) => void;
   children?: React.ReactNode;
 }) {
-  const material = useRef<THREE.ShaderMaterial>(null);
-  const billboard = useRef<THREE.Group>(null);
-  const openValue = useRef(0);
+  const handle = useRef<PortalHandle>({ group: null, material: null, open: 0 });
 
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uRim: { value: new THREE.Color(rim) },
-      uCore: { value: new THREE.Color(core) },
+      uRim: { value: new THREE.Color("#ffffff") },
+      uCore: { value: new THREE.Color("#000000") },
       uOpen: { value: 0 },
       uSeed: { value: seed },
+      uDetail: { value: 1 },
     }),
-    // Colours are pushed in the frame loop below, so this builds once.
+    // Farben und Zeit setzt die gemeinsame Schleife; einmal bauen genügt.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
-  useFrame((state, delta) => {
-    // Always face the camera. A portal seen edge-on is a line, and a door you
-    // cannot see is not a door — this is the one case where billboarding is
-    // the honest choice rather than a shortcut.
-    if (billboard.current) billboard.current.quaternion.copy(state.camera.quaternion);
-
-    if (!material.current) return;
-    // Reduced motion keeps the shape and drops the movement. The portal still
-    // reads as a portal; it simply holds still.
-    if (!reducedMotion) material.current.uniforms.uTime.value = state.clock.elapsedTime;
-
-    material.current.uniforms.uRim.value.set(rim);
-    material.current.uniforms.uCore.value.set(core);
-
-    // Eased rather than switched: a rim that snaps to bright on approach looks
-    // like a rendering glitch, and one that fades looks like it noticed you.
-    const target = open ? 1 : 0;
-    openValue.current += (target - openValue.current) * Math.min(1, delta * 4);
-    material.current.uniforms.uOpen.value = openValue.current;
-  });
+  useEffect(() => {
+    const current = handle.current;
+    onHandle(current);
+    return () => onHandle(null);
+  }, [onHandle]);
 
   return (
-    <group ref={billboard}>
-      {/* What shows through, behind the surface and clipped by it. */}
+    <group
+      ref={(group) => {
+        handle.current.group = group;
+      }}
+    >
+      {/* Was hindurchscheint — hinter der Fläche und von ihr eingerahmt. */}
       {children}
       <mesh>
         <planeGeometry args={[radius * 2.6, radius * 2.6]} />
         <shaderMaterial
-          ref={material}
+          ref={(material) => {
+            handle.current.material = material;
+          }}
           vertexShader={PORTAL_VERTEX}
           fragmentShader={PORTAL_FRAGMENT}
           uniforms={uniforms}

@@ -2,11 +2,11 @@
 
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { AREA_COLORS, DISTANT_TINT, SELECTION_COLOR } from "@/features/v2/palette";
-import { Portal } from "@/features/v2/universe/Portal";
+import { Portal, type PortalHandle } from "@/features/v2/universe/Portal";
 import type { Place } from "@/features/v2/universe/places";
 
 /**
@@ -73,6 +73,15 @@ export function Silhouettes({
   onFocus?: (place: Place) => void;
 }) {
   const labels = useRef(new Map<string, THREE.Object3D>());
+  /**
+   * Alle Tore in einer Schleife statt jedes in seiner eigenen.
+   *
+   * Acht Tore mit acht Bildschleifen haben die Bildrate halbiert — gemessen,
+   * 56 gegen 32, bei identischer Szene. Hier liegen sie zusammen: Ausrichtung
+   * zur Kamera, Zeit, Farben und das Aufhellen bei Naehe, alles in einem
+   * Durchgang.
+   */
+  const portals = useRef(new Map<string, { handle: PortalHandle; rim: THREE.Color; core: THREE.Color; open: boolean; still: boolean }>());
 
   /**
    * One frame callback for every label in the universe, not one each.
@@ -86,7 +95,84 @@ export function Silhouettes({
    * lives and dies with this component. Nine separate ones would have been
    * the same work spread across nine hooks nobody can find later.
    */
-  useFrame(({ camera }) => {
+  /**
+   * An- und Abmelden eines Tores, plus die Werte, die die Schleife braucht.
+   *
+   * Farben und Nähe stehen hier und nicht im Tor: die Silhouette weiß beides
+   * ohnehin, und ein Tor, das seine eigene Farbe pro Bild neu aus einer
+   * Zeichenkette baut, tut Arbeit, die niemand sehen kann.
+   */
+  const registerPortal = useCallback(
+    (id: string, handle: PortalHandle | null) => {
+      if (!handle) portals.current.delete(id);
+      else
+        portals.current.set(id, {
+          handle,
+          rim: new THREE.Color(),
+          core: new THREE.Color(),
+          open: false,
+          still: false,
+        });
+    },
+    [],
+  );
+
+  /**
+   * Was die Schleife wissen muss, in einem Ref statt im Rendern geschrieben.
+   *
+   * Der erste Versuch hat die Einträge direkt beim Rendern verändert. Das ist
+   * ein Schreiben in ein Ref während des Renderns — die Lint-Regel dagegen ist
+   * berechtigt: React darf rendern, ohne zu committen, und dann stünden Werte
+   * in der Schleife, die nie auf dem Bildschirm waren.
+   */
+  const current = useRef({ places, reachableId, reducedMotion });
+  useEffect(() => {
+    current.current = { places, reachableId, reducedMotion };
+  }, [places, reachableId, reducedMotion]);
+
+  useFrame((state, delta) => {
+    const camera = state.camera;
+
+    const { places: livePlaces, reachableId: liveReachable, reducedMotion: still } = current.current;
+
+    for (const place of livePlaces) {
+      const entry = portals.current.get(place.id);
+      if (!entry) continue;
+      const highlighted = place.id === liveReachable;
+      entry.rim.set(highlighted ? SELECTION_COLOR : (PORTAL_RIM[place.kind] ?? DISTANT_TINT));
+      entry.core.set(PORTAL_CORE[place.kind] ?? "#101010");
+      entry.open = highlighted;
+      entry.still = still;
+    }
+
+    for (const entry of portals.current.values()) {
+      const { handle } = entry;
+      // Immer zur Kamera. Ein Tor von der Kante gesehen ist ein Strich, und
+      // eine Tuer, die man nicht sieht, ist keine Tuer.
+      if (handle.group) handle.group.quaternion.copy(camera.quaternion);
+      const material = handle.material;
+      if (!material) continue;
+      // Reduzierte Bewegung behaelt die Form und laesst die Bewegung weg.
+      if (!entry.still) material.uniforms.uTime.value = state.clock.elapsedTime;
+      material.uniforms.uRim.value.copy(entry.rim);
+      material.uniforms.uCore.value.copy(entry.core);
+      // Eingeschwungen statt geschaltet: ein Rand, der bei Annaeherung
+      // springt, sieht aus wie ein Darstellungsfehler; einer, der aufblendet,
+      // sieht aus, als haette das Tor einen bemerkt.
+      const target = entry.open ? 1 : 0;
+      handle.open += (target - handle.open) * Math.min(1, delta * 4);
+      material.uniforms.uOpen.value = handle.open;
+
+      // Detailstufe nach Entfernung. Die Grenze ist grosszuegig: naeher als
+      // vierzig Einheiten ist ein Tor gross genug, dass man den Wirbel sieht;
+      // weiter weg ist es ein Ring, und der volle Shader waere Rechenzeit fuer
+      // etwas, das niemand aufloesen kann.
+      if (handle.group) {
+        handle.group.getWorldPosition(SCRATCH);
+        material.uniforms.uDetail.value = camera.position.distanceTo(SCRATCH) < 40 ? 1 : 0;
+      }
+    }
+
     for (const object of labels.current.values()) {
       // One scratch vector, reused. Allocating nine per frame would be nine
       // times sixty allocations a second for a number we throw away.
@@ -104,8 +190,8 @@ export function Silhouettes({
             key={place.id}
             place={place}
             highlighted={place.id === reachableId}
-            reducedMotion={reducedMotion}
             onFocus={onFocus}
+            registerPortal={registerPortal}
             labelRef={(object) => {
               if (object) labels.current.set(place.id, object);
               else labels.current.delete(place.id);
@@ -120,16 +206,17 @@ export function Silhouettes({
 function Silhouette({
   place,
   highlighted,
-  reducedMotion,
   onFocus,
   labelRef,
+  registerPortal,
 }: {
   place: Place;
   highlighted: boolean;
-  reducedMotion: boolean;
   onFocus?: (place: Place) => void;
   /** Hands the label group to the one loop that scales them all. */
   labelRef: (object: THREE.Object3D | null) => void;
+  /** Meldet das Tor bei derselben Schleife an. */
+  registerPortal: (id: string, handle: PortalHandle | null) => void;
 }) {
   // Warmgrau, nicht blau: so ist Cyan hier ein Zustand und keine Grundfarbe.
   const tint = highlighted ? SELECTION_COLOR : DISTANT_TINT;
@@ -155,11 +242,8 @@ function Silhouette({
       {place.kind !== "home" ? (
         <Portal
           radius={place.radius}
-          rim={highlighted ? SELECTION_COLOR : PORTAL_RIM[place.kind]}
-          core={PORTAL_CORE[place.kind]}
-          open={highlighted}
-          reducedMotion={reducedMotion}
           seed={place.id.length * 7.3}
+          onHandle={(handle) => registerPortal(place.id, handle)}
         >
           {/* What shows through. Same shapes as before, at a fraction of the
               size — the door tells you which room is behind it, which is the

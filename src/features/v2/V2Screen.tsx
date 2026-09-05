@@ -60,7 +60,7 @@ export function V2Screen() {
   const [jarvisOpen, setJarvisOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
-  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0 });
+  const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
@@ -533,7 +533,7 @@ export function V2Screen() {
       {devOpen ? (
         <div className="pointer-events-none absolute bottom-5 right-5 z-30 rounded-xl border border-white/10 bg-[#0a1018]/90 px-3 py-2 font-mono text-[11px] text-cyan-200/80 backdrop-blur-md">
           {meter.fps} fps · {meter.calls} Draws · {(meter.triangles / 1000).toFixed(0)}k Dreiecke ·{" "}
-          {meter.geometries} Geo · {meter.textures} Tex ·{" "}
+          {meter.geometries} Geo · {meter.textures} Tex · {meter.loops} Loops ·{" "}
           <span title="Zustand der Live-Verbindung zu Hermes">Live: {live.status}</span>
           <span className="ml-2 text-white/25">
             {prefs.bloom ? "Bloom an" : "Bloom aus"}
