@@ -9,6 +9,17 @@
  */
 import { chromium } from "playwright";
 
+/**
+ * Das Dock, gezielt angesprochen.
+ *
+ * Seit die Menueleiste im Wissenskoerper ein Areal "Projekte" listet, gibt es
+ * zwei Knoepfe mit demselben Namen und verschiedener Bedeutung: die Welt und
+ * das Areal. Eine Pruefung, die den ersten nimmt, den sie findet, prueft ab
+ * dann etwas anderes als gestern — und meldet einen Fehler, wo keiner ist.
+ */
+const dock = (page, name) =>
+  page.locator("nav").getByRole("button", { name: new RegExp(name, "i") }).first();
+
 const AT = (label, ok, detail) =>
   console.log(`${ok ? "OK  " : "FEHL"}  ${label}${detail ? "  — " + detail : ""}`);
 
@@ -117,12 +128,12 @@ const AT = (label, ok, detail) =>
   // --- Round trip: home -> cosmos -> home -----------------------------------
   const canvasesBefore = await page.locator("canvas").count();
 
-  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await dock(page, "^wissen$").click();
   await page.waitForTimeout(6000);
   const inCosmos = await page.locator("header").first().textContent();
   AT("Reise in den Kosmos", /Wissenskosmos/.test(inCosmos || ""), (inCosmos || "").slice(0, 30));
 
-  await page.getByRole("button", { name: /zuhause/i }).first().click();
+  await dock(page, "^zuhause$").click();
   await page.waitForTimeout(6000);
   const backHome = await page.locator("header").first().textContent();
   AT("Rückkehr nach Hause", /Kommandodeck/.test(backHome || ""), (backHome || "").slice(0, 30));
@@ -140,9 +151,9 @@ const AT = (label, ok, detail) =>
   );
 
   // --- Second round trip: no leaks -----------------------------------------
-  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await dock(page, "^wissen$").click();
   await page.waitForTimeout(4500);
-  await page.getByRole("button", { name: /zuhause/i }).first().click();
+  await dock(page, "^zuhause$").click();
   await page.waitForTimeout(4500);
 
   const canvasesAfter = await page.locator("canvas").count();
@@ -155,7 +166,7 @@ const AT = (label, ok, detail) =>
   // --- Escape returns home --------------------------------------------------
   await page.keyboard.press("Escape"); // closes the inspector
   await page.waitForTimeout(600);
-  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await dock(page, "^wissen$").click();
   await page.waitForTimeout(4500);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(700);
@@ -165,7 +176,7 @@ const AT = (label, ok, detail) =>
   AT("Escape führt heim", /Kommandodeck/.test(afterEscape || ""), (afterEscape || "").slice(0, 30));
 
   // --- Section C: the search ------------------------------------------------
-  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await dock(page, "^wissen$").click();
   await page.waitForTimeout(4500);
 
   const searchBox = page.getByPlaceholder(/Notiz oder Ordner suchen/i).first();
@@ -209,7 +220,7 @@ const AT = (label, ok, detail) =>
   AT("Escape leert die Suche", cleared === "", `Feld: "${cleared}"`);
 
   // --- Section C: the yard ---------------------------------------------------
-  await page.getByRole("button", { name: /projekte/i }).first().click();
+  await dock(page, "^projekte$").click();
   await page.waitForTimeout(5000);
   const inYard = await page.locator("header").first().textContent();
   AT("Reise in die Ergebniswerft", /Ergebniswerft/.test(inYard || ""), (inYard || "").slice(0, 30));
@@ -269,7 +280,7 @@ const AT = (label, ok, detail) =>
     (projectPanel || "keines").replace(/\s+/g, " ").slice(0, 70),
   );
 
-  await page.getByRole("button", { name: /zuhause/i }).first().click();
+  await dock(page, "^zuhause$").click();
   await page.waitForTimeout(4500);
 
   // --- Section C: approvals are legible, not just a light -------------------
@@ -316,7 +327,7 @@ const AT = (label, ok, detail) =>
   AT("Pfadflucht wird abgewiesen", readerApi.escaped);
   AT("Fehlende Notiz ist nicht dasselbe wie leer", readerApi.missing);
 
-  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await dock(page, "^wissen$").click();
   await page.waitForTimeout(4000);
   await page.getByPlaceholder(/Notiz oder Ordner suchen/i).first().fill("Zielbild");
   await page.waitForTimeout(900);
@@ -409,7 +420,7 @@ const AT = (label, ok, detail) =>
   }
 
   await page.getByPlaceholder(/Notiz oder Ordner suchen/i).first().fill("");
-  await page.getByRole("button", { name: /^zuhause$/i }).first().click();
+  await dock(page, "^zuhause$").click();
   await page.waitForTimeout(3000);
 
   // --- U1: the dock is a cut, and the universe is a place ------------------
@@ -417,7 +428,7 @@ const AT = (label, ok, detail) =>
   // Direct means direct: the destination is on screen before an animation of
   // any length could have finished. 400 ms against a 1150 ms warp is not a
   // close call — if this passes, nothing was flown.
-  await page.getByRole("button", { name: /projekte/i }).first().click();
+  await dock(page, "^projekte$").click();
   await page.waitForTimeout(400);
   const quickHeader = await page.locator("header").first().textContent();
   AT(
@@ -426,7 +437,7 @@ const AT = (label, ok, detail) =>
     (quickHeader || "").replace(/\s+/g, " ").slice(0, 40),
   );
 
-  await page.getByRole("button", { name: /^reisen$/i }).first().click();
+  await dock(page, "^reisen$").click();
   await page.waitForTimeout(3500);
   const universeHeader = await page.locator("header").first().textContent();
   AT("Reisen öffnet das Universum", /Unterwegs/.test(universeHeader || ""));
@@ -515,7 +526,7 @@ const AT = (label, ok, detail) =>
     // by its consequence rather than by reading the camera: he was within
     // reach of that place when he entered, so he must still be within reach
     // of it when he comes back out. A reset camera fails this.
-    await page.getByRole("button", { name: /^reisen$/i }).first().click();
+    await dock(page, "^reisen$").click();
     await page.waitForTimeout(2500);
     const stillInReach = await page
       .locator("text=/In Reichweite/")
@@ -539,7 +550,7 @@ const AT = (label, ok, detail) =>
    * 56 ohne, im selben Build gemessen. Beide Zahlen sind wahr; nur die zweite
    * beantwortet die Frage, die diese Prüfung stellt.
    */
-  const jarvisToggle = page.getByRole("button", { name: /^jarvis$/i }).first();
+  const jarvisToggle = dock(page, "^jarvis$");
   if (await jarvisToggle.isVisible().catch(() => false)) {
     await jarvisToggle.click().catch(() => {});
     await page.waitForTimeout(1500);

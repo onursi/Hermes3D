@@ -36,12 +36,22 @@ const LOOK_RATE = 0.0032;
 export function FreeFlight({
   places,
   speed,
+  boundary = BOUNDARY,
+  baseSpeed = BASE_SPEED,
   onReachChange,
   onSample,
 }: {
   places: Place[];
   /** The flight-speed preference. Scales the whole thing, boost included. */
   speed: number;
+  /**
+   * Wie weit er kommt. Im All 240 Einheiten, im Wissenskoerper viel weniger:
+   * dort ist alles innerhalb von zwanzig, und wer hundert Einheiten weit
+   * hinausfliegt, sieht einen Punkt und findet nicht zurueck.
+   */
+  boundary?: number;
+  /** Grundtempo. Im Koerper langsamer, weil alles naeher steht. */
+  baseSpeed?: number;
   /** Fires only when the offer changes, never per frame. */
   onReachChange: (place: Place | null) => void;
   /** Reports position and heading, so entering a place can come back to it. */
@@ -171,7 +181,7 @@ export function FreeFlight({
         .addScaledVector(new THREE.Vector3(0, 1, 0), lift)
         .normalize()
         .multiplyScalar(
-          BASE_SPEED * THREE.MathUtils.clamp(speed, 0.5, 3) * (held.has("shift") ? BOOST : 1),
+          baseSpeed * THREE.MathUtils.clamp(speed, 0.5, 3) * (held.has("shift") ? BOOST : 1),
         );
     }
 
@@ -180,8 +190,8 @@ export function FreeFlight({
     velocity.current.lerp(wanted, Math.min(1, delta * 9));
     camera.position.addScaledVector(velocity.current, delta);
 
-    if (camera.position.length() > BOUNDARY) {
-      camera.position.setLength(BOUNDARY);
+    if (camera.position.length() > boundary) {
+      camera.position.setLength(boundary);
       velocity.current.multiplyScalar(0.2);
     }
 

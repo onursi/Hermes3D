@@ -78,6 +78,20 @@ export const AREA_SHAPE: Record<string, [number, number, number]> = {
   Ungeordnet: [0.85, 0.85, 0.85],
 };
 
+/**
+ * Wie groß ein Areal wird. Eine Formel, zwei Leser.
+ *
+ * Das Modul zeichnet danach die Halos, die Menüleiste fliegt danach an. Zwei
+ * Kopien derselben Formel wären zwei Areale unterschiedlicher Größe mit
+ * demselben Namen — und der Fehler fiele erst auf, wenn die Kamera daneben
+ * landet.
+ *
+ * Wurzel aus der Notizanzahl: die Fläche wächst mit dem Inhalt, nicht die
+ * Breite. Das ist die Kennzahl, die die Legende benennt.
+ */
+export const areaRadius = (noteCount: number): number =>
+  Math.max(1.5, Math.sqrt(noteCount) * 0.78);
+
 /** Half-width of the gap down the middle. The one detail that says "brain". */
 const FISSURE = 1.15;
 

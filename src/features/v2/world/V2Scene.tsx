@@ -13,7 +13,7 @@ import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
-import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
+import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { Horizon } from "@/features/v2/world/Horizon";
@@ -22,6 +22,7 @@ import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
 import { CockpitProjector, type MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
+import { FreeFlight } from "@/features/v2/universe/FreeFlight";
 import { approachFor, type Place } from "@/features/v2/universe/places";
 
 /**
@@ -52,6 +53,9 @@ export function V2Scene({
   places,
   onReachChange,
   cockpitMarkers,
+  knowledge,
+  focusRequest,
+  flyThrough = false,
   inputBlocked = false,
   onFrame,
   crashWorld,
@@ -77,6 +81,12 @@ export function V2Scene({
   inputBlocked?: boolean;
   /** Die Cockpit-Marken im DOM. Werden in der Canvas bewegt, nicht neu gerendert. */
   cockpitMarkers: React.MutableRefObject<MarkerRegistry>;
+  /** Der Vault in W1-Form, oben abgeleitet. */
+  knowledge: { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] };
+  /** Eine Kamerabitte aus dem HUD. Null, solange keine gestellt wurde. */
+  focusRequest: { center: [number, number, number]; radius: number; seq: number } | null;
+  /** Im Wissenskoerper fliegen statt umkreisen. */
+  flyThrough?: boolean;
   onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
   crashWorld?: string | null;
@@ -231,11 +241,6 @@ export function V2Scene({
     });
   }, [places]);
 
-  const knowledge = useMemo(
-    () => adaptVaultToKnowledge(vault.nodes, vault.links),
-    [vault.nodes, vault.links],
-  );
-
   /**
    * W1 asks the camera to look at an area; the camera stays mine.
    *
@@ -255,6 +260,20 @@ export function V2Scene({
     },
     [prefs.reducedMotion],
   );
+
+  /**
+   * Eine Kamerabitte aus dem HUD ausfuehren.
+   *
+   * Auf  geschluesselt, nicht auf den Inhalt: derselbe Ort zweimal
+   * angeklickt soll zweimal hinfliegen. Auf den Inhalt geschluesselt saehe
+   * React beim zweiten Mal denselben Wert und taete nichts — und der Klick
+   * waere ohne erkennbaren Grund wirkungslos.
+   */
+  useEffect(() => {
+    if (!focusRequest) return;
+    handleFocusArea({ center: focusRequest.center, radius: focusRequest.radius });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.seq]);
 
   const handleReachChange = useCallback(
     (place: Place | null) => {
@@ -338,7 +357,7 @@ export function V2Scene({
           and wrong for leaving one. The universe has its own controller, and
           the two must never be mounted together — both write the camera, and
           the result is a fight rather than a compromise. */}
-      {world !== "universe" ? (
+      {world !== "universe" && !(world === "cosmos" && flyThrough) ? (
         <OrbitControls
           ref={controlsRef as never}
           target={HOME_VIEW.target.toArray()}
@@ -409,6 +428,21 @@ export function V2Scene({
              and it hands back an id. That is the whole contract, and keeping
              it that narrow is why swapping the knowledge world in took one
              prop list rather than a rewrite. */
+          <>
+          {flyThrough && !inputBlocked && goal === null ? (
+            /* Dieselbe Steuerung wie im All, nur langsamer und mit enger
+               Grenze: der Koerper misst zwanzig Einheiten, nicht zweihundert.
+               Wer hier mit Reisetempo losfliegt, ist in einer Sekunde drausen
+               und sieht einen Punkt. */
+            <FreeFlight
+              places={[]}
+              speed={prefs.flightSpeed}
+              boundary={34}
+              baseSpeed={7.5}
+              onReachChange={() => {}}
+              onSample={sampleCamera}
+            />
+          ) : null}
           <KnowledgeAreas
             nodes={knowledge.nodes}
             edges={knowledge.edges}
@@ -418,6 +452,7 @@ export function V2Scene({
             onSelect={onSelectSourceId}
             onFocusRequest={handleFocusArea}
           />
+          </>
         ) : world === "projects" ? (
           <ProjectsWorld
             projects={projects}

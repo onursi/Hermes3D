@@ -60,7 +60,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 
 import { AREA_COLORS, DECISION_COLOR, SELECTION_COLOR } from "@/features/v2/palette";
-import { applyFissure, AREA_SHAPE, BRAIN_CENTERS, curvePoints } from "@/features/v2/knowledge/brainLayout";
+import { applyFissure, areaRadius, AREA_SHAPE, BRAIN_CENTERS, curvePoints } from "@/features/v2/knowledge/brainLayout";
 import { CortexShell } from "@/features/v2/knowledge/CortexShell";
 import type {
   KnowledgeNode,
@@ -106,12 +106,25 @@ const TRACT_VERTEX = /* glsl */ `
   uniform float uSpeed;
 
   void main() {
-    // Ein Signal je Bahn, versetzt gestartet. fract() lässt es umlaufen.
+    // Zwei Signale je Bahn, gegenläufig und unterschiedlich schnell.
+    //
+    // Eines allein sah aus wie ein Laufband: alles wandert in dieselbe
+    // Richtung, gleichmäßig, und wird nach zehn Sekunden Tapete. Zwei, die
+    // sich begegnen, lesen sich als Verkehr — und genau das war der Wunsch,
+    // dass es "hin und her springt". Kostet nichts: dieselbe Rechnung zweimal
+    // im Vertex-Shader, keine zusätzliche Geometrie, keine zweite Uniform.
     float head = fract(uTime * uSpeed + aSeed);
     float d = abs(aT - head);
     // Der kürzere Weg um den Ring herum, damit der Übergang nicht springt.
     d = min(d, 1.0 - d);
-    vGlow = smoothstep(0.07, 0.0, d);
+
+    // Der Rückläufer: langsamer, schwächer, anders gestartet. Er soll dem
+    // ersten begegnen und nicht mit ihm im Gleichschritt laufen.
+    float back = fract(-uTime * uSpeed * 0.63 + aSeed * 1.7 + 0.37);
+    float db = abs(aT - back);
+    db = min(db, 1.0 - db);
+
+    vGlow = max(smoothstep(0.07, 0.0, d), smoothstep(0.05, 0.0, db) * 0.75);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -226,7 +239,7 @@ export function KnowledgeAreas({
       // Quellenareal 9,5 Einheiten bei 7 Einheiten Abstand zum Nachbarn — die
       // zehn Areale lagen vollständig ineinander, und was man sah, war ein
       // Klumpen mit zehn Beschriftungen. Die Kennzahl bleibt dieselbe.
-      const clusterRadius = Math.max(1.5, Math.sqrt(nodeCount) * 0.78);
+      const clusterRadius = areaRadius(nodeCount);
       const color = GROUP_COLORS[gid] || groupNodes[0]?.color || "#38bdf8";
 
       clustersList.push({

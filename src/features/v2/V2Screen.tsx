@@ -13,6 +13,7 @@ import { useVault, type VaultNode } from "@/features/v2/useVault";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
 import { Inspector } from "@/features/v2/hud/Inspector";
+import { AreaPanel, type AreaEntry } from "@/features/v2/hud/AreaPanel";
 import { Cockpit } from "@/features/v2/hud/Cockpit";
 import { Neighbourhood } from "@/features/v2/hud/Neighbourhood";
 import { Reader } from "@/features/v2/hud/Reader";
@@ -22,6 +23,8 @@ import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
 import { neighboursOf } from "@/features/v2/graph";
+import { areaRadius, BRAIN_CENTERS } from "@/features/v2/knowledge/brainLayout";
+import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
 import { playArrive, playSelect } from "@/features/v2/sound";
 import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { placesFor, type Place } from "@/features/v2/universe/places";
@@ -76,6 +79,18 @@ export function V2Screen() {
    */
   const cockpitMarkers = useRef<MarkerRegistry>(new Map());
   /**
+   * Eine Kamerabitte aus dem HUD, mit Zaehler.
+   *
+   * Der Zaehler macht denselben Klick zweimal wirksam: wer ein Areal anwaehlt,
+   * hinfliegt, sich umsieht und wieder klickt, will wieder hin — ohne ihn
+   * saehe React zweimal denselben Wert und taete nichts.
+   */
+  const [focusRequest, setFocusRequest] = useState<{
+    center: [number, number, number];
+    radius: number;
+    seq: number;
+  } | null>(null);
+  /**
    * The note being read, by id. Null when the reader is closed.
    *
    * Separate from the selection on purpose: selecting a star in the knowledge
@@ -93,6 +108,15 @@ export function V2Screen() {
    * solange die Auswahl nicht die ist, die er geschlossen hat.
    */
   const [dismissedGraphId, setDismissedGraphId] = useState<string | null>(null);
+  /**
+   * Durch den Wissenskoerper fliegen statt ihn zu umkreisen.
+   *
+   * Onurs Einwand war richtig: man stand davor. Umkreisen zeigt die Form,
+   * Durchfliegen zeigt, dass es ein Inneres gibt — zwischen den Arealen
+   * hindurch, an den Bahnen entlang. Es ist dieselbe Steuerung wie im All,
+   * nur langsamer und mit einer engeren Grenze, weil hier alles nah steht.
+   */
+  const [flyThrough, setFlyThrough] = useState(false);
   /**
    * `?lab=1` — read after mount, never during render.
    *
@@ -245,6 +269,42 @@ export function V2Screen() {
     () => (readerId ? neighboursOf(readerId, vault.links, vault.byId) : []),
     [readerId, vault.links, vault.byId],
   );
+
+  /**
+   * Die Areale, wie sie im Raum stehen.
+   *
+   * Aus denselben Quellen wie der Koerper selbst: die Zentren und die Groesse
+   * aus brainLayout.ts, die Anzahl aus den echten Notizen. Die Liste kann
+   * deshalb nicht behaupten, was der Raum nicht zeigt.
+   */
+  /**
+   * Der Vault in der Form, die W1 braucht — einmal, hier oben.
+   *
+   * Lag vorher in der Szene. Jetzt brauchen ihn zwei: der Raum zum Zeichnen
+   * und die Menueleiste zum Zaehlen. Zweimal rechnen hiesse zwei Antworten
+   * auf "wie viele Notizen liegen in Projekte".
+   */
+  const knowledge = useMemo(
+    () => adaptVaultToKnowledge(vault.nodes, vault.links),
+    [vault.nodes, vault.links],
+  );
+
+  const areas = useMemo<AreaEntry[]>(() => {
+    const counts = new Map<string, number>();
+    for (const node of knowledge.nodes) {
+      const id = node.groupId ?? "Ungeordnet";
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([id, count]) => ({
+        id,
+        label: id,
+        count,
+        center: (BRAIN_CENTERS[id] ?? [9, 0, 0]) as [number, number, number],
+        radius: areaRadius(count),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [knowledge.nodes]);
 
   /** Die Notiz, um die das flache Netz gerade gezeichnet wird. */
   const graphNode =
@@ -437,6 +497,9 @@ export function V2Screen() {
         places={places}
         onReachChange={setReachable}
         cockpitMarkers={cockpitMarkers}
+        knowledge={knowledge}
+        focusRequest={focusRequest}
+        flyThrough={flyThrough}
         inputBlocked={readerId !== null}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
@@ -510,6 +573,29 @@ export function V2Screen() {
         onRead={setReaderId}
         onClose={() => setDismissedGraphId(graphNode?.id ?? null)}
       />
+
+      {/* Die Areale gehoeren in die Wissenswelt und nirgendwo sonst: dort
+          stehen sie im Raum, und dort ist die Liste die zweite Art, sich zu
+          bewegen. */}
+      {world === "cosmos" ? (
+        <AreaPanel
+          areas={areas}
+          flying={flyThrough}
+          onToggleFlight={() => setFlyThrough((value) => !value)}
+          activeId={
+            selection.kind === "source"
+              ? (vault.byId.get(selection.id)?.folder ?? null)
+              : null
+          }
+          onFocus={(area) =>
+            setFocusRequest((previous) => ({
+              center: area.center,
+              radius: area.radius,
+              seq: (previous?.seq ?? 0) + 1,
+            }))
+          }
+        />
+      ) : null}
 
       {world === "universe" ? (
         <>

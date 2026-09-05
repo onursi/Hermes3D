@@ -120,8 +120,14 @@ const PORTAL_FRAGMENT = /* glsl */ `
     float twist = angle + uTime * (0.35 + 0.9 * (1.0 - radius)) ;
     vec2 flow = vec2(cos(twist), sin(twist)) * radius;
 
-    float turbulence = fbm(flow * 3.2 + vec2(uTime * 0.25, -uTime * 0.18));
-    float filaments = fbm(flow * 7.0 - vec2(uTime * 0.6, uTime * 0.4));
+    float turbulence = fbm(flow * 3.2 + vec2(uTime * 0.42, -uTime * 0.31));
+    float filaments = fbm(flow * 7.0 - vec2(uTime * 1.05, uTime * 0.72));
+
+    // Funken: eine schnelle, feine Lage, die nur den Rand trifft. Sie laeuft
+    // gegen die Stroemung, damit der Ring lebt statt zu rotieren — ein Rad
+    // dreht sich, ein Tor flackert.
+    float sparks = fbm(flow * 15.0 + vec2(-uTime * 2.1, uTime * 1.7));
+    sparks = pow(clamp(sparks, 0.0, 1.0), 3.5);
 
     // The rim: a broad band just inside the edge, pushed in and out by the
     // noise so the ring is torn rather than drawn. This is the part that
@@ -131,7 +137,7 @@ const PORTAL_FRAGMENT = /* glsl */ `
     float ring = 0.62 + turbulence * 0.13;
     float edge = 1.0 - abs(radius - ring) * 4.6;
     edge = clamp(edge, 0.0, 1.0);
-    edge = pow(edge, 1.35) * (0.75 + filaments * 0.6);
+    edge = pow(edge, 1.35) * (0.62 + filaments * 0.75 + sparks * 1.8);
 
     // Light spilling outward. Without it the disc ends where the geometry
     // ends, and an edge you can see is the one thing a portal must not have.
