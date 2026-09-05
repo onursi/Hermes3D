@@ -61,6 +61,7 @@ import { Billboard, Text } from "@react-three/drei";
 
 import { AREA_COLORS, DECISION_COLOR, SELECTION_COLOR } from "@/features/v2/palette";
 import { applyFissure, AREA_SHAPE, BRAIN_CENTERS, curvePoints } from "@/features/v2/knowledge/brainLayout";
+import { CortexShell } from "@/features/v2/knowledge/CortexShell";
 import type {
   KnowledgeNode,
   KnowledgeEdge,
@@ -553,14 +554,12 @@ export function KnowledgeAreas({
         );
       })}
 
-      {/* Eingriff 4: eine sehr schwache Hülle um den ganzen Körper.
-          Zehn getrennte Areale bleiben zehn Areale, bis eine Silhouette sie
-          zusammenfasst — ein Draw, kaum sichtbar, und trotzdem der Unterschied
-          zwischen "Wolken im Raum" und "ein Körper mit Regionen". */}
-      <mesh scale={[10.5, 8.2, 10.5]} renderOrder={-1}>
-        <icosahedronGeometry args={[1, 2]} />
-        <meshBasicMaterial color="#8a8378" wireframe transparent opacity={0.035} depthWrite={false} />
-      </mesh>
+      {/* Eingriff 4: die Haut des Körpers, aus kreisenden Teilchen.
+          Das Drahtgitter, das vorher hier stand, las sich als Käfig — eine
+          Form braucht eine Oberfläche, keine Umrandung. Die Schale ist
+          ausdrücklich Dekoration und sieht auch so aus: eine Farbe, halb so
+          groß wie die kleinste Notiz, nicht anklickbar. */}
+      <CortexShell reducedMotion={reducedMotion} dimmed={Boolean(selectedId) || query.trim().length > 0} />
 
       {/* 2. HINTERGRUND-BAHNEN. Gebogen, gebündelt, mit wandernden Signalen. */}
       <lineSegments geometry={backgroundLinesGeo}>
