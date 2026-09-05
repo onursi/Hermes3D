@@ -73,6 +73,39 @@ const OUT = process.argv[2];
   await page.screenshot({ path: OUT + "/5-ergebniswerft.png" });
   console.log("5 werft");
 
+  // U1: the universe, the approach, and the entry offer.
+  // Jarvis is still open from shot 2 and covers half the sky; these three
+  // shots are about what the space looks like, so the console goes away first.
+  const jarvisButton = page.getByRole("button", { name: /^jarvis$/i }).first();
+  if (await jarvisButton.count()) await jarvisButton.click().catch(() => {});
+  await page.waitForTimeout(800);
+  await page.getByRole("button", { name: /^zuhause$/i }).first().click().catch(() => {});
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: OUT + "/8-zuhause-horizont.png" });
+  console.log("8 horizont");
+
+  await page.getByRole("button", { name: /^reisen$/i }).first().click().catch(() => {});
+  await page.waitForTimeout(3500);
+  await page.screenshot({ path: OUT + "/9-universum.png" });
+  console.log("9 universum");
+
+  // Fly until something is in reach, then hold still and photograph the offer.
+  await page.keyboard.down("w");
+  const until = Date.now() + 5000;
+  while (Date.now() < until) {
+    const near = await page
+      .locator("text=/In Reichweite/")
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (near) break;
+    await page.waitForTimeout(120);
+  }
+  await page.keyboard.up("w");
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: OUT + "/10-eintritt.png" });
+  console.log("10 eintritt");
+
   const meter = await page
     .evaluate(() => {
       const nodes = Array.from(document.querySelectorAll("div"));

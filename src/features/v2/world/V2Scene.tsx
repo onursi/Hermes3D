@@ -17,6 +17,9 @@ import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
+import { Silhouettes } from "@/features/v2/universe/Silhouettes";
+import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
+import { approachFor, type Place } from "@/features/v2/universe/places";
 
 /**
  * One renderer, one active world.
@@ -44,6 +47,8 @@ export function V2Scene({
   onSelectSource,
   onSelectSourceId,
   onSelectProject,
+  places,
+  onReachChange,
   onFrame,
   crashWorld,
 }: {
@@ -61,11 +66,25 @@ export function V2Scene({
   /** The library speaks in ids, not in nodes — the module knows nothing of the vault. */
   onSelectSourceId: (id: string) => void;
   onSelectProject: (project: Project) => void;
+  /** The map of the universe, derived once by the screen. */
+  places: Place[];
+  /** What the flight is currently close enough to enter. Null most of the time. */
+  onReachChange: (place: Place | null) => void;
   onFrame?: (sample: { fps: number; calls: number; triangles: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
   crashWorld?: string | null;
 }) {
-  const { world, travelling, selection, focus, prefs, setTravelling, rememberHomeCamera } = useV2();
+  const { world, journey, travelling, selection, focus, prefs, goTo, setTravelling, rememberCamera, getCamera } =
+    useV2();
+  /**
+   * A place to fly to on the next journey effect.
+   *
+   * A ref and not state, because it is set in the same click that calls
+   * `goTo`: state would arrive a render later, after the effect that needed
+   * to read it had already run and sent the camera to the default view.
+   */
+  const pendingApproach = useRef<Place | null>(null);
+  const [reachable, setReachable] = useState<Place | null>(null);
   const controlsRef = useRef<{ target: THREE.Vector3; update: () => void; enabled: boolean } | null>(
     null,
   );
@@ -74,16 +93,51 @@ export function V2Scene({
   const warpStart = useRef(0);
 
   /**
-   * A change of world starts a flight, and the flight owns the transition.
+   * A move sets the camera. Whether it flies there is the move's own business.
    *
-   * The world itself is swapped at the midpoint, while the streaks are at
-   * their longest — so the swap is never visible, and the loading of the new
-   * world happens behind the brightest part of the effect rather than behind a
-   * spinner.
+   * `direct` puts the camera at the destination on the next frame: no streaks,
+   * no travelling flag, nothing to sit through and nothing to interrupt. That
+   * is the dock, and it is now the default.
+   *
+   * `travel` is the flight, and the flight owns the transition — the world is
+   * swapped at the midpoint while the streaks are at their longest, so the
+   * swap is never visible and the new world loads behind the brightest part of
+   * the effect rather than behind a spinner.
    */
   useEffect(() => {
-    setGoal(viewFor(world, vault.radius, vault.centre));
-    if (prefs.reducedMotion) return;
+    const base = viewFor(journey.world, vault.radius, vault.centre);
+
+    // A click on a silhouette: enter the universe and fly to that place. The
+    // flight is his own choice here, so it is a flight and not a cut.
+    const approach = pendingApproach.current;
+    pendingApproach.current = null;
+    if (approach && journey.world === "universe") {
+      const view = approachFor(approach);
+      setGoal({ ...view, duration: 1.6, instant: prefs.reducedMotion });
+      setTravelling(false);
+      setWarpProgress(0);
+      return;
+    }
+
+    // Returning to a world means the view he left it from, not the one the
+    // designer composed. Only for a direct return: a staged flight that lands
+    // on a half-orbited angle looks like the camera slipped.
+    const remembered = journey.transit === "direct" ? getCamera(journey.world) : null;
+    const destination = remembered
+      ? { position: remembered.position.clone(), target: remembered.target.clone(), duration: base.duration }
+      : base;
+
+    const cut = journey.transit === "direct" || prefs.reducedMotion;
+    setGoal({ ...destination, instant: cut });
+
+    if (cut) {
+      // Whatever was in flight is over — pressing the dock mid-warp must land
+      // immediately rather than fight the interpolation for another second.
+      setTravelling(false);
+      setWarpProgress(0);
+      return;
+    }
+
     setTravelling(true);
     warpStart.current = performance.now();
     let raf = 0;
@@ -96,10 +150,24 @@ export function V2Scene({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // Intentionally keyed on the world alone: a preference change must not
-    // re-trigger a journey.
+    // Keyed on the move itself. `seq` rather than `world`, so that pressing
+    // "Zuhause" while already home still puts the view back — and a preference
+    // change still never re-triggers a journey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, vault.radius]);
+  }, [journey.seq, vault.radius]);
+
+  /**
+   * Leaving the universe clears the entry offer.
+   *
+   * Without this the HUD would keep offering "Bibliothek betreten" while he is
+   * standing in the library — the offer belongs to the flight, and the flight
+   * is gone.
+   */
+  useEffect(() => {
+    if (world === "universe") return;
+    setReachable(null);
+    onReachChange(null);
+  }, [world, onReachChange]);
 
   const handleArrive = useCallback(() => {
     setGoal(null);
@@ -107,11 +175,40 @@ export function V2Scene({
     setWarpProgress(0);
   }, [setTravelling]);
 
-  const sampleHome = useCallback(
+  const sampleCamera = useCallback(
     (position: THREE.Vector3, target: THREE.Vector3) => {
-      if (world === "home") rememberHomeCamera(position, target);
+      rememberCamera(world, position, target);
     },
-    [world, rememberHomeCamera],
+    [world, rememberCamera],
+  );
+
+  /**
+   * Fly to a place he clicked.
+   *
+   * From inside the universe it is a flight from here. From anywhere else it
+   * is "come outside, then fly" — which is why the pending place is stashed
+   * before `goTo` rather than after: the journey effect reads it.
+   */
+  const handleFocusPlace = useCallback(
+    (place: Place) => {
+      pendingApproach.current = place;
+      if (world === "universe") {
+        const view = approachFor(place);
+        setGoal({ ...view, duration: 1.6, instant: prefs.reducedMotion });
+        pendingApproach.current = null;
+        return;
+      }
+      goTo("universe", "direct");
+    },
+    [world, goTo, prefs.reducedMotion],
+  );
+
+  const handleReachChange = useCallback(
+    (place: Place | null) => {
+      setReachable(place);
+      onReachChange(place);
+    },
+    [onReachChange],
   );
 
   const selectedSourceId = selection.kind === "source" ? selection.id : null;
@@ -148,7 +245,7 @@ export function V2Scene({
           brings its own — it is an interior, lit from inside, and stacking the
           outdoor key light on top of it washes out exactly the thing that
           makes it read as a room. One lighting concept at a time. */}
-      {world !== "library" ? (
+      {world !== "library" && world !== "universe" ? (
         <>
       {/* Key light, low and from the side, so the figures get a rim rather
           than being lit flat from above. One shadow caster, 1024 map. */}
@@ -178,21 +275,27 @@ export function V2Scene({
         speed={prefs.flightSpeed}
         reducedMotion={prefs.reducedMotion}
         onArrive={handleArrive}
-        onSampleHome={sampleHome}
+        onSampleHome={sampleCamera}
       />
 
-      <OrbitControls
-        ref={controlsRef as never}
-        target={HOME_VIEW.target.toArray()}
-        enablePan={false}
-        minDistance={3.2}
-        maxDistance={world === "cosmos" ? Math.max(30, vault.radius * 3) : 18}
-        maxPolarAngle={Math.PI * 0.52}
-        enableDamping
-        dampingFactor={0.08}
-        rotateSpeed={0.55 * prefs.flightSpeed}
-        zoomSpeed={0.85 * prefs.flightSpeed}
-      />
+      {/* OrbitControls orbits a point, which is right for looking at a place
+          and wrong for leaving one. The universe has its own controller, and
+          the two must never be mounted together — both write the camera, and
+          the result is a fight rather than a compromise. */}
+      {world !== "universe" ? (
+        <OrbitControls
+          ref={controlsRef as never}
+          target={HOME_VIEW.target.toArray()}
+          enablePan={false}
+          minDistance={3.2}
+          maxDistance={world === "cosmos" ? Math.max(30, vault.radius * 3) : 18}
+          maxPolarAngle={Math.PI * 0.52}
+          enableDamping
+          dampingFactor={0.08}
+          rotateSpeed={0.55 * prefs.flightSpeed}
+          zoomSpeed={0.85 * prefs.flightSpeed}
+        />
+      ) : null}
 
       <Suspense fallback={null}>
         {crashWorld === world ? <Boom world={world} /> : null}
@@ -210,7 +313,30 @@ export function V2Scene({
               dimmed={focus}
               highlightId={selectedSourceId}
             />
+            {/* The rest of the universe, seen from the deck. Same file, same
+                coordinates, same shapes as when he is out there — which is
+                the entire claim: the library on the horizon *is* the library
+                he flies to, not a picture of it. */}
+            <Silhouettes
+              places={places}
+              activeId="home"
+              reachableId={null}
+              onFocus={handleFocusPlace}
+            />
           </>
+        ) : world === "universe" ? (
+          <UniverseWorld
+            places={places}
+            activeId={null}
+            reachableId={reachable?.id ?? null}
+            speed={prefs.flightSpeed}
+            // The flight stands down while the director is flying somewhere,
+            // and takes over the moment it lands.
+            flightEnabled={goal === null}
+            onReachChange={handleReachChange}
+            onSample={sampleCamera}
+            onFocusPlace={handleFocusPlace}
+          />
         ) : world === "cosmos" ? (
           <CosmosWorld
             nodes={vault.nodes}

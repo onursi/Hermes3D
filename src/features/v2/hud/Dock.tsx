@@ -32,13 +32,12 @@ export function Dock({
    */
   showLibrary?: boolean;
 }) {
-  const { world, goTo, travelling } = useV2();
+  const { world, goTo } = useV2();
 
   return (
     <nav className="pointer-events-auto absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/10 bg-[#0a1018]/90 p-1.5 backdrop-blur-md">
       <DockButton
         active={world === "home" && !jarvisOpen}
-        disabled={travelling}
         onClick={() => goTo("home")}
         label="Zuhause"
       >
@@ -47,9 +46,19 @@ export function Dock({
         </svg>
       </DockButton>
 
+      {/* Not a destination — the space the destinations stand in. It sits
+          next to home because that is what it is next to: stepping off the
+          deck and looking around. */}
+      <DockButton active={world === "universe"} onClick={() => goTo("universe")} label="Reisen">
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <ellipse cx="12" cy="12" rx="4" ry="9" />
+          <path d="M3.4 9h17.2M3.4 15h17.2" />
+        </svg>
+      </DockButton>
+
       <DockButton
         active={world === "cosmos"}
-        disabled={travelling}
         onClick={() => goTo("cosmos")}
         label="Wissen"
       >
@@ -65,7 +74,6 @@ export function Dock({
 
       <DockButton
         active={world === "projects"}
-        disabled={travelling}
         onClick={() => goTo("projects")}
         label="Projekte"
       >
@@ -77,7 +85,6 @@ export function Dock({
       {showLibrary ? (
         <DockButton
           active={world === "library"}
-          disabled={travelling}
           onClick={() => goTo("library")}
           label="Bibliothek"
         >
@@ -99,32 +106,35 @@ export function Dock({
   );
 }
 
+/**
+ * A dock button is never disabled. That is the whole point of the change.
+ *
+ * It used to grey itself out while a flight was running, which meant the one
+ * moment Onur most wanted out — mid-transition, in the wrong place — was the
+ * one moment the way out was gone. The buttons navigate directly now, so there
+ * is nothing left for them to wait for.
+ */
 function DockButton({
   children,
   label,
   active,
-  disabled = false,
   onClick,
 }: {
   children: React.ReactNode;
   label: string;
   active: boolean;
-  disabled?: boolean;
   onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
       title={label}
       aria-label={label}
       className={`flex h-9 items-center gap-2 rounded-xl px-3 transition-colors ${
-        disabled
-          ? "cursor-not-allowed text-white/18"
-          : active
-            ? "bg-cyan-400/15 text-cyan-100"
-            : "text-white/50 hover:bg-white/6 hover:text-white/85"
+        active
+          ? "bg-cyan-400/15 text-cyan-100"
+          : "text-white/50 hover:bg-white/6 hover:text-white/85"
       }`}
     >
       {children}

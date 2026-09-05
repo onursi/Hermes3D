@@ -1,6 +1,15 @@
 "use client";
 
-import { useV2 } from "@/features/v2/state";
+import { useV2, type V2World } from "@/features/v2/state";
+
+/** What each place is called at the top of the screen. */
+const WORLD_NAMES: Record<V2World, string> = {
+  home: "Kommandodeck",
+  universe: "Unterwegs",
+  cosmos: "Wissenskosmos",
+  projects: "Ergebniswerft",
+  library: "Bibliothek",
+};
 
 /**
  * One quiet line, at the top.
@@ -39,14 +48,11 @@ export function StatusBar({
   devOpen: boolean;
 }) {
   const { world, travelling } = useV2();
-  const worldName =
-    world === "home"
-      ? "Kommandodeck"
-      : world === "cosmos"
-        ? "Wissenskosmos"
-        : world === "projects"
-          ? "Ergebniswerft"
-          : "Bibliothek";
+  // A record and not a chain of ternaries. The chain ended in "else it is the
+  // library", so adding the universe silently renamed it — the status bar
+  // announced a room he was nowhere near. Typed by world, a fifth place now
+  // fails the typecheck instead of lying on screen.
+  const worldName = WORLD_NAMES[world];
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 py-3">

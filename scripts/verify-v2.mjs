@@ -218,6 +218,102 @@ const AT = (label, ok, detail) =>
     `ok=${approvalState.ok} wartend=${(approvalState.approvals || []).length} Pille=${pill || "keine"}`,
   );
 
+  // --- U1: the dock is a cut, and the universe is a place ------------------
+
+  // Direct means direct: the destination is on screen before an animation of
+  // any length could have finished. 400 ms against a 1150 ms warp is not a
+  // close call — if this passes, nothing was flown.
+  await page.getByRole("button", { name: /projekte/i }).first().click();
+  await page.waitForTimeout(400);
+  const quickHeader = await page.locator("header").first().textContent();
+  AT(
+    "Dock wechselt ohne Reise",
+    /Ergebniswerft/.test(quickHeader || "") && !/unterwegs/i.test(quickHeader || ""),
+    (quickHeader || "").replace(/\s+/g, " ").slice(0, 40),
+  );
+
+  await page.getByRole("button", { name: /^reisen$/i }).first().click();
+  await page.waitForTimeout(3500);
+  const universeHeader = await page.locator("header").first().textContent();
+  AT("Reisen öffnet das Universum", /Unterwegs/.test(universeHeader || ""));
+
+  const cockpit = await page
+    .locator("text=/ZIEHEN ZUM UMSEHEN/i")
+    .first()
+    .isVisible()
+    .catch(() => false);
+  AT("Cockpit nennt die Steuerung", cockpit);
+
+  // What the universe costs, measured where he actually stands in it.
+  const flightSamples = [];
+  const flightUntilMeasure = Date.now() + 6000;
+  while (Date.now() < flightUntilMeasure) {
+    const text = await page
+      .evaluate(() => {
+        const nodes = Array.from(document.querySelectorAll("div"));
+        const el = nodes.find((n) => /^\d+ fps · /.test((n.textContent || "").trim()));
+        return el ? el.textContent : "";
+      })
+      .catch(() => "");
+    const m = (text || "").match(/(\d+) fps · (\d+) Draws · (\d+)k/);
+    if (m) flightSamples.push({ fps: +m[1], draws: +m[2], tri: +m[3] });
+    await page.waitForTimeout(600);
+  }
+  if (flightSamples.length) {
+    const fps = flightSamples.map((s) => s.fps).sort((a, b) => a - b);
+    console.log(
+      `MESSUNG Unterwegs @1720x1250: fps Median ${fps[Math.floor(fps.length / 2)]} ` +
+        `(${fps[0]}–${fps[fps.length - 1]}), ${flightSamples[0].draws} Draws, ` +
+        `${flightSamples[0].tri}k Dreiecke, ${flightSamples.length} Proben`,
+    );
+  }
+
+  // Held, not tapped. A key that goes down and up between two frames is never
+  // seen by the render loop, so a tap would test nothing and pass anyway.
+  await page.keyboard.down("w");
+  let reached = false;
+  const flightUntil = Date.now() + 5000;
+  while (Date.now() < flightUntil) {
+    reached = await page
+      .locator("text=/In Reichweite/")
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (reached) break;
+    await page.waitForTimeout(120);
+  }
+  await page.keyboard.up("w");
+  AT("Freier Flug erreicht einen Ort", reached);
+
+  let enteredFromFlight = false;
+  if (reached) {
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(2500);
+    const entered = await page.locator("header").first().textContent();
+    enteredFromFlight = !/Unterwegs/.test(entered || "");
+    AT("Eintritt aus dem Flug", enteredFromFlight, (entered || "").replace(/\s+/g, " ").slice(0, 30));
+  }
+
+  if (enteredFromFlight) {
+    // The plan's "Eintritt/Rückkehr behalten Richtung und Position", checked
+    // by its consequence rather than by reading the camera: he was within
+    // reach of that place when he entered, so he must still be within reach
+    // of it when he comes back out. A reset camera fails this.
+    await page.getByRole("button", { name: /^reisen$/i }).first().click();
+    await page.waitForTimeout(2500);
+    const stillInReach = await page
+      .locator("text=/In Reichweite/")
+      .first()
+      .isVisible()
+      .catch(() => false);
+    AT("Rückkehr behält die Position", stillInReach);
+  }
+
+  await page.getByRole("button", { name: /heimkehr/i }).first().click();
+  await page.waitForTimeout(2500);
+  const homeAgain = await page.locator("header").first().textContent();
+  AT("Heimkehr aus dem Flug", /Kommandodeck/.test(homeAgain || ""));
+
   // --- Measurement, once it has settled ------------------------------------
   const samples = [];
   const until = Date.now() + 16000;

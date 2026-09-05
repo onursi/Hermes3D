@@ -28,6 +28,15 @@ export type CameraGoal = {
   target: THREE.Vector3;
   /** Seconds. A warp is deliberately slower than a correction. */
   duration: number;
+  /**
+   * Be there on the next frame. No interpolation, no waiting.
+   *
+   * This is what the dock uses. It is the same code path reduced motion has
+   * always taken, given a name and a second caller — which is the honest way
+   * to build it: the instant arrival was never the accessibility compromise,
+   * it was the better default hiding inside one.
+   */
+  instant?: boolean;
 };
 
 /**
@@ -74,11 +83,24 @@ export const LIBRARY_VIEW = {
   target: new THREE.Vector3(-1.2, 2.0, -2.4),
 };
 
+/**
+ * The first look out from the platform, standing off it.
+ *
+ * Behind and above home, facing the places: the point is that the first frame
+ * of free flight already answers "where is everything", so that steering is a
+ * choice rather than a search.
+ */
+export const UNIVERSE_VIEW = {
+  position: new THREE.Vector3(0, 10, 34),
+  target: new THREE.Vector3(0, -6, -70),
+};
+
 export function viewFor(
   world: V2World,
   cosmosRadius = 12,
   cosmosCentre = new THREE.Vector3(),
 ): CameraGoal {
+  if (world === "universe") return { ...cloneView(UNIVERSE_VIEW), duration: 1.15 };
   if (world === "cosmos") {
     return { ...cloneView(cosmosView(cosmosRadius, cosmosCentre)), duration: 1.15 };
   }
@@ -134,14 +156,23 @@ export function CameraDirector({
     elapsed.current = 0;
     active.current = true;
 
-    // Reduced motion gets the destination immediately. The plan asks for a
-    // direct change rather than a shortened animation — a fast warp is still
-    // a warp, and the setting exists for people for whom that is the problem.
-    if (reducedMotion) {
+    // Straight there, for either of two reasons: the caller asked for a cut
+    // (the dock), or motion is reduced. The plan asks for a direct change
+    // rather than a shortened animation — a fast warp is still a warp, and
+    // the setting exists for people for whom that is the problem.
+    if (goal.instant || reducedMotion) {
       camera.position.copy(goal.position);
       if (controlsRef.current) {
         controlsRef.current.target.copy(goal.target);
         controlsRef.current.update();
+      } else {
+        // Without orbit controls nothing else aims the camera, and a position
+        // without a heading is not a viewpoint. This branch used to be reached
+        // only under reduced motion, where the controls were always mounted —
+        // so the omission was invisible until the dock and the universe both
+        // started using it, and the first frame of the app came up facing the
+        // empty half of the sky.
+        camera.lookAt(goal.target);
       }
       active.current = false;
       onArrive();

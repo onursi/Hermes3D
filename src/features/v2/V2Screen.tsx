@@ -16,6 +16,8 @@ import { SearchField } from "@/features/v2/hud/SearchField";
 import { Settings } from "@/features/v2/hud/Settings";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
+import { TravelBar } from "@/features/v2/hud/TravelBar";
+import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 
 /**
@@ -46,6 +48,8 @@ export function V2Screen() {
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
+  const [reachable, setReachable] = useState<Place | null>(null);
   /**
    * `?lab=1` — read after mount, never during render.
    *
@@ -129,6 +133,39 @@ export function V2Screen() {
     [vault.nodes, vault.links, selection],
   );
 
+  /**
+   * The map of the universe, derived once from the real projects.
+   *
+   * The library appears out there only under `?lab=1`, for the same reason it
+   * is not in the dock: it is Antigravity's room, integrated but not yet seen
+   * by ASTRA. A silhouette on the horizon is a promise that the place is
+   * finished, and that promise is not ours to make yet.
+   */
+  const places = useMemo(
+    () => placesFor(projects.projects, labMode),
+    [projects.projects, labMode],
+  );
+
+  /**
+   * Entering a place from the flight.
+   *
+   * Direct, always. He has already flown there — making him watch a warp on
+   * arrival would be the forced transition, reintroduced at the one moment he
+   * has most clearly earned the opposite.
+   */
+  const enterPlace = useCallback(
+    (place: Place) => {
+      if (place.projectFolder) {
+        const project = projects.projects.find((item) => item.folder === place.projectFolder);
+        // The station he flew to becomes the selection, so the yard opens on
+        // the project he actually aimed at rather than on nothing.
+        if (project) select({ kind: "project", folder: project.folder, name: project.name });
+      }
+      goTo(place.world, "direct");
+    },
+    [projects.projects, select, goTo],
+  );
+
   /** The library hands back an id; the vault turns it into a selection. */
   const selectSourceId = useCallback(
     (id: string) => {
@@ -209,6 +246,37 @@ export function V2Screen() {
     escapeState.current = { settingsOpen, approvalsOpen, query, selection, jarvisOpen, world };
   }, [settingsOpen, approvalsOpen, query, selection, jarvisOpen, world]);
 
+  /**
+   * Enter enters. Same ref discipline as Escape, and for the same reason.
+   *
+   * Kept separate from the Escape chain rather than folded into one handler:
+   * one is "undo the last layer" and the other is "act on what is in front of
+   * me", and merging two different questions into one switch is how a
+   * shortcut table becomes something you have to memorise.
+   */
+  const enterState = useRef({ reachable, world });
+  useEffect(() => {
+    enterState.current = { reachable, world };
+  }, [reachable, world]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+      const state = enterState.current;
+      if (state.world !== "universe" || !state.reachable) return;
+      // A focused button treats Enter as a click, and the button he most
+      // likely focused last is the dock's "Reisen" — so entering a place and
+      // being thrown straight back out into the universe happened in the same
+      // keystroke. Claiming the key stops the second half.
+      event.preventDefault();
+      enterPlace(state.reachable);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [enterPlace]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -273,6 +341,8 @@ export function V2Screen() {
         onSelectSource={selectSource}
         onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
+        places={places}
+        onReachChange={setReachable}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
       />
@@ -318,6 +388,8 @@ export function V2Screen() {
           onDiveToSource={diveToSource}
         />
       )}
+
+      {world === "universe" ? <TravelBar reachable={reachable} onEnter={enterPlace} /> : null}
 
       <Dock
         jarvisOpen={jarvisOpen}
