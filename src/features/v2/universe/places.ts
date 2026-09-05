@@ -54,8 +54,8 @@ export type Place = {
 export const HOME_POSITION = new THREE.Vector3(0, 0, 0);
 
 /** Where the project stations cluster. The yard, seen from very far away. */
-const PROJECT_FIELD = new THREE.Vector3(2, -16, -118);
-const PROJECT_RING = 24;
+const PROJECT_FIELD = new THREE.Vector3(2, -10, -74);
+const PROJECT_RING = 23;
 
 const HOME_PLACE: Place = {
   id: "home",
@@ -73,13 +73,12 @@ const COSMOS_PLACE: Place = {
   kind: "cosmos",
   name: "Wissenskörper",
   hint: "Alle Notizen, räumlich gegliedert.",
-  position: new THREE.Vector3(-38, -13, -86),
-  radius: 20,
-  // Wide, because the body is wide. At 38 the approach stopped 32 units out
-  // and the cloud filled the whole screen — arriving somewhere should show
-  // you the place, not put you inside it. The entry radius sets the approach
-  // distance, so this number is framing as much as it is a threshold.
-  entryRadius: 58,
+  position: new THREE.Vector3(-24, -8, -54),
+  // Ein Portal, kein Körper. Onurs Einwand war richtig: der Wissenskörper
+  // nahm zwanzig Einheiten Platz ein, um zu sagen "hier geht es hinein".
+  // Ein Tor von sieben tut dasselbe und lässt den Raum, den ein Raum braucht.
+  radius: 9,
+  entryRadius: 20,
   world: "cosmos",
 };
 
@@ -88,9 +87,9 @@ const LIBRARY_PLACE: Place = {
   kind: "library",
   name: "Bibliothek",
   hint: "Der Regalraum.",
-  position: new THREE.Vector3(40, -6, -74),
-  radius: 11,
-  entryRadius: 28,
+  position: new THREE.Vector3(26, -4, -47),
+  radius: 7,
+  entryRadius: 18,
   world: "library",
 };
 
@@ -121,8 +120,8 @@ export function placesFor(projects: Project[], includeLibrary: boolean): Place[]
             Math.sin(angle) * PROJECT_RING,
           ),
         ),
-        radius: 4.5,
-        entryRadius: 13,
+        radius: 4.2,
+        entryRadius: 12,
         world: "projects" as const,
         projectFolder: project.folder,
       };

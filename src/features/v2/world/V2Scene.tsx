@@ -6,6 +6,7 @@ import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
+import { SPACE_BLACK } from "@/features/v2/palette";
 import { useV2 } from "@/features/v2/state";
 import type { Project } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
@@ -268,7 +269,7 @@ export function V2Scene({
         // No fog. The dome sits at 58 units, and any fog thick enough to give
         // the stage depth also fades the whole sky into the background. The
         // horizon has to stay legible; the stage gets its depth from light.
-        gl.setClearColor("#05080d");
+        gl.setClearColor(SPACE_BLACK);
       }}
     >
       {/* The stage lighting belongs to the three open worlds. The library
@@ -281,8 +282,11 @@ export function V2Scene({
           than being lit flat from above. One shadow caster, 1024 map. */}
       <directionalLight
         position={[6.5, 7.5, 5]}
-        intensity={1.55}
-        color="#e8f2ff"
+        intensity={1.45}
+        // Warmweiß statt Blauweiß. Ein blaues Hauptlicht färbt jede
+        // Oberfläche im Raum, und drei blaue Entscheidungen übereinander
+        // waren der Grund, dass alles blau wirkte.
+        color="#ffeedd"
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -295,7 +299,7 @@ export function V2Scene({
         shadow-bias={-0.0012}
       />
       {/* Cool fill from below-left, so the graphite does not go pure black. */}
-      <hemisphereLight args={["#5b7fa6", "#080c12", 0.55]} />
+      <hemisphereLight args={["#7b7468", "#0a0a0c", 0.55]} />
         </>
       ) : null}
 
@@ -351,6 +355,7 @@ export function V2Scene({
               places={places}
               activeId="home"
               reachableId={null}
+              reducedMotion={prefs.reducedMotion}
               onFocus={handleFocusPlace}
             />
           </>
@@ -360,6 +365,7 @@ export function V2Scene({
             activeId={null}
             reachableId={reachable?.id ?? null}
             speed={prefs.flightSpeed}
+            reducedMotion={prefs.reducedMotion}
             // The flight stands down while the director is flying somewhere,
             // and takes over the moment it lands.
             flightEnabled={goal === null && !inputBlocked}

@@ -5,7 +5,8 @@ import { useFrame } from "@react-three/fiber";
 import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { SELECTION_COLOR } from "@/features/v2/palette";
+import { AREA_COLORS, DISTANT_TINT, SELECTION_COLOR } from "@/features/v2/palette";
+import { Portal } from "@/features/v2/universe/Portal";
 import type { Place } from "@/features/v2/universe/places";
 
 /**
@@ -30,6 +31,29 @@ import type { Place } from "@/features/v2/universe/places";
  */
 const LABEL_REFERENCE = 70;
 
+/**
+ * Was für ein Tor es ist, sieht man an seiner Farbe.
+ *
+ * Die Farben stammen aus der Arealpalette und bedeuten dasselbe wie dort:
+ * Wissen ist das eine Blau im System, Quellen sind Ocker, Projekte sind grün.
+ * Ein Tor, das aussieht wie das nächste, wäre genau die austauschbare Säule,
+ * die der Plan verbietet — nur mit besserem Shader.
+ */
+const PORTAL_RIM: Record<string, string> = {
+  cosmos: AREA_COLORS["07🧠Wissen"],
+  library: AREA_COLORS["08📚Quellen"],
+  project: AREA_COLORS["05 🚀 Projekte"],
+  home: DISTANT_TINT,
+};
+
+/** Die Tiefe dahinter. Dunkel, damit das Innere ein Innen bleibt. */
+const PORTAL_CORE: Record<string, string> = {
+  cosmos: "#232a45",
+  library: "#332614",
+  project: "#123026",
+  home: "#1a1814",
+};
+
 /** Reused every frame by the label loop. Never read outside it. */
 const SCRATCH = new THREE.Vector3();
 
@@ -39,11 +63,13 @@ export function Silhouettes({
   activeId,
   /** What the flight is currently offering to enter. */
   reachableId,
+  reducedMotion = false,
   onFocus,
 }: {
   places: Place[];
   activeId: string | null;
   reachableId: string | null;
+  reducedMotion?: boolean;
   onFocus?: (place: Place) => void;
 }) {
   const labels = useRef(new Map<string, THREE.Object3D>());
@@ -78,6 +104,7 @@ export function Silhouettes({
             key={place.id}
             place={place}
             highlighted={place.id === reachableId}
+            reducedMotion={reducedMotion}
             onFocus={onFocus}
             labelRef={(object) => {
               if (object) labels.current.set(place.id, object);
@@ -93,16 +120,20 @@ export function Silhouettes({
 function Silhouette({
   place,
   highlighted,
+  reducedMotion,
   onFocus,
   labelRef,
 }: {
   place: Place;
   highlighted: boolean;
+  reducedMotion: boolean;
   onFocus?: (place: Place) => void;
   /** Hands the label group to the one loop that scales them all. */
   labelRef: (object: THREE.Object3D | null) => void;
 }) {
-  const tint = highlighted ? SELECTION_COLOR : "#7fb2d8";
+  // Warmgrau, nicht blau: so ist Cyan hier ein Zustand und keine Grundfarbe.
+  const tint = highlighted ? SELECTION_COLOR : DISTANT_TINT;
+  const peek = highlighted ? SELECTION_COLOR : "#6f6a63";
 
   return (
     <group
@@ -116,10 +147,39 @@ function Silhouette({
           : undefined
       }
     >
-      {place.kind === "cosmos" ? <KnowledgeBody radius={place.radius} tint={tint} /> : null}
-      {place.kind === "library" ? <ShelfRoom radius={place.radius} tint={tint} /> : null}
-      {place.kind === "project" ? <Station radius={place.radius} tint={tint} /> : null}
+      {/* Home is not a door. It is the place he stands, seen from outside —
+          and the one thing out here that should look like itself rather than
+          like a way in. */}
       {place.kind === "home" ? <Deck radius={place.radius} tint={tint} /> : null}
+
+      {place.kind !== "home" ? (
+        <Portal
+          radius={place.radius}
+          rim={highlighted ? SELECTION_COLOR : PORTAL_RIM[place.kind]}
+          core={PORTAL_CORE[place.kind]}
+          open={highlighted}
+          reducedMotion={reducedMotion}
+          seed={place.id.length * 7.3}
+        >
+          {/* What shows through. Same shapes as before, at a fraction of the
+              size — the door tells you which room is behind it, which is the
+              one thing a row of identical rings could never do. */}
+          {/* Gedämpft, nicht in der Randfarbe: der Durchblick soll im Schatten
+              des Tores liegen. Hell gezeichnet füllt er die Mitte und macht aus
+              dem Tor wieder eine Kugel. */}
+          <group position={[0, 0, -place.radius * 0.35]}>
+            {place.kind === "cosmos" ? (
+              <KnowledgeBody radius={place.radius * 0.62} tint={peek} />
+            ) : null}
+            {place.kind === "library" ? (
+              <ShelfRoom radius={place.radius * 0.58} tint={peek} />
+            ) : null}
+            {place.kind === "project" ? (
+              <Station radius={place.radius * 0.85} tint={peek} />
+            ) : null}
+          </group>
+        </Portal>
+      ) : null}
 
       {/* The names get their own suspense boundary, and this is not a detail.
           drei's Text suspends until its font is parsed, and a suspended child
@@ -130,7 +190,7 @@ function Silhouette({
       <Billboard ref={labelRef} position={[0, place.radius * 1.5 + 1.2, 0]}>
         <Text
           fontSize={Math.max(0.9, place.radius * 0.18)}
-          color={highlighted ? SELECTION_COLOR : "#a8c4dc"}
+          color={highlighted ? SELECTION_COLOR : "#cfc9be"}
           anchorX="center"
           anchorY="middle"
           outlineWidth={0.035}
@@ -156,9 +216,22 @@ function Silhouette({
  * because a body that reshuffles itself on every mount is a different body,
  * and Onur is supposed to learn what his own universe looks like.
  */
+/**
+ * Achtung, teuer gewesen: diese Wolke hat die Bildrate von 60 auf 37 gedrueckt.
+ *
+ * Nicht wegen der Rechenzeit — 900 Punkte sind nichts — sondern wegen der
+ * Fuellrate. Additive Punkte mit sizeAttenuation werden gross, wenn man ihnen
+ * nahe kommt, und seit die Orte naeher stehen, deckte diese eine Wolke halbe
+ * Bildschirmbereiche mehrfach ab. Gemessen, nicht vermutet: dieselbe Szene
+ * ohne sie lag wieder bei 56 fps.
+ *
+ * Deshalb 260 statt 900 Punkte und ein Drittel der Punktgroesse. Es ist ein
+ * Durchblick durch ein Tor, kein Modell — mehr Punkte haette hier niemand
+ * gezaehlt, die Bildrate aber jeder gespuert.
+ */
 function KnowledgeBody({ radius, tint }: { radius: number; tint: string }) {
   const geometry = useMemo(() => {
-    const count = 900;
+    const count = 260;
     const positions = new Float32Array(count * 3);
     // A fixed lattice angle rather than Math.random: same shape every time,
     // and no seeded-RNG dependency for something this small.
@@ -186,8 +259,12 @@ function KnowledgeBody({ radius, tint }: { radius: number; tint: string }) {
       <points geometry={geometry}>
         <pointsMaterial
           color={tint}
-          size={0.9}
-          sizeAttenuation
+          // Feste Pixelgroesse statt Groesse nach Entfernung. Genau die
+          // Entfernungsskalierung war das Problem: naeher = groesser = mehr
+          // Fuellrate, und die Orte sind seit dem Portal naeher. Zwei Pixel
+          // bleiben zwei Pixel, egal wie dicht er herangeht.
+          size={2}
+          sizeAttenuation={false}
           transparent
           opacity={0.72}
           depthWrite={false}

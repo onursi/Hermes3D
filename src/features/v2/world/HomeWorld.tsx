@@ -29,6 +29,16 @@ const DOCK_RADIUS = 3.15;
 
 /** Cyan = information, mint = confirmed, amber = a decision is waiting. */
 const COLOR_INFO = "#38bdf8";
+/**
+ * Die Architektur des Decks — nicht die Signale darauf.
+ *
+ * Der Lichtkanal, die Hilfsringe und die Rückenspange waren alle in COLOR_INFO.
+ * Damit war das größte Objekt im Bild in der Farbe, die eigentlich "hier wird
+ * etwas abgerufen" bedeutet, und Onurs "zu blau" hatte hier seine größte
+ * Fläche. Das Deck ist jetzt warmes Metall; Cyan bleibt dem Kern und den
+ * Signalen.
+ */
+const COLOR_STRUCTURE = "#c2b19a";
 const COLOR_AMBER = DECISION_COLOR;
 
 export function HomeWorld({
@@ -120,20 +130,20 @@ function StagePlatform() {
     <group>
       <mesh position={[0, -0.16, 0]} scale={[1, 1, 0.82]} receiveShadow castShadow>
         <cylinderGeometry args={[PLATFORM_RADIUS, PLATFORM_RADIUS * 0.94, 0.32, 64]} />
-        <meshStandardMaterial color="#12181f" roughness={0.62} metalness={0.35} />
+        <meshStandardMaterial color="#191714" roughness={0.62} metalness={0.35} />
       </mesh>
 
       {/* The walking surface, a shade lighter so the rim reads as an edge. */}
       <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.82, 1]} receiveShadow>
         <circleGeometry args={[PLATFORM_RADIUS * 0.985, 64]} />
-        <meshStandardMaterial color="#171f28" roughness={0.5} metalness={0.42} />
+        <meshStandardMaterial color="#1d1a16" roughness={0.5} metalness={0.42} />
       </mesh>
 
       {/* The light channel. One thin emissive ring is the entire "premium"
           budget of this object, and it does more than any texture would. */}
       <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.82, 1]}>
         <ringGeometry args={[PLATFORM_RADIUS * 0.9, PLATFORM_RADIUS * 0.935, 96]} />
-        <meshBasicMaterial color={COLOR_INFO} transparent opacity={0.34} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={COLOR_STRUCTURE} transparent opacity={0.3} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Two faint concentric guides. Without them the deck reads as a black
@@ -147,7 +157,7 @@ function StagePlatform() {
           scale={[1, 0.82, 1]}
         >
           <ringGeometry args={[PLATFORM_RADIUS * factor, PLATFORM_RADIUS * factor + 0.014, 72]} />
-          <meshBasicMaterial color="#3f6d8c" transparent opacity={0.22} side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#6d675e" transparent opacity={0.22} side={THREE.DoubleSide} />
         </mesh>
       ))}
     </group>
@@ -168,11 +178,11 @@ function BackBrace() {
     <group position={[0, 0.7, -0.4]} rotation={[-Math.PI / 2 + 0.3, 0, 0]}>
       <mesh rotation={[0, 0, Math.PI * 0.57]} castShadow>
         <torusGeometry args={[4.8, 0.075, 10, 64, Math.PI * 0.82]} />
-        <meshStandardMaterial color="#1c2733" roughness={0.4} metalness={0.65} />
+        <meshStandardMaterial color="#282420" roughness={0.4} metalness={0.65} />
       </mesh>
       <mesh rotation={[0, 0, Math.PI * 0.57]} position={[0, 0, 0.055]}>
         <torusGeometry args={[4.8, 0.018, 8, 64, Math.PI * 0.82]} />
-        <meshBasicMaterial color={COLOR_INFO} transparent opacity={0.55} />
+        <meshBasicMaterial color={COLOR_STRUCTURE} transparent opacity={0.5} />
       </mesh>
     </group>
   );

@@ -1,4 +1,5 @@
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
+import { AREA_COLORS, AREA_FALLBACK } from "@/features/v2/palette";
 import type { VaultLink, VaultNode } from "@/features/v2/useVault";
 
 /**
@@ -41,15 +42,22 @@ export function adaptVaultToKnowledge(
   nodes: VaultNode[],
   links: VaultLink[],
 ): { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] } {
-  const knowledgeNodes: KnowledgeNode[] = nodes.map((node) => ({
-    id: node.id,
-    title: node.name,
-    groupId: KNOWN_AREAS.has(node.folder) ? node.folder : UNSORTED,
-    path: node.id,
-    color: node.color,
-    degree: node.degree,
-    excerpt: node.excerpt,
-  }));
+  const knowledgeNodes: KnowledgeNode[] = nodes.map((node) => {
+    const groupId = KNOWN_AREAS.has(node.folder) ? node.folder : UNSORTED;
+    return {
+      id: node.id,
+      title: node.name,
+      groupId,
+      path: node.id,
+      // The area's colour, not the graph API's. The API assigns each folder a
+      // colour too, and its palette is almost entirely blue — leaving it here
+      // meant the notes and the halo around them disagreed, and the notes
+      // won by weight of numbers. One source for what an area looks like.
+      color: AREA_COLORS[groupId] ?? AREA_FALLBACK,
+      degree: node.degree,
+      excerpt: node.excerpt,
+    };
+  });
 
   const edges: KnowledgeEdge[] = links.map((link) => ({
     sourceId: link.source,

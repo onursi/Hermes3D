@@ -7,8 +7,10 @@
  *
  * Geliefert von Antigravity unter
  * `05 🚀 Projekte/01 Hermes Agent OS/Code/Hermes3D-KnowledgeAreas-Module/`.
- * Diese Datei ist die Lieferung, nicht meine Arbeit. Layout, Arealzentren,
- * Nachbarschaftslogik und Materialien sind unverändert.
+ * Rendering, Auswahl- und Nachbarschaftslogik sind Antigravitys Arbeit und
+ * unverändert. Form, Bahnen und Bewegung sind auf Onurs ausdrücklichen
+ * Wunsch von mir geändert — vollständig aufgeführt, damit der Vergleich mit
+ * der Lieferung keine Rätsel aufgibt.
  *
  * MEINE EINGRIFFE AN DER NAHT — vollständig, damit niemand raten muss:
  *
@@ -24,9 +26,31 @@
  *    schlimmer als der Verstoß. Die Handler haben jetzt die echten
  *    R3F-Ereignistypen; die Logik ist Zeile für Zeile dieselbe.
  *
+ * 3. Die zehn Arealfarben standen als eigene Tabelle in dieser Datei und
+ *    waren zu acht Elfteln blau. Onurs Rückmeldung war „zu blau", und die
+ *    Ursache lag hier. Die Tabelle liegt jetzt in `palette.ts` neben den
+ *    Signalfarben, damit „welche Farbe hat ein Areal" eine Antwort hat und
+ *    nicht zwei. Die Zuordnung der Schlüssel ist unverändert.
+ *
+ * 4. **Die Form.** Die zehn Areale waren zehn Kugeln, und zehn Kugeln lesen
+ *    sich als zehn Kugeln. Zentren und Achsen liegen jetzt in
+ *    `brainLayout.ts`: gespiegelte Hemisphären, ein Kern, ein Stamm, und vor
+ *    allem eine Furche in der Mitte. Welche Notiz in welchem Areal liegt,
+ *    entscheidet unverändert ihr Ordner.
+ *
+ * 5. **Gebogene Bahnen statt gerader Sehnen.** 1.132 gerade Linien durch eine
+ *    Wolke sind ein Knäuel, egal wie man die Punkte legt. Jede Kante wird zur
+ *    Mitte gebogen; Verbindungen zwischen denselben Arealen laufen dadurch
+ *    zusammen. Keine Kante wurde erfunden oder weggelassen.
+ *
+ * 6. **Bewegung.** Signale wandern auf den Bahnen (eine Uniform, kein
+ *    CPU-Aufwand pro Bild), und der Körper dreht sich langsam — hält aber an,
+ *    sobald ausgewählt oder gesucht wird. Sichtbarkeit hat Vorrang vor
+ *    Bewegung; das war Onurs Bedingung und es ist auch die richtige.
+ *
  * Alles Weitere geschieht ausserhalb dieser Datei: die Anpassung der
  * Vault-Daten steht in `adaptVault.ts`, die Kamera in `CameraDirector.tsx`.
- * Wer diese Datei mit der Lieferung vergleicht, soll genau diese zwei
+ * Wer diese Datei mit der Lieferung vergleicht, soll genau diese sechs
  * Unterschiede finden.
  */
 
@@ -35,7 +59,8 @@ import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 
-import { DECISION_COLOR, SELECTION_COLOR } from "@/features/v2/palette";
+import { AREA_COLORS, DECISION_COLOR, SELECTION_COLOR } from "@/features/v2/palette";
+import { applyFissure, AREA_SHAPE, BRAIN_CENTERS, curvePoints } from "@/features/v2/knowledge/brainLayout";
 import type {
   KnowledgeNode,
   KnowledgeEdge,
@@ -49,38 +74,58 @@ import type {
 
 // Eingriff 1: aus der Palette, nicht neben ihr. Siehe Dateikopf.
 export { SELECTION_COLOR, DECISION_COLOR };
-export const NEIGHBOR_COLOR = "#38bdf8";  // Frisches Cyan für direkte Nachbarn
-export const INACTIVE_EDGE_COLOR = "#1e3a5f";
+export const NEIGHBOR_COLOR = "#7fd4e8";  // Gedämpftes Cyan für direkte Nachbarn
+// Warmes Dunkelgrau statt Marineblau. Das Grundnetz ist die größte
+// zusammenhängende Fläche im Bild; in Blau färbte es den ganzen Raum.
+export const INACTIVE_EDGE_COLOR = "#2e2a24";
 
-// Standardfarben je LifeOS-Hauptgruppe (falls nicht in Metadaten definiert)
-const GROUP_COLORS: Record<string, string> = {
-  "00📥Inbox": "#38bdf8",
-  "01📦RAW": "#64748b",
-  "02⚙️ System": "#94a3b8",
-  "03🪪 Identität": "#818cf8",
-  "04📖 Lebensprofil": "#a78bfa",
-  "05 🚀 Projekte": "#34d399",
-  "06💡Interessen": "#f472b6",
-  "07🧠Wissen": "#60a5fa",
-  "08📚Quellen": "#f59e0b",
-  "09🅿️Ideenparkplatz": "#2dd4bf",
-  "Ungeordnet": "#475569",
-};
+// Eingriff 3: die Arealfarben kommen aus der Palette. Siehe Dateikopf.
+const GROUP_COLORS = AREA_COLORS;
 
-// 3D-Zentren für den gehirn-/kosmosartigen Wissenskörper
-const CLUSTER_CENTERS: Record<string, [number, number, number]> = {
-  "07🧠Wissen": [0, 2, 0],           // Zentraler Wissenskern
-  "03🪪 Identität": [-7, 1, 3],       // Linke Hemisphäre vorne
-  "04📖 Lebensprofil": [-8, 5, -1],   // Linke Hemisphäre oben
-  "02⚙️ System": [-5, -2, 2],         // Linker Kontrollsockel
-  "05 🚀 Projekte": [7, 1, 3],        // Rechte Hemisphäre vorne
-  "06💡Interessen": [8, 5, -1],       // Rechte Hemisphäre oben
-  "09🅿️Ideenparkplatz": [3.5, 6, 1.5], // Oberer Orbit
-  "08📚Quellen": [0, 3, -8],          // Hinterer Quellenbogen
-  "01📦RAW": [0, -4, -4],             // Tiefes Fundament
-  "00📥Inbox": [0, -1, 7],            // Eingangsschwelle vorne
-  "Ungeordnet": [11, -1, -4],         // Äußerer Halo
-};
+// Eingriff 4: Zentren und Formen liegen in brainLayout.ts. Siehe Dateikopf.
+const CLUSTER_CENTERS = BRAIN_CENTERS;
+
+
+/**
+ * Eingriff 6: Signale, die auf den Bahnen laufen.
+ *
+ * Onur wollte Bewegung „wie Neuronen die hin und her". Das hier ist die
+ * billigste ehrliche Umsetzung: jeder Punkt weiß, wie weit er auf seiner Bahn
+ * liegt (`aT`), und der Shader hellt die Stelle auf, an der gerade ein Signal
+ * vorbeikommt. Die CPU rührt pro Bild nichts an — es gibt genau eine Uniform.
+ *
+ * Wichtig: Die Grundhelligkeit bleibt erhalten. Die Bahn verschwindet nicht
+ * zwischen zwei Signalen, sonst blinkt das Netz statt zu leiten.
+ */
+const TRACT_VERTEX = /* glsl */ `
+  attribute float aT;
+  attribute float aSeed;
+  varying float vGlow;
+  uniform float uTime;
+  uniform float uSpeed;
+
+  void main() {
+    // Ein Signal je Bahn, versetzt gestartet. fract() lässt es umlaufen.
+    float head = fract(uTime * uSpeed + aSeed);
+    float d = abs(aT - head);
+    // Der kürzere Weg um den Ring herum, damit der Übergang nicht springt.
+    d = min(d, 1.0 - d);
+    vGlow = smoothstep(0.07, 0.0, d);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const TRACT_FRAGMENT = /* glsl */ `
+  precision mediump float;
+  varying float vGlow;
+  uniform vec3 uColor;
+  uniform float uBase;
+  uniform float uGlow;
+
+  void main() {
+    gl_FragColor = vec4(uColor * (0.55 + vGlow * uGlow), uBase + vGlow * uGlow * 0.45);
+  }
+`;
 
 // Deterministischer Pseudo-Zufall aus String-Hash (reproduzierbare XYZ-Positionen)
 function hashStringToUnit(str: string, seed = 0): number {
@@ -120,7 +165,40 @@ export function KnowledgeAreas({
   const groupRef = useRef<THREE.Group>(null);
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const selectionMeshRef = useRef<THREE.Mesh>(null);
+  const backgroundMaterial = useRef<THREE.ShaderMaterial>(null);
+  const activeMaterial = useRef<THREE.ShaderMaterial>(null);
+  /** How much of the rotation is currently running, 0 to 1. Eased, not switched. */
+  const spin = useRef(1);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  // Built once. The colours and the speed are pushed in as uniforms, so a
+  // change of selection never rebuilds a material.
+  const backgroundUniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uSpeed: { value: 0.075 },
+      uColor: { value: new THREE.Color(INACTIVE_EDGE_COLOR) },
+      // Sehr niedrig, und das ist kein Geschmack: acht Stücke je Kante mal
+      // 1.132 Kanten überlagern sich, und Additivmischung summiert jede
+      // Überlagerung. Bei 0.16 war das Grundnetz ein weißer Schleier über
+      // allem — die erste Fassung sah aus wie Watte.
+      uBase: { value: 0.05 },
+      uGlow: { value: 0.7 },
+    }),
+    [],
+  );
+  const activeUniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      // Faster on the selected note's own tracts: the signal he asked about
+      // should be the liveliest thing on screen.
+      uSpeed: { value: 0.19 },
+      uColor: { value: new THREE.Color(SELECTION_COLOR) },
+      uBase: { value: 0.4 },
+      uGlow: { value: 2.2 },
+    }),
+    [],
+  );
 
   // 1. Cluster- und Positionsberechnung (nur bei Datenänderung, NICHT pro Frame)
   const { positionedNodes, nodeMap, clusters } = useMemo(() => {
@@ -142,8 +220,12 @@ export function KnowledgeAreas({
       const centerVec = new THREE.Vector3(...centerCoord);
       const nodeCount = groupNodes.length;
       
-      // Radius skaliert mit Wurzel der Notizanzahl (Bereichsausdehnung zeigt Notizanzahl)
-      const clusterRadius = Math.max(1.8, Math.sqrt(nodeCount) * 1.15);
+      // Radius skaliert mit Wurzel der Notizanzahl (Bereichsausdehnung zeigt
+      // Notizanzahl). Eingriff 4: Faktor von 1.15 auf 0.78. Bei 1.15 maß das
+      // Quellenareal 9,5 Einheiten bei 7 Einheiten Abstand zum Nachbarn — die
+      // zehn Areale lagen vollständig ineinander, und was man sah, war ein
+      // Klumpen mit zehn Beschriftungen. Die Kennzahl bleibt dieselbe.
+      const clusterRadius = Math.max(1.5, Math.sqrt(nodeCount) * 0.78);
       const color = GROUP_COLORS[gid] || groupNodes[0]?.color || "#38bdf8";
 
       clustersList.push({
@@ -155,7 +237,10 @@ export function KnowledgeAreas({
         color,
       });
 
-      // Notizen deterministisch im Kugelvolumen um das Clusterzentrum verteilen
+      // Notizen deterministisch im Volumen um das Clusterzentrum verteilen.
+      // Eingriff 4: kein Kugelvolumen mehr, sondern ein Ellipsoid je Areal,
+      // plus die Mittelfurche. Verteilung und Reihenfolge sind unverändert.
+      const shape = AREA_SHAPE[gid] ?? [1, 1, 1];
       groupNodes.forEach((node, idx) => {
         // Spherical Fibonacci Verteilung
         const phi = Math.acos(1 - (2 * (idx + 0.5)) / Math.max(1, nodeCount));
@@ -165,13 +250,13 @@ export function KnowledgeAreas({
         const jitter = 0.35 + 0.65 * hashStringToUnit(node.id, 42);
         const r = clusterRadius * 0.85 * Math.cbrt(jitter);
 
-        const x = centerVec.x + r * Math.sin(phi) * Math.cos(theta);
-        const y = centerVec.y + r * Math.cos(phi) * 0.85; // leicht vertikal gestaucht
-        const z = centerVec.z + r * Math.sin(phi) * Math.sin(theta);
+        const x = centerVec.x + r * Math.sin(phi) * Math.cos(theta) * shape[0];
+        const y = centerVec.y + r * Math.cos(phi) * 0.85 * shape[1];
+        const z = centerVec.z + r * Math.sin(phi) * Math.sin(theta) * shape[2];
 
         const posNode: PositionedNode = {
           ...node,
-          position: new THREE.Vector3(x, y, z),
+          position: applyFissure(new THREE.Vector3(x, y, z), centerVec.x),
           clusterCenter: centerVec,
           clusterRadius,
           colorHex: node.color || color,
@@ -213,39 +298,69 @@ export function KnowledgeAreas({
     };
   }, [selectedId, edges, nodeMap]);
 
-  // 3. Kanten-Geometrien erstellen: Hintergrund (alle) vs. Aktiv (Nachbarschaft)
+  /**
+   * 3. Kanten als gebogene Bahnen statt gerader Sehnen.
+   *
+   * Eingriff 5. Jede Kante wird in acht Stücke geteilt und zur Mitte hin
+   * gebogen; Verbindungen zwischen denselben zwei Arealen nehmen dadurch fast
+   * denselben Weg und legen sich zu sichtbaren Bahnen zusammen. Das ist die
+   * eine Änderung, die aus dem Linienknäuel ein Nervensystem macht.
+   *
+   * Jeder Punkt trägt zusätzlich `aT` — wie weit er auf seiner Bahn liegt —
+   * und `aSeed`. Damit kann der Shader Signale wandern lassen, ohne dass die
+   * CPU pro Bild irgendetwas anfasst.
+   *
+   * Kosten: 1.132 Kanten × 8 Stücke = rund 18.000 Punkte in einem Draw. Die
+   * Berechnung läuft bei Datenänderung, nicht pro Bild.
+   */
   const { backgroundLinesGeo, activeLinesGeo } = useMemo(() => {
     const bgPositions: number[] = [];
+    const bgT: number[] = [];
+    const bgSeed: number[] = [];
     const activePositions: number[] = [];
+    const activeT: number[] = [];
+    const activeSeed: number[] = [];
 
-    for (const edge of edges) {
+    const centre = new THREE.Vector3(0, 1.4, 0);
+    const SAMPLES = 8;
+
+    edges.forEach((edge, edgeIndex) => {
       const from = nodeMap.get(edge.sourceId);
       const to = nodeMap.get(edge.targetId);
-      if (!from || !to) continue;
+      if (!from || !to) return;
 
       const isConnectedToSelected =
         selectedId && (edge.sourceId === selectedId || edge.targetId === selectedId);
 
-      if (isConnectedToSelected) {
-        activePositions.push(
-          from.position.x, from.position.y, from.position.z,
-          to.position.x, to.position.y, to.position.z
-        );
-      } else {
-        bgPositions.push(
-          from.position.x, from.position.y, from.position.z,
-          to.position.x, to.position.y, to.position.z
-        );
+      const points = curvePoints(from.position, to.position, centre, SAMPLES);
+      const seed = (edgeIndex % 97) / 97;
+
+      const positions = isConnectedToSelected ? activePositions : bgPositions;
+      const ts = isConnectedToSelected ? activeT : bgT;
+      const seeds = isConnectedToSelected ? activeSeed : bgSeed;
+
+      // Als Liniensegmente: jedes Stück braucht Anfang und Ende.
+      for (let i = 0; i < points.length - 1; i += 1) {
+        const a = points[i];
+        const b = points[i + 1];
+        positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        ts.push(i / (points.length - 1), (i + 1) / (points.length - 1));
+        seeds.push(seed, seed);
       }
-    }
+    });
 
-    const bgGeo = new THREE.BufferGeometry();
-    bgGeo.setAttribute("position", new THREE.Float32BufferAttribute(bgPositions, 3));
+    const build = (positions: number[], ts: number[], seeds: number[]) => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute("aT", new THREE.Float32BufferAttribute(ts, 1));
+      geo.setAttribute("aSeed", new THREE.Float32BufferAttribute(seeds, 1));
+      return geo;
+    };
 
-    const actGeo = new THREE.BufferGeometry();
-    actGeo.setAttribute("position", new THREE.Float32BufferAttribute(activePositions, 3));
-
-    return { backgroundLinesGeo: bgGeo, activeLinesGeo: actGeo };
+    return {
+      backgroundLinesGeo: build(bgPositions, bgT, bgSeed),
+      activeLinesGeo: build(activePositions, activeT, activeSeed),
+    };
   }, [edges, nodeMap, selectedId]);
 
   // Bereinigung der BufferGeometries bei Unmount
@@ -320,7 +435,7 @@ export function KnowledgeAreas({
   }, [positionedNodes, selectedId, directNeighborIds, hoveredId, query]);
 
   // 5. Animierte Effekte in useFrame (bei reducedMotion komplett statisch)
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     if (reducedMotion) return;
 
     const t = clock.getElapsedTime();
@@ -333,9 +448,30 @@ export function KnowledgeAreas({
       selectionMeshRef.current.lookAt(camera.position);
     }
 
-    // Sehr feine, langsame Raumdrift der gesamten Gruppe
+    // Eingriff 6: die Signale auf den Bahnen. Eine Uniform, kein CPU-Aufwand.
+    if (backgroundMaterial.current) {
+      backgroundMaterial.current.uniforms.uTime.value = t;
+      // Zurückgenommen, sobald eine Notiz gewählt ist — sonst konkurriert das
+      // Grundnetz mit genau der Nachbarschaft, die es zeigen soll.
+      backgroundMaterial.current.uniforms.uBase.value = selectedId ? 0.02 : 0.05;
+    }
+    if (activeMaterial.current) {
+      activeMaterial.current.uniforms.uTime.value = t;
+    }
+
+    /**
+     * Eingriff 6: der Körper dreht sich — und hält an, sobald gezielt wird.
+     *
+     * Onur wollte die Drehung ausdrücklich, und ebenso ausdrücklich, dass die
+     * Sichtbarkeit nicht verloren geht. Beides gleichzeitig gibt es nur so:
+     * ein Ziel, das sich wegdreht, während er darauf klickt, ist kein Feature.
+     * Auswahl oder Suche friert die Drehung ein, das Loslassen taut sie wieder
+     * auf — und zwar weich, damit das Anhalten nicht wie ein Ruckler aussieht.
+     */
     if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(t * 0.04) * 0.02;
+      const wantsStill = Boolean(selectedId) || query.trim().length > 0;
+      spin.current += ((wantsStill ? 0 : 1) - spin.current) * Math.min(1, delta * 3);
+      groupRef.current.rotation.y += delta * 0.055 * spin.current;
     }
   });
 
@@ -380,7 +516,7 @@ export function KnowledgeAreas({
               <meshBasicMaterial
                 color={cluster.color}
                 transparent
-                opacity={isClusterSelected ? 0.35 : 0.12}
+                opacity={isClusterSelected ? 0.32 : 0.055}
                 depthWrite={false}
                 side={THREE.DoubleSide}
               />
@@ -417,25 +553,38 @@ export function KnowledgeAreas({
         );
       })}
 
-      {/* 2. HINTERGRUND-KANTEN (Gedämpft als LineSegments) */}
+      {/* Eingriff 4: eine sehr schwache Hülle um den ganzen Körper.
+          Zehn getrennte Areale bleiben zehn Areale, bis eine Silhouette sie
+          zusammenfasst — ein Draw, kaum sichtbar, und trotzdem der Unterschied
+          zwischen "Wolken im Raum" und "ein Körper mit Regionen". */}
+      <mesh scale={[10.5, 8.2, 10.5]} renderOrder={-1}>
+        <icosahedronGeometry args={[1, 2]} />
+        <meshBasicMaterial color="#8a8378" wireframe transparent opacity={0.035} depthWrite={false} />
+      </mesh>
+
+      {/* 2. HINTERGRUND-BAHNEN. Gebogen, gebündelt, mit wandernden Signalen. */}
       <lineSegments geometry={backgroundLinesGeo}>
-        <lineBasicMaterial
-          color={INACTIVE_EDGE_COLOR}
+        <shaderMaterial
+          ref={backgroundMaterial}
+          vertexShader={TRACT_VERTEX}
+          fragmentShader={TRACT_FRAGMENT}
+          uniforms={backgroundUniforms}
           transparent
-          opacity={selectedId ? 0.05 : 0.22}
           depthWrite={false}
         />
       </lineSegments>
 
-      {/* 3. AKTIVE KANTEN (Hervorgehoben zur ausgewählten Notiz) */}
+      {/* 3. AKTIVE BAHNEN (zur ausgewählten Notiz) */}
       {selectedId && (
         <lineSegments geometry={activeLinesGeo}>
-          <lineBasicMaterial
-            color={SELECTION_COLOR}
+          <shaderMaterial
+            ref={activeMaterial}
+            vertexShader={TRACT_VERTEX}
+            fragmentShader={TRACT_FRAGMENT}
+            uniforms={activeUniforms}
             transparent
-            opacity={0.92}
-            linewidth={2}
             depthWrite={false}
+            blending={THREE.AdditiveBlending}
           />
         </lineSegments>
       )}

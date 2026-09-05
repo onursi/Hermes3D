@@ -70,8 +70,8 @@ export const LIBRARY_VIEW = {
  * choice rather than a search.
  */
 export const UNIVERSE_VIEW = {
-  position: new THREE.Vector3(0, 10, 34),
-  target: new THREE.Vector3(0, -6, -70),
+  position: new THREE.Vector3(0, 7, 22),
+  target: new THREE.Vector3(0, -5, -48),
 };
 
 /**
@@ -84,7 +84,7 @@ export const UNIVERSE_VIEW = {
  * produced before the cosmos framing was derived.
  */
 export const KNOWLEDGE_VIEW = {
-  position: new THREE.Vector3(2, 9, 34),
+  position: new THREE.Vector3(0, 5.5, 31),
   target: new THREE.Vector3(0, 1, 0),
 };
 

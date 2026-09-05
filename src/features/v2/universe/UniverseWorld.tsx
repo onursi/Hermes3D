@@ -22,6 +22,7 @@ export function UniverseWorld({
   activeId,
   reachableId,
   speed,
+  reducedMotion = false,
   flightEnabled,
   onReachChange,
   onSample,
@@ -32,6 +33,7 @@ export function UniverseWorld({
   activeId: string | null;
   reachableId: string | null;
   speed: number;
+  reducedMotion?: boolean;
   /**
    * False while the camera is being flown somewhere by the director.
    *
@@ -51,6 +53,7 @@ export function UniverseWorld({
         places={places}
         activeId={activeId}
         reachableId={reachableId}
+        reducedMotion={reducedMotion}
         onFocus={onFocusPlace}
       />
       {flightEnabled ? (
@@ -63,8 +66,8 @@ export function UniverseWorld({
       ) : null}
       {/* Enough light to give the silhouettes a lit side. The stage lights
           belong to home and are not mounted out here. */}
-      <hemisphereLight args={["#7699c0", "#05080d", 0.9]} />
-      <directionalLight position={[40, 60, 30]} intensity={0.75} color="#dce9ff" />
+      <hemisphereLight args={["#8d8578", "#07070a", 0.9]} />
+      <directionalLight position={[40, 60, 30]} intensity={0.75} color="#fff1e0" />
     </group>
   );
 }
@@ -101,7 +104,7 @@ function FixedStars() {
   return (
     <points geometry={geometry} frustumCulled={false}>
       <pointsMaterial
-        color="#9fc2e0"
+        color="#d5d8de"
         size={1.5}
         sizeAttenuation={false}
         transparent
