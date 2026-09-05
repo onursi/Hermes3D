@@ -21,6 +21,7 @@ import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
+import { CockpitProjector, type MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { approachFor, type Place } from "@/features/v2/universe/places";
 
 /**
@@ -50,6 +51,7 @@ export function V2Scene({
   onSelectProject,
   places,
   onReachChange,
+  cockpitMarkers,
   inputBlocked = false,
   onFrame,
   crashWorld,
@@ -73,6 +75,8 @@ export function V2Scene({
   onReachChange: (place: Place | null) => void;
   /** True while a DOM panel owns the keyboard — the reader, above all. */
   inputBlocked?: boolean;
+  /** Die Cockpit-Marken im DOM. Werden in der Canvas bewegt, nicht neu gerendert. */
+  cockpitMarkers: React.MutableRefObject<MarkerRegistry>;
   onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
   crashWorld?: string | null;
@@ -383,6 +387,8 @@ export function V2Scene({
             />
           </>
         ) : world === "universe" ? (
+          <>
+          <CockpitProjector places={places} markers={cockpitMarkers} />
           <UniverseWorld
             places={places}
             activeId={null}
@@ -396,6 +402,7 @@ export function V2Scene({
             onSample={sampleCamera}
             onFocusPlace={handleFocusPlace}
           />
+          </>
         ) : world === "cosmos" ? (
           /* W1, with the real vault. The module knows nothing about vaults,
              fetching or cameras — it is handed nodes, edges and a selection,

@@ -13,6 +13,7 @@ import { useVault, type VaultNode } from "@/features/v2/useVault";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
 import { Inspector } from "@/features/v2/hud/Inspector";
+import { Cockpit } from "@/features/v2/hud/Cockpit";
 import { Neighbourhood } from "@/features/v2/hud/Neighbourhood";
 import { Reader } from "@/features/v2/hud/Reader";
 import { SearchField } from "@/features/v2/hud/SearchField";
@@ -22,6 +23,7 @@ import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
 import { neighboursOf } from "@/features/v2/graph";
 import { playArrive, playSelect } from "@/features/v2/sound";
+import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 
@@ -65,6 +67,14 @@ export function V2Screen() {
   const [query, setQuery] = useState("");
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
   const [reachable, setReachable] = useState<Place | null>(null);
+  /**
+   * Die Cockpit-Marken: HTML-Knoten, die in der Canvas bewegt werden.
+   *
+   * Ein Ref und kein Zustand, und das ist der ganze Trick: die Positionen
+   * aendern sich sechzig Mal pro Sekunde, der Aufbau der Anzeige nie. Ueber
+   * React-Zustand waeren das sechzig Renderdurchlaeufe fuer eine Zahl.
+   */
+  const cockpitMarkers = useRef<MarkerRegistry>(new Map());
   /**
    * The note being read, by id. Null when the reader is closed.
    *
@@ -426,6 +436,7 @@ export function V2Screen() {
         onSelectProject={selectProject}
         places={places}
         onReachChange={setReachable}
+        cockpitMarkers={cockpitMarkers}
         inputBlocked={readerId !== null}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
@@ -500,7 +511,12 @@ export function V2Screen() {
         onClose={() => setDismissedGraphId(graphNode?.id ?? null)}
       />
 
-      {world === "universe" ? <TravelBar reachable={reachable} onEnter={enterPlace} /> : null}
+      {world === "universe" ? (
+        <>
+          <Cockpit places={places} markers={cockpitMarkers} reachableId={reachable?.id ?? null} />
+          <TravelBar reachable={reachable} onEnter={enterPlace} />
+        </>
+      ) : null}
 
       <Dock
         jarvisOpen={jarvisOpen}
@@ -559,15 +575,21 @@ export function V2Screen() {
             reachable: vault.reachable,
             count: vault.nodes.length,
           },
-          {
-            // Die Leitung selbst ist eine Quelle wie jede andere: sie kann
-            // laden, nicht erreichbar oder da sein, und das muss man sehen.
-            label: "Live-Verbindung",
-            loading: live.status === "idle" || live.status === "connecting",
-            reachable: live.status === "connected",
-            count: live.methods.length,
-            error: live.detail,
-          },
+          // Die Leitung taucht nur auf, wenn sie ueberhaupt eingeschaltet ist.
+          // Vorher meldete sie "wird geladen", waehrend sie schlicht aus war —
+          // und "aus" und "laedt" sind genau die zwei Zustaende, die diese
+          // Anzeige auseinanderhalten soll.
+          ...(liveMode
+            ? [
+                {
+                  label: "Live-Verbindung",
+                  loading: live.status === "idle" || live.status === "connecting",
+                  reachable: live.status === "connected",
+                  count: live.methods.length,
+                  error: live.detail,
+                },
+              ]
+            : []),
           {
             label: "Projekte",
             loading: projects.loading,

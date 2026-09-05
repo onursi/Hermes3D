@@ -64,12 +64,21 @@ export function Silhouettes({
   /** What the flight is currently offering to enter. */
   reachableId,
   reducedMotion = false,
+  showLabels = true,
   onFocus,
 }: {
   places: Place[];
   activeId: string | null;
   reachableId: string | null;
   reducedMotion?: boolean;
+  /**
+   * Namen im Raum zeichnen.
+   *
+   * Unterwegs uebernimmt das Cockpit die Beschriftung — es nennt jeden Ort
+   * samt Entfernung und haelt ihn am Bildrand fest, wenn er hinausläuft. Beides
+   * gleichzeitig waere derselbe Name zweimal, einmal davon ohne Entfernung.
+   */
+  showLabels?: boolean;
   onFocus?: (place: Place) => void;
 }) {
   const labels = useRef(new Map<string, THREE.Object3D>());
@@ -191,6 +200,7 @@ export function Silhouettes({
             place={place}
             highlighted={place.id === reachableId}
             onFocus={onFocus}
+            showLabel={showLabels}
             registerPortal={registerPortal}
             labelRef={(object) => {
               if (object) labels.current.set(place.id, object);
@@ -208,6 +218,7 @@ function Silhouette({
   highlighted,
   onFocus,
   labelRef,
+  showLabel,
   registerPortal,
 }: {
   place: Place;
@@ -215,6 +226,7 @@ function Silhouette({
   onFocus?: (place: Place) => void;
   /** Hands the label group to the one loop that scales them all. */
   labelRef: (object: THREE.Object3D | null) => void;
+  showLabel: boolean;
   /** Meldet das Tor bei derselben Schleife an. */
   registerPortal: (id: string, handle: PortalHandle | null) => void;
 }) {
@@ -270,6 +282,7 @@ function Silhouette({
           blanks its whole boundary — so nine labels sharing the scene's one
           boundary held the entire stage black for thirteen seconds on a cold
           load. A place is worth looking at before it is worth reading. */}
+      {showLabel ? (
       <Suspense fallback={null}>
       <Billboard ref={labelRef} position={[0, place.radius * 1.5 + 1.2, 0]}>
         <Text
@@ -288,6 +301,7 @@ function Silhouette({
         </Text>
       </Billboard>
       </Suspense>
+      ) : null}
     </group>
   );
 }

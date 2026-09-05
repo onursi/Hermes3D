@@ -54,6 +54,7 @@ export function UniverseWorld({
         activeId={activeId}
         reachableId={reachableId}
         reducedMotion={reducedMotion}
+        showLabels={false}
         onFocus={onFocusPlace}
       />
       {flightEnabled ? (

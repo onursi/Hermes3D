@@ -431,6 +431,28 @@ const AT = (label, ok, detail) =>
   const universeHeader = await page.locator("header").first().textContent();
   AT("Reisen öffnet das Universum", /Unterwegs/.test(universeHeader || ""));
 
+  /**
+   * Das Cockpit zeigt Orte samt Entfernung — auch die, die aus dem Bild
+   * laufen. Geprueft wird die Zahl, nicht das Aussehen: ein Kompass, der
+   * keine Entfernung nennt, ist eine Verzierung.
+   */
+  const marker = await page
+    .locator("text=/Zuhause/")
+    .first()
+    .textContent()
+    .catch(() => null);
+  const markerDistance = await page
+    .evaluate(() => {
+      const el = document.querySelector("[data-distance]");
+      return el ? el.textContent : null;
+    })
+    .catch(() => null);
+  AT(
+    "Cockpit nennt Ort und Entfernung",
+    Boolean(marker) && Boolean(markerDistance) && /[0-9]/.test(markerDistance || ""),
+    `${marker ?? "kein Marker"} / ${markerDistance ?? "keine Entfernung"}`,
+  );
+
   const cockpit = await page
     .locator("text=/ZIEHEN ZUM UMSEHEN/i")
     .first()
