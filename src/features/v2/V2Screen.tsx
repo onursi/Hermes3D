@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
 import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
+import { WorldBoundary } from "@/features/v2/WorldBoundary";
 import { useProjects, type Project } from "@/features/v2/useProjects";
 import { useRoster } from "@/features/v2/useRoster";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
@@ -37,7 +38,7 @@ export function V2Screen() {
   const roster = useRoster();
   const vault = useVault();
   const projects = useProjects();
-  const { world, selection, select, goTo, prefs, clearSelection } = useV2();
+  const { world, selection, select, goTo, prefs, clearSelection, setTravelling } = useV2();
 
   const [jarvisOpen, setJarvisOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -53,9 +54,21 @@ export function V2Screen() {
    * flag defaults to off, which is also the correct answer for the server.
    */
   const [labMode, setLabMode] = useState(false);
+  /**
+   * `?boom=<welt>` — the only way to prove the error boundary works.
+   *
+   * A boundary nobody has ever seen catch anything is a claim, not a feature.
+   * This makes the named world throw on entry, so the acceptance run can check
+   * that the HUD survives and that leaving and returning rebuilds the room.
+   * It does nothing without the parameter, and the parameter is only ever
+   * typed on purpose.
+   */
+  const [crashWorld, setCrashWorld] = useState<string | null>(null);
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLabMode(new URLSearchParams(window.location.search).get("lab") === "1");
+    setLabMode(params.get("lab") === "1");
+    setCrashWorld(params.get("boom"));
   }, []);
   /**
    * The queue itself, not just its length.
@@ -233,6 +246,21 @@ export function V2Screen() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#05080d]">
+      {/* Only the canvas is inside the boundary. Everything below it — status
+          bar, dock, inspector — stays mounted when a world dies, so the way
+          home is still where it always is. */}
+      <WorldBoundary
+        resetKey={world}
+        onError={() => {
+          // The dock disables itself while a journey is in progress, and the
+          // journey is ended by the scene — which has just been unmounted for
+          // throwing. Without this the buttons stay dead for good: the crash
+          // screen said "use the dock below" next to a dock that could not be
+          // clicked. An escape hatch that locks on the way out is worse than
+          // none, because it is trusted.
+          setTravelling(false);
+        }}
+      >
       <V2Scene
         agents={roster.agents}
         rosterReachable={roster.reachable}
@@ -246,7 +274,9 @@ export function V2Screen() {
         onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
         onFrame={devOpen ? setMeter : undefined}
+        crashWorld={crashWorld}
       />
+      </WorldBoundary>
 
       <StatusBar
         agentCount={roster.agents.length}

@@ -45,6 +45,7 @@ export function V2Scene({
   onSelectSourceId,
   onSelectProject,
   onFrame,
+  crashWorld,
 }: {
   agents: RosterAgent[];
   rosterReachable: boolean;
@@ -61,6 +62,8 @@ export function V2Scene({
   onSelectSourceId: (id: string) => void;
   onSelectProject: (project: Project) => void;
   onFrame?: (sample: { fps: number; calls: number; triangles: number }) => void;
+  /** Test hook: makes the named world throw on entry. See V2Screen. */
+  crashWorld?: string | null;
 }) {
   const { world, travelling, selection, focus, prefs, setTravelling, rememberHomeCamera } = useV2();
   const controlsRef = useRef<{ target: THREE.Vector3; update: () => void; enabled: boolean } | null>(
@@ -192,6 +195,7 @@ export function V2Scene({
       />
 
       <Suspense fallback={null}>
+        {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>
             <HomeWorld
@@ -246,6 +250,17 @@ export function V2Scene({
       {onFrame ? <FrameProbe onSample={onFrame} /> : null}
     </Canvas>
   );
+}
+
+/**
+ * The deliberate failure behind ?boom=<welt>.
+ *
+ * Throws during render, which is the case that matters: a throw in a callback
+ * would never reach an error boundary, so a hook that used one would test
+ * nothing. See WorldBoundary.
+ */
+function Boom({ world }: { world: string }): null {
+  throw new Error("Absichtlicher Testfehler in der Welt: " + world);
 }
 
 /**

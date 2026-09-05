@@ -244,6 +244,57 @@ const AT = (label, ok, detail) =>
     console.log("\nMESSUNG: keine Proben (Entwicklerwerte aus?)");
   }
 
+  // A measurement that is only printed cannot fail, and a check that cannot
+  // fail is a note. The floor is deliberately well below the 60 the scene
+  // currently holds: this is here to catch a collapse, not to argue about
+  // five frames on a machine that is also compiling something.
+  const MIN_FPS = 40;
+  if (samples.length) {
+    const fps = samples.map((s) => s.fps).sort((a, b) => a - b);
+    const median = fps[Math.floor(fps.length / 2)];
+    AT("Bildrate über der Untergrenze", median >= MIN_FPS, `${median} fps, Grenze ${MIN_FPS}`);
+  } else {
+    AT("Bildrate über der Untergrenze", false, "keine Proben");
+  }
+
   AT("Keine Laufzeitfehler", errors.length === 0, errors.slice(0, 2).join(" | ") || "keine");
+
+  // --- The error boundary, proven rather than asserted ----------------------
+  // A separate page: the crash is armed by a URL parameter, and arming it in
+  // the page under test would contaminate every check above it.
+  const crashPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const crashErrors = [];
+  crashPage.on("pageerror", (e) => crashErrors.push(e.message.slice(0, 80)));
+  await crashPage.goto("http://localhost:3400/v2?boom=home", { waitUntil: "domcontentloaded" });
+  await crashPage.waitForTimeout(9000);
+
+  const boundaryShown = await crashPage
+    .locator("text=/Diese Welt ist abgestürzt/")
+    .first()
+    .isVisible()
+    .catch(() => false);
+  AT("Absturz wird aufgefangen", boundaryShown);
+
+  // The whole point: the way out survives the failure.
+  const dockAlive = await crashPage
+    .getByRole("button", { name: /wissen/i })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  AT("HUD überlebt den Absturz", dockAlive);
+
+  if (dockAlive) {
+    await crashPage.getByRole("button", { name: /wissen/i }).first().click();
+    await crashPage.waitForTimeout(6000);
+    const recovered = await crashPage.locator("canvas").first().isVisible().catch(() => false);
+    const stillBroken = await crashPage
+      .locator("text=/Diese Welt ist abgestürzt/")
+      .first()
+      .isVisible()
+      .catch(() => false);
+    AT("Andere Welt baut sich wieder auf", recovered && !stillBroken);
+  }
+
+  await crashPage.close();
   await browser.close();
 })();
