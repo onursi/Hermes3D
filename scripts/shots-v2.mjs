@@ -117,6 +117,17 @@ const OUT = process.argv[2];
   await page.screenshot({ path: OUT + "/10-eintritt.png" });
   console.log("10 eintritt");
 
+  // Der Geistmodus: Vollgas, damit die Streifen im Bild sind.
+  await page.getByRole("button", { name: /^reisen$/i }).first().click().catch(() => {});
+  await page.waitForTimeout(2500);
+  await page.keyboard.down("Shift");
+  await page.keyboard.down("w");
+  await page.waitForTimeout(1400);
+  await page.screenshot({ path: OUT + "/14-geistmodus.png" });
+  await page.keyboard.up("w");
+  await page.keyboard.up("Shift");
+  console.log("14 geistmodus");
+
   // C2: the knowledge areas with real vault data, and the reader.
   await page.getByRole("button", { name: /^wissen$/i }).first().click().catch(() => {});
   await page.waitForTimeout(4500);

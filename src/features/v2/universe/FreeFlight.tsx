@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { placeInReach, type Place } from "@/features/v2/universe/places";
@@ -76,6 +76,43 @@ export function FreeFlight({
    * kept offering "Zuhause betreten" from thirty-five units away.
    */
   const reachedId = useRef<string | null | undefined>(undefined);
+  const streaks = useRef<THREE.Group>(null);
+  const streakMaterial = useRef<THREE.LineBasicMaterial>(null);
+  /** Zuletzt gesetzter Blickwinkel. Nur bei Aenderung neu rechnen. */
+  const lastFov = useRef(0);
+
+  /**
+   * Die Streifen: kurze Striche in einer Roehre um den Betrachter.
+   *
+   * Deterministisch angelegt und danach nie wieder angefasst — gestreckt wird
+   * ueber die Skalierung der Gruppe, aufgehellt ueber die Deckkraft. Das ist
+   * der ganze Geistmodus: kein Partikelsystem, kein zweiter Renderdurchgang,
+   * ein einziger Zeichenaufruf, der bei Stillstand unsichtbar ist.
+   */
+  const streakGeometry = useMemo(() => {
+    const count = 220;
+    const positions = new Float32Array(count * 6);
+    for (let i = 0; i < count; i += 1) {
+      const angle = (i * 2.399963) % (Math.PI * 2);
+      // Ein Loch in der Mitte: Striche direkt vor der Nase lesen sich als
+      // Dreck auf der Scheibe, nicht als Fahrt.
+      const radius = 2.6 + ((i * 37) % 100) / 100 * 11;
+      const z = -34 + ((i * 53) % 100) / 100 * 44;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      positions[i * 6] = x;
+      positions[i * 6 + 1] = y;
+      positions[i * 6 + 2] = z;
+      positions[i * 6 + 3] = x;
+      positions[i * 6 + 4] = y;
+      positions[i * 6 + 5] = z - 1;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geo;
+  }, []);
+
+  useEffect(() => () => streakGeometry.dispose(), [streakGeometry]);
 
   /**
    * Take the camera's current orientation as the starting heading.
@@ -157,7 +194,7 @@ export function FreeFlight({
     };
   }, [gl]);
 
-  useFrame((_, rawDelta) => {
+  useFrame((state, rawDelta) => {
     // A tab that was in the background hands back a delta of several seconds.
     // Unclamped, that is a single frame that teleports him across the map.
     const delta = Math.min(rawDelta, 0.1);
@@ -204,6 +241,51 @@ export function FreeFlight({
     // The entry offer. Compared by id and reported only on change: this runs
     // sixty times a second, and a setState per frame would be a render loop
     // wearing a hat.
+    /**
+     * Der Geistmodus: schneller werden muss sich anfuehlen wie schneller werden.
+     *
+     * Alles haengt an der *tatsaechlichen* Geschwindigkeit, nicht am
+     * Tastendruck. Deshalb baut es sich mit der Beschleunigung auf und faellt
+     * beim Loslassen von selbst wieder ab — Anfahren und Abbremsen sind
+     * derselbe Regler, rueckwaerts gelesen.
+     */
+    const rush = Math.min(1, velocity.current.length() / (baseSpeed * 2.6));
+
+    if (streaks.current) {
+      // Die Roehre sitzt am Betrachter und schaut, wohin er schaut.
+      streaks.current.position.copy(camera.position);
+      streaks.current.quaternion.copy(camera.quaternion);
+      // Gestreckt statt neu gebaut: dieselbe Geometrie, laenger gezogen.
+      streaks.current.scale.set(1, 1, 1 + rush * 5.5);
+      streaks.current.visible = rush > 0.02;
+    }
+    if (streakMaterial.current) {
+      streakMaterial.current.opacity = rush * rush * 0.55;
+    }
+
+    /**
+     * Ein Hauch mehr Blickwinkel bei Tempo.
+     *
+     * Der aelteste Trick fuer Geschwindigkeit und immer noch der beste: das
+     * Bild wird an den Raendern weiter, alles rueckt schneller vorbei. Nur bei
+     * echter Aenderung neu gerechnet: updateProjectionMatrix pro Bild waere
+     * Arbeit fuer eine Zahl, die meistens gleich bleibt.
+     *
+     * Die Kamera kommt hier aus dem Bildzustand und nicht aus dem Hook. Das
+     * ist kein Umweg: die Lint-Regel verbietet, einen Hook-Rueckgabewert zu
+     * veraendern, und sie hat recht — wer eine Kamera aus einem Hook heraus
+     * umbaut, aendert etwas, das React fuer unveraenderlich haelt.
+     */
+    const wantedFov = 46 + rush * 9;
+    if (Math.abs(wantedFov - lastFov.current) > 0.15) {
+      lastFov.current = wantedFov;
+      const perspective = state.camera as THREE.PerspectiveCamera;
+      if (perspective.isPerspectiveCamera) {
+        perspective.fov = wantedFov;
+        perspective.updateProjectionMatrix();
+      }
+    }
+
     const reachable = placeInReach(places, camera.position);
     const id = reachable?.id ?? null;
     if (id !== reachedId.current) {
@@ -212,5 +294,34 @@ export function FreeFlight({
     }
   });
 
-  return null;
+  /**
+   * Beim Verlassen den Blickwinkel zuruecksetzen.
+   *
+   * Sonst behaelt die Welt, in die er wechselt, die aufgerissene Perspektive
+   * des letzten Sprints — und niemand kaeme darauf, dass das vom Fliegen kommt.
+   */
+  useEffect(() => {
+    const perspective = camera as THREE.PerspectiveCamera;
+    return () => {
+      if (perspective.isPerspectiveCamera && perspective.fov !== 46) {
+        perspective.fov = 46;
+        perspective.updateProjectionMatrix();
+      }
+    };
+  }, [camera]);
+
+  return (
+    <group ref={streaks} visible={false}>
+      <lineSegments geometry={streakGeometry}>
+        <lineBasicMaterial
+          ref={streakMaterial}
+          color="#dfe6f2"
+          transparent
+          opacity={0}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </lineSegments>
+    </group>
+  );
 }
