@@ -151,7 +151,6 @@ function SourceBody({
   onOpen: () => void;
   onDive: () => void;
 }) {
-  const [opening, setOpening] = useState(false);
   return (
     <div className="px-4 pb-3 pt-4">
       <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-300/55">
@@ -176,16 +175,16 @@ function SourceBody({
       ) : null}
 
       <div className="mt-4 flex gap-2">
+        {/* This used to hand the note to Obsidian and show "Wird geöffnet…"
+            while another application took over. It opens the reader now, in
+            this room — Obsidian is still one click away, inside the reader,
+            as a choice rather than as the only way. */}
         <button
           type="button"
-          onClick={() => {
-            setOpening(true);
-            onOpen();
-            window.setTimeout(() => setOpening(false), 1200);
-          }}
+          onClick={onOpen}
           className="flex-1 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[12px] font-medium text-cyan-100 transition-colors hover:bg-cyan-400/20"
         >
-          {opening ? "Wird geöffnet…" : "Notiz öffnen"}
+          Notiz lesen
         </button>
         {world === "home" && node ? (
           <button

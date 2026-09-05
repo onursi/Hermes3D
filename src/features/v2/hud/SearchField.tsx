@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import type { VaultNode } from "@/features/v2/useVault";
-import { matchesQuery } from "@/features/v2/world/CosmosWorld";
+import { matchesQuery } from "@/features/v2/search";
 
 /**
  * Finding one note among 273.

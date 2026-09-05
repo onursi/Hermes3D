@@ -84,6 +84,14 @@ export type V2Prefs = {
   reducedMotion: boolean;
   /** Bloom on emissive edges. Off is the cheap fallback on a weak GPU. */
   bloom: boolean;
+  /**
+   * Volume for the two short confirmation tones, 0 to 1. Zero means off.
+   *
+   * One number rather than a flag plus a level: two fields would let the app
+   * be loud and muted at the same time, and the first bug report would be
+   * about exactly that.
+   */
+  sound: number;
 };
 
 const DEFAULT_PREFS: V2Prefs = {
@@ -91,6 +99,8 @@ const DEFAULT_PREFS: V2Prefs = {
   flightSpeed: 1.4,
   reducedMotion: false,
   bloom: true,
+  // Silent until asked. U1.5 is explicit, and so is Onur: no autoplay.
+  sound: 0,
 };
 
 const PREFS_KEY = "hermes3d-v2-prefs-v1";
@@ -198,6 +208,7 @@ export function V2Provider({ children }: { children: ReactNode }) {
       reducedMotion:
         typeof stored.reducedMotion === "boolean" ? stored.reducedMotion : prefersReduced,
       bloom: typeof stored.bloom === "boolean" ? stored.bloom : DEFAULT_PREFS.bloom,
+      sound: typeof stored.sound === "number" ? stored.sound : DEFAULT_PREFS.sound,
     });
   }, []);
 

@@ -218,6 +218,85 @@ const AT = (label, ok, detail) =>
     `ok=${approvalState.ok} wartend=${(approvalState.approvals || []).length} Pille=${pill || "keine"}`,
   );
 
+  // --- C2: the note is read here, not in Obsidian --------------------------
+
+  // Straight at the route, before the UI: a reader that works against a broken
+  // endpoint cannot exist, and a reader that fails against a working one is a
+  // different bug. Separating them is the point of checking both.
+  const readerApi = await page.evaluate(async () => {
+    const one = await fetch(
+      "/api/vault/note?id=" + encodeURIComponent("02⚙️ System/Übergabe.md"),
+    ).then((r) => r.json());
+    const escape = await fetch(
+      "/api/vault/note?id=" + encodeURIComponent("../../../Windows/win.ini"),
+    ).then((r) => r.json());
+    const missing = await fetch("/api/vault/note?id=gibtesnicht.md").then((r) => r.json());
+    return {
+      ok: one.ok === true && typeof one.content === "string" && one.content.length > 500,
+      format: one.format,
+      escaped: escape.ok === false && escape.reason === "outside-vault",
+      missing: missing.ok === false && missing.reason === "not-found",
+    };
+  });
+  AT("Leser-Endpunkt liefert echten Inhalt", readerApi.ok, `format=${readerApi.format}`);
+  AT("Pfadflucht wird abgewiesen", readerApi.escaped);
+  AT("Fehlende Notiz ist nicht dasselbe wie leer", readerApi.missing);
+
+  await page.getByRole("button", { name: /wissen/i }).first().click();
+  await page.waitForTimeout(4000);
+  await page.getByPlaceholder(/Notiz oder Ordner suchen/i).first().fill("Zielbild");
+  await page.waitForTimeout(900);
+  await page.locator("button", { hasText: /Zielbild/ }).first().click();
+  await page.waitForTimeout(900);
+
+  const readButton = page.getByRole("button", { name: /Notiz lesen/i }).first();
+  const canRead = await readButton.isVisible().catch(() => false);
+  AT("Auswahl bietet den Leser an", canRead);
+
+  if (canRead) {
+    await readButton.click();
+    await page.waitForTimeout(2500);
+    // A real heading from a real note, not a placeholder and not an excerpt.
+    const readerText = await page
+      .locator("article.prose-hermes")
+      .first()
+      .textContent()
+      .catch(() => null);
+    AT(
+      "Vollständige Notiz steht im Raum",
+      Boolean(readerText) && (readerText || "").length > 1500,
+      `${(readerText || "").length} Zeichen`,
+    );
+
+    const neighbours = await page
+      .locator("text=/Belegte Nachbarn/")
+      .first()
+      .textContent()
+      .catch(() => null);
+    AT("Belegte Nachbarn sind benannt", Boolean(neighbours), (neighbours || "keine").trim());
+
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(700);
+    const stillOpen = await page
+      .locator("article.prose-hermes")
+      .first()
+      .isVisible()
+      .catch(() => false);
+    // Escape closes the reader and nothing else: the selection it was opened
+    // from has to survive, or reading a note costs you your place.
+    const selectionSurvived = await page
+      .locator("aside")
+      .filter({ hasText: "QUELLE" })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    AT("Escape schließt nur den Leser", !stillOpen && selectionSurvived);
+  }
+
+  await page.getByPlaceholder(/Notiz oder Ordner suchen/i).first().fill("");
+  await page.getByRole("button", { name: /^zuhause$/i }).first().click();
+  await page.waitForTimeout(3000);
+
   // --- U1: the dock is a cut, and the universe is a place ------------------
 
   // Direct means direct: the destination is on screen before an animation of

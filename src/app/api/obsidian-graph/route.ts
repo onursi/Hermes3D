@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
-import os from "os";
 import path from "path";
+
+import { VAULT_ROOT } from "@/lib/vault/root";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Where the Obsidian vault lives.
  *
- * Set `OBSIDIAN_VAULT_PATH` to point this anywhere. The fallback is only a
- * convenience for the common layout — a hardcoded home directory both leaks
- * the author's folder structure into a public repository and makes the route
- * work on exactly one machine.
+ * Moved to `@/lib/vault/root` when the note reader needed the same answer.
+ * Two routes working out a vault root independently is two roots the day one
+ * of them changes — and the symptom would be notes the graph offers and the
+ * reader cannot find, which reads as a missing file rather than as the
+ * mismatch it is.
  */
-const VAULT_PATH =
-  process.env.OBSIDIAN_VAULT_PATH?.trim() ||
-  path.join(os.homedir(), "Desktop", "Life OS");
+const VAULT_PATH = VAULT_ROOT;
 
 export type GraphNode = {
   id: string;

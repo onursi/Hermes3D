@@ -12,11 +12,13 @@ import { useVault, type VaultNode } from "@/features/v2/useVault";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
 import { Inspector } from "@/features/v2/hud/Inspector";
+import { Reader } from "@/features/v2/hud/Reader";
 import { SearchField } from "@/features/v2/hud/SearchField";
 import { Settings } from "@/features/v2/hud/Settings";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
+import { playArrive, playSelect } from "@/features/v2/sound";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 
@@ -50,6 +52,15 @@ export function V2Screen() {
   const [query, setQuery] = useState("");
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
   const [reachable, setReachable] = useState<Place | null>(null);
+  /**
+   * The note being read, by id. Null when the reader is closed.
+   *
+   * Separate from the selection on purpose: selecting a star in the knowledge
+   * world should light up its neighbours, not shove a document over half the
+   * screen. Reading is a second, deliberate step — and closing the reader
+   * leaves the selection standing where it was.
+   */
+  const [readerId, setReaderId] = useState<string | null>(null);
   /**
    * `?lab=1` — read after mount, never during render.
    *
@@ -155,6 +166,9 @@ export function V2Screen() {
    */
   const enterPlace = useCallback(
     (place: Place) => {
+      // Arriving somewhere is worth a sound; it is silent unless he turned it
+      // on, and the entry offer said the same thing in text a moment ago.
+      playArrive(prefs.sound);
       if (place.projectFolder) {
         const project = projects.projects.find((item) => item.folder === place.projectFolder);
         // The station he flew to becomes the selection, so the yard opens on
@@ -163,17 +177,40 @@ export function V2Screen() {
       }
       goTo(place.world, "direct");
     },
-    [projects.projects, select, goTo],
+    [projects.projects, select, goTo, prefs.sound],
   );
 
-  /** The library hands back an id; the vault turns it into a selection. */
+  /** The library and the knowledge areas hand back an id; the vault turns it into a selection. */
   const selectSourceId = useCallback(
     (id: string) => {
       const node = vault.byId.get(id);
-      if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+      if (!node) return;
+      select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+      playSelect(prefs.sound);
     },
-    [vault.byId, select],
+    [vault.byId, select, prefs.sound],
   );
+
+  /**
+   * The note in the reader, and its real neighbours.
+   *
+   * Neighbours come from the graph's own links — the same links the knowledge
+   * world draws. Nothing is inferred: if the vault records no connection, the
+   * footer is empty rather than filled with things that merely look related.
+   */
+  const readerNode = readerId ? (vault.byId.get(readerId) ?? null) : null;
+  const readerNeighbours = useMemo(() => {
+    if (!readerId) return [];
+    const ids = new Set<string>();
+    for (const link of vault.links) {
+      if (link.source === readerId) ids.add(link.target);
+      else if (link.target === readerId) ids.add(link.source);
+    }
+    return [...ids]
+      .map((id) => vault.byId.get(id))
+      .filter((node): node is VaultNode => Boolean(node))
+      .sort((a, b) => b.degree - a.degree);
+  }, [readerId, vault.links, vault.byId]);
 
   const selectProject = useCallback(
     (project: Project) => select({ kind: "project", folder: project.folder, name: project.name }),
@@ -192,7 +229,17 @@ export function V2Screen() {
    * opens in Obsidian, with its own links and its own editor, instead of in a
    * viewer this project would then have to maintain.
    */
-  const openSource = useCallback((id: string) => {
+  /**
+   * Open a note — here, in the room.
+   *
+   * This used to set `window.location.href` to an `obsidian://` link, which
+   * is the behaviour V6-05 asks us to end: the note arrives in front of him
+   * instead of handing the whole session to another application. Obsidian is
+   * still reachable from inside the reader, as a choice.
+   */
+  const openSource = useCallback((id: string) => setReaderId(id), []);
+
+  const openInObsidian = useCallback((id: string) => {
     window.location.href = `obsidian://open?vault=Life%20OS&file=${encodeURIComponent(id)}`;
   }, []);
 
@@ -237,14 +284,14 @@ export function V2Screen() {
    * A keyboard shortcut that depends on render timing is a shortcut that works
    * on the developer's machine.
    */
-  const escapeState = useRef({ settingsOpen, approvalsOpen, query, selection, jarvisOpen, world });
+  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world });
   // Written in an effect, not during render. Assigning to a ref while
   // rendering is a rule this project has broken before, and the reason it is
   // a rule is that React may render without committing — the handler would
   // then act on a state that never reached the screen.
   useEffect(() => {
-    escapeState.current = { settingsOpen, approvalsOpen, query, selection, jarvisOpen, world };
-  }, [settingsOpen, approvalsOpen, query, selection, jarvisOpen, world]);
+    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world };
+  }, [readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world]);
 
   /**
    * Enter enters. Same ref discipline as Escape, and for the same reason.
@@ -283,6 +330,13 @@ export function V2Screen() {
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
       const state = escapeState.current;
+      // The reader is the topmost layer and the largest, so it closes first.
+      // Escape means "undo the last thing", and opening a document is the
+      // most recent thing that can be open.
+      if (state.readerId) {
+        setReaderId(null);
+        return;
+      }
       if (state.settingsOpen) {
         setSettingsOpen(false);
         return;
@@ -338,11 +392,11 @@ export function V2Screen() {
         libraryItems={libraryItems}
         query={world === "cosmos" ? query : ""}
         onSelectAgent={selectAgent}
-        onSelectSource={selectSource}
         onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
         places={places}
         onReachChange={setReachable}
+        inputBlocked={readerId !== null}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
       />
@@ -388,6 +442,20 @@ export function V2Screen() {
           onDiveToSource={diveToSource}
         />
       )}
+
+      <Reader
+        node={readerNode}
+        onClose={() => setReaderId(null)}
+        onOpenExternally={openInObsidian}
+        onOpenNeighbour={(id) => {
+          // Reading a neighbour also selects it, so the room behind the panel
+          // keeps up: close the reader and the star he just read about is the
+          // one that is lit.
+          selectSourceId(id);
+          setReaderId(id);
+        }}
+        neighbours={readerNeighbours}
+      />
 
       {world === "universe" ? <TravelBar reachable={reachable} onEnter={enterPlace} /> : null}
 

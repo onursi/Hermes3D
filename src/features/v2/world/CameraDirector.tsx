@@ -40,27 +40,6 @@ export type CameraGoal = {
 };
 
 /**
- * Where to stand to see a cosmos of a given size.
- *
- * Derived, not chosen. A fixed viewpoint put the camera inside the graph and
- * turned a knowledge map into a thicket of lines two metres from the lens.
- * 1.9 radii back and a third of a radius up frames the whole cloud with air
- * around it, whatever the vault currently holds.
- */
-export function cosmosView(
-  radius: number,
-  centre: THREE.Vector3,
-): { position: THREE.Vector3; target: THREE.Vector3 } {
-  const distance = Math.max(14, radius * 1.75);
-  return {
-    position: centre
-      .clone()
-      .add(new THREE.Vector3(distance * 0.3, radius * 0.3, distance)),
-    target: centre.clone(),
-  };
-}
-
-/**
  * The yard, seen from the outside and slightly above.
  *
  * Fixed rather than derived, and for a reason the cosmos does not share: the
@@ -95,14 +74,27 @@ export const UNIVERSE_VIEW = {
   target: new THREE.Vector3(0, -6, -70),
 };
 
-export function viewFor(
-  world: V2World,
-  cosmosRadius = 12,
-  cosmosCentre = new THREE.Vector3(),
-): CameraGoal {
+/**
+ * The knowledge areas, framed whole and slightly from above.
+ *
+ * W1's areas span roughly ±11 across and ±6 vertically, and the widest one —
+ * the sources — reaches nine units on its own. Standing back far enough to
+ * hold all of that is the difference between "a body with regions" and "a
+ * thicket two metres from the lens", which is what the old fixed viewpoint
+ * produced before the cosmos framing was derived.
+ */
+export const KNOWLEDGE_VIEW = {
+  position: new THREE.Vector3(2, 9, 34),
+  target: new THREE.Vector3(0, 1, 0),
+};
+
+export function viewFor(world: V2World): CameraGoal {
   if (world === "universe") return { ...cloneView(UNIVERSE_VIEW), duration: 1.15 };
   if (world === "cosmos") {
-    return { ...cloneView(cosmosView(cosmosRadius, cosmosCentre)), duration: 1.15 };
+    // The knowledge world is W1's layout now, and W1 places its areas on its
+    // own fixed coordinates rather than on the graph's. Deriving the framing
+    // from `vault.radius` would frame a cloud that is no longer there.
+    return { ...cloneView(KNOWLEDGE_VIEW), duration: 1.15 };
   }
   if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
   if (world === "library") return { ...cloneView(LIBRARY_VIEW), duration: 1.15 };

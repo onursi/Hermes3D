@@ -65,6 +65,28 @@ export function Settings({ onClose }: { onClose: () => void }) {
           onChange={(value) => setPref("bloom", value)}
         />
 
+        {/* Off until he switches it on, and the slider only appears once he
+            has. A volume control on a muted app is an invitation to wonder
+            whether it is really muted. */}
+        <Toggle
+          label="Ton"
+          hint="Kurzer Ton bei Auswahl und Ankunft. Standard aus, keine Musik."
+          value={prefs.sound > 0}
+          onChange={(value) => setPref("sound", value ? 0.6 : 0)}
+        />
+
+        {prefs.sound > 0 ? (
+          <Slider
+            label="Lautstärke"
+            value={prefs.sound}
+            min={0.1}
+            max={1}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)} %`}
+            onChange={(value) => setPref("sound", value)}
+          />
+        ) : null}
+
         <Toggle
           label="Bewegung reduzieren"
           hint="Kein Warp, direkter Wechsel. Folgt zunächst der Systemeinstellung."

@@ -3,15 +3,16 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
 import type { Project } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
-import type { VaultNode, VaultState } from "@/features/v2/useVault";
+import type { VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
-import { CosmosWorld } from "@/features/v2/world/CosmosWorld";
+import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
+import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { Horizon } from "@/features/v2/world/Horizon";
@@ -44,11 +45,11 @@ export function V2Scene({
   libraryItems,
   query,
   onSelectAgent,
-  onSelectSource,
   onSelectSourceId,
   onSelectProject,
   places,
   onReachChange,
+  inputBlocked = false,
   onFrame,
   crashWorld,
 }: {
@@ -62,7 +63,6 @@ export function V2Scene({
   /** The cosmos search term. Empty everywhere else. */
   query: string;
   onSelectAgent: (id: string) => void;
-  onSelectSource: (node: VaultNode) => void;
   /** The library speaks in ids, not in nodes — the module knows nothing of the vault. */
   onSelectSourceId: (id: string) => void;
   onSelectProject: (project: Project) => void;
@@ -70,6 +70,8 @@ export function V2Scene({
   places: Place[];
   /** What the flight is currently close enough to enter. Null most of the time. */
   onReachChange: (place: Place | null) => void;
+  /** True while a DOM panel owns the keyboard — the reader, above all. */
+  inputBlocked?: boolean;
   onFrame?: (sample: { fps: number; calls: number; triangles: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
   crashWorld?: string | null;
@@ -105,7 +107,7 @@ export function V2Scene({
    * the effect rather than behind a spinner.
    */
   useEffect(() => {
-    const base = viewFor(journey.world, vault.radius, vault.centre);
+    const base = viewFor(journey.world);
 
     // A click on a silhouette: enter the universe and fly to that place. The
     // flight is his own choice here, so it is a flight and not a cut.
@@ -201,6 +203,34 @@ export function V2Scene({
       goTo("universe", "direct");
     },
     [world, goTo, prefs.reducedMotion],
+  );
+
+  /**
+   * The vault in W1's shape. Derived once per data change, never per frame.
+   */
+  const knowledge = useMemo(
+    () => adaptVaultToKnowledge(vault.nodes, vault.links),
+    [vault.nodes, vault.links],
+  );
+
+  /**
+   * W1 asks the camera to look at an area; the camera stays mine.
+   *
+   * That split is the module contract and it is the right one — a component
+   * that moved the camera itself would fight the director the moment two
+   * things wanted it. So this is a request, granted as a flight.
+   */
+  const handleFocusArea = useCallback(
+    (focus: { center: [number, number, number]; radius: number }) => {
+      const centre = new THREE.Vector3(...focus.center);
+      setGoal({
+        position: centre.clone().add(new THREE.Vector3(0, focus.radius * 0.8, focus.radius * 2.6)),
+        target: centre,
+        duration: 1.1,
+        instant: prefs.reducedMotion,
+      });
+    },
+    [prefs.reducedMotion],
   );
 
   const handleReachChange = useCallback(
@@ -332,19 +362,25 @@ export function V2Scene({
             speed={prefs.flightSpeed}
             // The flight stands down while the director is flying somewhere,
             // and takes over the moment it lands.
-            flightEnabled={goal === null}
+            flightEnabled={goal === null && !inputBlocked}
             onReachChange={handleReachChange}
             onSample={sampleCamera}
             onFocusPlace={handleFocusPlace}
           />
         ) : world === "cosmos" ? (
-          <CosmosWorld
-            nodes={vault.nodes}
-            links={vault.links}
-            radius={vault.radius}
+          /* W1, with the real vault. The module knows nothing about vaults,
+             fetching or cameras — it is handed nodes, edges and a selection,
+             and it hands back an id. That is the whole contract, and keeping
+             it that narrow is why swapping the knowledge world in took one
+             prop list rather than a rewrite. */
+          <KnowledgeAreas
+            nodes={knowledge.nodes}
+            edges={knowledge.edges}
             selectedId={selectedSourceId}
             query={query}
-            onSelect={onSelectSource}
+            reducedMotion={prefs.reducedMotion}
+            onSelect={onSelectSourceId}
+            onFocusRequest={handleFocusArea}
           />
         ) : world === "projects" ? (
           <ProjectsWorld

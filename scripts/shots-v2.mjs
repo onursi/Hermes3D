@@ -106,6 +106,27 @@ const OUT = process.argv[2];
   await page.screenshot({ path: OUT + "/10-eintritt.png" });
   console.log("10 eintritt");
 
+  // C2: the knowledge areas with real vault data, and the reader.
+  await page.getByRole("button", { name: /^wissen$/i }).first().click().catch(() => {});
+  await page.waitForTimeout(4500);
+  await page.screenshot({ path: OUT + "/11-wissensareale.png" });
+  console.log("11 areale");
+
+  const search = page.getByPlaceholder(/Notiz oder Ordner suchen/i).first();
+  if (await search.count()) {
+    await search.fill("Zielbild");
+    await page.waitForTimeout(900);
+    await page.locator("button", { hasText: /Zielbild/ }).first().click().catch(() => {});
+    await page.waitForTimeout(900);
+    const read = page.getByRole("button", { name: /Notiz lesen/i }).first();
+    if (await read.isVisible().catch(() => false)) {
+      await read.click();
+      await page.waitForTimeout(2500);
+      await page.screenshot({ path: OUT + "/12-leser.png" });
+      console.log("12 leser");
+    }
+  }
+
   const meter = await page
     .evaluate(() => {
       const nodes = Array.from(document.querySelectorAll("div"));
