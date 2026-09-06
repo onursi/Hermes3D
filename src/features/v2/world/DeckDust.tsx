@@ -10,9 +10,15 @@ import { useV2 } from "@/features/v2/state";
  * Staub, der das Deck umkreist.
  *
  * Onur wollte Teilchen, die den Ring umlaufen — „dezent, nicht extrem", und
- * im Hintergrund. Beides steckt in den Zahlen hier: die Bahnen liegen
- * ausserhalb des Decks und meist unterhalb der Augenhöhe, die Deckkraft ist
- * niedrig, und nichts davon kreuzt die Figuren.
+ * im Hintergrund. Die erste Fassung hat „dezent" als „unsichtbar" ausgelegt
+ * und war es auch: zu klein, zu blass, fast zwei Minuten pro Runde, und ab
+ * 46 Einheiten Entfernung vollständig ausgeblendet. Aus dem All, wo Onur
+ * meistens steht, war schlicht nichts zu sehen.
+ *
+ * Was daraus gelernt ist, steht in den Zahlen: ein enges Band knapp ausserhalb
+ * der Plattform statt einer weiten Wolke, überwiegend Cyan, damit es sich vom
+ * weissen Sternenfeld abhebt, gut zwanzig Sekunden pro Runde, und ein
+ * Ausblenden erst ab 260 Einheiten. Dezent heisst leise, nicht abwesend.
  *
  * **Ein Zeichenaufruf, keine Rechenzeit.** Die Punkte bewegen sich im
  * Vertex-Shader: jeder trägt seinen Bahnradius, seinen Startwinkel und sein
@@ -25,11 +31,11 @@ import { useV2 } from "@/features/v2/state";
  * Vega 11 ist Füllrate die Grenze, und ein grosser Punkt kostet quadratisch.
  */
 
-const COUNT = 260;
+const COUNT = 300;
 
 /** Wo die Bahnen liegen: draussen um das Deck herum, nicht darüber. */
-const INNER = 5.4;
-const OUTER = 10.5;
+const INNER = 4.9;
+const OUTER = 8.2;
 
 const VERTEX = /* glsl */ `
   attribute float aRadius;
@@ -56,7 +62,7 @@ const VERTEX = /* glsl */ `
 
     // Weiter hinten dunkler: das legt die Teilchen hinter die Szene, statt
     // sie davorzuhaengen.
-    vFade = smoothstep(46.0, 8.0, -mv.z);
+    vFade = 1.0 - smoothstep(260.0, 460.0, -mv.z);
     vTone = aTone;
 
     gl_PointSize = aSize;
@@ -75,7 +81,7 @@ const FRAGMENT = /* glsl */ `
     float r = length(d) * 2.0;
     if (r > 1.0) discard;
 
-    float a = pow(1.0 - r, 2.0) * vFade * 0.55;
+    float a = pow(1.0 - r, 1.7) * vFade * 0.95;
     if (a <= 0.003) discard;
     gl_FragColor = vec4(vTone, a);
   }
@@ -118,21 +124,24 @@ export function DeckDust() {
 
       // Weiter aussen langsamer — so liest sich die Wolke als Bahn und nicht
       // als drehende Scheibe. Etwa die Hälfte läuft gegenläufig.
+      // Rund zwanzig bis dreissig Sekunden pro Runde. Die erste Fassung
+      // brauchte fast zwei Minuten — das liest sich nicht als Bewegung,
+      // sondern als Stillstand, und genau so hat Onur es auch gesehen.
       const direction = noise(i, 3) > 0.5 ? 1 : -1;
       speed[i] =
         direction *
-        (0.055 - ((r - INNER) / (OUTER - INNER)) * 0.032) *
-        (0.7 + noise(i, 4) * 0.6);
+        (0.3 - ((r - INNER) / (OUTER - INNER)) * 0.11) *
+        (0.75 + noise(i, 4) * 0.5);
 
       // Meist unterhalb der Augenhöhe, damit nichts vor den Gesichtern hängt.
-      position[i * 3 + 1] = -1.4 + Math.pow(noise(i, 5), 1.4) * 3.2;
+      position[i * 3 + 1] = -0.5 + Math.pow(noise(i, 5), 1.3) * 2.1;
       phase[i] = noise(i, 6) * Math.PI * 2;
-      size[i] = 1.4 + Math.pow(noise(i, 7), 2.2) * 3.4;
+      size[i] = 2.4 + Math.pow(noise(i, 7), 1.9) * 4.6;
 
       // Wenige helle, viele blasse: eine Wolke, in der alles gleich hell ist,
       // wirkt wie ein Raster.
       const pick = noise(i, 8);
-      const colour = pick > 0.86 ? cool : pick > 0.2 ? pale : warm;
+      const colour = pick > 0.34 ? cool : pick > 0.12 ? pale : warm;
       tone[i * 3] = colour.r;
       tone[i * 3 + 1] = colour.g;
       tone[i * 3 + 2] = colour.b;
