@@ -2,6 +2,7 @@
 
 import * as THREE from "three";
 import { SELECTION_COLOR } from "@/features/v2/palette";
+import { playHyperJump } from "@/features/v2/atmosphereAudio";
 import { useV2 } from "@/features/v2/state";
 import type { Place } from "@/features/v2/universe/places";
 
@@ -81,6 +82,29 @@ export function TravelBar({
           goTo("universe", "direct");
         }} className="rounded-xl border border-white/15 px-3 py-1.5 text-xs text-white/70">Weitblick</button>
         {[50, 100].map(rate => <button key={rate} type="button" aria-pressed={prefs.flightSpeed === rate} onClick={() => setPref("flightSpeed", rate)} className="rounded-xl border border-violet-200/25 px-3 py-1.5 text-xs text-violet-100 aria-pressed:bg-violet-300/20">{rate}×</button>)}
+
+        {/* Der Ritt. Er steht bewusst neben den Tempoknöpfen und trägt seine
+            Ehrlichkeit im Untertitel: hier bewegt sich nichts ausser dem Bild.
+            Ohne den Zusatz wäre es die einzige Stelle in V2, an der eine
+            Anzeige etwas behauptet, das nicht passiert. */}
+        <button
+          type="button"
+          aria-pressed={prefs.hyperRide}
+          onClick={() => {
+            const next = !prefs.hyperRide;
+            setPref("hyperRide", next);
+            if (next) playHyperJump(prefs.sound);
+          }}
+          // Neutral und nicht bernsteinfarben: Bernstein heisst "eine
+          // Entscheidung wartet". Ein Effektschalter in derselben Farbe würde
+          // die Bedeutung aufweichen, die den Freigaben gehört.
+          className="flex flex-col items-center rounded-xl border border-white/20 px-3 py-1 text-white/75 transition-colors aria-pressed:bg-white/12 aria-pressed:text-white"
+        >
+          <span className="text-xs">{prefs.hyperRide ? "Hyperlicht an" : "Hyperlicht"}</span>
+          <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-white/40">
+            Effekt · keine Reise
+          </span>
+        </button>
         {/* Always here, always the same button. The way back is the one thing
             in this world that must never depend on where he has got to. */}
         <button

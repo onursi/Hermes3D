@@ -92,6 +92,14 @@ export type V2Prefs = {
    * about exactly that.
    */
   sound: number;
+  /**
+   * Hyperlichtgeschwindigkeit: ein Ritt, keine Reise.
+   *
+   * Der Bildschirm rast, der Ton zieht an, und die Kamera steht still. Das ist
+   * ausdruecklich so gewollt und wird auch so benannt -- wer den Schalter
+   * umlegt, soll wissen, dass er nirgendwo ankommt.
+   */
+  hyperRide: boolean;
 };
 
 const DEFAULT_PREFS: V2Prefs = {
@@ -101,6 +109,7 @@ const DEFAULT_PREFS: V2Prefs = {
   bloom: true,
   // Silent until asked. U1.5 is explicit, and so is Onur: no autoplay.
   sound: 0,
+  hyperRide: false,
 };
 
 const PREFS_KEY = "hermes3d-v2-prefs-v1";
@@ -209,6 +218,8 @@ export function V2Provider({ children }: { children: ReactNode }) {
         typeof stored.reducedMotion === "boolean" ? stored.reducedMotion : prefersReduced,
       bloom: typeof stored.bloom === "boolean" ? stored.bloom : DEFAULT_PREFS.bloom,
       sound: typeof stored.sound === "number" ? stored.sound : DEFAULT_PREFS.sound,
+      // Ein Ritt beginnt nie von selbst: der Schalter faellt beim Laden zurueck.
+      hyperRide: false,
     });
   }, []);
 

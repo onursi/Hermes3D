@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 
 import { FreeFlight } from "@/features/v2/universe/FreeFlight";
+import { HyperRide } from "@/features/v2/universe/HyperRide";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import type { Place } from "@/features/v2/universe/places";
 
@@ -49,6 +50,9 @@ export function UniverseWorld({
   return (
     <group>
       <FixedStars />
+      {/* Der Ritt liegt über allem: er ist im Sichtraum gerechnet und hat mit
+          der Anordnung der Welt nichts zu tun. */}
+      <HyperRide />
       <Silhouettes
         places={places}
         activeId={activeId}

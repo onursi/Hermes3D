@@ -91,3 +91,66 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     window.setTimeout(() => nodes.forEach(node => node.disconnect()), 160);
   };
 }
+
+/**
+ * Der Schlag beim Zünden der Hyperlichtgeschwindigkeit.
+ *
+ * Ein kurzer Rauschstoß, dessen Filter nach oben zieht, über einem tiefen
+ * Ton, der gleichzeitig absackt — zusammen ergibt das den Ruck, den man von
+ * einem Antrieb erwartet, der anspringt. Alles lokal erzeugt: es ist die
+ * Vertonung einer Animation und stellt keine Arbeit eines Agenten dar.
+ *
+ * Ohne freigegebene Tonausgabe passiert nichts. Eine Geste hat den Ton
+ * geöffnet oder eben nicht; hier wird keine nachgeholt.
+ */
+export function playHyperJump(volume: number) {
+  const audio = context;
+  if (!audio || volume <= 0) return;
+  const now = audio.currentTime;
+
+  const master = audio.createGain();
+  master.gain.value = Math.min(1, volume) * 0.5;
+  master.connect(audio.destination);
+
+  // Rauschen: zwei Sekunden weißes Rauschen, durch ein aufziehendes Bandfilter.
+  const frames = Math.floor(audio.sampleRate * 2.2);
+  const buffer = audio.createBuffer(1, frames, audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i += 1) data[i] = Math.random() * 2 - 1;
+
+  const noise = audio.createBufferSource();
+  noise.buffer = buffer;
+  const band = audio.createBiquadFilter();
+  band.type = "bandpass";
+  band.Q.value = 1.4;
+  band.frequency.setValueAtTime(180, now);
+  band.frequency.exponentialRampToValueAtTime(4200, now + 0.9);
+  band.frequency.exponentialRampToValueAtTime(600, now + 2.1);
+
+  const noiseGain = audio.createGain();
+  noiseGain.gain.setValueAtTime(0, now);
+  noiseGain.gain.linearRampToValueAtTime(0.5, now + 0.16);
+  noiseGain.gain.setTargetAtTime(0, now + 0.5, 0.55);
+  noise.connect(band).connect(noiseGain).connect(master);
+
+  // Der tiefe Ton darunter: er faellt, waehrend das Rauschen steigt.
+  const drop = audio.createOscillator();
+  drop.type = "sawtooth";
+  drop.frequency.setValueAtTime(140, now);
+  drop.frequency.exponentialRampToValueAtTime(38, now + 1.4);
+  const dropGain = audio.createGain();
+  dropGain.gain.setValueAtTime(0, now);
+  dropGain.gain.linearRampToValueAtTime(0.22, now + 0.07);
+  dropGain.gain.setTargetAtTime(0, now + 0.35, 0.5);
+  drop.connect(dropGain).connect(master);
+
+  noise.start(now);
+  drop.start(now);
+  noise.stop(now + 2.3);
+  drop.stop(now + 2.3);
+
+  // Aufraeumen, wie im Rest des Moduls: nichts bleibt am Ausgang haengen.
+  window.setTimeout(() => {
+    [master, band, noiseGain, dropGain].forEach((node) => node.disconnect());
+  }, 2600);
+}
