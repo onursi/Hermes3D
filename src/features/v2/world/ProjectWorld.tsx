@@ -9,6 +9,7 @@ import { AREA_COLORS, AREA_FALLBACK, SELECTION_COLOR } from "@/features/v2/palet
 import { useV2 } from "@/features/v2/state";
 import { useDocument } from "@/features/v2/useDocument";
 import type { Project, ProjectArea, ProjectNote } from "@/features/v2/useProjects";
+import type { VaultLink } from "@/features/v2/useVault";
 import { RoomPanel } from "@/features/v2/world/RoomPanel";
 
 /**
@@ -88,7 +89,10 @@ export function layoutProject(project: Project): {
       const k = index + 0.5;
       const phi = Math.acos(1 - (2 * k) / Math.max(1, count));
       const theta = Math.PI * (1 + Math.sqrt(5)) * k;
-      const r = entry.size * 0.92;
+      // Knapp AUSSERHALB der Schale, nicht darin. Innen liegend fing die
+      // Schale jeden Klick ab, weil ihre Oberflaeche naeher an der Kamera ist
+      // als der Punkt dahinter — die Notizen waren damit unerreichbar.
+      const r = entry.size * 1.06;
       notes.push({
         note,
         area: entry.area,
@@ -115,14 +119,26 @@ function pickColour(name: string): string {
 export function ProjectWorld({
   project,
   openPath,
+  links,
   onOpenNote,
   onCloseNote,
+  onFocusArea,
 }: {
   project: Project;
   /** Die gerade geöffnete Notiz, damit sie im Raum hervorsticht. */
   openPath: string | null;
+  /**
+   * Die Verweise aus dem Vault — dieselben, die auch der Wissenskörper zeigt.
+   *
+   * Sie kommen von aussen und werden hier nicht neu hergeleitet: Zwei Wege zu
+   * derselben Kante sind zwei Gelegenheiten, dass die Zahlen auseinanderlaufen,
+   * und die Nachbarschaftszahl ist eine Aussage, die stimmen muss.
+   */
+  links: VaultLink[];
   onOpenNote: (note: ProjectNote) => void;
   onCloseNote: () => void;
+  /** Einen Bereich anfliegen — dieselbe Kamerabitte wie im Wissenskörper. */
+  onFocusArea: (focus: { center: [number, number, number]; radius: number }) => void;
 }) {
   const { prefs } = useV2();
   const { areas, notes } = useMemo(() => layoutProject(project), [project]);
@@ -228,6 +244,44 @@ export function ProjectWorld({
     if (handle) onOpenNote(handle.note);
   };
 
+  /**
+   * Die belegten Verweise der offenen Notiz — als Linien im Raum.
+   *
+   * Nur Kanten, die *in diesem Projekt* auf beiden Seiten einen Ort haben.
+   * Ein Verweis auf etwas ausserhalb ist echt, aber hier nicht darstellbar,
+   * und eine Linie, die ins Leere zeigt, behauptet mehr als sie weiss.
+   *
+   * Alles in einem LineSegments: ein Zeichenaufruf, egal wie viele Verweise.
+   */
+  const neighbourGeometry = useMemo(() => {
+    if (!openPath) return null;
+    const byPath = new Map(notes.map((entry) => [entry.note.path, entry]));
+    const source = byPath.get(openPath);
+    if (!source) return null;
+
+    const points: number[] = [];
+    for (const link of links) {
+      const other =
+        link.source === openPath ? link.target : link.target === openPath ? link.source : null;
+      if (!other) continue;
+      const target = byPath.get(other);
+      if (!target) continue;
+      points.push(
+        source.position.x, source.position.y, source.position.z,
+        target.position.x, target.position.y, target.position.z,
+      );
+    }
+    if (points.length === 0) return null;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    return geometry;
+  }, [openPath, notes, links]);
+
+  useEffect(() => {
+    const geometry = neighbourGeometry;
+    return () => geometry?.dispose();
+  }, [neighbourGeometry]);
+
   const hoveredNote = hovered !== null ? notes[hovered] : null;
   /** Die geöffnete Notiz — die Fläche hängt an ihrem Ort, nicht am Bildrand. */
   const openHandle = openPath
@@ -280,10 +334,31 @@ export function ProjectWorld({
       </Billboard>
 
       {/* Die Bereichsschalen: ein Aufruf für alle. */}
-      <instancedMesh ref={shells} args={[undefined, undefined, Math.max(1, areas.length)]}>
+      {/* Die Bereichsschalen. Ein Klick fliegt hin — dieselbe Geste wie im
+          Arealmenü des Wissenskörpers, damit man sie nur einmal lernen muss. */}
+      <instancedMesh
+        ref={shells}
+        args={[undefined, undefined, Math.max(1, areas.length)]}
+        onClick={(event) => {
+          event.stopPropagation();
+          const entry = areas[event.instanceId ?? -1];
+          if (!entry) return;
+          onFocusArea({
+            center: [entry.position.x, entry.position.y, entry.position.z],
+            radius: entry.size * 1.7,
+          });
+        }}
+      >
         <icosahedronGeometry args={[1, 2]} />
         <meshBasicMaterial wireframe transparent opacity={0.15} />
       </instancedMesh>
+
+      {/* Die belegten Verweise der offenen Notiz. Ein Zeichenaufruf für alle. */}
+      {neighbourGeometry ? (
+        <lineSegments geometry={neighbourGeometry} raycast={() => {}}>
+          <lineBasicMaterial color={SELECTION_COLOR} transparent opacity={0.55} />
+        </lineSegments>
+      ) : null}
 
       {/* Die Notizen: ebenfalls ein Aufruf, egal wie viele. */}
       <instancedMesh

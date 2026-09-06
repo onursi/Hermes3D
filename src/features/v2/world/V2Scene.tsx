@@ -507,6 +507,8 @@ export function V2Scene({
               openPath={openNotePath}
               onOpenNote={onOpenProjectNote}
               onCloseNote={onCloseProjectNote}
+              links={vault.links}
+              onFocusArea={handleFocusArea}
             />
           ) : (
             <ProjectsWorld
