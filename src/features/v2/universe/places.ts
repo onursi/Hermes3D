@@ -109,9 +109,9 @@ export function placesFor(projects: Project[], includeLibrary: boolean): Place[]
       return {
         id: `project:${project.folder}`,
         kind: "project" as const,
-        name: index === 0 ? "Projekttor · Project Singularity" : project.name,
+        name: index === 0 ? "Project Singularity" : project.name,
         hint: index === 0 
-          ? `${all.length} Projekte im Orbit. Schwarzes Loch & Gravitations-Physik.`
+          ? `Schwarzes Loch & Gravitations-Orbit aller Lebensprojekte.`
           : `${project.noteCount} Notizen. Führt zur Project Singularity.`,
         position: PROJECT_FIELD.clone().add(
           new THREE.Vector3(

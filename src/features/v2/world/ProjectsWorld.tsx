@@ -192,12 +192,12 @@ export function ProjectsWorld({
                 </Text>
               </group>
 
-              {/* Button 3: 4D-Erinnerungsraum betreten */}
+              {/* Button 3: Echter Erinnerungsorbit */}
               <group
                 position={[3.2, 0, 0]}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setWorldMode("tesseract");
+                  if (typeof window !== "undefined") window.open("/orbit.html", "_blank");
                 }}
                 onPointerOver={() => { if (typeof document !== "undefined") document.body.style.cursor = "pointer"; }}
                 onPointerOut={() => { if (typeof document !== "undefined") document.body.style.cursor = "auto"; }}
@@ -207,7 +207,7 @@ export function ProjectsWorld({
                   <meshBasicMaterial color="#9333ea" transparent opacity={0.85} />
                 </mesh>
                 <Text fontSize={0.16} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.02]}>
-                  🪐 4D-Tesserakt
+                  🪐 Erinnerungsorbit
                 </Text>
               </group>
             </group>

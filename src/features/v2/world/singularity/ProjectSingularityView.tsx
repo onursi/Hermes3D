@@ -239,12 +239,12 @@ export function ProjectSingularityView({
             </Text>
           </group>
 
-          {/* Switch to 4D Tesseract */}
+          {/* Direct Link to Erinnerungsorbit */}
           <group
             position={[3.4, 0, 0]}
             onClick={(e) => {
               e.stopPropagation();
-              onSwitchMode("tesseract");
+              if (typeof window !== "undefined") window.open("/orbit.html", "_blank");
             }}
             onPointerOver={() => {
               if (typeof document !== "undefined") document.body.style.cursor = "pointer";
@@ -264,7 +264,7 @@ export function ProjectSingularityView({
               anchorY="middle"
               position={[0, 0, 0.02]}
             >
-              🪐 4D-Tesserakt
+              🪐 Erinnerungsorbit
             </Text>
           </group>
         </group>
@@ -614,13 +614,30 @@ export function ProjectSingularityView({
                 >
                   🚢 Zur Ergebniswerft
                 </button>
+                <a
+                  href="/orbit.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    padding: "0.5rem 0.85rem",
+                    background: "rgba(168, 85, 247, 0.15)",
+                    color: "#c084fc",
+                    border: "1px solid rgba(168, 85, 247, 0.35)",
+                    borderRadius: "0.65rem",
+                    fontSize: "0.8rem",
+                    textDecoration: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  🪐 Erinnerungsorbit
+                </a>
                 <button
                   onClick={onOpenEndziel}
                   style={{
                     padding: "0.5rem 0.85rem",
-                    background: "rgba(147, 51, 234, 0.15)",
-                    color: "#c084fc",
-                    border: "1px solid rgba(147, 51, 234, 0.35)",
+                    background: "rgba(2, 132, 199, 0.15)",
+                    color: "#38bdf8",
+                    border: "1px solid rgba(2, 132, 199, 0.35)",
                     borderRadius: "0.65rem",
                     fontSize: "0.8rem",
                     cursor: "pointer",
