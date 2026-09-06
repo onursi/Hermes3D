@@ -469,6 +469,7 @@ export function V2Scene({
             <BrainAccess
               positionsById={skyPositions}
               from={CORE_ANCHOR}
+              look="waves"
               reach={70}
               reducedMotion={prefs.reducedMotion}
             />
