@@ -111,3 +111,6 @@ __pycache__/
 # scratch/diagnostic script writing a credential to a stray *token*.txt
 # file that isn't otherwise covered by a more specific ignore rule above.
 *token*.txt
+
+# Erzeugte Sprachdateien. Reproduzierbar, gehoeren nicht ins Repo.
+.cache/

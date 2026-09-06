@@ -64,6 +64,22 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  /**
+   * Pakete, die der Bündler in Ruhe lassen muss.
+   *
+   * `msedge-tts` spricht über einen WebSocket mit Microsofts Sprachdienst und
+   * benutzt dafür `ws`, das optional die native Erweiterung `bufferutil` lädt.
+   * Sobald webpack das mitbündelt, verliert `bufferutil` seine Bindung an den
+   * kompilierten Teil, und der erste Sprachaufruf endet in
+   * "bufferUtil.mask is not a function" — auf der Konsole des Servers, während
+   * die Anfrage 90 Sekunden lang offen stehen bleibt und dann leer zurückkommt.
+   *
+   * Genau daran ist die alte Route /api/voice bisher gescheitert. Der Fehler
+   * sah aus wie ein hängender Netzweg und war ein Bündelungsproblem. Aus dem
+   * Bündel heraus lädt Node das Paket normal, und die Stimme kommt in zwei
+   * Sekunden.
+   */
+  serverExternalPackages: ["msedge-tts", "ws", "bufferutil", "utf-8-validate"],
   async headers() {
     return [
       {

@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { JarvisCore, type JarvisPhase } from "@/features/jarvis/JarvisCore";
+import { type JarvisPhase } from "@/features/jarvis/JarvisCore";
+import { JarvisPresence, type JarvisMode } from "@/features/v2/jarvis/JarvisPresence";
+import { useJarvisVoice, JARVIS_VOICES, type JarvisVoiceId } from "@/features/v2/jarvis/useJarvisVoice";
+import { JARVIS_SCAN_EVENT } from "@/features/v2/knowledge/BrainAccess";
 import { useVoice } from "@/features/jarvis/useVoice";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 import { KNOWLEDGE_PULSE_EVENT } from "@/features/retro-office/scene/VaultStars";
@@ -36,6 +39,22 @@ import { KNOWLEDGE_PULSE_EVENT } from "@/features/retro-office/scene/VaultStars"
  *
  * So there is one console now, mounted twice.
  */
+
+/**
+ * Vier Fragen für den Anfang.
+ *
+ * Keine Beispiele im Sinne von "so tippt man", sondern Fragen, die dieser
+ * Vault beantworten kann und die man sich selten von selbst stellt. Sie
+ * stehen fest im Code, weil erfundene Vorschläge — aus Überschriften
+ * zusammengesetzt — Fragen ergeben, auf die es keine Antwort gibt. Lieber
+ * vier, die tragen.
+ */
+const STARTERS = [
+  "Was habe ich zuletzt entschieden?",
+  "Woran arbeite ich gerade?",
+  "Was habe ich über Vertrieb gelernt?",
+  "Welche Verpflichtungen stehen offen?",
+];
 
 export type JarvisSource = {
   id: string;
@@ -157,14 +176,98 @@ export function JarvisConsole({
     [question, phase],
   );
 
+  /**
+   * Die letzten Fragen — der Grund, warum das Panel nicht leer beginnt.
+   *
+   * Ein Eingabefeld mit einem Fragezeichen darin ist die unfreundlichste
+   * Form von Software: es weiß alles über 285 Notizen und tut so, als hätte
+   * es keine einzige Idee. Wer eine Frage schon einmal gestellt hat, stellt
+   * sie oft wieder — nach ein paar Tagen, wenn sich die Notizen geändert
+   * haben, mit einer anderen Antwort.
+   *
+   * Bewusst nur im Browser gespeichert und nirgends sonst: das sind Onurs
+   * Fragen an sein eigenes Leben, und die haben auf keinem Server etwas
+   * verloren.
+   */
+  const [history, setHistory] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("hermes.jarvis.fragen");
+      if (raw) setHistory(JSON.parse(raw).slice(0, 6));
+    } catch {
+      // Kaputter oder gesperrter Speicher: dann eben ohne Verlauf.
+    }
+  }, []);
+  const remember = useCallback((text: string) => {
+    setHistory((previous) => {
+      const next = [text, ...previous.filter((q) => q !== text)].slice(0, 6);
+      try {
+        localStorage.setItem("hermes.jarvis.fragen", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    if (question.trim() && phase === "searching") remember(question.trim());
+  }, [phase, question, remember]);
+
   const voice = useVoice({ onTranscript: (text) => ask(text) });
+
+  /**
+   * Wie Jarvis erscheint, und mit welcher Stimme.
+   *
+   * Beides bleibt gespeichert. Wer sich einmal für das Gesicht entschieden
+   * hat, will es beim nächsten Öffnen wieder sehen und nicht erneut umstellen.
+   * localStorage kann in einem privaten Fenster werfen, deshalb der try.
+   */
+  const [mode, setMode] = useState<JarvisMode>("orb");
+  const [voiceId, setVoiceId] = useState<JarvisVoiceId>("conrad");
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem("hermes.jarvis.mode");
+      if (savedMode === "orb" || savedMode === "face") setMode(savedMode);
+      const savedVoice = localStorage.getItem("hermes.jarvis.voice");
+      if (savedVoice && JARVIS_VOICES.some((v) => v.id === savedVoice)) {
+        setVoiceId(savedVoice as JarvisVoiceId);
+      }
+    } catch {
+      // Kein Speicher, keine Voreinstellung. Kein Grund, etwas kaputtzumachen.
+    }
+  }, []);
+  const chooseMode = useCallback((next: JarvisMode) => {
+    setMode(next);
+    try {
+      localStorage.setItem("hermes.jarvis.mode", next);
+    } catch {}
+  }, []);
+  const chooseVoice = useCallback((next: JarvisVoiceId) => {
+    setVoiceId(next);
+    try {
+      localStorage.setItem("hermes.jarvis.voice", next);
+    } catch {}
+  }, []);
+
+  /** Die neuronale Stimme — kostenlos, und sie liefert den Pegel fürs Gesicht. */
+  const jarvisVoice = useJarvisVoice({ voice: voiceId });
 
   /** The microphone outranks the server: while it listens, that is the state. */
   const displayPhase: JarvisPhase = voice.listening
     ? "listening"
-    : voice.speaking
+    : jarvisVoice.speaking
       ? "speaking"
       : phase;
+
+  /**
+   * Dem Raum sagen, dass gerade gesucht wird.
+   *
+   * Der Wissenskosmos hängt an diesem Ereignis und lässt daraufhin die
+   * Abtastwelle laufen. Es wird hier ausgelöst und nirgends sonst, damit der
+   * Effekt nicht behaupten kann, was nicht passiert ist.
+   */
+  useEffect(() => {
+    const scanning = phase === "searching" || phase === "thinking";
+    window.dispatchEvent(new CustomEvent(JARVIS_SCAN_EVENT, { detail: { active: scanning } }));
+  }, [phase]);
 
   // Spoken once complete, not while streaming: a synthesiser fed word by word
   // reads with the rhythm of a telegram.
@@ -172,8 +275,8 @@ export function JarvisConsole({
   useEffect(() => {
     if (phase !== "idle" || !answer || spokenRef.current === answer) return;
     spokenRef.current = answer;
-    if (voice.supported && voiceReply) voice.speak(answer);
-  }, [phase, answer, voice, voiceReply]);
+    if (voiceReply) void jarvisVoice.speak(answer);
+  }, [phase, answer, jarvisVoice, voiceReply]);
 
   useEffect(() => {
     if (!soundOn) return;
@@ -351,7 +454,31 @@ export function JarvisConsole({
           compact ? "px-4 py-3" : "px-6 py-6"
         }`}
       >
-        <JarvisCore phase={displayPhase} size={compact ? 104 : 168} />
+        <JarvisPresence
+          mode={mode}
+          phase={displayPhase}
+          levelRef={jarvisVoice.levelRef}
+          size={compact ? 116 : 172}
+        />
+
+        {/* Umschalter: Kugel oder Gesicht. Klein gehalten — es ist eine
+            Einstellung, keine Funktion. */}
+        <div className="mt-2 flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.03] p-0.5">
+          {(["orb", "face"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => chooseMode(option)}
+              className={`rounded-full px-3 py-1 text-[10px] tracking-wide transition ${
+                mode === option
+                  ? "bg-cyan-400/15 text-cyan-100"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              {option === "orb" ? "Kugel" : "Gesicht"}
+            </button>
+          ))}
+        </div>
         <p
           className={`mt-3 text-center leading-relaxed text-white/35 ${
             compact ? "text-[10px]" : "text-[11px]"
@@ -387,8 +514,12 @@ export function JarvisConsole({
           </button>
         </div>
 
-        {voice.supported ? (
-          <div className="mt-2 flex items-center gap-2">
+        {/* Der Kranz war früher ganz an die Spracherkennung geknüpft. Das war
+            falsch: in einem Browser ohne Erkennung verschwanden damit auch
+            Vorlesen, Klang und Briefing — Funktionen, die mit dem Mikrofon
+            nichts zu tun haben. Nur der Mikrofonknopf hängt jetzt daran. */}
+        <div className="mt-2 flex items-center gap-2">
+          {voice.supported ? (
             <button
               type="button"
               onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}
@@ -403,10 +534,15 @@ export function JarvisConsole({
               {voice.listening ? <MicOff size={13} /> : <Mic size={13} />}
               <span>{voice.listening ? "Ich höre…" : "Hey Hermes"}</span>
             </button>
+          ) : (
+            <span className="flex-1 text-[11px] text-white/25">
+              Dieser Browser hört nicht zu — tippen geht.
+            </span>
+          )}
             <button
               type="button"
               onClick={() => {
-                if (voice.speaking) voice.stopSpeaking();
+                if (jarvisVoice.speaking) jarvisVoice.stop();
                 setVoiceReply((prev) => !prev);
               }}
               className={`inline-flex items-center rounded-xl border px-2.5 py-2 transition ${
@@ -439,6 +575,32 @@ export function JarvisConsole({
             >
               <Sunrise size={13} />
             </button>
+        </div>
+
+        {/* Die Stimmenwahl steht nur da, wenn vorgelesen wird — sonst ist sie
+            eine Einstellung für etwas, das gar nicht läuft. */}
+        {voiceReply ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {JARVIS_VOICES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => chooseVoice(option.id)}
+                className={`rounded-lg border px-2 py-1 text-[10px] transition ${
+                  voiceId === option.id
+                    ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100"
+                    : "border-white/[0.08] bg-white/[0.03] text-white/40 hover:text-white/70"
+                }`}
+                title={option.hint}
+              >
+                {option.label}
+              </button>
+            ))}
+            <span className="ml-1 text-[10px] text-white/25">
+              {jarvisVoice.engine === "browser"
+                ? "Browserstimme — die gute war nicht erreichbar"
+                : "neuronal, kostenlos"}
+            </span>
           </div>
         ) : null}
 
@@ -460,6 +622,50 @@ export function JarvisConsole({
         ) : null}
 
         {reason ? <p className="text-[12px] leading-relaxed text-amber-200/80">{reason}</p> : null}
+
+        {/* Der leere Zustand: keine Antwort, keine Störung — dann steht hier,
+            was man fragen könnte, statt einer leeren Fläche. */}
+        {!answer && !reason && phase === "idle" ? (
+          <div className="space-y-3">
+            {history.length > 0 ? (
+              <div>
+                <p className="pb-1.5 text-[10px] font-semibold tracking-[-0.005em] text-white/35">
+                  Zuletzt gefragt
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {history.map((entry) => (
+                    <button
+                      key={entry}
+                      type="button"
+                      onClick={() => ask(entry)}
+                      className="max-w-full truncate rounded-full border border-white/[0.09] bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/55 transition hover:border-white/25 hover:text-white/90"
+                      title={entry}
+                    >
+                      {entry}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div>
+              <p className="pb-1.5 text-[10px] font-semibold tracking-[-0.005em] text-white/35">
+                Womit anfangen
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {STARTERS.map((entry) => (
+                  <button
+                    key={entry}
+                    type="button"
+                    onClick={() => ask(entry)}
+                    className="rounded-full border border-cyan-300/15 bg-cyan-400/[0.06] px-2.5 py-1 text-[11px] text-cyan-100/70 transition hover:border-cyan-300/40 hover:text-cyan-100"
+                  >
+                    {entry}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {answer && phase === "idle" ? (
           <div className="mt-3 flex items-center gap-2">

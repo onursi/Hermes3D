@@ -62,6 +62,8 @@ import { Billboard, Text } from "@react-three/drei";
 import { AREA_COLORS, DECISION_COLOR, SELECTION_COLOR } from "@/features/v2/palette";
 import { applyFissure, areaRadius, AREA_SHAPE, BRAIN_CENTERS, curvePoints } from "@/features/v2/knowledge/brainLayout";
 import { CortexShell } from "@/features/v2/knowledge/CortexShell";
+import { BrainAccess } from "@/features/v2/knowledge/BrainAccess";
+import { KNOWLEDGE_PULSE_EVENT } from "@/features/retro-office/scene/VaultStars";
 import type {
   KnowledgeNode,
   KnowledgeEdge,
@@ -185,6 +187,24 @@ export function KnowledgeAreas({
   /** How much of the rotation is currently running, 0 to 1. Eased, not switched. */
   const spin = useRef(1);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  /**
+   * Die Notizen, die Jarvis für seine letzte Antwort tatsächlich gelesen hat.
+   *
+   * Sie bleiben hell, solange die Antwort steht. Das ist der ruhige Teil des
+   * Effekts: die Kometen zeigen den Vorgang, das hier zeigt das Ergebnis —
+   * man kann nachträglich sehen, worauf eine Antwort beruht, ohne die
+   * Quellenliste aufzuklappen.
+   */
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const onPulse = (event: Event) => {
+      const ids: string[] = (event as CustomEvent).detail?.ids ?? [];
+      setReadIds(new Set(ids));
+    };
+    window.addEventListener(KNOWLEDGE_PULSE_EVENT, onPulse);
+    return () => window.removeEventListener(KNOWLEDGE_PULSE_EVENT, onPulse);
+  }, []);
 
   // Built once. The colours and the speed are pushed in as uniforms, so a
   // change of selection never rebuilds a material.
@@ -401,6 +421,8 @@ export function KnowledgeAreas({
       const isSelected = selectedId === node.id;
       const isNeighbor = directNeighborIds.has(node.id);
       const isHovered = hoveredId === node.id;
+      /** Von Jarvis gelesen — bleibt hell, bis die nächste Antwort kommt. */
+      const wasRead = readIds.has(node.id);
 
       /**
        * Suchabgleich — Titel, Ordner, **oder** ein Volltexttreffer von oben.
@@ -423,6 +445,8 @@ export function KnowledgeAreas({
       let finalScale = baseScale;
       if (isSelected) {
         finalScale = baseScale * 1.6;
+      } else if (wasRead) {
+        finalScale = baseScale * 1.45;
       } else if (isNeighbor || isHovered) {
         finalScale = baseScale * 1.35;
       } else if (selectedId && !isNeighbor) {
@@ -441,6 +465,10 @@ export function KnowledgeAreas({
       // Farbsteuerung: Selektion = SELECTION_COLOR, Nachbarn = NEIGHBOR_COLOR/Akzent
       if (isSelected) {
         tempColor.set(SELECTION_COLOR);
+      } else if (wasRead) {
+        // Hell, aber in der eigenen Arealfarbe getönt: die Notiz soll
+        // hervorstechen und trotzdem erkennbar dort hingehören, wo sie steht.
+        tempColor.set("#dff4ff").lerp(new THREE.Color(node.colorHex), 0.35);
       } else if (isNeighbor) {
         tempColor.set(NEIGHBOR_COLOR).lerp(new THREE.Color(node.colorHex), 0.3);
       } else if (selectedId) {
@@ -457,7 +485,12 @@ export function KnowledgeAreas({
 
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [positionedNodes, selectedId, directNeighborIds, hoveredId, query]);
+    // `queryHitIds` gehört in diese Liste, und das war vorhin ein echter
+    // Fehler: die Volltexttreffer kommen ein paar hundert Millisekunden nach
+    // dem Tippen an. Ohne die Abhängigkeit lief dieser Effekt zum Zeitpunkt
+    // der Tastatureingabe — also bevor es Treffer gab — und danach nie
+    // wieder. Die Liste zeigte "10 Treffer", der Raum blieb dunkel.
+  }, [positionedNodes, selectedId, directNeighborIds, hoveredId, query, queryHitIds, readIds]);
 
   // 5. Animierte Effekte in useFrame (bei reducedMotion komplett statisch)
   useFrame(({ clock }, delta) => {
@@ -527,8 +560,24 @@ export function KnowledgeAreas({
     setHoveredId(null);
   }, []);
 
+  /**
+   * Nur die Positionen, für den Zugriffs-Effekt.
+   *
+   * Bewusst eine eigene, kleine Karte statt der ganzen `nodeMap`: BrainAccess
+   * braucht Orte und sonst nichts, und eine Komponente, die Notizen mitsamt
+   * Auszügen bekommt, kann später anfangen, welche zu lesen.
+   */
+  const positionsById = useMemo(() => {
+    const map = new Map<string, THREE.Vector3>();
+    for (const node of positionedNodes) map.set(node.id, node.position);
+    return map;
+  }, [positionedNodes]);
+
   return (
     <group ref={groupRef}>
+      {/* 0. JARVIS GREIFT ZU: Abtastwelle und Kometen der gelesenen Notizen */}
+      <BrainAccess positionsById={positionsById} reducedMotion={reducedMotion} />
+
       {/* 1. CLUSTER-AREALE: Zentren, Halo-Ringe & Gruppen-Labels */}
       {clusters.map((cluster) => {
         const isClusterSelected = selectedNode?.groupId === cluster.groupId;
