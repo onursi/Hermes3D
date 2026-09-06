@@ -6,7 +6,7 @@ import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
 import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
 import { WorldBoundary } from "@/features/v2/WorldBoundary";
-import { useProjects, type Project } from "@/features/v2/useProjects";
+import { useProjects, type Project, type ProjectNote } from "@/features/v2/useProjects";
 import { useRoster } from "@/features/v2/useRoster";
 import { useHermesLive } from "@/features/v2/useHermesLive";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
@@ -100,6 +100,16 @@ export function V2Screen() {
    * leaves the selection standing where it was.
    */
   const [readerId, setReaderId] = useState<string | null>(null);
+  /**
+   * Welches Projekt betreten ist. Null heißt: die Werft von außen.
+   *
+   * Getrennt von der Auswahl, aus demselben Grund wie beim Leser: Ein Projekt
+   * anzuwählen soll es hervorheben, nicht die halbe Ansicht wechseln. Betreten
+   * ist der zweite, gewollte Schritt.
+   */
+  const [openProjectFolder, setOpenProjectFolder] = useState<string | null>(null);
+  /** Welche Notiz im Projekt gerade gelesen wird — sie sticht im Raum hervor. */
+  const [openNotePath, setOpenNotePath] = useState<string | null>(null);
   /**
    * Die Notiz, deren Nachbarschaft er zugeklappt hat — nicht ein Ja/Nein.
    *
@@ -313,10 +323,42 @@ export function V2Screen() {
       ? (vault.byId.get(selection.id) ?? null)
       : null;
 
+  /**
+   * Ein Klick wählt aus, der zweite betritt.
+   *
+   * Zwei Schritte statt einem, weil Betreten die Ansicht wechselt und der Plan
+   * verbietet, irgendwo anzukommen, wo man nicht hinwollte. Der zweite Klick
+   * ist die Bestätigung — dieselbe Regel wie beim Eintritt in einen Ort im All.
+   */
   const selectProject = useCallback(
-    (project: Project) => select({ kind: "project", folder: project.folder, name: project.name }),
-    [select],
+    (project: Project) => {
+      if (selection.kind === "project" && selection.folder === project.folder) {
+        setOpenProjectFolder(project.folder);
+        return;
+      }
+      select({ kind: "project", folder: project.folder, name: project.name });
+    },
+    [select, selection],
   );
+
+  /** Das betretene Projekt. Null heisst: die Werft mit allen Liegeplätzen. */
+  const openProject = useMemo(
+    () => projects.projects.find((entry) => entry.folder === openProjectFolder) ?? null,
+    [projects.projects, openProjectFolder],
+  );
+
+  /**
+   * Eine Notiz im Projekt öffnen.
+   *
+   * Der Leser bekommt hier den Pfad, nicht die Kennung aus dem Wissensgraphen:
+   * eine Projektnotiz muss nicht im Graphen stehen, um lesbar zu sein, und ein
+   * Umweg über den Graphen würde genau die Notizen verschlucken, die noch
+   * nirgends verlinkt sind.
+   */
+  const openProjectNote = useCallback((note: ProjectNote) => {
+    setOpenNotePath(note.path);
+    setReaderId(note.path);
+  }, []);
 
   const selectSource = useCallback(
     (node: VaultNode) => select({ kind: "source", id: node.id, title: node.name, folder: node.folder }),
@@ -385,14 +427,14 @@ export function V2Screen() {
    * A keyboard shortcut that depends on render timing is a shortcut that works
    * on the developer's machine.
    */
-  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world });
+  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder });
   // Written in an effect, not during render. Assigning to a ref while
   // rendering is a rule this project has broken before, and the reason it is
   // a rule is that React may render without committing — the handler would
   // then act on a state that never reached the screen.
   useEffect(() => {
-    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world };
-  }, [readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world]);
+    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder };
+  }, [readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder]);
 
   /**
    * Enter enters. Same ref discipline as Escape, and for the same reason.
@@ -436,6 +478,14 @@ export function V2Screen() {
       // most recent thing that can be open.
       if (state.readerId) {
         setReaderId(null);
+        setOpenNotePath(null);
+        return;
+      }
+      // Dann aus dem Projekt heraus in die Werft — eine Stufe, nicht ganz raus.
+      // Wer ein Projekt betreten hat, will beim Zurück die anderen Liegeplätze
+      // sehen und nicht zu Hause landen.
+      if (state.openProjectFolder) {
+        setOpenProjectFolder(null);
         return;
       }
       if (state.settingsOpen) {
@@ -495,6 +545,9 @@ export function V2Screen() {
         onSelectAgent={selectAgent}
         onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
+        openProject={openProject}
+        openNotePath={openNotePath}
+        onOpenProjectNote={openProjectNote}
         places={places}
         onReachChange={setReachable}
         cockpitMarkers={cockpitMarkers}

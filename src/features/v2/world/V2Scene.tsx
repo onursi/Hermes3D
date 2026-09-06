@@ -8,10 +8,10 @@ import * as THREE from "three";
 
 import { SPACE_BLACK } from "@/features/v2/palette";
 import { useV2 } from "@/features/v2/state";
-import type { Project } from "@/features/v2/useProjects";
+import type { Project, ProjectNote } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
-import { CameraDirector, HOME_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
+import { CameraDirector, HOME_VIEW, PROJECTS_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
@@ -19,6 +19,7 @@ import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
+import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
@@ -51,6 +52,9 @@ export function V2Scene({
   onSelectAgent,
   onSelectSourceId,
   onSelectProject,
+  openProject,
+  openNotePath,
+  onOpenProjectNote,
   places,
   onReachChange,
   cockpitMarkers,
@@ -74,6 +78,11 @@ export function V2Scene({
   /** The library speaks in ids, not in nodes — the module knows nothing of the vault. */
   onSelectSourceId: (id: string) => void;
   onSelectProject: (project: Project) => void;
+  /** Das betretene Projekt, oder null fuer die Werft mit allen Liegeplaetzen. */
+  openProject: Project | null;
+  /** Die gerade gelesene Notiz, damit sie im Raum hervorsticht. */
+  openNotePath: string | null;
+  onOpenProjectNote: (note: ProjectNote) => void;
   /** The map of the universe, derived once by the screen. */
   places: Place[];
   /** What the flight is currently close enough to enter. Null most of the time. */
@@ -173,6 +182,29 @@ export function V2Scene({
     // change still never re-triggers a journey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journey.seq, vault.radius]);
+
+  /**
+   * Ein betretenes Projekt rückt die Kamera zurück, das Verlassen wieder vor.
+   *
+   * Die Werftsicht ist für sechs Säulen auf einer Plattform gemacht; das
+   * Innere eines Projekts spannt seine Bereiche über gut fünfzehn Einheiten.
+   * Ohne diesen Wechsel steht man beim Eintritt mitten zwischen den Schalen
+   * und sieht die Hälfte nicht — genau das zeigte die erste Aufnahme.
+   *
+   * Es ist ein Flug und kein Schnitt: Hier bewegt man sich wirklich, und der
+   * Weg macht klar, dass man hinein- und nicht umgeschaltet hat.
+   */
+  const openFolder = openProject?.folder ?? null;
+  useEffect(() => {
+    if (world !== "projects") return;
+    const view = openFolder ? PROJECT_INSIDE_VIEW : PROJECTS_VIEW;
+    setGoal({
+      position: view.position.clone(),
+      target: view.target.clone(),
+      duration: 1.1,
+      instant: prefs.reducedMotion,
+    });
+  }, [openFolder, world, prefs.reducedMotion]);
 
   /**
    * Leaving the universe clears the entry offer.
@@ -456,11 +488,25 @@ export function V2Scene({
           />
           </>
         ) : world === "projects" ? (
-          <ProjectsWorld
-            projects={projects}
-            selectedFolder={selectedProjectFolder}
-            onSelect={onSelectProject}
-          />
+          /**
+           * Zwei Ansichten, eine Welt: die Werft mit allen Liegeplätzen, und
+           * das Innere eines Projekts. Kein dritter Weltname, weil „Projekte"
+           * schon der richtige Name für beides ist — man ist bei den
+           * Projekten, nur mal von aussen und mal von innen.
+           */
+          openProject ? (
+            <ProjectWorld
+              project={openProject}
+              openPath={openNotePath}
+              onOpenNote={onOpenProjectNote}
+            />
+          ) : (
+            <ProjectsWorld
+              projects={projects}
+              selectedFolder={selectedProjectFolder}
+              onSelect={onSelectProject}
+            />
+          )
         ) : (
           <LibraryWorld
             items={libraryItems}

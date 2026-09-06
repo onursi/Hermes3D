@@ -5,6 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 /** Mirrors /api/vault/projects — the vault as it is on disk, nothing added. */
 export type ProjectNote = { title: string; path: string; modified: string };
 
+/** Ein Bereich im Projekt — ein echter Unterordner, kein erfundener Zustand. */
+export type ProjectArea = {
+  folder: string;
+  name: string;
+  noteCount: number;
+  lastTouched: string | null;
+  notes: ProjectNote[];
+};
+
 export type Project = {
   name: string;
   folder: string;
@@ -13,6 +22,8 @@ export type Project = {
   doneTasks: number;
   lastTouched: string | null;
   recentNotes: ProjectNote[];
+  /** Die Bereiche, aus denen die Projektwelt ihre Anordnung nimmt. */
+  areas: ProjectArea[];
 };
 
 export type ProjectsState = {

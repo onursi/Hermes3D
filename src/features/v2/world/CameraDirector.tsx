@@ -52,6 +52,20 @@ export const PROJECTS_VIEW = {
 };
 
 /**
+ * Von innen ist ein Projekt weiter als von aussen.
+ *
+ * Die Werftsicht war für sechs Säulen auf einer Plattform komponiert. Ein
+ * betretenes Projekt spannt seine Bereiche über gut fünfzehn Einheiten auf —
+ * mit derselben Sicht stand man mittendrin und sah die Hälfte nicht. Etwas
+ * höher und weiter zurück, damit die Anordnung als Ganzes lesbar ist und man
+ * trotzdem nah genug für die Namen bleibt.
+ */
+export const PROJECT_INSIDE_VIEW = {
+  position: new THREE.Vector3(0, 9.5, 21),
+  target: new THREE.Vector3(0, 0.2, 0),
+};
+
+/**
  * The library, from the reading table looking into the shelves.
  *
  * Closer than the other worlds on purpose: a library is a room you stand in,
