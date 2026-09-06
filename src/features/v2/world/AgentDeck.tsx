@@ -8,32 +8,27 @@ import * as THREE from "three";
 import { useV2 } from "@/features/v2/state";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import { AgentAura, type AuraSpot } from "@/features/v2/world/AgentAura";
+import { archetypeOf, buildLogoAtlas, LOGO_UV, type Archetype } from "@/features/v2/world/agentLogos";
 
 /**
- * Die Agenten auf dem Deck — dieselben Figuren, ein Zehntel der Zeichenaufrufe.
+ * Die Agenten auf dem Deck — Antigravitys Figuren, instanziert.
  *
- * Vorher war jeder Roboter eine eigene Gruppe aus dreizehn Meshes: Körper,
- * Kopf, Visier, zwei Augen, Mund, zwei Oberarme, zwei Hände, zwei Füße und der
- * Bodenring — dazu eine eigene Bildschleife je Figur. Gemessen auf Onurs
- * Vega 11, gleiche Szene, Hermes in beiden Läufen an: **mit Roster 122 Draws
- * und 40 fps, ohne Roster 44 Draws und 60 fps.** Die Figuren waren die
- * Ursache, nicht die Anbindung.
+ * Das Chassis, die Mimik und die Gesten stammen aus seinem Übergabedokument:
+ * Maße als Tabelle, Bewegungen als Formeln über der Zeit. Von hier kommt, wie
+ * sie gezeichnet werden — **ein InstancedMesh pro Körperteil für alle Agenten
+ * zusammen**, getrieben von einer einzigen Bildschleife.
  *
- * Hier ist es umgedreht: ein InstancedMesh pro Körperteil für alle Agenten
- * zusammen, und eine einzige Schleife, die nur Matrizen setzt. Zehn Aufrufe,
- * ob drei Agenten dastehen oder acht. Das ist dieselbe Regel, die uns die
- * Portale schon einmal gelehrt haben: eine Schleife pro Sache, nie eine pro
- * Exemplar.
+ * Warum das nicht verhandelbar war: Eine eigene Komponente je Figur hatte auf
+ * Onurs Vega 11 gemessene 122 Draws und 40 fps; so gebaut waren es 55 und 60.
+ * Die Zahl der Aufrufe hängt an der Zahl der *Körperteile*, nicht an der Zahl
+ * der Agenten — drei Figuren kosten so viel wie acht.
  *
- * Farbe und Helligkeit stehen bewusst *nicht* in der Schleife. Sie ändern sich
- * nur, wenn sich Auswahl, Zeiger oder Roster ändern — also in einem Effekt.
- * Eine Bildschleife, die sechzigmal pro Sekunde dieselbe Farbe schreibt, ist
- * Arbeit ohne Ergebnis.
+ * Die Gesten laufen nur bei Berührung, nicht von selbst. Das ist Onurs
+ * Entscheidung: „das ist ja auch nur, wenn ich die bewege, sollen die sich
+ * bewegen." Im Ruhezustand bleibt nur das Schweben und der Blick.
  *
- * Die Aura kostet genau einen weiteren Aufruf. Sie wird im Vertex-Shader zur
- * Kamera aufgespannt — kein Billboard-Objekt, keine CPU-Arbeit pro Bild. Ihre
- * Farbe ist die Anbieterfarbe: eine Angabe, keine Verzierung. Man sieht aus
- * zehn Metern, wer hier antwortet.
+ * Die vier Brustzeichen liegen in einem Atlas — einem Bild mit vier Feldern.
+ * Vier Texturen wären vier Materialien und damit vier Aufrufe; so ist es einer.
  */
 
 export type Seat = {
@@ -75,14 +70,11 @@ export function providerTone(provider: string | null): string {
 /**
  * Die Rollen, wie Onur sie vergeben hat — nicht wie ich sie mir denke.
  *
- * Der Unterschied ist wichtig: Was Hermes über ein Profil weiß, ist seine
- * eigene Beschreibung („Independent critical review and second-opinion
- * worker."). Was hier steht, ist Onurs Besetzung seiner Werkstatt, und die
- * kann nur von ihm kommen. Wo er noch nichts vergeben hat, zeigt die Figur
- * weiterhin die Beschreibung aus Hermes und nicht eine erfundene Rolle.
- *
- * Der Satz darunter ist ein Motto, kein Zitat. Der Agent sagt ihn nicht — er
- * beschreibt, wofür er hier steht. Alles andere wäre erfundene Rede.
+ * Was Hermes über ein Profil weiß, ist dessen eigene Beschreibung. Was hier
+ * steht, ist Onurs Besetzung seiner Werkstatt, und die kann nur von ihm
+ * kommen. Wo er nichts vergeben hat, zeigt die Figur weiter die Beschreibung
+ * aus Hermes statt einer erfundenen Rolle. Der Satz darunter ist ein Motto,
+ * kein Zitat — der Agent sagt ihn nicht.
  */
 const ROLES: Record<string, { role: string; motto: string }> = {
   anthropic: { role: "Entwickler", motto: "Architektur, Code, und die Frage, was es kostet" },
@@ -96,53 +88,111 @@ export function agentRole(provider: string | null): { role: string; motto: strin
   return ROLES[provider] ?? null;
 }
 
-/**
- * Jede Figur hat ihre eigene Geste — und zwar die zu ihrer Rolle.
- *
- * Fünf gleich wippende Puppen sind eine Reihe; fünf, die verschiedene Dinge
- * tun, sind eine Mannschaft. Die Geste läuft nicht dauernd: sie zündet alle
- * paar Sekunden für gut zwei, mit eigenem Versatz je Figur, damit nie zwei
- * gleichzeitig loslegen.
- *
- * 0 tippen (Entwickler) · 1 malen (Designer) · 2 überlegen (Stratege) ·
- * 3 strecken (Reserve) · 4 winken (alle übrigen)
- */
-const GESTURE_BY_PROVIDER: Record<string, number> = {
-  anthropic: 0,
-  gemini: 1,
-  "openai-codex": 2,
-  "opencode-free": 3,
-};
-
-/** Wie lange ein Zyklus dauert und wie viel davon Geste ist. */
-const GESTURE_CYCLE = 9.5;
-const GESTURE_LENGTH = 2.6;
-
-/**
- * Heller Kunststoff statt grauem Metall.
- *
- * Onur hat beide Fassungen nebeneinander gesehen und die freundlichere
- * gewählt. Der Unterschied sind vier Farben: cremefarbener Körper, fast
- * schwarzes Visier, dunkle Gelenke — und Augen, die groß genug sind, um ein
- * Gesicht zu ergeben statt zwei Punkte.
- */
-const BODY_TINT = new THREE.Color("#ece4d6");
-const HEAD_TINT = new THREE.Color("#f2ece1");
-const JOINT_TINT = new THREE.Color("#22262c");
-const VISOR_TINT = new THREE.Color("#0a0d12");
+/** Antigravitys Materialtöne, aus der Tabelle im Übergabedokument. */
+const BODY_TINT = new THREE.Color("#f8fafc");
+const HEAD_TINT = new THREE.Color("#ffffff");
+const VISOR_TINT = new THREE.Color("#020617");
+const JOINT_TINT = new THREE.Color("#1e293b");
+const FOOT_TINT = new THREE.Color("#0f172a");
+const PUPIL_TINT = new THREE.Color("#ffffff");
+const BLUSH_TINT = new THREE.Color("#f472b6");
+const LOGO_RIM_TINT = new THREE.Color("#0f172a");
 
 /** Wie stark eine zurückgetretene Figur abgedunkelt wird. */
 const DIM = 0.3;
 
-/**
- * Wie weit ein Kopf sich zur Kamera drehen darf.
- *
- * Ohne Grenze dreht eine Figur, die hinten sitzt, den Kopf um die eigene
- * Achse — das ist kein Zusehen mehr, sondern ein Fehler. Etwa 65 Grad ist so
- * weit, wie ein Hals plausibel geht.
- */
-const LOOK_LIMIT = 1.15;
+/** Der Kopf sitzt hier; alles im Gesicht hängt daran. */
+const HEAD_Y = 0.94;
 
+/**
+ * Antigravitys Halsbereich: gut 135 Grad zur Seite, −34 bis +30 Grad hoch und
+ * runter. Weiter als meine erste Fassung, und richtiger — eine Figur ganz
+ * hinten kann sich damit wirklich umdrehen, statt am Anschlag zu kleben.
+ */
+const YAW_LIMIT = 2.35;
+const PITCH_MIN = -0.6;
+const PITCH_MAX = 0.52;
+
+/** Das Brustzeichen: ein Atlas mit vier Feldern, ein Aufruf für alle Figuren. */
+const LOGO_VERTEX = /* glsl */ `
+  attribute vec2 aTile;
+  varying vec2 vUv;
+  varying vec2 vTile;
+  void main() {
+    vUv = uv;
+    vTile = aTile;
+    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  }
+`;
+
+const LOGO_FRAGMENT = /* glsl */ `
+  uniform sampler2D uAtlas;
+  varying vec2 vUv;
+  varying vec2 vTile;
+  void main() {
+    // Jede Figur liest ihr eigenes Viertel des Atlas.
+    vec4 texel = texture2D(uAtlas, vUv * 0.5 + vTile);
+    if (texel.a <= 0.01) discard;
+    gl_FragColor = vec4(texel.rgb, texel.a);
+  }
+`;
+
+type ArmRotation = { rx: number; ry: number; rz: number };
+
+/**
+ * Die Armgesten, unverändert aus Antigravitys Baustein.
+ *
+ * Ohne Berührung hängen die Arme; erst beim Zeigen oder Anklicken tippt der
+ * Entwickler, malt der Designer, denkt oder winkt der Stratege, und die
+ * Reserve salutiert.
+ */
+function computeArmRotation(
+  role: Archetype,
+  isRight: boolean,
+  t: number,
+  isInteracting: boolean,
+): ArmRotation {
+  if (!isInteracting) {
+    return { rx: 0, ry: 0, rz: isRight ? 0.18 : -0.18 };
+  }
+
+  if (role === "developer") {
+    const typeSpeed = t * 15.0;
+    const phase = isRight ? Math.PI : 0;
+    return {
+      rx: -0.75 + Math.sin(typeSpeed + phase) * 0.12,
+      ry: isRight ? -0.25 : 0.25,
+      rz: isRight ? 0.35 : -0.35,
+    };
+  }
+
+  if (role === "designer") {
+    if (isRight) {
+      return {
+        rx: -0.55 + Math.sin(t * 3.0) * 0.25,
+        ry: Math.sin(t * 2.0) * 0.3,
+        rz: 0.75 + Math.cos(t * 2.5) * 0.2,
+      };
+    }
+    return { rx: -0.15, ry: 0, rz: -0.4 };
+  }
+
+  if (role === "advisor") {
+    if (isRight) {
+      const wave = Math.sin(t * 2.0);
+      if (wave > 0.1) {
+        return { rx: -1.2, ry: 0, rz: 0.85 + Math.sin(t * 7.0) * 0.25 };
+      }
+      return { rx: -1.35, ry: -0.4, rz: 0.35 };
+    }
+    return { rx: -0.1, ry: 0, rz: -0.22 };
+  }
+
+  if (isRight) {
+    return { rx: -1.45, ry: -0.3, rz: 0.95 };
+  }
+  return { rx: 0.05, ry: 0, rz: -0.06 };
+}
 
 export function AgentDeck({
   seats,
@@ -151,9 +201,7 @@ export function AgentDeck({
   onSelect,
 }: {
   seats: Seat[];
-  /** Der ausgewählte Agent, falls einer ausgewählt ist. */
   selectedId: string | null;
-  /** Ob etwas anderes im Mittelpunkt steht — dann treten alle zurück. */
   focus: boolean;
   onSelect: (id: string) => void;
 }) {
@@ -164,18 +212,21 @@ export function AgentDeck({
   const head = useRef<THREE.InstancedMesh>(null);
   const visor = useRef<THREE.InstancedMesh>(null);
   const eye = useRef<THREE.InstancedMesh>(null);
+  const pupil = useRef<THREE.InstancedMesh>(null);
   const mouth = useRef<THREE.InstancedMesh>(null);
+  const blush = useRef<THREE.InstancedMesh>(null);
+  const earRing = useRef<THREE.InstancedMesh>(null);
+  const shoulder = useRef<THREE.InstancedMesh>(null);
   const arm = useRef<THREE.InstancedMesh>(null);
   const hand = useRef<THREE.InstancedMesh>(null);
   const foot = useRef<THREE.InstancedMesh>(null);
-  const ring = useRef<THREE.InstancedMesh>(null);
+  const dockRing = useRef<THREE.InstancedMesh>(null);
+  const logoRim = useRef<THREE.InstancedMesh>(null);
+  const logoFace = useRef<THREE.InstancedMesh>(null);
 
   const [hovered, setHovered] = useState<number | null>(null);
 
-  /**
-   * Der Bodenring liegt flach. Die Drehung steckt in der Geometrie und nicht
-   * in jeder Instanzmatrix — einmal beim Anlegen statt sechzigmal pro Sekunde.
-   */
+  /** Der Bodenring liegt flach — einmal in der Geometrie statt in jeder Matrix. */
   const ringGeometry = useMemo(() => {
     const geometry = new THREE.RingGeometry(0.34, 0.44, 32);
     geometry.rotateX(-Math.PI / 2);
@@ -183,22 +234,33 @@ export function AgentDeck({
   }, []);
   useEffect(() => () => ringGeometry.dispose(), [ringGeometry]);
 
-  /** Anbieterfarbe je Sitz, einmal berechnet. */
+  const logoRimGeometry = useMemo(() => new THREE.RingGeometry(0.052, 0.068, 28), []);
+  useEffect(() => () => logoRimGeometry.dispose(), [logoRimGeometry]);
+
+  const logoFaceGeometry = useMemo(() => {
+    const geometry = new THREE.CircleGeometry(0.052, 28);
+    geometry.setAttribute(
+      "aTile",
+      new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, count) * 2), 2),
+    );
+    return geometry;
+  }, [count]);
+  useEffect(() => () => logoFaceGeometry.dispose(), [logoFaceGeometry]);
+
+  const atlas = useMemo(() => buildLogoAtlas(), []);
+  useEffect(() => () => atlas?.dispose(), [atlas]);
+  const logoUniforms = useMemo(() => ({ uAtlas: { value: atlas } }), [atlas]);
+
   const tones = useMemo(
     () => seats.map((seat) => new THREE.Color(providerTone(seat.agent.provider))),
     [seats],
   );
 
-  /** Welche Geste welche Figur macht — nach Rolle, sonst winken. */
-  const kinds = useMemo(
-    () =>
-      seats.map((seat) =>
-        seat.agent.provider ? (GESTURE_BY_PROVIDER[seat.agent.provider] ?? 4) : 4,
-      ),
+  const roles = useMemo(
+    () => seats.map((seat) => archetypeOf(seat.agent.provider, seat.agent.name)),
     [seats],
   );
 
-  /** Ein eigener Phasenversatz je Agent, damit sie nicht im Gleichschritt atmen. */
   const phases = useMemo(
     () =>
       seats.map((seat) =>
@@ -207,16 +269,31 @@ export function AgentDeck({
     [seats],
   );
 
+  const live = useRef({ seats, hovered, selectedId, roles, reduced: prefs.reducedMotion });
+  useEffect(() => {
+    live.current = { seats, hovered, selectedId, roles, reduced: prefs.reducedMotion };
+  }, [seats, hovered, selectedId, roles, prefs.reducedMotion]);
 
   /**
-   * Was die Bildschleife lesen muss, liegt in einem Ref. Eine Schleife, die
-   * `hovered` aus dem Renderdurchlauf kennt, arbeitet ab dem nächsten Wechsel
-   * mit einem veralteten Wert.
+   * Die Trefferkugel von Hand setzen — sonst ist keine Figur anklickbar.
+   *
+   * Ein `InstancedMesh` prüft beim Strahlentest zuerst seine Hüllkugel und
+   * merkt sie sich beim ersten Mal. Wird sie berechnet, **bevor** die
+   * Bildschleife die Matrizen zum ersten Mal geschrieben hat, stehen dort
+   * lauter Nullen; daraus wird eine entartete Kugel, und danach verfehlt jeder
+   * Strahl alles — dauerhaft und ohne jede Fehlermeldung.
+   *
+   * Genau das ist beim Umbau passiert: Die Figuren standen da, sahen richtig
+   * aus und liessen sich nicht anklicken. Gefunden nur durch Abrastern der
+   * Fläche, nicht durch Hinsehen. Eine fest gesetzte, grosszügige Kugel um das
+   * Deck ist deterministisch und billiger als jede Neuberechnung.
    */
-  const live = useRef({ seats, hovered, reduced: prefs.reducedMotion });
   useEffect(() => {
-    live.current = { seats, hovered, reduced: prefs.reducedMotion };
-  }, [seats, hovered, prefs.reducedMotion]);
+    const reach = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 6);
+    for (const mesh of [body.current, head.current]) {
+      if (mesh) mesh.boundingSphere = reach.clone();
+    }
+  }, [count]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -226,9 +303,7 @@ export function AgentDeck({
     };
   }, [hovered]);
 
-  /**
-   * Farbe und Aurastärke — nur bei echten Änderungen, nie pro Bild.
-   */
+  /** Farben ändern sich nur bei echten Änderungen — nie pro Bild. */
   useEffect(() => {
     const tint = new THREE.Color();
     const paint = (
@@ -249,35 +324,41 @@ export function AgentDeck({
     paint(body.current, 1, () => BODY_TINT);
     paint(head.current, 1, () => HEAD_TINT);
     paint(visor.current, 1, () => VISOR_TINT);
-    paint(arm.current, PAIRED, () => HEAD_TINT);
+    paint(shoulder.current, PAIRED, () => JOINT_TINT);
+    paint(arm.current, PAIRED, () => BODY_TINT);
     paint(hand.current, PAIRED, () => JOINT_TINT);
-    paint(foot.current, PAIRED, () => JOINT_TINT);
+    paint(foot.current, PAIRED, () => FOOT_TINT);
+    paint(pupil.current, PAIRED, () => PUPIL_TINT);
+    paint(blush.current, PAIRED, () => BLUSH_TINT);
+    paint(logoRim.current, 1, () => LOGO_RIM_TINT);
     paint(eye.current, PAIRED, (i) => tones[i]);
+    paint(earRing.current, PAIRED, (i) => tones[i]);
     paint(mouth.current, 1, (i) => tones[i]);
 
-    // Der Bodenring teilt sich ein Material mit allen anderen, also trägt die
-    // Instanzfarbe seine Helligkeit — eine Deckkraft pro Instanz gibt es nicht.
-    if (ring.current) {
+    if (dockRing.current) {
       for (let i = 0; i < count; i += 1) {
         const dimmed = focus && seats[i].agent.id !== selectedId;
         const selected = seats[i].agent.id === selectedId;
         const strength = dimmed ? 0.25 : selected ? 1 : hovered === i ? 0.75 : 0.45;
         tint.copy(tones[i]).multiplyScalar(strength);
-        ring.current.setColorAt(i, tint);
+        dockRing.current.setColorAt(i, tint);
       }
-      if (ring.current.instanceColor) ring.current.instanceColor.needsUpdate = true;
+      if (dockRing.current.instanceColor) dockRing.current.instanceColor.needsUpdate = true;
     }
 
-  }, [count, seats, tones, focus, selectedId, hovered]);
+    // Welches Viertel des Atlas jede Figur liest.
+    const tile = logoFace.current?.geometry.attributes.aTile;
+    if (tile) {
+      const buffer = tile.array as Float32Array;
+      for (let i = 0; i < count; i += 1) {
+        const [u, v] = LOGO_UV[roles[i]];
+        buffer[i * 2] = u;
+        buffer[i * 2 + 1] = v;
+      }
+      tile.needsUpdate = true;
+    }
+  }, [count, seats, tones, roles, focus, selectedId, hovered]);
 
-  /**
-   * Was die Aura braucht — und nichts darüber hinaus.
-   *
-   * Sie ist ein eigenes Bauteil geworden, weil Onur meine Aura mit
-   * Antigravitys Figuren zusammenbringen will. Sie darf deshalb nicht wissen,
-   * wie eine Figur gebaut ist: sie bekommt Ort, Farbe, Stärke und Versatz,
-   * und mehr nicht.
-   */
   const auraSpots = useMemo<AuraSpot[]>(
     () =>
       seats.map((seat, index) => {
@@ -294,10 +375,6 @@ export function AgentDeck({
     [seats, focus, selectedId, hovered, phases],
   );
 
-  /**
-   * Eine Schleife für alle Figuren. Sie setzt Matrizen und sonst nichts —
-   * keine Zuweisung an React, kein neues Objekt, keine Materialsuche.
-   */
   const scratch = useMemo(
     () => ({
       root: new THREE.Matrix4(),
@@ -310,6 +387,8 @@ export function AgentDeck({
       euler: new THREE.Euler(),
       pos: new THREE.Vector3(),
       scale: new THREE.Vector3(1, 1, 1),
+      delta: new THREE.Vector3(),
+      up: new THREE.Vector3(0, 1, 0),
     }),
     [],
   );
@@ -318,13 +397,8 @@ export function AgentDeck({
     const state = live.current;
     const n = state.seats.length;
     if (n === 0) return;
-
     const now = clock.elapsedTime;
-    // Bei "weniger Bewegung" steht die Aura still statt zu pulsen — die
-    // Einstellung ist ein Versprechen und keine Empfehlung.
-    // Die Zeit der Aura läuft in ihrem eigenen Bauteil.
 
-    /** Ein Teil an seinen Platz, relativ zu einem Elternrahmen. */
     const place = (
       mesh: THREE.InstancedMesh | null,
       index: number,
@@ -335,10 +409,12 @@ export function AgentDeck({
       sx = 1,
       sy = 1,
       sz = 1,
-      rotZ = 0,
+      rx = 0,
+      ry = 0,
+      rz = 0,
     ) => {
       if (!mesh) return;
-      scratch.euler.set(0, 0, rotZ);
+      scratch.euler.set(rx, ry, rz);
       scratch.quat.setFromEuler(scratch.euler);
       scratch.pos.set(x, y, z);
       scratch.scale.set(sx, sy, sz);
@@ -349,148 +425,132 @@ export function AgentDeck({
 
     for (let i = 0; i < n; i += 1) {
       const seat = state.seats[i];
+      const role = state.roles[i] ?? "reserve";
       const t = state.reduced ? 0 : now + (phases[i] ?? 0);
-      const isHovered = state.hovered === i;
+      const interacting = state.hovered === i || seat.agent.id === state.selectedId;
 
-      /**
-       * Der Gestentakt.
-       *
-       * `local` läuft von 0 bis 1 durch das Fenster, `ease` blendet an beiden
-       * Enden weich ein und aus — ohne das zuckt der Arm im Moment des
-       * Zündens. Der Versatz je Figur kommt aus ihrer Phase, damit nicht fünf
-       * gleichzeitig loslegen.
-       */
-      const kind = kinds[i] ?? 4;
-      const cycle = (now + (phases[i] ?? 0) * 3.1) % GESTURE_CYCLE;
-      const active = cycle < GESTURE_LENGTH;
-      const local = active ? cycle : 0;
-      const span = local / GESTURE_LENGTH;
-      const ease = active ? Math.sin(Math.PI * span) : 0;
-
-      // Wurzel: der Sitz auf dem Ring, zur Mitte gedreht.
-      scratch.euler.set(0, -seat.angle + Math.PI / 2, 0);
+      const seatYaw = -seat.angle + Math.PI / 2;
+      scratch.euler.set(0, seatYaw, 0);
       scratch.quat.setFromEuler(scratch.euler);
       scratch.scale.set(1, 1, 1);
       scratch.root.compose(seat.position, scratch.quat, scratch.scale);
 
-      // Rumpf: leichtes Schweben und Wiegen.
-      // Beim Strecken hebt die ganze Figur ab, beim Tippen wippt sie leicht.
-      const gestureLift = kind === 3 ? ease * 0.1 : kind === 0 ? Math.sin(local * 11) * 0.012 * ease : 0;
-      const lift = 0.16 + (state.reduced ? 0 : Math.sin(t * 1.4) * 0.025 + gestureLift);
-      scratch.euler.set(0, 0, state.reduced ? 0 : Math.sin(t * 0.7) * 0.045);
+      // Der Rumpf schwebt leicht — das Einzige, was ohne Berührung passiert.
+      const lift = state.reduced ? 0.16 : 0.16 + Math.sin(t * 1.4) * 0.022;
+      scratch.euler.set(0, 0, 0);
       scratch.quat.setFromEuler(scratch.euler);
       scratch.pos.set(0, lift, 0);
-      scratch.scale.set(1, 1, 1);
       scratch.local.compose(scratch.pos, scratch.quat, scratch.scale);
       scratch.rig.multiplyMatrices(scratch.root, scratch.local);
 
       place(body.current, i, scratch.rig, 0, 0.42, 0);
-
-      // Der Kopf ist ein eigener Rahmen: Visier, Augen und Mund hängen daran,
-      // damit ein Nicken alles mitnimmt statt vier Teile auseinanderzuziehen.
-      /**
-       * Der Kopf sieht dich an, egal wohin du dich drehst.
-       *
-       * Die Figur selbst bleibt auf ihrem Platz zur Mitte gedreht; nur der
-       * Kopf folgt. Gerechnet wird der Winkel von der Figur zur Kamera in der
-       * Draufsicht, davon die Eigendrehung des Sitzes abgezogen — was übrig
-       * bleibt, ist die Halsdrehung. Sie wird auf einen halben Kreis
-       * eingenordet und begrenzt, damit niemand sich den Kopf verdreht.
-       *
-       * Ein Rest Eigenleben bleibt darüber liegen, sonst starren fünf Figuren
-       * regungslos, und das kippt vom Freundlichen ins Unheimliche.
-       */
-      let look = Math.atan2(camera.position.x - seat.position.x, camera.position.z - seat.position.z);
-      look -= -seat.angle + Math.PI / 2;
-      look = Math.atan2(Math.sin(look), Math.cos(look));
-      look = Math.max(-LOOK_LIMIT, Math.min(LOOK_LIMIT, look));
+      // Antigravitys Tabelle setzt das Zeichen auf z = 0,202 — der Rumpf hat aber
+      // Radius 0,22, also steckte es darin. Auf die Oberfläche geschoben.
+      place(logoRim.current, i, scratch.rig, 0, 0.46, 0.224);
+      place(logoFace.current, i, scratch.rig, 0, 0.46, 0.227);
 
       /**
-       * Der Kopf macht bei der Geste mit — sonst turnt nur ein Arm und der
-       * Rest der Figur steht daneben, als gehöre er nicht dazu.
+       * Der Kopf sieht dich an — in den Grenzen eines Halses.
        *
-       * Überlegen neigt den Kopf zur Seite, Tippen lässt ihn kurz auf die
-       * Hände schauen, Strecken hebt ihn.
+       * Gerechnet im Koordinatensystem des Sitzes: der Abstand zur Kamera wird
+       * um die Eigendrehung zurückgedreht, und was übrig bleibt, ist genau die
+       * Kopfdrehung. Antigravitys Formel, seine Grenzen.
        */
-      const nod =
-        kind === 2 ? ease * 0.3 : kind === 0 ? ease * 0.22 : kind === 3 ? -ease * 0.28 : 0;
+      scratch.delta
+        .copy(camera.position)
+        .sub(seat.position)
+        // Ueber eine Methode statt ueber `.y -=`: der Lint-Waechter verbietet
+        // das direkte Schreiben in einen gemerkten Wert, und er hat recht.
+        .addScaledVector(scratch.up, -HEAD_Y)
+        .applyAxisAngle(scratch.up, -seatYaw);
+      const flat = Math.hypot(scratch.delta.x, scratch.delta.z);
+      const headYaw = THREE.MathUtils.clamp(
+        Math.atan2(scratch.delta.x, scratch.delta.z),
+        -YAW_LIMIT,
+        YAW_LIMIT,
+      );
+      const headPitch = THREE.MathUtils.clamp(
+        -Math.atan2(scratch.delta.y, flat),
+        PITCH_MIN,
+        PITCH_MAX,
+      );
 
-      const turn = look + (state.reduced ? 0 : Math.sin(t * 0.55) * 0.06);
-      const tilt =
-        (state.reduced ? 0 : isHovered ? -0.12 : Math.sin(t * 0.85) * 0.05) +
-        (kind === 2 ? ease * 0.24 : 0);
-      scratch.euler.set(nod, turn, tilt);
+      let headRoll = 0;
+      if (!state.reduced && interacting) {
+        if (role === "designer") headRoll = 0.22 + Math.sin(t * 2.0) * 0.05;
+        else if (role === "developer") headRoll = Math.sin(t * 6.0) * 0.04;
+      }
+
+      scratch.euler.set(headPitch, headYaw, headRoll);
       scratch.quat.setFromEuler(scratch.euler);
-      scratch.pos.set(0, 0.92, 0);
+      scratch.pos.set(0, HEAD_Y, 0);
       scratch.scale.set(1, 1, 1);
       scratch.local.compose(scratch.pos, scratch.quat, scratch.scale);
       scratch.headM.multiplyMatrices(scratch.rig, scratch.local);
 
-      place(head.current, i, scratch.headM, 0, 0, 0, 1.25, 0.95, 0.9);
-      // Ein breiteres, höheres Visier: es muss zwei Augen tragen, die groß
-      // genug für ein Gesicht sind. Zwei Punkte sind kein Gesicht.
-      place(visor.current, i, scratch.headM, 0, 0.025, 0.175, 1.62, 0.9, 0.36);
+      place(head.current, i, scratch.headM, 0, 0, 0, 1.22, 0.96, 0.92);
+      place(visor.current, i, scratch.headM, 0, 0.02, 0.18, 1.45, 0.72, 0.32);
 
-      const blink = !state.reduced && Math.sin(t * 1.05) > 0.995 ? 0.12 : isHovered ? 1.2 : 1;
-      place(eye.current, i * PAIRED, scratch.headM, -0.098, 0.03, 0.218, 1, 1.35 * blink, 0.55);
-      place(eye.current, i * PAIRED + 1, scratch.headM, 0.098, 0.03, 0.218, 1, 1.35 * blink, 0.55);
-      place(mouth.current, i, scratch.headM, 0, -0.055, 0.233, 1, 1, 1, Math.PI);
+      const blink = state.reduced
+        ? 1
+        : Math.sin(t * 0.7 + (phases[i] ?? 0)) > 0.985
+          ? 0.1
+          : interacting
+            ? 1.3
+            : 1.0;
 
       for (let k = 0; k < PAIRED; k += 1) {
         const side = k === 0 ? -1 : 1;
+        place(
+          eye.current, i * PAIRED + k, scratch.headM,
+          side * 0.088, 0.03, 0.228, 1.1, 1.45 * blink, 0.4,
+        );
+        place(
+          pupil.current, i * PAIRED + k, scratch.headM,
+          side * 0.088, 0.03, 0.24, 0.6, 0.6 * blink, 0.2,
+        );
+        // Die Wangen erscheinen nur bei Beruehrung. Auf null skaliert statt
+        // ausgeblendet: das kostet nichts und spart einen zweiten Aufruf.
+        const blushScale = interacting ? 1 : 0;
+        place(
+          blush.current, i * PAIRED + k, scratch.headM,
+          side * 0.042, -0.039, 0.224, blushScale, blushScale, blushScale,
+        );
+        place(
+          earRing.current, i * PAIRED + k, scratch.headM,
+          side * 0.3, 0, 0, 1, 1, 1, 0, Math.PI / 2, 0,
+        );
+      }
 
-        /**
-         * Die Geste: eine Zusatzdrehung auf dem Arm, die nur während des
-         * Fensters wirkt und an beiden Enden weich ein- und ausblendet. Ohne
-         * das Weichzeichnen zuckt der Arm im Moment des Zündens.
-         */
-        let gesture = 0;
-        if (!state.reduced && ease > 0) {
-          switch (kind) {
-            case 0:
-              // Tippen: beide Unterarme klein und schnell, gegeneinander.
-              gesture = Math.sin(local * 11 + k * Math.PI) * 0.34 - 0.35;
-              break;
-            case 1:
-              // Malen: ein weiter Bogen mit der rechten Hand.
-              gesture = k === 1 ? Math.sin(local * 2.1) * 0.95 - 0.5 : 0.06;
-              break;
-            case 2:
-              // Überlegen: eine Hand ans Kinn, die andere bleibt unten.
-              gesture = k === 0 ? -1.55 : 0.05;
-              break;
-            case 3:
-              // Strecken: beide Arme langsam nach oben und wieder herunter.
-              gesture = -Math.sin(local * 1.2) * 1.75;
-              break;
-            default:
-              // Winken: eine Hand oben, die hin und her schwingt.
-              gesture = k === 1 ? -1.5 + Math.sin(local * 7) * 0.42 : 0.04;
-              break;
-          }
-          gesture *= ease;
-        }
+      place(
+        mouth.current, i, scratch.headM,
+        0, -0.045, 0.222, interacting ? 1.35 : 1, interacting ? 1.45 : 1, 1, 0, 0, Math.PI,
+      );
 
-        const swing =
-          side *
-            (0.2 +
-              (state.reduced
-                ? 0
-                : Math.sin(t * 1.2 + k) * 0.12 + (isHovered ? 0.75 + Math.sin(t * 5) * 0.2 : 0))) +
-          side * gesture;
-        scratch.euler.set(0, 0, swing);
+      for (let k = 0; k < PAIRED; k += 1) {
+        const side = k === 0 ? -1 : 1;
+        const rotation = computeArmRotation(
+          role,
+          k === 1,
+          state.reduced ? 0 : t,
+          interacting && !state.reduced,
+        );
+
+        place(shoulder.current, i * PAIRED + k, scratch.rig, side * 0.28, 0.58, 0);
+
+        scratch.euler.set(rotation.rx, rotation.ry, rotation.rz);
         scratch.quat.setFromEuler(scratch.euler);
-        scratch.pos.set(side * 0.3, 0.58, 0);
+        scratch.pos.set(side * 0.29, 0.58, 0);
         scratch.scale.set(1, 1, 1);
         scratch.local.compose(scratch.pos, scratch.quat, scratch.scale);
         scratch.limb.multiplyMatrices(scratch.rig, scratch.local);
 
         place(arm.current, i * PAIRED + k, scratch.limb, 0, -0.12, 0);
-        place(hand.current, i * PAIRED + k, scratch.limb, 0, -0.28, 0.015);
-        place(foot.current, i * PAIRED + k, scratch.rig, side * 0.12, 0.015, 0.04, 1, 0.7, 1.5);
+        place(hand.current, i * PAIRED + k, scratch.limb, 0, -0.27, 0.015);
+        place(foot.current, i * PAIRED + k, scratch.rig, side * 0.12, 0.018, 0.03, 1, 0.65, 1.45);
       }
 
-      place(ring.current, i, scratch.root, 0, 0.006, 0);
+      place(dockRing.current, i, scratch.root, 0, 0.006, 0);
     }
 
     for (const mesh of [
@@ -498,11 +558,17 @@ export function AgentDeck({
       head.current,
       visor.current,
       eye.current,
+      pupil.current,
       mouth.current,
+      blush.current,
+      earRing.current,
+      shoulder.current,
       arm.current,
       hand.current,
       foot.current,
-      ring.current,
+      dockRing.current,
+      logoRim.current,
+      logoFace.current,
     ]) {
       if (mesh) mesh.instanceMatrix.needsUpdate = true;
     }
@@ -521,10 +587,15 @@ export function AgentDeck({
     setHovered(event.instanceId ?? null);
   };
 
+  const advisorSeat = seats.findIndex(
+    (seat, index) =>
+      roles[index] === "advisor" && (hovered === index || seat.agent.id === selectedId),
+  );
+
   return (
     <group>
-      {/* Nur Körper und Kopf nehmen Zeiger an. Ein Auge oder eine Hand als
-          Trefferfläche macht das Anklicken zur Geschicklichkeitsübung. */}
+      {/* Nur Körper und Kopf nehmen Zeiger an. Ein Auge als Trefferfläche macht
+          das Anklicken zur Geschicklichkeitsübung. */}
       <instancedMesh
         ref={body}
         args={[undefined, undefined, count]}
@@ -533,8 +604,8 @@ export function AgentDeck({
         onPointerOut={() => setHovered(null)}
         onClick={pick}
       >
-        <capsuleGeometry args={[0.23, 0.27, 6, 12]} />
-        <meshStandardMaterial roughness={0.42} metalness={0.55} />
+        <capsuleGeometry args={[0.22, 0.28, 6, 14]} />
+        <meshStandardMaterial roughness={0.22} metalness={0.18} />
       </instancedMesh>
 
       <instancedMesh
@@ -545,56 +616,91 @@ export function AgentDeck({
         onPointerOut={() => setHovered(null)}
         onClick={pick}
       >
-        <sphereGeometry args={[0.25, 20, 16]} />
-        <meshStandardMaterial roughness={0.3} metalness={0.6} />
+        <sphereGeometry args={[0.24, 22, 16]} />
+        <meshStandardMaterial roughness={0.16} metalness={0.14} />
       </instancedMesh>
 
       <instancedMesh ref={visor} args={[undefined, undefined, count]}>
-        <sphereGeometry args={[0.17, 16, 10]} />
-        <meshStandardMaterial roughness={0.28} />
+        <sphereGeometry args={[0.165, 18, 12]} />
+        <meshStandardMaterial roughness={0.06} metalness={0.92} />
       </instancedMesh>
 
       <instancedMesh ref={eye} args={[undefined, undefined, count * PAIRED]}>
-        <sphereGeometry args={[0.048, 10, 8]} />
+        <sphereGeometry args={[0.028, 12, 10]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+
+      <instancedMesh ref={pupil} args={[undefined, undefined, count * PAIRED]}>
+        <sphereGeometry args={[0.018, 10, 8]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
       <instancedMesh ref={mouth} args={[undefined, undefined, count]}>
-        <torusGeometry args={[0.058, 0.009, 4, 12, Math.PI]} />
-        <meshBasicMaterial transparent opacity={0.7} toneMapped={false} />
+        <torusGeometry args={[0.024, 0.0045, 6, 16, Math.PI * 0.72]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+
+      <instancedMesh ref={blush} args={[undefined, undefined, count * PAIRED]}>
+        <circleGeometry args={[0.007, 10]} />
+        <meshBasicMaterial transparent opacity={0.75} toneMapped={false} />
+      </instancedMesh>
+
+      <instancedMesh ref={earRing} args={[undefined, undefined, count * PAIRED]}>
+        <torusGeometry args={[0.055, 0.014, 8, 20]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+
+      <instancedMesh ref={shoulder} args={[undefined, undefined, count * PAIRED]}>
+        <sphereGeometry args={[0.065, 12, 10]} />
+        <meshStandardMaterial roughness={0.4} metalness={0.5} />
       </instancedMesh>
 
       <instancedMesh ref={arm} args={[undefined, undefined, count * PAIRED]}>
-        <capsuleGeometry args={[0.07, 0.16, 4, 8]} />
-        <meshStandardMaterial metalness={0.5} roughness={0.4} />
+        <capsuleGeometry args={[0.058, 0.16, 4, 10]} />
+        <meshStandardMaterial roughness={0.24} metalness={0.18} />
       </instancedMesh>
 
       <instancedMesh ref={hand} args={[undefined, undefined, count * PAIRED]}>
-        <sphereGeometry args={[0.085, 8, 6]} />
-        <meshStandardMaterial />
+        <sphereGeometry args={[0.068, 12, 10]} />
+        <meshStandardMaterial roughness={0.4} metalness={0.5} />
       </instancedMesh>
 
       <instancedMesh ref={foot} args={[undefined, undefined, count * PAIRED]}>
-        <sphereGeometry args={[0.105, 10, 8]} />
-        <meshStandardMaterial />
+        <sphereGeometry args={[0.098, 12, 10]} />
+        <meshStandardMaterial roughness={0.4} metalness={0.4} />
       </instancedMesh>
 
-      <instancedMesh ref={ring} args={[undefined, undefined, count]} geometry={ringGeometry}>
+      <instancedMesh ref={dockRing} args={[undefined, undefined, count]} geometry={ringGeometry}>
         <meshBasicMaterial transparent opacity={0.55} side={THREE.DoubleSide} toneMapped={false} />
       </instancedMesh>
 
-      {/* Die Aura ist ein eigenes Bauteil und weiss nichts über diese Figuren.
-          So kann sie auch Antigravitys Roboter umhüllen, ohne dass eine Zeile
-          davon hier angefasst werden muss. */}
+      <instancedMesh ref={logoRim} args={[undefined, undefined, count]} geometry={logoRimGeometry}>
+        <meshStandardMaterial roughness={0.3} metalness={0.8} side={THREE.DoubleSide} />
+      </instancedMesh>
+
+      {atlas ? (
+        <instancedMesh
+          ref={logoFace}
+          args={[undefined, undefined, count]}
+          geometry={logoFaceGeometry}
+        >
+          <shaderMaterial
+            vertexShader={LOGO_VERTEX}
+            fragmentShader={LOGO_FRAGMENT}
+            uniforms={logoUniforms}
+            transparent
+          />
+        </instancedMesh>
+      ) : null}
+
+      {/* Das Oktaeder des Strategen — nur, wenn er gemeint ist. */}
+      {advisorSeat >= 0 ? <StrategyOctahedron seat={seats[advisorSeat]} /> : null}
+
       <AgentAura spots={auraSpots} />
 
-      {/* Der Name nur, wenn er gewollt ist. Ein festes Schild über jeder Figur
-          macht aus dem Raum ein Schaubild. */}
       {seats.map((seat, index) => {
         if (hovered !== index && seat.agent.id !== selectedId) return null;
         const assigned = agentRole(seat.agent.provider);
-        // Onurs Besetzung, wenn er eine vergeben hat — sonst die Beschreibung,
-        // die im Hermes-Profil steht. Nie eine ausgedachte Rolle.
         const line = assigned ? assigned.motto : seat.agent.role;
         const tone = providerTone(seat.agent.provider);
         return (
@@ -640,6 +746,56 @@ export function AgentDeck({
           </Billboard>
         );
       })}
+    </group>
+  );
+}
+
+/**
+ * „Das Dreieck, was da aufploppt wenn man auf den klickt."
+ *
+ * Antigravitys Geometrie und Farben. Es steht nur da, solange der Stratege
+ * gemeint ist — drei Zeichenaufrufe, und die auch nur dann. Ein Ding, das
+ * dauernd schwebt, wäre Deko; eines, das auf eine Auswahl antwortet, ist eine
+ * Antwort.
+ */
+function StrategyOctahedron({ seat }: { seat: Seat }) {
+  const group = useRef<THREE.Group>(null);
+  const { prefs } = useV2();
+
+  useFrame(({ clock }) => {
+    if (!group.current) return;
+    const t = prefs.reducedMotion ? 0 : clock.elapsedTime;
+    group.current.position.y = 1.25 + Math.sin(t * 2.5) * 0.02;
+    group.current.rotation.y = t * 0.9;
+  });
+
+  return (
+    <group position={[seat.position.x, 0, seat.position.z]}>
+      <group ref={group} position={[0.26, 1.25, 0.1]}>
+        <mesh>
+          <octahedronGeometry args={[0.075, 0]} />
+          <meshStandardMaterial
+            color="#10b981"
+            emissive="#34d399"
+            emissiveIntensity={0.9}
+            wireframe
+          />
+        </mesh>
+        <mesh>
+          <octahedronGeometry args={[0.045, 0]} />
+          <meshBasicMaterial color="#fef08a" transparent opacity={0.7} toneMapped={false} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
+          <ringGeometry args={[0.09, 0.11, 24]} />
+          <meshBasicMaterial
+            color="#34d399"
+            transparent
+            opacity={0.65}
+            side={THREE.DoubleSide}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
     </group>
   );
 }

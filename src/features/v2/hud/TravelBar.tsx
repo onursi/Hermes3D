@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { SELECTION_COLOR } from "@/features/v2/palette";
-import { playHyperJump } from "@/features/v2/atmosphereAudio";
+import { playHyperJump, unlockAtmosphere } from "@/features/v2/atmosphereAudio";
 import { useV2 } from "@/features/v2/state";
 import type { Place } from "@/features/v2/universe/places";
 
@@ -91,18 +91,17 @@ export function TravelBar({
           type="button"
           aria-pressed={prefs.hyperRide}
           onClick={() => {
+            unlockAtmosphere();
+            if (prefs.sound === 0) setPref("sound", 0.5);
             const next = !prefs.hyperRide;
             setPref("hyperRide", next);
-            if (next) playHyperJump(prefs.sound);
+            if (next) playHyperJump(prefs.sound > 0 ? prefs.sound : 0.5);
           }}
-          // Neutral und nicht bernsteinfarben: Bernstein heisst "eine
-          // Entscheidung wartet". Ein Effektschalter in derselben Farbe würde
-          // die Bedeutung aufweichen, die den Freigaben gehört.
           className="flex flex-col items-center rounded-xl border border-white/20 px-3 py-1 text-white/75 transition-colors aria-pressed:bg-white/12 aria-pressed:text-white"
         >
-          <span className="text-xs">{prefs.hyperRide ? "Hyperlicht an" : "Hyperlicht"}</span>
+          <span className="text-xs">{prefs.hyperRide ? "⚡ Hyperlicht aktiv" : "⚡ Hyperlicht"}</span>
           <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-white/40">
-            Effekt · keine Reise
+            Taste H · Warp
           </span>
         </button>
         {/* Always here, always the same button. The way back is the one thing
