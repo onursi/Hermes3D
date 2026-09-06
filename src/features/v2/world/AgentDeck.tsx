@@ -71,13 +71,54 @@ export function providerTone(provider: string | null): string {
   }
 }
 
-const BODY_TINT = new THREE.Color("#8794a4");
-const HEAD_TINT = new THREE.Color("#aab6c4");
-const JOINT_TINT = new THREE.Color("#657787");
-const VISOR_TINT = new THREE.Color("#071018");
+/**
+ * Die Rollen, wie Onur sie vergeben hat — nicht wie ich sie mir denke.
+ *
+ * Der Unterschied ist wichtig: Was Hermes über ein Profil weiß, ist seine
+ * eigene Beschreibung („Independent critical review and second-opinion
+ * worker."). Was hier steht, ist Onurs Besetzung seiner Werkstatt, und die
+ * kann nur von ihm kommen. Wo er noch nichts vergeben hat, zeigt die Figur
+ * weiterhin die Beschreibung aus Hermes und nicht eine erfundene Rolle.
+ *
+ * Der Satz darunter ist ein Motto, kein Zitat. Der Agent sagt ihn nicht — er
+ * beschreibt, wofür er hier steht. Alles andere wäre erfundene Rede.
+ */
+const ROLES: Record<string, { role: string; motto: string }> = {
+  anthropic: { role: "Entwickler", motto: "Architektur, Code, und die Frage, was es kostet" },
+  gemini: { role: "Designer", motto: "Form, Farbe, Raum" },
+  "openai-codex": { role: "Stratege", motto: "Plan, Abwägung, Entscheidung" },
+  "opencode-free": { role: "Reserve", motto: "Steht bereit — noch ohne Aufgabe" },
+};
+
+export function agentRole(provider: string | null): { role: string; motto: string } | null {
+  if (!provider) return null;
+  return ROLES[provider] ?? null;
+}
+
+/**
+ * Heller Kunststoff statt grauem Metall.
+ *
+ * Onur hat beide Fassungen nebeneinander gesehen und die freundlichere
+ * gewählt. Der Unterschied sind vier Farben: cremefarbener Körper, fast
+ * schwarzes Visier, dunkle Gelenke — und Augen, die groß genug sind, um ein
+ * Gesicht zu ergeben statt zwei Punkte.
+ */
+const BODY_TINT = new THREE.Color("#ece4d6");
+const HEAD_TINT = new THREE.Color("#f2ece1");
+const JOINT_TINT = new THREE.Color("#22262c");
+const VISOR_TINT = new THREE.Color("#0a0d12");
 
 /** Wie stark eine zurückgetretene Figur abgedunkelt wird. */
 const DIM = 0.3;
+
+/**
+ * Wie weit ein Kopf sich zur Kamera drehen darf.
+ *
+ * Ohne Grenze dreht eine Figur, die hinten sitzt, den Kopf um die eigene
+ * Achse — das ist kein Zusehen mehr, sondern ein Fehler. Etwa 65 Grad ist so
+ * weit, wie ein Hals plausibel geht.
+ */
+const LOOK_LIMIT = 1.15;
 
 const AURA_VERTEX = /* glsl */ `
   attribute vec3 aTone;
@@ -336,7 +377,7 @@ export function AgentDeck({
     [],
   );
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const state = live.current;
     const n = state.seats.length;
     if (n === 0) return;
@@ -393,8 +434,25 @@ export function AgentDeck({
 
       // Der Kopf ist ein eigener Rahmen: Visier, Augen und Mund hängen daran,
       // damit ein Nicken alles mitnimmt statt vier Teile auseinanderzuziehen.
-      const turn = state.reduced ? 0 : Math.sin(t * 0.55) * 0.25;
-      const tilt = state.reduced ? 0 : isHovered ? -0.12 : Math.sin(t * 0.85) * 0.07;
+      /**
+       * Der Kopf sieht dich an, egal wohin du dich drehst.
+       *
+       * Die Figur selbst bleibt auf ihrem Platz zur Mitte gedreht; nur der
+       * Kopf folgt. Gerechnet wird der Winkel von der Figur zur Kamera in der
+       * Draufsicht, davon die Eigendrehung des Sitzes abgezogen — was übrig
+       * bleibt, ist die Halsdrehung. Sie wird auf einen halben Kreis
+       * eingenordet und begrenzt, damit niemand sich den Kopf verdreht.
+       *
+       * Ein Rest Eigenleben bleibt darüber liegen, sonst starren fünf Figuren
+       * regungslos, und das kippt vom Freundlichen ins Unheimliche.
+       */
+      let look = Math.atan2(camera.position.x - seat.position.x, camera.position.z - seat.position.z);
+      look -= -seat.angle + Math.PI / 2;
+      look = Math.atan2(Math.sin(look), Math.cos(look));
+      look = Math.max(-LOOK_LIMIT, Math.min(LOOK_LIMIT, look));
+
+      const turn = look + (state.reduced ? 0 : Math.sin(t * 0.55) * 0.06);
+      const tilt = state.reduced ? 0 : isHovered ? -0.12 : Math.sin(t * 0.85) * 0.05;
       scratch.euler.set(0, turn, tilt);
       scratch.quat.setFromEuler(scratch.euler);
       scratch.pos.set(0, 0.92, 0);
@@ -403,11 +461,13 @@ export function AgentDeck({
       scratch.headM.multiplyMatrices(scratch.rig, scratch.local);
 
       place(head.current, i, scratch.headM, 0, 0, 0, 1.25, 0.95, 0.9);
-      place(visor.current, i, scratch.headM, 0, 0.02, 0.19, 1.5, 0.72, 0.28);
+      // Ein breiteres, höheres Visier: es muss zwei Augen tragen, die groß
+      // genug für ein Gesicht sind. Zwei Punkte sind kein Gesicht.
+      place(visor.current, i, scratch.headM, 0, 0.025, 0.175, 1.62, 0.9, 0.36);
 
       const blink = !state.reduced && Math.sin(t * 1.05) > 0.995 ? 0.12 : isHovered ? 1.2 : 1;
-      place(eye.current, i * PAIRED, scratch.headM, -0.09, 0.03, 0.235, 1, 1.5 * blink, 0.5);
-      place(eye.current, i * PAIRED + 1, scratch.headM, 0.09, 0.03, 0.235, 1, 1.5 * blink, 0.5);
+      place(eye.current, i * PAIRED, scratch.headM, -0.098, 0.03, 0.218, 1, 1.35 * blink, 0.55);
+      place(eye.current, i * PAIRED + 1, scratch.headM, 0.098, 0.03, 0.218, 1, 1.35 * blink, 0.55);
       place(mouth.current, i, scratch.headM, 0, -0.055, 0.233, 1, 1, 1, Math.PI);
 
       for (let k = 0; k < PAIRED; k += 1) {
@@ -497,7 +557,7 @@ export function AgentDeck({
       </instancedMesh>
 
       <instancedMesh ref={eye} args={[undefined, undefined, count * PAIRED]}>
-        <sphereGeometry args={[0.03, 8, 6]} />
+        <sphereGeometry args={[0.048, 10, 8]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
@@ -545,21 +605,56 @@ export function AgentDeck({
 
       {/* Der Name nur, wenn er gewollt ist. Ein festes Schild über jeder Figur
           macht aus dem Raum ein Schaubild. */}
-      {seats.map((seat, index) =>
-        hovered === index || seat.agent.id === selectedId ? (
-          <Billboard key={seat.agent.id} position={[seat.position.x, 1.55, seat.position.z]}>
+      {seats.map((seat, index) => {
+        if (hovered !== index && seat.agent.id !== selectedId) return null;
+        const assigned = agentRole(seat.agent.provider);
+        // Onurs Besetzung, wenn er eine vergeben hat — sonst die Beschreibung,
+        // die im Hermes-Profil steht. Nie eine ausgedachte Rolle.
+        const line = assigned ? assigned.motto : seat.agent.role;
+        const tone = providerTone(seat.agent.provider);
+        return (
+          <Billboard key={seat.agent.id} position={[seat.position.x, 1.78, seat.position.z]}>
             <Text
-              fontSize={0.13}
-              color="#e8eef6"
+              fontSize={0.15}
+              color="#f3f7fb"
               anchorX="center"
+              anchorY="bottom"
               outlineWidth={0.005}
               outlineColor="#000000"
             >
               {seat.agent.name}
             </Text>
+            {assigned ? (
+              <Text
+                position={[0, -0.045, 0]}
+                fontSize={0.108}
+                color={tone}
+                anchorX="center"
+                anchorY="top"
+                outlineWidth={0.006}
+                outlineColor="#000000"
+              >
+                {assigned.role.toUpperCase()}
+              </Text>
+            ) : null}
+            {line ? (
+              <Text
+                position={[0, assigned ? -0.185 : -0.045, 0]}
+                fontSize={0.084}
+                color="#dde4ee"
+                anchorX="center"
+                anchorY="top"
+                maxWidth={2.4}
+                textAlign="center"
+                outlineWidth={0.005}
+                outlineColor="#000000"
+              >
+                {line}
+              </Text>
+            ) : null}
           </Billboard>
-        ) : null,
-      )}
+        );
+      })}
     </group>
   );
 }
