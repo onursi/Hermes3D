@@ -23,6 +23,7 @@ import { AtmosphereAudio } from "@/features/v2/hud/AtmosphereAudio";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
+import { WorldHints } from "@/features/v2/hud/WorldHints";
 import { neighboursOf } from "@/features/v2/graph";
 import { areaRadius, BRAIN_CENTERS } from "@/features/v2/knowledge/brainLayout";
 import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
@@ -678,6 +679,10 @@ export function V2Screen() {
           <TravelBar reachable={reachable} onEnter={enterPlace} />
         </>
       ) : null}
+
+      {/* Was in dieser Welt geht, sichtbar statt versteckt. Einmal weggeklickt
+          bleibt sie weg — wer den Raum kennt, braucht sie nicht mehr. */}
+      <WorldHints world={world} />
 
       <Dock
         jarvisOpen={jarvisOpen}

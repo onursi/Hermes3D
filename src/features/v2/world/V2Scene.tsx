@@ -14,6 +14,7 @@ import type { VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, PROJECTS_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
+import { DepthField } from "@/features/v2/world/DepthField";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
@@ -409,6 +410,10 @@ export function V2Scene({
 
       <Suspense fallback={null}>
         {world !== "library" && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
+        {/* Drei Ebenen zwischen Kamera und Ferne. Sie sind der Unterschied
+            zwischen einem Bild und einem Raum — und der Grund steht in
+            DepthField.tsx, samt dem Fehler, der ihn nötig gemacht hat. */}
+        {world !== "library" && <DepthField />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>

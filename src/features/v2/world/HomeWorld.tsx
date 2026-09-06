@@ -9,6 +9,7 @@ import { useV2 } from "@/features/v2/state";
 import { DECISION_COLOR } from "@/features/v2/palette";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import { AgentDeck } from "@/features/v2/world/AgentDeck";
+import { CoreOrbit } from "@/features/v2/world/CoreOrbit";
 import { DeckDust } from "@/features/v2/world/DeckDust";
 
 /**
@@ -89,6 +90,10 @@ export function HomeWorld({
       <StagePlatform />
       <BackBrace />
       <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />
+      {/* Ein Licht je Agent auf einer Bahn um den Kern. Warum sie alle gleich
+          schnell laufen, steht in CoreOrbit.tsx — kurz: es gibt keine
+          Telemetrie, und erfundener Betrieb ist schlimmer als keiner. */}
+      <CoreOrbit agents={agents} />
 
       {/* Alle Agenten in einem Objekt statt einem pro Figur. Der Grund steht
           in AgentDeck.tsx und ist gemessen, nicht vermutet. */}
