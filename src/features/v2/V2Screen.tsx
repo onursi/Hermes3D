@@ -3,6 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
+import type { JarvisPhase } from "@/features/jarvis/JarvisCore";
+import type { JarvisMode } from "@/features/v2/jarvis/JarvisPresence";
+import { FloatingPanel } from "@/features/v2/hud/FloatingPanel";
+import { JarvisOrb } from "@/features/v2/hud/JarvisOrb";
+
+/**
+ * Wo das Jarvis-Fenster zuerst auftaucht: links, unterhalb der Suche.
+ *
+ * Links, weil rechts die Quelle und die Areale stehen; unterhalb der Suche,
+ * weil die oben links steht. Danach entscheidet Onur — die Lage bleibt
+ * gespeichert. Ein Objekt außerhalb der Komponente, damit es zwischen zwei
+ * Renderdurchläufen dasselbe bleibt und den Effekt im Fenster nicht
+ * fortlaufend neu auslöst.
+ */
+const JARVIS_PANEL_START = { x: 24, y: 150 };
 import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
 import { WorldBoundary } from "@/features/v2/WorldBoundary";
@@ -66,6 +81,16 @@ export function V2Screen() {
   const { world, selection, select, goTo, prefs, clearSelection, setTravelling } = useV2();
 
   const [jarvisOpen, setJarvisOpen] = useState(false);
+  /**
+   * Jarvis' Zustand liegt hier oben, weil ihn zwei Dinge zeigen: die Kugel
+   * unten rechts und das Fenster. Zwei getrennte Zustände wären zwei
+   * Gelegenheiten, Verschiedenes zu behaupten — die Kugel dürfte "bereit"
+   * flimmern, während das Fenster noch sucht.
+   */
+  const [jarvisPhase, setJarvisPhase] = useState<JarvisPhase>("idle");
+  const [jarvisMode, setJarvisMode] = useState<JarvisMode>("orb");
+  /** Eine Frage von der Kugel an das Fenster. Die Zahl macht sie einmalig. */
+  const [pendingAsk, setPendingAsk] = useState<{ text: string; nonce: number } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
@@ -740,12 +765,49 @@ export function V2Screen() {
         showLibrary={labMode}
       />
 
+      {/**
+       * Jarvis in zwei Teilen, und das ist der ganze Umbau.
+       *
+       * Vorher stand ein großer Kasten fest in der Bildmitte und verdeckte
+       * genau das, was er erklären sollte. Onur konnte ihn weder schieben noch
+       * einklappen noch schließen.
+       *
+       * Jetzt: die **Kugel** unten rechts ist immer da und immer klein — sie
+       * fragt. Das **Fenster** trägt die Antwort mit Quellen, darf groß sein
+       * und lässt sich schieben, einklappen und schließen. Nicht zuhause:
+       * dort ist der Kern in der Mitte des Decks schon Hermes.
+       */}
+      {world !== "home" ? (
+        <JarvisOrb
+          phase={jarvisPhase}
+          mode={jarvisMode}
+          onModeChange={setJarvisMode}
+          busy={jarvisPhase === "searching" || jarvisPhase === "thinking"}
+          onOpenPanel={() => setJarvisOpen(true)}
+          onAsk={(text) => {
+            setJarvisOpen(true);
+            setPendingAsk({ text, nonce: Date.now() });
+          }}
+        />
+      ) : null}
+
       {jarvisOpen ? (
-        <section className="pointer-events-auto absolute bottom-20 left-1/2 z-30 w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
+        <FloatingPanel
+          id="jarvis"
+          title="JARVIS"
+          hint={`${vault.nodes.length} Notizen`}
+          initial={JARVIS_PANEL_START}
+          width={520}
+          onClose={() => setJarvisOpen(false)}
+        >
           <JarvisConsole
             compact
             noteCount={vault.nodes.length}
             onFlyToSource={flyToSource}
+            askRequest={pendingAsk}
+            onPhaseChange={setJarvisPhase}
+            mode={jarvisMode}
+            onModeChange={setJarvisMode}
             onSourcesChange={(ids) => {
               // The first cited source becomes the selection, so the inspector
               // has something to show the moment an answer lands.
@@ -755,7 +817,7 @@ export function V2Screen() {
               if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
             }}
           />
-        </section>
+        </FloatingPanel>
       ) : null}
 
       {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}

@@ -55,9 +55,11 @@ type Props = {
   /** Der Pegel der Stimme, 0 bis 1, pro Bild gelesen. */
   levelRef: { current: number };
   size?: number;
+  /** Ohne Beschriftung — für die Kugel in der Ecke, die nur Zustand zeigt. */
+  compact?: boolean;
 };
 
-export function JarvisPresence({ mode, phase, levelRef, size = 132 }: Props) {
+export function JarvisPresence({ mode, phase, levelRef, size = 132, compact = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Modus und Phase wandern per ref in die Schleife, damit ein Wechsel die
@@ -120,7 +122,7 @@ export function JarvisPresence({ mode, phase, levelRef, size = 132 }: Props) {
         style={{ width: size, height: size }}
         aria-label={`Jarvis: ${PHASE_LABEL[phase]}`}
       />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" hidden={compact}>
         <span
           className="h-1.5 w-1.5 rounded-full"
           style={{ backgroundColor: PHASE_COLOR[phase] }}
@@ -237,12 +239,42 @@ function drawFace(
   phase: JarvisPhase,
   blinking: () => boolean,
 ) {
-  const c = size / 2;
   const t = now / 1000;
   const busy = phase === "searching" || phase === "thinking";
 
+  /**
+   * Das Gesicht steht nicht still.
+   *
+   * Onur: "das Gesicht kann ruhig ein bisschen animierter sein." Er hat recht
+   * gehabt — es hatte nur Mund und Lidschlag, und ein Kopf, der sich nie
+   * bewegt, wirkt nicht ruhig, sondern eingefroren. Dazugekommen sind vier
+   * Dinge, jedes an einen Zustand gebunden statt an Zufall:
+   *
+   * - ein langsames Schwanken, damit der Kopf lebt statt zu stehen,
+   * - **Blicksprünge**: beim Suchen wandert der Blick, beim Antworten ruht er,
+   * - **Brauen**, die beim Nachdenken zusammengehen,
+   * - ein gelegentliches Zucken im Bild — eine Projektion, die kurz verrutscht.
+   */
+  const swayX = Math.sin(t * 0.55) * size * 0.012 + Math.sin(t * 0.23) * size * 0.008;
+  const swayY = Math.sin(t * 0.41 + 1.2) * size * 0.009;
+  const c = size / 2 + swayX;
+  const cy = size / 2 + swayY;
+
+  // Blicksprünge: der Blick springt und bleibt dann stehen, wie ein echtes
+  // Auge. Beim Suchen oft, beim Sprechen selten, im Leerlauf dazwischen.
+  const saccadeEvery = busy ? 0.9 : phase === "speaking" ? 3.2 : 2.1;
+  const step = Math.floor(t / saccadeEvery);
+  // Aus der Schrittzahl abgeleitet statt gewürfelt: derselbe Schritt ergibt
+  // denselben Blick, also zittert nichts zwischen zwei Bildern.
+  const gazeX = (Math.sin(step * 12.9898) % 1) * (busy ? 0.9 : 0.4);
+  const gazeY = (Math.sin(step * 78.233) % 1) * 0.35;
+
+  // Ein kurzes Zucken, etwa alle paar Sekunden: das Bild verrutscht um ein
+  // bis zwei Bildpunkte und steht sofort wieder.
+  const glitch = Math.sin(t * 0.7) > 0.995 ? (Math.sin(t * 400) > 0 ? 2 : -2) : 0;
+
   // Grundschein hinter dem Gesicht.
-  const halo = ctx.createRadialGradient(c, c, 0, c, c, c);
+  const halo = ctx.createRadialGradient(c, cy, 0, c, cy, size / 2);
   halo.addColorStop(0, hexA(colour, 0.16 + level * 0.14));
   halo.addColorStop(1, hexA(colour, 0));
   ctx.fillStyle = halo;
@@ -251,9 +283,11 @@ function drawFace(
   // Halbe Breite, nicht ganze: `headW` wird nach links und rechts abgetragen.
   // Mit 0.56 stand die Kontur bei 112 % der Leinwandbreite und wurde an den
   // Rändern abgeschnitten — deshalb sah der Kopf oben eckig aus statt rund.
-  const headH = size * 0.78;
-  const headW = size * 0.33;
-  const top = c - headH / 2;
+  // Atmung: der Kopf wird beim Nachdenken eine Spur größer und wieder kleiner.
+  const breath = 1 + Math.sin(t * (busy ? 2.4 : 1.05)) * (busy ? 0.02 : 0.012);
+  const headH = size * 0.78 * breath;
+  const headW = size * 0.33 * breath;
+  const top = cy - headH / 2;
 
   // Die Kontur: waagerechte Zeilen, deren Breite dem Umriss eines Kopfes
   // folgt. Oben rund, unten schmaler — ein Kinn entsteht dadurch von selbst.
@@ -271,11 +305,18 @@ function drawFace(
     // Ein leichtes Flackern je Zeile: der Eindruck einer Projektion, die
     // nicht ganz stabil steht.
     const flicker = 0.55 + 0.45 * Math.sin(i * 2.3 + t * (busy ? 7 : 2.2));
+    // Eine wandernde helle Zeile — der Strahl einer Röhre, die von oben nach
+    // unten schreibt. Sie läuft immer, nicht nur beim Suchen: ein Bild, das
+    // nur im Betrieb lebt, sieht im Leerlauf tot aus.
+    const beam = Math.max(0, 1 - Math.abs(((t * 0.5) % 1) - u) * 9);
+    // Das Zucken trifft nicht alle Zeilen gleich, sonst wackelt der Kopf als
+    // Ganzes statt zu verrutschen.
+    const jitter = glitch !== 0 && i % 3 === 0 ? glitch : 0;
     ctx.beginPath();
-    ctx.strokeStyle = hexA(colour, 0.1 + flicker * 0.16 + level * 0.12);
+    ctx.strokeStyle = hexA(colour, 0.1 + flicker * 0.16 + level * 0.12 + beam * 0.3);
     ctx.lineWidth = 1;
-    ctx.moveTo(c - w, y);
-    ctx.lineTo(c + w, y);
+    ctx.moveTo(c - w + jitter, y);
+    ctx.lineTo(c + w + jitter, y);
     ctx.stroke();
   }
 
@@ -286,17 +327,35 @@ function drawFace(
   const lid = blinking() ? 0.12 : 1;
   const eyeGlow = phase === "listening" ? 1 : phase === "idle" ? 0.7 : 0.9;
   for (const sign of [-1, 1]) {
-    const x = c + sign * eyeDx;
+    // Der Blick: beide Augen wandern gemeinsam, sonst schielt er.
+    const x = c + sign * eyeDx + gazeX * size * 0.03;
+    const y = eyeY + gazeY * size * 0.012;
     const w = size * 0.078;
     const h = size * 0.028 * lid * (1 + level * 0.25);
-    const grad = ctx.createLinearGradient(x - w, eyeY, x + w, eyeY);
+    const grad = ctx.createLinearGradient(x - w, y, x + w, y);
     grad.addColorStop(0, hexA(colour, 0.05));
     grad.addColorStop(0.5, hexA(colour, 0.95 * eyeGlow));
     grad.addColorStop(1, hexA(colour, 0.05));
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.ellipse(x, eyeY, w, Math.max(0.6, h), 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, w, Math.max(0.6, h), 0, 0, Math.PI * 2);
     ctx.fill();
+
+    /**
+     * Brauen — zwei Striche, und sie tragen mehr als sie kosten.
+     *
+     * Beim Nachdenken gehen sie zur Mitte hin herunter, beim Zuhören hoch.
+     * Das ist der Unterschied zwischen einem Gerät mit zwei Lämpchen und
+     * etwas, dem man ansieht, dass es gerade arbeitet.
+     */
+    const browLift = busy ? -size * 0.012 : phase === "listening" ? size * 0.012 : 0;
+    const browY = y - size * 0.055 - browLift;
+    ctx.beginPath();
+    ctx.strokeStyle = hexA(colour, 0.3 + (busy ? 0.35 : 0.12));
+    ctx.lineWidth = 1.4;
+    ctx.moveTo(x - w, browY + (busy ? -size * 0.008 : 0) * sign * -1);
+    ctx.lineTo(x + w, browY + (busy ? size * 0.01 : 0) * sign * -1);
+    ctx.stroke();
   }
 
   // Der Mund: eine Wellenform, deren Ausschlag der Pegel ist. Bei Stille

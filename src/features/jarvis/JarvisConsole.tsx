@@ -72,6 +72,19 @@ type Props = {
   noteCount?: number;
   /** Smaller reactor and tighter spacing, for the panel inside the graph. */
   compact?: boolean;
+  /**
+   * Eine Frage von außen — von der Kugel unten rechts.
+   *
+   * Die Zahl macht sie einmalig: dieselbe Frage zweimal zu stellen muss
+   * möglich sein, und ohne sie könnte die Konsole "dieselbe Zeichenkette"
+   * nicht von "noch einmal" unterscheiden.
+   */
+  askRequest?: { text: string; nonce: number } | null;
+  /** Meldet den Zustand nach oben, damit die Kugel dasselbe zeigt. */
+  onPhaseChange?: (phase: JarvisPhase) => void;
+  /** Kugel oder Gesicht — von außen bestimmt, wenn jemand es tut. */
+  mode?: JarvisMode;
+  onModeChange?: (mode: JarvisMode) => void;
 };
 
 export function JarvisConsole({
@@ -79,6 +92,10 @@ export function JarvisConsole({
   onSourcesChange,
   noteCount = 0,
   compact = false,
+  askRequest = null,
+  onPhaseChange,
+  mode: modeFromAbove,
+  onModeChange,
 }: Props) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -220,12 +237,24 @@ export function JarvisConsole({
    * hat, will es beim nächsten Öffnen wieder sehen und nicht erneut umstellen.
    * localStorage kann in einem privaten Fenster werfen, deshalb der try.
    */
-  const [mode, setMode] = useState<JarvisMode>("orb");
+  const [ownMode, setOwnMode] = useState<JarvisMode>("orb");
+  // Bestimmt jemand von außen mit — die Kugel unten rechts —, dann gilt der.
+  // Sonst führt die Konsole ihre eigene Wahl.
+  const mode = modeFromAbove ?? ownMode;
+  const setMode = onModeChange ?? setOwnMode;
   const [voiceId, setVoiceId] = useState<JarvisVoiceId>("conrad");
+  const setModeRef = useRef(setMode);
   useEffect(() => {
+    setModeRef.current = setMode;
+  }, [setMode]);
+  useEffect(() => {
+    // Genau einmal beim Einhängen, deshalb über den ref: `setMode` kann von
+    // außen kommen und sich bei jedem Renderdurchlauf ändern. Stünde es in
+    // der Abhängigkeitsliste, würde die gespeicherte Wahl immer wieder
+    // hergestellt — und ein Umschalten wäre nach einem Bild rückgängig.
     try {
       const savedMode = localStorage.getItem("hermes.jarvis.mode");
-      if (savedMode === "orb" || savedMode === "face") setMode(savedMode);
+      if (savedMode === "orb" || savedMode === "face") setModeRef.current(savedMode);
       const savedVoice = localStorage.getItem("hermes.jarvis.voice");
       if (savedVoice && JARVIS_VOICES.some((v) => v.id === savedVoice)) {
         setVoiceId(savedVoice as JarvisVoiceId);
@@ -234,12 +263,15 @@ export function JarvisConsole({
       // Kein Speicher, keine Voreinstellung. Kein Grund, etwas kaputtzumachen.
     }
   }, []);
-  const chooseMode = useCallback((next: JarvisMode) => {
-    setMode(next);
-    try {
-      localStorage.setItem("hermes.jarvis.mode", next);
-    } catch {}
-  }, []);
+  const chooseMode = useCallback(
+    (next: JarvisMode) => {
+      setMode(next);
+      try {
+        localStorage.setItem("hermes.jarvis.mode", next);
+      } catch {}
+    },
+    [setMode],
+  );
   const chooseVoice = useCallback((next: JarvisVoiceId) => {
     setVoiceId(next);
     try {
@@ -256,6 +288,39 @@ export function JarvisConsole({
     : jarvisVoice.speaking
       ? "speaking"
       : phase;
+
+  /**
+   * Den Zustand nach oben melden.
+   *
+   * Die Kugel unten rechts zeigt denselben Zustand wie das Gesicht hier. Sie
+   * hat keinen eigenen — sonst könnte sie "bereit" flimmern, während im
+   * Fenster noch gesucht wird, und das wäre eine Anzeige, die lügt.
+   */
+  const phaseUpRef = useRef(onPhaseChange);
+  useEffect(() => {
+    phaseUpRef.current = onPhaseChange;
+  }, [onPhaseChange]);
+  useEffect(() => {
+    phaseUpRef.current?.(displayPhase);
+  }, [displayPhase]);
+
+  /**
+   * Eine Frage, die von der Kugel kommt.
+   *
+   * `ask` steht in einem ref, damit dieser Effekt nicht bei jedem Tastendruck
+   * im eigenen Eingabefeld neu läuft — `ask` hängt an `question`, und eine
+   * Abhängigkeit darauf würde die Frage der Kugel beim Tippen erneut stellen.
+   */
+  const askRef = useRef(ask);
+  useEffect(() => {
+    askRef.current = ask;
+  }, [ask]);
+  const lastNonce = useRef(0);
+  useEffect(() => {
+    if (!askRequest || askRequest.nonce === lastNonce.current) return;
+    lastNonce.current = askRequest.nonce;
+    askRef.current(askRequest.text);
+  }, [askRequest]);
 
   /**
    * Dem Raum sagen, dass gerade gesucht wird.

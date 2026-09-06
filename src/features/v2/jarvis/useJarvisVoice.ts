@@ -35,6 +35,17 @@ type Options = {
   voice?: JarvisVoiceId;
 };
 
+/**
+ * Der Pegel der Stimme — einmal für die ganze Anwendung.
+ *
+ * Es kann immer nur **eine** Stimme sprechen, also gibt es auch nur einen
+ * Pegel. Das ist kein Trick, um an einem Zustand vorbeizukommen: die Kugel
+ * unten rechts und das Gesicht im Panel zeigen denselben Ton, und zwei
+ * getrennte Werte wären zwei Gelegenheiten, auseinanderzulaufen — dann
+ * spräche das eine, während das andere schweigt.
+ */
+export const jarvisLevel = { current: 0 };
+
 export function useJarvisVoice({ voice = "conrad" }: Options = {}) {
   const [speaking, setSpeaking] = useState(false);
   /**
@@ -43,8 +54,8 @@ export function useJarvisVoice({ voice = "conrad" }: Options = {}) {
    */
   const [engine, setEngine] = useState<"neural" | "browser" | null>(null);
 
-  /** 0 bis 1, aktualisiert im Takt der Bildwiederholung. */
-  const levelRef = useRef(0);
+  /** 0 bis 1, aktualisiert im Takt der Bildwiederholung. Geteilt, siehe oben. */
+  const levelRef = jarvisLevel;
 
   const contextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -69,7 +80,7 @@ export function useJarvisVoice({ voice = "conrad" }: Options = {}) {
     runRef.current += 1;
     cancelAnimationFrame(rafRef.current);
     rafRef.current = 0;
-    levelRef.current = 0;
+    jarvisLevel.current = 0;
     const element = elementRef.current;
     if (element) {
       element.pause();
@@ -95,7 +106,7 @@ export function useJarvisVoice({ voice = "conrad" }: Options = {}) {
     utterance.lang = "de-DE";
     utterance.rate = 1.05;
     const tick = () => {
-      levelRef.current = 0.25 + Math.abs(Math.sin(performance.now() / 110)) * 0.5;
+      jarvisLevel.current = 0.25 + Math.abs(Math.sin(performance.now() / 110)) * 0.5;
       rafRef.current = requestAnimationFrame(tick);
     };
     utterance.onstart = () => {
@@ -105,7 +116,7 @@ export function useJarvisVoice({ voice = "conrad" }: Options = {}) {
     };
     const finish = () => {
       cancelAnimationFrame(rafRef.current);
-      levelRef.current = 0;
+      jarvisLevel.current = 0;
       setSpeaking(false);
     };
     utterance.onend = finish;
@@ -200,13 +211,13 @@ export function useJarvisVoice({ voice = "conrad" }: Options = {}) {
         // Sprache liegt effektiv weit unter 1. Ohne Streckung bliebe der Mund
         // fast zu; der Faktor macht aus einem echten Signal eine sichtbare
         // Bewegung, ohne sie zu erfinden.
-        levelRef.current = Math.min(1, rms * 3.4);
+        jarvisLevel.current = Math.min(1, rms * 3.4);
         rafRef.current = requestAnimationFrame(tick);
       };
 
       const finish = () => {
         cancelAnimationFrame(rafRef.current);
-        levelRef.current = 0;
+        jarvisLevel.current = 0;
         setSpeaking(false);
         releaseUrl();
       };

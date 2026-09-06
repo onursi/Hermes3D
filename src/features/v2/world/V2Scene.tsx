@@ -13,6 +13,7 @@ import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, PROJECTS_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
+import { BrainAccess } from "@/features/v2/knowledge/BrainAccess";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { DepthField } from "@/features/v2/world/DepthField";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
@@ -41,6 +42,13 @@ import { approachFor, type Place } from "@/features/v2/universe/places";
  * one draw call, and it is what makes the cosmos feel like somewhere you can
  * already see rather than a room behind a door.
  */
+
+/**
+ * Der Kern auf dem Deck — dieselbe Höhe, auf die die gelesenen Notizen
+ * zufliegen (`PULSE_TARGET` in Horizon.tsx). Hin- und Rückweg müssen denselben
+ * Punkt meinen, sonst greift der Strahl woanders hin als das Licht ankommt.
+ */
+const CORE_ANCHOR = new THREE.Vector3(0, 1.35, 0);
 
 export function V2Scene({
   agents,
@@ -270,6 +278,20 @@ export function V2Scene({
    * durch das naechstgelegene vertreten — angesteuert wird trotzdem jedes
    * einzelne, sobald man draussen ist.
    */
+  /**
+   * Wo jede Notiz am Himmel über dem Deck steht.
+   *
+   * Genau die Punkte, von denen die gelesenen Notizen herunterfliegen — der
+   * Strahl greift also dorthin, wo das Licht herkommt, und nicht in die Nähe
+   * davon. Nur Ort und Kennung, kein Inhalt: der Effekt muss keine Notiz
+   * lesen können.
+   */
+  const skyPositions = useMemo(() => {
+    const map = new Map<string, THREE.Vector3>();
+    for (const node of vault.nodes) map.set(node.id, node.skyPosition);
+    return map;
+  }, [vault.nodes]);
+
   const homePlaces = useMemo(() => {
     const seen = new Set<string>();
     return places.filter((place) => {
@@ -431,6 +453,24 @@ export function V2Scene({
               byId={vault.byId}
               dimmed={focus}
               highlightId={selectedSourceId}
+            />
+            {/**
+             * Der Kern greift in den Himmel.
+             *
+             * Zuhause ist Hermes der Kern in der Mitte des Decks, und Onurs
+             * Notizen sind die Sterne ringsum — sie sind kein anderer Raum,
+             * sondern der Himmel, unter dem er ohnehin steht. Der Rückweg
+             * existierte schon: gelesene Notizen fliegen als Licht herunter.
+             * Was fehlte, war der Hinweg — der sichtbare Griff nach oben.
+             *
+             * Dieselbe Datei wie im Wissenskosmos, nur mit einem festen
+             * Ansatzpunkt statt der Bildschirmecke.
+             */}
+            <BrainAccess
+              positionsById={skyPositions}
+              from={CORE_ANCHOR}
+              reach={70}
+              reducedMotion={prefs.reducedMotion}
             />
             {/* The rest of the universe, seen from the deck. Same file, same
                 coordinates, same shapes as when he is out there — which is

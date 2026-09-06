@@ -1,132 +1,164 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { KNOWLEDGE_PULSE_EVENT } from "@/features/retro-office/scene/VaultStars";
 
 /**
- * Sichtbar machen, dass Jarvis gerade in Onurs Wissen liest.
+ * Sichtbar machen, dass Jarvis in Onurs Wissen greift.
  *
- * Seine Frage war genau das: "wenn JavaScript beispielsweise mein Wissen
- * durchsucht — kann er dann so einen Effekt machen, dass er grade auf mein
- * Gehirn zugreift und dass das dann sichtbar wird?"
+ * Seine Vorgabe war deutlich: man soll sehen, "dass sich dieser Hermespunkt
+ * mit meinem Gehirn vernetzt, also so ein Strahl, der in den Index reinläuft".
+ * Die erste Fassung hatte das falsche Bild: eine Welle, die vom Mittelpunkt
+ * des Kosmos nach außen lief. Sie zeigte Betrieb, aber keine **Verbindung** —
+ * niemand griff dort auf etwas zu, es pulsierte nur.
  *
- * Zwei Dinge passieren hier, und beide sind an echte Ereignisse gebunden:
+ * Jetzt gibt es einen Absender. Der Strahl beginnt dort, wo die Kugel auf dem
+ * Bildschirm steht: unten rechts. Weil das eine Bildschirmecke ist und keine
+ * Stelle im Raum, wird der Ansatzpunkt jedes Bild aus der Kamera gerechnet —
+ * er wandert mit dem Blick mit und bleibt trotzdem immer die Kugel.
  *
- * 1. **Die Abtastwelle.** Solange die Suche läuft, laufen Ringe vom Zentrum
- *    des Kosmos nach außen durch die Areale. Sie beginnen, wenn die Suche
- *    beginnt, und hören auf, wenn sie fertig ist. Eine Welle, die auf einem
- *    Zeitgeber liefe, sähe genauso aus, ob etwas gesucht wurde oder nicht —
- *    und wäre damit eine Behauptung statt einer Anzeige.
+ * Drei Dinge passieren, und jedes hängt an einem echten Ereignis:
  *
- * 2. **Die Kometen.** Sobald feststeht, welche Notizen tatsächlich gelesen
- *    wurden, löst sich an jeder einzelnen ein Licht und fliegt zur Mitte.
- *    Man sieht also nicht "er sucht irgendwo", sondern **wo** die Antwort
- *    herkommt. Die Kennungen kommen aus derselben Antwort, die auch die
- *    Quellenliste füllt — es gibt keinen zweiten Weg, der etwas anderes
- *    behaupten könnte.
+ * 1. **Tastende Strahlen.** Solange gesucht wird, greifen kurze Strahlen aus
+ *    der Kugel in die Wolke. Sie zeigen: er sucht, weiß aber noch nicht wo.
+ * 2. **Leitungen.** Sobald feststeht, welche Notizen gelesen werden, spannt
+ *    sich von der Kugel zu jeder eine Linie. Das ist die Vernetzung.
+ * 3. **Rückfluss.** An jeder gelesenen Notiz löst sich Licht und läuft die
+ *    Leitung entlang zurück in die Kugel. Das Wissen kommt zu ihm.
  *
- * Kosten: eine InstancedMesh und ein Ring. Wenn nichts läuft, ist die Gruppe
- * unsichtbar und die Schleife bricht nach zwei Vergleichen ab.
+ * Eine Animation auf einem Zeitgeber sähe in allen drei Fällen gleich aus,
+ * ob etwas passiert ist oder nicht — deshalb hängt hier nichts an einer Uhr.
  */
 
 /** Sagt dem Raum, dass eine Suche läuft oder vorbei ist. */
 export const JARVIS_SCAN_EVENT = "hermes_jarvis_scan";
 
-/** Wie lange ein Komet von seiner Notiz bis zur Mitte braucht, in Sekunden. */
-const FLIGHT = 1.9;
+/** Wie lange das Licht von der Notiz bis zur Kugel braucht, in Sekunden. */
+const FLIGHT = 1.7;
 
-/** Wie lange eine gelesene Notiz danach noch nachglüht. */
-const AFTERGLOW = 2.6;
+/** Wie lange eine Leitung danach noch steht, bevor sie verblasst. */
+const AFTERGLOW = 3.2;
 
-/** Höchstzahl gleichzeitiger Kometen. Jarvis zitiert sechs; zehn ist Luft. */
-const MAX_COMETS = 10;
+/** Höchstzahl gleichzeitiger Leitungen. Jarvis zitiert sechs; zehn ist Luft. */
+const MAX_LINKS = 10;
 
-/** Perlen je Komet — der Schweif. Die erste ist der Kopf. */
+/** Perlen je Leitung — der Schweif des zurücklaufenden Lichts. */
 const BEADS = 7;
 
 /** Abstand der Perlen entlang der Bahn, als Anteil der Gesamtstrecke. */
 const BEAD_GAP = 0.035;
 
-const TARGET = new THREE.Vector3(0, 0, 0);
+/** Wie viele tastende Strahlen während der Suche laufen. */
+const FEELERS = 5;
 
-type Comet = { from: THREE.Vector3; born: number };
+/**
+ * Wo die Kugel auf dem Bildschirm sitzt, von der rechten unteren Ecke aus.
+ *
+ * Muss zu JarvisOrb.tsx passen: dort steht sie 24 Bildpunkte vom Rand und ist
+ * 56 groß, ihre Mitte liegt also 52 von rechts; unten sind es 96 plus 28.
+ * Zwei Zahlen an zwei Stellen sind eine Gelegenheit auseinanderzulaufen —
+ * darum stehen sie hier mit dem Grund dabei, warum sie diese Werte haben.
+ */
+const ORB_INSET_X = 52;
+const ORB_INSET_Y = 124;
+
+/** Wie weit vor der Kamera der Ansatzpunkt liegt. */
+const ANCHOR_DISTANCE = 4.2;
+
+type Link = { at: THREE.Vector3; born: number };
 
 type Props = {
   /** Wo jede Notiz steht. Kommt aus dem Layout, wird hier nur gelesen. */
   positionsById: Map<string, THREE.Vector3>;
-  /** Wie weit der Kosmos reicht — die Abtastwelle soll ihn ganz durchlaufen. */
+  /**
+   * Woher der Strahl kommt.
+   *
+   * Im Wissenskosmos ist das die Kugel unten rechts — eine Bildschirmecke,
+   * also aus der Kamera gerechnet. Zuhause ist es der **Kern in der Mitte des
+   * Decks**: dort ist Hermes ein Ding im Raum und keine Ecke, und der Strahl
+   * greift von dort in den Sternenhimmel, der Onurs Notizen ist.
+   *
+   * Beide Räume teilen sich diese Datei, weil sie dieselbe Sache zeigen. Zwei
+   * Fassungen desselben Effekts wären zwei Gelegenheiten, ihn verschieden
+   * aussehen zu lassen.
+   */
+  from?: "camera" | THREE.Vector3;
+  /** Wie weit die tastenden Strahlen greifen. */
   reach?: number;
   reducedMotion?: boolean;
 };
 
-export function BrainAccess({ positionsById, reach = 26, reducedMotion = false }: Props) {
-  const cometsRef = useRef<Comet[]>([]);
+export function BrainAccess({
+  positionsById,
+  from = "camera",
+  reach = 20,
+  reducedMotion = false,
+}: Props) {
+  const { camera, size } = useThree();
+  const linksRef = useRef<Link[]>([]);
   const scanRef = useRef({ active: false, since: 0 });
 
   const beadsRef = useRef<THREE.InstancedMesh>(null);
-  const waveRef = useRef<THREE.Mesh>(null);
+  const wiresRef = useRef<THREE.LineSegments>(null);
 
-  const geometry = useMemo(() => new THREE.SphereGeometry(0.11, 10, 10), []);
-  const material = useMemo(
+  const beadGeometry = useMemo(() => new THREE.SphereGeometry(0.1, 10, 10), []);
+  const beadMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: new THREE.Color("#bfe9ff"),
+        color: new THREE.Color("#cfefff"),
         transparent: true,
-        // Additiv, weil die Kometen Licht sind und keine Körper: zwei, die
-        // sich überlagern, sollen heller werden und nicht einander verdecken.
+        // Additiv, weil das Licht ist und kein Körper: zwei, die sich
+        // überlagern, sollen heller werden statt einander zu verdecken.
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         toneMapped: false,
       }),
     [],
   );
+
   /**
-   * Grob aufgelöst, und das ist keine Sparsamkeit.
+   * Die Leitungen als ein einziges LineSegments-Objekt.
    *
-   * Die erste Fassung stand auf 40 × 24. Additiv gemischt waren das rund
-   * neunzehnhundert Liniensegmente, die sich als heller Käfig über den ganzen
-   * Raum legten — der Effekt verdeckte genau das, worauf er zeigen soll. Bei
-   * 20 × 10 läuft eine Welle durchs Bild, und die Notizen bleiben sichtbar.
+   * Eine Linie je Quelle wären zehn Zeichenaufrufe für zehn Striche. Hier
+   * liegen alle in einem Puffer, dessen Punkte jedes Bild neu geschrieben
+   * werden — das ist der eine Fall, in dem Puffer-Schreiben billiger ist als
+   * Objekte: 30 Zahlen, nicht 30.000.
    */
-  const waveGeometry = useMemo(() => new THREE.SphereGeometry(1, 20, 10), []);
-  /**
-   * Das Wellenmaterial liegt als ref am JSX-Element und nicht in einem Memo.
-   *
-   * Der Grund ist eine Lint-Regel, und sie hat recht: ein per useMemo
-   * erzeugtes Objekt darf nicht Bild für Bild verändert werden, weil React
-   * dann nichts mehr über den Zustand weiß, den es angeblich verwaltet. Die
-   * Deckkraft ändert sich hier sechzig Mal je Sekunde — das gehört an einen
-   * ref, nicht an ein Memo.
-   */
-  const waveMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const wireGeometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const count = (MAX_LINKS + FEELERS) * 2;
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    geo.setAttribute("aFade", new THREE.BufferAttribute(new Float32Array(count), 1));
+    return geo;
+  }, []);
+  const wireMatRef = useRef<THREE.ShaderMaterial>(null);
+
   useEffect(
     () => () => {
-      geometry.dispose();
-      material.dispose();
-      waveGeometry.dispose();
+      beadGeometry.dispose();
+      beadMaterial.dispose();
+      wireGeometry.dispose();
     },
-    [geometry, material, waveGeometry],
+    [beadGeometry, beadMaterial, wireGeometry],
   );
 
-  // Die Ereignisse. `positionsById` steht in den Abhängigkeiten, weil ein
-  // Komet ohne bekannte Startposition nirgends beginnen kann.
   useEffect(() => {
     const onPulse = (event: Event) => {
       const ids: string[] = (event as CustomEvent).detail?.ids ?? [];
       const now = performance.now() / 1000;
-      const fresh: Comet[] = [];
+      const fresh: Link[] = [];
       for (const id of ids) {
-        const from = positionsById.get(id);
-        if (!from) continue;
-        // Leicht versetzt gestartet, sonst fliegen sechs Lichter im
-        // Gleichschritt und sehen aus wie ein einziges.
-        fresh.push({ from: from.clone(), born: now + fresh.length * 0.09 });
-        if (fresh.length >= MAX_COMETS) break;
+        const at = positionsById.get(id);
+        if (!at) continue;
+        // Leicht versetzt, sonst zünden sechs Leitungen im Gleichschritt und
+        // sehen aus wie eine einzige breite.
+        fresh.push({ at: at.clone(), born: now + fresh.length * 0.11 });
+        if (fresh.length >= MAX_LINKS) break;
       }
-      if (fresh.length > 0) cometsRef.current = fresh;
+      if (fresh.length > 0) linksRef.current = fresh;
     };
 
     const onScan = (event: Event) => {
@@ -144,45 +176,108 @@ export function BrainAccess({ positionsById, reach = 26, reducedMotion = false }
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const head = useMemo(() => new THREE.Vector3(), []);
+  const anchor = useMemo(() => new THREE.Vector3(), []);
+  const forward = useMemo(() => new THREE.Vector3(), []);
+  const probe = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
     if (reducedMotion) return;
     const now = performance.now() / 1000;
+    const scan = scanRef.current;
+    const links = linksRef.current;
 
-    // ---- Die Abtastwelle -------------------------------------------------
-    const wave = waveRef.current;
-    const waveMat = waveMatRef.current;
-    if (wave && waveMat) {
-      const scan = scanRef.current;
-      if (scan.active) {
-        // Zwei Sekunden je Durchlauf, dann von vorn — solange gesucht wird.
-        const u = ((now - scan.since) / 2) % 1;
-        const radius = 0.6 + u * reach;
-        wave.scale.setScalar(radius);
-        // Am Anfang hell, am Ende weg. Quadratisch, damit die Welle nicht als
-        // harter Ring stirbt.
-        waveMat.opacity = 0.13 * (1 - u) * (1 - u);
-        wave.visible = true;
-      } else if (wave.visible) {
-        waveMat.opacity *= 0.86;
-        if (waveMat.opacity < 0.005) wave.visible = false;
-      }
-    }
-
-    // ---- Die Kometen -----------------------------------------------------
     const beads = beadsRef.current;
-    if (!beads) return;
-    const comets = cometsRef.current;
-    if (comets.length === 0) {
-      if (beads.visible) beads.visible = false;
+    const wires = wiresRef.current;
+    const wireMat = wireMatRef.current;
+    if (!beads || !wires || !wireMat) return;
+
+    const anythingToShow = scan.active || links.length > 0;
+    if (!anythingToShow) {
+      if (beads.visible) {
+        beads.visible = false;
+        wires.visible = false;
+      }
       return;
     }
     beads.visible = true;
+    wires.visible = true;
+
+    /**
+     * Der Ansatzpunkt der Kugel, im Raum.
+     *
+     * Die Kugel steht unten rechts auf dem **Bildschirm**. Ein fester Punkt in
+     * der Szene würde beim Drehen der Kamera irgendwohin wandern; deshalb wird
+     * er aus der Blickrichtung gebaut: ein Stück nach vorn, nach rechts und
+     * nach unten. So beginnt der Strahl aus jedem Blickwinkel dort, wo das
+     * Licht tatsächlich leuchtet.
+     */
+    if (from === "camera") {
+      /**
+       * Der Punkt, an dem die Kugel wirklich leuchtet.
+       *
+       * Erst stand hier "ein Stück nach vorn, rechts und unten" mit von Hand
+       * gewählten Zahlen. Das traf die Ecke ungefähr und wanderte, sobald sich
+       * das Sichtfeld änderte. Richtig ist der umgekehrte Weg: aus der
+       * Bildschirmlage der Kugel eine Bildkoordinate machen und die
+       * zurückrechnen. Dann beginnt der Strahl genau dort, wo das Licht ist —
+       * bei jedem Sichtfeld und jeder Fenstergröße.
+       */
+      const ndcX = 1 - (2 * ORB_INSET_X) / size.width;
+      const ndcY = -1 + (2 * ORB_INSET_Y) / size.height;
+      anchor.set(ndcX, ndcY, 0.5).unproject(camera);
+      // Auf eine feste Entfernung vor die Kamera geschoben: die Rückrechnung
+      // liefert nur eine Richtung, keine Tiefe.
+      forward.copy(anchor).sub(camera.position).normalize();
+      anchor.copy(camera.position).addScaledVector(forward, ANCHOR_DISTANCE);
+    } else {
+      // Ein fester Ort im Raum — der Kern auf dem Deck.
+      anchor.copy(from);
+    }
+
+    // ---- Leitungen und tastende Strahlen --------------------------------
+    const positions = wireGeometry.attributes.position.array as Float32Array;
+    const fades = wireGeometry.attributes.aFade.array as Float32Array;
+    let seg = 0;
+
+    const pushSegment = (to: THREE.Vector3, fadeFar: number) => {
+      const i = seg * 6;
+      positions[i] = anchor.x;
+      positions[i + 1] = anchor.y;
+      positions[i + 2] = anchor.z;
+      positions[i + 3] = to.x;
+      positions[i + 4] = to.y;
+      positions[i + 5] = to.z;
+      // Hell an der Kugel, schwächer am fernen Ende: die Leitung geht von ihm
+      // aus, und das soll man an ihr sehen.
+      fades[seg * 2] = fadeFar * 1.4;
+      fades[seg * 2 + 1] = fadeFar * 0.35;
+      seg++;
+    };
+
+    if (scan.active) {
+      // Tastende Strahlen: sie greifen in die Wolke und ziehen sich zurück,
+      // zwei Sekunden je Zug, jeder in eine andere Richtung.
+      for (let f = 0; f < FEELERS; f++) {
+        const u = ((now - scan.since) * 0.55 + f / FEELERS) % 1;
+        const angle = f * 2.399 + now * 0.35;
+        const lift = Math.sin(f * 1.7 + now * 0.5) * 0.55;
+        probe
+          .set(Math.cos(angle), lift, Math.sin(angle))
+          .normalize()
+          // Um den Mittelpunkt des Kosmos herum, nicht um die Kamera: dort
+          // stehen die Notizen, und dorthin greift er. Der Mittelpunkt ist
+          // der Ursprung, also braucht es keine Verschiebung — und schon gar
+          // keinen neuen Vektor je Bild.
+          .multiplyScalar(reach * (0.25 + u * 0.85));
+        // Auf und ab: hell beim Ausfahren, weg am Ende.
+        pushSegment(probe, Math.sin(u * Math.PI) * 0.55);
+      }
+    }
 
     let written = 0;
     let alive = false;
-    for (const comet of comets) {
-      const age = now - comet.born;
+    for (const link of links) {
+      const age = now - link.born;
       if (age < 0) {
         alive = true;
         continue;
@@ -190,62 +285,84 @@ export function BrainAccess({ positionsById, reach = 26, reducedMotion = false }
       if (age > FLIGHT + AFTERGLOW) continue;
       alive = true;
 
+      // Die Leitung zieht sich in der ersten halben Sekunde auf und bleibt
+      // dann stehen, solange die Antwort gilt.
+      const draw = Math.min(1, age / 0.45);
+      const after = age <= FLIGHT ? 1 : Math.max(0, 1 - (age - FLIGHT) / AFTERGLOW);
+      head.copy(anchor).lerp(link.at, draw);
+      if (seg < MAX_LINKS + FEELERS) pushSegment(head, 0.75 * after);
+
+      // Und das Licht läuft die fertige Leitung zurück.
       for (let b = 0; b < BEADS; b++) {
-        // Der Kopf liegt bei u, der Schweif dahinter. Fertig geflogene
-        // Kometen bleiben als Nachglühen an der Notiz-Seite nicht stehen —
-        // sie sammeln sich in der Mitte, dort kommt die Antwort her.
         const u = Math.min(1, age / FLIGHT) - b * BEAD_GAP;
         if (u < 0) continue;
-        // Beschleunigt: langsam los, schnell an. Ein Licht, das mit
-        // gleichmäßigem Tempo fliegt, sieht aus wie ein Fahrstuhl.
-        const eased = u * u;
-        head.copy(comet.from).lerp(TARGET, Math.min(1, eased));
-
-        const tailFade = 1 - b / BEADS;
-        const afterFade =
-          age <= FLIGHT ? 1 : Math.max(0, 1 - (age - FLIGHT) / AFTERGLOW);
-        const scale = (0.45 + tailFade * 0.75) * afterFade;
+        // Beschleunigt: langsam los, schnell an. Gleichmäßiges Tempo sieht
+        // aus wie ein Fahrstuhl.
+        head.copy(link.at).lerp(anchor, Math.min(1, u * u));
+        const tail = 1 - b / BEADS;
+        const scale = (0.45 + tail * 0.8) * after;
         if (scale < 0.02) continue;
-
         dummy.position.copy(head);
         dummy.scale.setScalar(scale);
         dummy.updateMatrix();
-        if (written < MAX_COMETS * BEADS) beads.setMatrixAt(written++, dummy.matrix);
+        if (written < MAX_LINKS * BEADS) beads.setMatrixAt(written++, dummy.matrix);
       }
     }
 
-    // Alles Übrige aus dem Bild schieben. Eine InstancedMesh zeichnet immer
-    // ihre volle Zahl; nicht benutzte Plätze müssen irgendwo stehen, und
-    // "irgendwo" ist hier weit weg statt mittendrin.
+    // Nicht benutzte Strecken auf null zusammenziehen — der Puffer wird immer
+    // ganz gezeichnet, also müssen die übrigen Punkte irgendwo liegen, und
+    // "auf sich selbst" zeichnet nichts.
+    for (let i = seg; i < MAX_LINKS + FEELERS; i++) {
+      const o = i * 6;
+      positions.fill(0, o, o + 6);
+      fades[i * 2] = 0;
+      fades[i * 2 + 1] = 0;
+    }
+    wireGeometry.attributes.position.needsUpdate = true;
+    wireGeometry.attributes.aFade.needsUpdate = true;
+    wireMat.uniforms.uTime.value = now;
+
     dummy.scale.setScalar(0);
     dummy.position.set(0, -9999, 0);
     dummy.updateMatrix();
-    for (let i = written; i < MAX_COMETS * BEADS; i++) beads.setMatrixAt(i, dummy.matrix);
+    for (let i = written; i < MAX_LINKS * BEADS; i++) beads.setMatrixAt(i, dummy.matrix);
     beads.instanceMatrix.needsUpdate = true;
 
-    if (!alive) cometsRef.current = [];
+    if (!alive && links.length > 0) linksRef.current = [];
   });
 
   return (
     <group>
-      <mesh ref={waveRef} geometry={waveGeometry} visible={false} frustumCulled={false}>
-        <meshBasicMaterial
-          ref={waveMatRef}
-          color="#7dd3fc"
+      <lineSegments ref={wiresRef} geometry={wireGeometry} frustumCulled={false} visible={false}>
+        <shaderMaterial
+          ref={wireMatRef}
           transparent
-          opacity={0}
-          wireframe
-          blending={THREE.AdditiveBlending}
           depthWrite={false}
-          // Von innen betrachtet wäre die Welle sonst weg, sobald die Kamera
-          // in ihr steht — und in diesem Raum steht sie ständig in ihr.
-          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
           toneMapped={false}
+          uniforms={{ uTime: { value: 0 } }}
+          vertexShader={/* glsl */ `
+            attribute float aFade;
+            varying float vFade;
+            void main() {
+              vFade = aFade;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `}
+          fragmentShader={/* glsl */ `
+            uniform float uTime;
+            varying float vFade;
+            void main() {
+              // Ein leises Flackern auf der Leitung — sie überträgt etwas.
+              float pulse = 0.85 + 0.15 * sin(uTime * 9.0);
+              gl_FragColor = vec4(vec3(0.55, 0.86, 1.0), clamp(vFade, 0.0, 1.0) * pulse);
+            }
+          `}
         />
-      </mesh>
+      </lineSegments>
       <instancedMesh
         ref={beadsRef}
-        args={[geometry, material, MAX_COMETS * BEADS]}
+        args={[beadGeometry, beadMaterial, MAX_LINKS * BEADS]}
         frustumCulled={false}
         visible={false}
       />
