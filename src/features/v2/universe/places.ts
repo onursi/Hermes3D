@@ -109,8 +109,10 @@ export function placesFor(projects: Project[], includeLibrary: boolean): Place[]
       return {
         id: `project:${project.folder}`,
         kind: "project" as const,
-        name: project.name,
-        hint: `${project.noteCount} Notizen. Führt zur Ergebniswerft.`,
+        name: index === 0 ? "Projekttor · Project Singularity" : project.name,
+        hint: index === 0 
+          ? `${all.length} Projekte im Orbit. Schwarzes Loch & Gravitations-Physik.`
+          : `${project.noteCount} Notizen. Führt zur Project Singularity.`,
         position: PROJECT_FIELD.clone().add(
           new THREE.Vector3(
             Math.cos(angle) * PROJECT_RING,

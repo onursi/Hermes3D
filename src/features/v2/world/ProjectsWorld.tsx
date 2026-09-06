@@ -14,6 +14,7 @@ import {
 } from "@/features/v2/world/projectData";
 import { ProjectWorkspaceModal } from "@/features/v2/world/ProjectWorkspaceModal";
 import { TesseractMemoryWorld } from "@/features/v2/world/TesseractMemoryWorld";
+import { ProjectSingularityView } from "@/features/v2/world/singularity/ProjectSingularityView";
 
 export function ProjectsWorld({
   projects,
@@ -24,7 +25,7 @@ export function ProjectsWorld({
   selectedFolder: string | null;
   onSelect: (project: Project) => void;
 }) {
-  const [worldMode, setWorldMode] = useState<"werft" | "tesseract">("werft");
+  const [worldMode, setWorldMode] = useState<"singularity" | "werft" | "tesseract">("singularity");
   const [activeProjectKey, setActiveProjectKey] = useState<string>("01 Hermes Agent OS");
   const [activeItem, setActiveItem] = useState<ProjectSectorItem | null>(null);
   const [activeMilestone, setActiveMilestone] = useState<TimelineMilestone | null>(null);
@@ -77,17 +78,24 @@ export function ProjectsWorld({
 
   return (
     <>
-      {/* ================= 4D INTERSTELLAR TESSERACT MODE ================= */}
-      {worldMode === "tesseract" ? (
+      {/* ================= 1. PROJECT SINGULARITY MODE (DEFAULT) ================= */}
+      {worldMode === "singularity" ? (
+        <ProjectSingularityView
+          projects={projects}
+          onSwitchMode={(mode) => setWorldMode(mode)}
+          onOpenEndziel={() => setShowEndzielModal(true)}
+        />
+      ) : worldMode === "tesseract" ? (
+        /* ================= 2. 4D INTERSTELLAR TESSERACT MODE ================= */
         <group>
-          <TesseractMemoryWorld onClose={() => setWorldMode("werft")} />
+          <TesseractMemoryWorld onClose={() => setWorldMode("singularity")} />
 
           {/* 3D Floating Return Button */}
           <Billboard position={[0, 1.2, 5]}>
             <group
               onClick={(e) => {
                 e.stopPropagation();
-                setWorldMode("werft");
+                setWorldMode("singularity");
               }}
               onPointerOver={() => {
                 if (typeof document !== "undefined") document.body.style.cursor = "pointer";
@@ -97,17 +105,17 @@ export function ProjectsWorld({
               }}
             >
               <mesh>
-                <planeGeometry args={[3.6, 0.7]} />
+                <planeGeometry args={[3.8, 0.7]} />
                 <meshBasicMaterial color="#0284c7" transparent opacity={0.9} />
               </mesh>
               <Text fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.02]}>
-                [ 🚢 Zurück zur Werft ]
+                [ 🌌 Zurück zur Singularity ]
               </Text>
             </group>
           </Billboard>
         </group>
       ) : (
-        /* ================= SHIPYARD & MONUMENT MODE ================= */
+        /* ================= 3. SHIPYARD & MONUMENT MODE ================= */
         <group>
           {/* Dock Foundation Floor */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]} receiveShadow>
@@ -146,9 +154,28 @@ export function ProjectsWorld({
           {/* ================= 3D NAVIGATION CONSOLE (FOREGROUND) ================= */}
           <Billboard position={[0, 1.1, 4.2]}>
             <group position={[0, 0, 0]}>
-              {/* Button 1: Endziel-Glasplatte öffnen */}
+              {/* Button 1: Zurück zur Singularity */}
               <group
-                position={[-2.4, 0, 0]}
+                position={[-3.2, 0, 0]}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setWorldMode("singularity");
+                }}
+                onPointerOver={() => { if (typeof document !== "undefined") document.body.style.cursor = "pointer"; }}
+                onPointerOut={() => { if (typeof document !== "undefined") document.body.style.cursor = "auto"; }}
+              >
+                <mesh>
+                  <planeGeometry args={[2.8, 0.55]} />
+                  <meshBasicMaterial color="#0284c7" transparent opacity={0.85} />
+                </mesh>
+                <Text fontSize={0.16} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.02]}>
+                  🌌 Zur Singularity
+                </Text>
+              </group>
+
+              {/* Button 2: Endziel-Glasplatte öffnen */}
+              <group
+                position={[0, 0, 0]}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowEndzielModal(true);
@@ -157,17 +184,17 @@ export function ProjectsWorld({
                 onPointerOut={() => { if (typeof document !== "undefined") document.body.style.cursor = "auto"; }}
               >
                 <mesh>
-                  <planeGeometry args={[2.3, 0.55]} />
-                  <meshBasicMaterial color="#0284c7" transparent opacity={0.85} />
+                  <planeGeometry args={[2.5, 0.55]} />
+                  <meshBasicMaterial color="#1e293b" transparent opacity={0.85} />
                 </mesh>
                 <Text fontSize={0.16} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.02]}>
                   💎 Endziel-Blueprint
                 </Text>
               </group>
 
-              {/* Button 2: 4D-Erinnerungsraum betreten */}
+              {/* Button 3: 4D-Erinnerungsraum betreten */}
               <group
-                position={[2.4, 0, 0]}
+                position={[3.2, 0, 0]}
                 onClick={(e) => {
                   e.stopPropagation();
                   setWorldMode("tesseract");
@@ -180,7 +207,7 @@ export function ProjectsWorld({
                   <meshBasicMaterial color="#9333ea" transparent opacity={0.85} />
                 </mesh>
                 <Text fontSize={0.16} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.02]}>
-                  🪐 4D-Tesserakt (Interstellar)
+                  🪐 4D-Tesserakt
                 </Text>
               </group>
             </group>
