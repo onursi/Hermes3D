@@ -32,7 +32,31 @@ const SOURCE_COUNT = 6;
  */
 const EXCERPT_LIMIT = 1200;
 
-function buildPrompt(question: string, hits: RetrievalHit[]) {
+/**
+ * Wo Onur gerade steht, in einem Satz.
+ *
+ * Ohne das beantwortet Jarvis „Was ist das hier?" mit einer Suche über den
+ * ganzen Vault — und in einem räumlichen System ist „hier" die häufigste
+ * Frage überhaupt. Der Ort ist Zusatz, nicht Ersatz: Die Antwort kommt
+ * weiterhin ausschliesslich aus den Notizen, und die Regel „nicht raten"
+ * bleibt unangetastet.
+ */
+function describePlace(world: string | null, focus: string | null): string | null {
+  const rooms: Record<string, string> = {
+    home: "auf dem Kommandodeck bei den Agenten",
+    universe: "unterwegs zwischen den Orten",
+    cosmos: "im Wissenskörper",
+    projects: "in der Ergebniswerft bei den Projekten",
+    library: "in der Bibliothek",
+  };
+  const room = world ? rooms[world] : null;
+  if (!room && !focus) return null;
+  if (room && focus) return `Onur steht gerade ${room} und hat „${focus}" ausgewählt.`;
+  if (room) return `Onur steht gerade ${room}.`;
+  return `Onur hat gerade „${focus}" ausgewählt.`;
+}
+
+function buildPrompt(question: string, hits: RetrievalHit[], place?: string | null) {
   const sources = hits
     .map((hit, index) => {
       const excerpt = hit.excerpt.slice(0, EXCERPT_LIMIT);
@@ -48,6 +72,13 @@ function buildPrompt(question: string, hits: RetrievalHit[]) {
     "- Belege jede Aussage mit der Quellennummer, z. B. [2].",
     "- Steht die Antwort nicht in den Notizen, sage das klar und rate nicht.",
     "- Antworte auf Deutsch, kurz und konkret.",
+    ...(place
+      ? [
+          "- Der Ort unten sagt, worauf sich „hier“ und „das“ beziehen. Er ist",
+          "  Zusatzwissen und keine Quelle — belege trotzdem nur aus den Notizen.",
+        ]
+      : []),
+    ...(place ? ["", `ORT: ${place}`] : []),
     "",
     "NOTIZEN:",
     sources,

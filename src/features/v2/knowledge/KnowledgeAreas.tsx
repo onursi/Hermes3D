@@ -171,6 +171,7 @@ export function KnowledgeAreas({
   edges = [],
   selectedId = null,
   query = "",
+  queryHitIds,
   reducedMotion = false,
   onSelect,
   onFocusRequest,
@@ -401,10 +402,20 @@ export function KnowledgeAreas({
       const isNeighbor = directNeighborIds.has(node.id);
       const isHovered = hoveredId === node.id;
 
-      // Suchabgleich
-      const matchesQuery = !queryLower || 
+      /**
+       * Suchabgleich — Titel, Ordner, **oder** ein Volltexttreffer von oben.
+       *
+       * Ohne den dritten Fall blieb eine Notiz dunkel, deren Name gar nicht
+       * gesucht war: Onur suchte „Pedro", der im Text von zehn Notizen steht
+       * und in keinem Titel. Die Liste hätte ihn gezeigt und der Raum nicht —
+       * und eine Suche, deren beide Hälften sich widersprechen, wirkt kaputt,
+       * auch wenn jede für sich „funktioniert".
+       */
+      const matchesQuery =
+        !queryLower ||
         node.title.toLowerCase().includes(queryLower) ||
-        (node.groupId && node.groupId.toLowerCase().includes(queryLower));
+        (node.groupId && node.groupId.toLowerCase().includes(queryLower)) ||
+        Boolean(queryHitIds?.has(node.id));
 
       // Basis-Skalierung abhängig vom Vernetzungsgrad (degree)
       const baseScale = Math.max(0.75, Math.min(1.8, 0.8 + (node.degree || 1) * 0.08));

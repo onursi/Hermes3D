@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { VaultNode } from "@/features/v2/useVault";
 import { matchesQuery } from "@/features/v2/search";
+import type { ContentHit } from "@/features/v2/useContentSearch";
 
 /**
  * Finding one note among 273.
@@ -26,12 +27,22 @@ export function SearchField({
   onQuery,
   onPick,
   selectedId,
+  contentHits,
 }: {
   nodes: VaultNode[];
   query: string;
   onQuery: (value: string) => void;
   onPick: (node: VaultNode) => void;
   selectedId: string | null;
+  /**
+   * Volltexttreffer, oben einmal gesucht und an beide Seiten gereicht.
+   *
+   * Nicht hier geholt: Der Raum muss dieselben Treffer dimmen wie die Liste
+   * sie zeigt. Zwei Aufrufe wären zwei Antworten, und eine Notiz, die in der
+   * Liste steht und im Raum dunkel bleibt, lässt die Suche kaputt aussehen —
+   * auch wenn beide Hälften für sich „funktionieren".
+   */
+  contentHits: ContentHit[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -55,14 +66,37 @@ export function SearchField({
   }, []);
 
   const needle = query.trim().toLowerCase();
+
+  /**
+   * Zwei Schichten, eine Liste.
+   *
+   * Der Titelvergleich antwortet sofort und ohne Netzweg — wer tippt, will
+   * sehen, dass etwas passiert. Die Volltextsuche kommt einen Wimpernschlag
+   * später dazu und bringt genau die Treffer, die vorher fehlten: Namen und
+   * Begriffe, die im Text stehen und in keinem Titel.
+   *
+   * Titeltreffer zuerst, danach die Volltextfunde nach ihrer Bewertung. Wer
+   * eine Notiz beim Namen kennt, soll sie oben finden.
+   */
+
+
   const results = useMemo(() => {
     if (!needle) return [];
-    return nodes
+    const byTitle = nodes
       .filter((node) => matchesQuery(node, needle))
       // The best connected first: in a knowledge graph, degree is the closest
       // thing to relevance that is actually measured rather than guessed.
       .sort((a, b) => b.degree - a.degree);
-  }, [nodes, needle]);
+
+    const seen = new Set(byTitle.map((node) => node.id));
+    const fromText: VaultNode[] = [];
+    for (const hit of contentHits) {
+      if (seen.has(hit.id)) continue;
+      const node = nodes.find((entry) => entry.id === hit.id);
+      if (node) fromText.push(node);
+    }
+    return [...byTitle, ...fromText];
+  }, [nodes, needle, contentHits]);
 
   return (
     <div className="pointer-events-auto absolute left-4 top-16 z-30 w-[300px] max-w-[calc(100vw-2rem)]">

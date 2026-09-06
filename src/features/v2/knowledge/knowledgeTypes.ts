@@ -45,6 +45,8 @@ export interface KnowledgeAreasProps {
   edges: KnowledgeEdge[];
   selectedId?: string | null;
   query?: string;
+  /** Kennungen der Volltexttreffer — damit der Raum dasselbe zeigt wie die Liste. */
+  queryHitIds?: Set<string>;
   reducedMotion?: boolean;
   onSelect?: (id: string) => void;
   onFocusRequest?: (focus: FocusRequest) => void;

@@ -29,6 +29,7 @@ import { areaRadius, BRAIN_CENTERS } from "@/features/v2/knowledge/brainLayout";
 import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
 import { playArrive, playSelect } from "@/features/v2/sound";
 import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
+import { useContentSearch } from "@/features/v2/useContentSearch";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 
@@ -70,6 +71,16 @@ export function V2Screen() {
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  /**
+   * Die Volltextsuche über die Notizen — einmal hier, für Liste und Raum.
+   *
+   * Onur hat gemeldet, dass „Pedro" nichts findet, obwohl der Name im Text von
+   * zehn Notizen steht. Der Grund war, dass nur Titel und Ordner verglichen
+   * wurden — und dass ich das im Code auch noch begründet hatte. Für die Art,
+   * wie er sucht, war die Begründung schlicht falsch: Man sucht Menschen,
+   * Begriffe und Entscheidungen, nicht Dateinamen.
+   */
+  const contentSearch = useContentSearch(query);
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
   const [reachable, setReachable] = useState<Place | null>(null);
   /**
@@ -436,14 +447,25 @@ export function V2Screen() {
    * the sky flies it in, and the same id opens the same star in the cosmos.
    * One identifier throughout — which is why the selection survives the trip.
    */
+  /**
+   * Eine Quelle aus Jarvis' Antwort ist ein Ort.
+   *
+   * Der Anschluss hieß schon immer `onFlyToSource`, geflogen wurde aber nie:
+   * Die Welt wurde gewechselt und die Auswahl gesetzt, und dann stand man
+   * irgendwo im Wissenskörper und durfte selbst suchen. Das ist in einem Raum,
+   * dessen ganze Behauptung „hier liegt etwas" ist, die falsche Antwort.
+   *
+   * Jetzt geht es über denselben Weg wie ein Suchtreffer — eine Herleitung für
+   * beide, damit sie sich nicht auseinanderentwickeln.
+   */
   const flyToSource = useCallback(
     (id: string) => {
       const node = vault.byId.get(id);
       if (!node) return;
-      select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
       goTo("cosmos");
+      selectSource(node);
     },
-    [vault.byId, select, goTo],
+    [vault.byId, selectSource, goTo],
   );
 
   /**
@@ -587,6 +609,7 @@ export function V2Screen() {
         cockpitMarkers={cockpitMarkers}
         knowledge={knowledge}
         focusRequest={focusRequest}
+        queryHitIds={contentSearch.ids}
         flyThrough={flyThrough}
         inputBlocked={readerId !== null}
         onFrame={devOpen ? setMeter : undefined}
@@ -615,6 +638,7 @@ export function V2Screen() {
           nodes={vault.nodes}
           query={query}
           onQuery={setQuery}
+          contentHits={contentSearch.hits}
           onPick={selectSource}
           selectedId={selection.kind === "source" ? selection.id : null}
         />

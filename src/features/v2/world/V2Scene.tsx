@@ -62,6 +62,7 @@ export function V2Scene({
   cockpitMarkers,
   knowledge,
   focusRequest,
+  queryHitIds,
   flyThrough = false,
   inputBlocked = false,
   onFrame,
@@ -98,6 +99,8 @@ export function V2Scene({
   knowledge: { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] };
   /** Eine Kamerabitte aus dem HUD. Null, solange keine gestellt wurde. */
   focusRequest: { center: [number, number, number]; radius: number; seq: number } | null;
+  /** Volltexttreffer der Suche, damit der Wissenskoerper sie mitleuchten laesst. */
+  queryHitIds?: Set<string>;
   /** Im Wissenskoerper fliegen statt umkreisen. */
   flyThrough?: boolean;
   onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
@@ -489,6 +492,7 @@ export function V2Scene({
             edges={knowledge.edges}
             selectedId={selectedSourceId}
             query={query}
+            queryHitIds={queryHitIds}
             reducedMotion={prefs.reducedMotion}
             onSelect={onSelectSourceId}
             onFocusRequest={handleFocusArea}
