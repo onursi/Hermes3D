@@ -102,6 +102,61 @@ const FRAGMENT = /* glsl */ `
   }
 `;
 
+/**
+ * Die Warp-Blase — der Teil, den Onur eigentlich meint.
+ *
+ * Sie stand **nicht** in Antigravitys Übergabedokument. Dort war nur der
+ * Streifen-Tunnel; die Blase lebt in seinem `FreeFlight.tsx` auf Track 2. Ich
+ * habe den übergebenen Baustein genau umgesetzt und damit etwas gebaut, das
+ * Onur zu Recht als „nur eine schnellere Geschwindigkeit" beschrieben hat: das
+ * Auffälligste am Effekt fehlte schlicht.
+ *
+ * Das hier ist sein Shader, übernommen wie er ist: rasende weisse Lichtringe
+ * über einem Verlauf zwischen Cyan und Violett, dazu Lichtadern in
+ * Umfangsrichtung. Ein Zylinder von 28 auf 9 Einheiten, 220 lang, ohne Deckel,
+ * um die Kamera gelegt.
+ */
+const TUNNEL_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vPos;
+  void main() {
+    vUv = uv;
+    vPos = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const TUNNEL_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uHyper;
+  varying vec2 vUv;
+  varying vec3 vPos;
+
+  void main() {
+    if (uHyper < 0.005) discard;
+    float z = vUv.y;
+    float speed = uTime * 7.5;
+
+    // Rasende Warp-Lichtringe
+    float rings = sin((z * 36.0 - speed) * 3.14159) * 0.5 + 0.5;
+    rings = pow(rings, 3.2);
+
+    // Hyperspace-Lichtadern
+    float veins = sin(vUv.x * 64.0 + sin(uTime * 3.2 + z * 12.0) * 2.0) * 0.5 + 0.5;
+    veins = pow(veins, 2.5);
+
+    vec3 cyan = vec3(0.0, 0.95, 1.0);
+    vec3 violet = vec3(0.85, 0.25, 1.0);
+    vec3 col = mix(cyan, violet, sin(vUv.x * 6.283 + uTime * 2.5) * 0.5 + 0.5);
+    col += vec3(1.0, 1.0, 1.0) * rings * 1.4;
+
+    float edgeFade = smoothstep(0.0, 0.18, z) * smoothstep(1.0, 0.65, z);
+    float alpha = (rings * 0.7 + veins * 0.45) * edgeFade * uHyper;
+
+    gl_FragColor = vec4(col * 2.2, alpha * 0.9);
+  }
+`;
+
 export function HyperRide() {
   const { prefs } = useV2();
   const material = useRef<THREE.ShaderMaterial>(null);
@@ -161,6 +216,18 @@ export function HyperRide() {
     [],
   );
 
+  /** Die Röhre um den Betrachter: Antigravitys Maße, unverändert. */
+  const tunnel = useRef<THREE.Group>(null);
+  const tunnelMaterial = useRef<THREE.ShaderMaterial>(null);
+  const tunnelUniforms = useMemo(() => ({ uTime: { value: 0 }, uHyper: { value: 0 } }), []);
+  const tunnelGeometry = useMemo(() => {
+    const geometry = new THREE.CylinderGeometry(28, 9, 220, 36, 16, true);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(0, 0, -90);
+    return geometry;
+  }, []);
+  useEffect(() => () => tunnelGeometry.dispose(), [tunnelGeometry]);
+
   /**
    * Der Tunnel hängt an der Kamera, nicht an der Welt.
    *
@@ -168,7 +235,7 @@ export function HyperRide() {
    * Objekt selbst nicht mitwandern oder mitgedreht werden. Es bleibt deshalb
    * ausserhalb jeder Sichtbarkeitsprüfung und ohne eigene Verschiebung.
    */
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     if (!material.current) return;
     const wanted = prefs.hyperRide && !prefs.reducedMotion ? 1 : 0;
     // Anziehen dauert, Auslaufen dauert länger: ein Ritt, der sofort steht,
@@ -187,9 +254,38 @@ export function HyperRide() {
     hyperState.warp = warp.current;
 
     if (mesh.current) mesh.current.visible = warp.current > 0.002;
+
+    // Die Röhre hängt an der Kamera und schaut, wohin geschaut wird. Sie ist in
+    // Weltkoordinaten gebaut, nicht im Sichtraum wie die Streifen — deshalb muss
+    // sie mitgeführt werden statt im Shader aufgespannt.
+    if (tunnel.current) {
+      tunnel.current.position.copy(camera.position);
+      tunnel.current.quaternion.copy(camera.quaternion);
+      tunnel.current.visible = warp.current > 0.005;
+    }
+    if (tunnelMaterial.current) {
+      tunnelMaterial.current.uniforms.uHyper.value = warp.current;
+      tunnelMaterial.current.uniforms.uTime.value = clock.elapsedTime;
+    }
   });
 
   return (
+    <>
+    <group ref={tunnel} visible={false}>
+      <mesh geometry={tunnelGeometry} frustumCulled={false} raycast={() => {}}>
+        <shaderMaterial
+          ref={tunnelMaterial}
+          uniforms={tunnelUniforms}
+          transparent
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          side={THREE.DoubleSide}
+          vertexShader={TUNNEL_VERTEX}
+          fragmentShader={TUNNEL_FRAGMENT}
+        />
+      </mesh>
+    </group>
+
     <instancedMesh
       ref={mesh}
       args={[undefined, undefined, STREAKS]}
@@ -214,5 +310,6 @@ export function HyperRide() {
         side={THREE.DoubleSide}
       />
     </instancedMesh>
+    </>
   );
 }
