@@ -296,7 +296,7 @@ export function V2Scene({
       // changing a single pixel — the console has to stay readable, or the
       // one warning that matters gets lost among a thousand that do not.
       shadows={{ type: THREE.PCFShadowMap }}
-      camera={{ position: HOME_VIEW.position.toArray(), fov: 46, near: 0.1, far: 6000 }}
+      camera={{ position: HOME_VIEW.position.toArray(), fov: 46, near: 0.1, far: 40000 }}
       gl={{
         // Inert while the composer is mounted, which is why it is tied to the
         // bloom preference rather than left permanently on: with a composer
@@ -374,7 +374,7 @@ export function V2Scene({
       ) : null}
 
       <Suspense fallback={null}>
-        {world !== "library" && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} />}
+        {world !== "library" && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>

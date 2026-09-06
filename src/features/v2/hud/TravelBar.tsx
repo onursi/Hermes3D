@@ -63,7 +63,7 @@ export function TravelBar({
           <input
             type="range"
             min={0.5}
-            max={20}
+            max={100}
             step={0.1}
             value={prefs.flightSpeed}
             onChange={(event) => setPref("flightSpeed", Number(event.target.value))}
@@ -80,6 +80,7 @@ export function TravelBar({
           rememberCamera("universe", new THREE.Vector3(0, 300, 650), new THREE.Vector3(0, 0, 0));
           goTo("universe", "direct");
         }} className="rounded-xl border border-white/15 px-3 py-1.5 text-xs text-white/70">Weitblick</button>
+        {[50, 100].map(rate => <button key={rate} type="button" aria-pressed={prefs.flightSpeed === rate} onClick={() => setPref("flightSpeed", rate)} className="rounded-xl border border-violet-200/25 px-3 py-1.5 text-xs text-violet-100 aria-pressed:bg-violet-300/20">{rate}×</button>)}
         {/* Always here, always the same button. The way back is the one thing
             in this world that must never depend on where he has got to. */}
         <button

@@ -19,6 +19,7 @@ import { Neighbourhood } from "@/features/v2/hud/Neighbourhood";
 import { Reader } from "@/features/v2/hud/Reader";
 import { SearchField } from "@/features/v2/hud/SearchField";
 import { Settings } from "@/features/v2/hud/Settings";
+import { AtmosphereAudio } from "@/features/v2/hud/AtmosphereAudio";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
@@ -506,6 +507,7 @@ export function V2Screen() {
       />
       </WorldBoundary>
 
+      <AtmosphereAudio />
       <StatusBar
         agentCount={roster.agents.length}
         rosterReachable={roster.reachable}

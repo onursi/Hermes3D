@@ -285,7 +285,8 @@ function Silhouette({
       <Suspense fallback={null}>
       <Billboard ref={labelRef} position={[0, place.radius * 1.5 + 1.2, 0]}>
         <Text
-          fontSize={Math.max(0.9, place.radius * 0.18)}
+          fontSize={Math.max(0.55, place.radius * 0.095)}
+          letterSpacing={0.14}
           color={highlighted ? SELECTION_COLOR : "#cfc9be"}
           anchorX="center"
           anchorY="middle"
@@ -296,7 +297,7 @@ function Silhouette({
           // against a wall of names, not against naming anything.
           maxWidth={26}
         >
-          {place.name}
+          {place.name.toLocaleUpperCase("de-DE")}
         </Text>
       </Billboard>
       </Suspense>

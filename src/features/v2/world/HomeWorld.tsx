@@ -281,13 +281,32 @@ function AgentDock({
   onSelect: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const { prefs } = useV2();
+  const rig = useRef<THREE.Group>(null);
+  const head = useRef<THREE.Group>(null);
+  const eyes = useRef<THREE.Group>(null);
+  const arms = useRef<(THREE.Group | null)[]>([]);
+  const phase = agent.id.split("").reduce((n,c) => n+c.charCodeAt(0), 0) * 0.1;
   const glowRef = useRef<THREE.Mesh>(null);
 
   // Colour is identity, derived from the provider so the same provider always
   // looks the same. Not decoration: it answers "who actually answers this".
   const tone = useMemo(() => providerTone(agent.provider), [agent.provider]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    const t = prefs.reducedMotion ? 0 : clock.elapsedTime + phase;
+    if (rig.current) {
+      rig.current.position.y = 0.16 + (prefs.reducedMotion ? 0 : Math.sin(t*1.4)*0.025);
+      rig.current.rotation.z = prefs.reducedMotion ? 0 : Math.sin(t*0.7)*0.045;
+    }
+    if (head.current) {
+      head.current.rotation.y = prefs.reducedMotion ? 0 : Math.sin(t*0.55)*0.25;
+      head.current.rotation.z = prefs.reducedMotion ? 0 : (hovered ? -0.12 : Math.sin(t*0.85)*0.07);
+    }
+    if (eyes.current) eyes.current.scale.y = !prefs.reducedMotion && Math.sin(t*1.05)>0.995 ? 0.12 : hovered ? 1.2 : 1;
+    arms.current.forEach((arm,i) => {
+      if (arm) arm.rotation.z = (i===0 ? -1 : 1) * (0.2 + (prefs.reducedMotion ? 0 : Math.sin(t*1.2+i)*0.12 + (hovered ? 0.75+Math.sin(t*5)*0.2 : 0)));
+    });
     if (!glowRef.current) return;
     const material = glowRef.current.material as THREE.MeshBasicMaterial;
     const base = selected ? 0.5 : hovered ? 0.34 : 0.16;
@@ -312,7 +331,7 @@ function AgentDock({
         <meshBasicMaterial color={tone} transparent opacity={0.16} side={THREE.DoubleSide} />
       </mesh>
 
-      <group
+      <group ref={rig}
         onPointerOver={(event) => {
           event.stopPropagation();
           setHovered(true);
@@ -334,8 +353,9 @@ function AgentDock({
             opacity={opacity}
           />
         </mesh>
+        <group ref={head} position={[0,0.92,0]}>
         {/* Head */}
-        <mesh position={[0, 0.92, 0]} scale={[1.25, 0.95, 0.9]} castShadow>
+        <mesh position={[0, 0, 0]} scale={[1.25, 0.95, 0.9]} castShadow>
           <sphereGeometry args={[0.25, 20, 16]} />
           <meshStandardMaterial
             color="#aab6c4"
@@ -346,26 +366,32 @@ function AgentDock({
           />
         </mesh>
         {/* Rounded visor and two eyes give the real roster a friendly face. */}
-        <mesh position={[0, 0.94, 0.19]} scale={[1.5, 0.72, 0.28]}>
+        <mesh position={[0, 0.02, 0.19]} scale={[1.5, 0.72, 0.28]}>
           <sphereGeometry args={[0.17, 16, 10]} />
           <meshStandardMaterial color="#071018" roughness={0.28} transparent={dimmed} opacity={opacity} />
         </mesh>
-        {[-1, 1].map(side => <group key={side}>
-          <mesh position={[side * 0.09, 0.95, 0.235]} scale={[1, 1.5, 0.5]}>
-            <sphereGeometry args={[0.03, 8, 6]} />
-            <meshBasicMaterial color={tone} transparent opacity={opacity} />
-          </mesh>
-          <mesh position={[side * 0.3, 0.45, 0]} rotation={[0, 0, side * 0.2]}>
-            <capsuleGeometry args={[0.07, 0.17, 4, 8]} />
-            <meshStandardMaterial color="#aab6c4" metalness={0.5} roughness={0.4} transparent={dimmed} opacity={opacity} />
-          </mesh>
+        <group ref={eyes}>
+        {[-1,1].map(side => <mesh key={side} position={[side*0.09,0.03,0.235]} scale={[1,1.5,0.5]}>
+          <sphereGeometry args={[0.03,8,6]} /><meshBasicMaterial color={tone} transparent opacity={opacity} />
+        </mesh>)}
+        </group>
+        <mesh position={[0,-0.055,0.233]} rotation={[0,0,Math.PI]}>
+          <torusGeometry args={[0.058,0.009,4,12,Math.PI]} /><meshBasicMaterial color={tone} transparent opacity={opacity*0.7} />
+        </mesh>
+        </group>
+        {[-1,1].map((side,i) => <group key={side}>
+          <group ref={g => { arms.current[i]=g; }} position={[side*0.3,0.58,0]}>
+            <mesh position={[0,-0.12,0]}><capsuleGeometry args={[0.07,0.16,4,8]} /><meshStandardMaterial color="#aab6c4" metalness={0.5} roughness={0.4} transparent={dimmed} opacity={opacity} /></mesh>
+            <mesh position={[0,-0.28,0.015]}><sphereGeometry args={[0.085,8,6]} /><meshStandardMaterial color="#657787" transparent={dimmed} opacity={opacity} /></mesh>
+          </group>
+          <mesh position={[side*0.12,0.015,0.04]} scale={[1,0.7,1.5]}><sphereGeometry args={[0.105,10,8]} /><meshStandardMaterial color="#657787" transparent={dimmed} opacity={opacity} /></mesh>
         </group>)}
       </group>
 
       {/* The name only when it is wanted. A permanent label above every figure
           is how a room turns into a diagram. */}
       {(hovered || selected) && !dimmed ? (
-        <Billboard position={[0, 1.32, 0]}>
+        <Billboard position={[0, 1.55, 0]}>
           <Text
             fontSize={0.13}
             color="#e8eef6"

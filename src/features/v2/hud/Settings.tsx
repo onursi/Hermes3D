@@ -1,5 +1,6 @@
 "use client";
 
+import { unlockAtmosphere } from "@/features/v2/atmosphereAudio";
 import { useV2 } from "@/features/v2/state";
 
 /**
@@ -52,7 +53,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
           label="Fluggeschwindigkeit"
           value={prefs.flightSpeed}
           min={0.5}
-          max={20}
+          max={100}
           step={0.1}
           format={(v) => `${v.toFixed(1)}×`}
           onChange={(value) => setPref("flightSpeed", value)}
@@ -70,9 +71,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
             whether it is really muted. */}
         <Toggle
           label="Ton"
-          hint="Kurzer Ton bei Auswahl und Ankunft. Standard aus, keine Musik."
+          hint="Atmosphäre, Neuronenknistern und Flugtriebwerk. Jederzeit stumm schaltbar."
           value={prefs.sound > 0}
-          onChange={(value) => setPref("sound", value ? 0.6 : 0)}
+          onChange={(value) => { if (value) unlockAtmosphere(); setPref("sound", value ? 0.45 : 0); }}
         />
 
         {prefs.sound > 0 ? (

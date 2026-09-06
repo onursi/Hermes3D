@@ -78,7 +78,7 @@ export { SELECTION_COLOR, DECISION_COLOR };
 export const NEIGHBOR_COLOR = "#7fd4e8";  // Gedämpftes Cyan für direkte Nachbarn
 // Warmes Dunkelgrau statt Marineblau. Das Grundnetz ist die größte
 // zusammenhängende Fläche im Bild; in Blau färbte es den ganzen Raum.
-export const INACTIVE_EDGE_COLOR = "#2e2a24";
+export const INACTIVE_EDGE_COLOR = "#bca7ef";
 
 // Eingriff 3: die Arealfarben kommen aus der Palette. Siehe Dateikopf.
 const GROUP_COLORS = AREA_COLORS;
@@ -137,7 +137,7 @@ const TRACT_FRAGMENT = /* glsl */ `
   uniform float uGlow;
 
   void main() {
-    gl_FragColor = vec4(mix(uColor, vec3(0.15, 0.8, 1.0), vGlow) * (0.55 + vGlow * uGlow), uBase + vGlow * uGlow * 0.45);
+    gl_FragColor = vec4(uColor * (0.55 + vGlow * uGlow), uBase + vGlow * uGlow * 0.45);
   }
 `;
 
@@ -197,7 +197,7 @@ export function KnowledgeAreas({
       // Überlagerung. Bei 0.16 war das Grundnetz ein weißer Schleier über
       // allem — die erste Fassung sah aus wie Watte.
       uBase: { value: 0.05 },
-      uGlow: { value: 0.7 },
+      uGlow: { value: 0.22 },
     }),
     [],
   );
@@ -207,7 +207,7 @@ export function KnowledgeAreas({
       // Faster on the selected note's own tracts: the signal he asked about
       // should be the liveliest thing on screen.
       uSpeed: { value: 0.19 },
-      uColor: { value: new THREE.Color(SELECTION_COLOR) },
+      uColor: { value: new THREE.Color("#ecdfff") },
       uBase: { value: 0.4 },
       uGlow: { value: 2.2 },
     }),
@@ -467,7 +467,7 @@ export function KnowledgeAreas({
       backgroundMaterial.current.uniforms.uTime.value = t;
       // Zurückgenommen, sobald eine Notiz gewählt ist — sonst konkurriert das
       // Grundnetz mit genau der Nachbarschaft, die es zeigen soll.
-      backgroundMaterial.current.uniforms.uBase.value = selectedId ? 0.02 : 0.05;
+      backgroundMaterial.current.uniforms.uBase.value = selectedId ? 0.012 : 0.065;
     }
     if (activeMaterial.current) {
       activeMaterial.current.uniforms.uTime.value = t;

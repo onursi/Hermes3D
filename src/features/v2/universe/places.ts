@@ -71,7 +71,7 @@ const HOME_PLACE: Place = {
 const COSMOS_PLACE: Place = {
   id: "cosmos",
   kind: "cosmos",
-  name: "Wissenskörper",
+  name: "Das Synapsentor",
   hint: "Alle Notizen, räumlich gegliedert.",
   position: new THREE.Vector3(-24, -8, -54),
   // Ein Portal, kein Körper. Onurs Einwand war richtig: der Wissenskörper
