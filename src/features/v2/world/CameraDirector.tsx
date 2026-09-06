@@ -46,6 +46,18 @@ export type CameraGoal = {
  * berths stand on a ring of known radius, so the framing cannot drift when the
  * data changes. A seventh project moves the ring not at all.
  */
+/**
+ * Der Sog, von schräg oben.
+ *
+ * Die äußerste Bahn liegt bei 15,5 Einheiten, der Horizont bei 3,4. Aus dieser
+ * Höhe liegen beide im Bild, und man sieht, was zählt: wie weit innen etwas
+ * steht. Flacher wäre schöner und würde genau diese Frage verdecken.
+ */
+export const SINGULARITY_VIEW = {
+  position: new THREE.Vector3(0, 21, 30),
+  target: new THREE.Vector3(0, 0, 0),
+};
+
 export const PROJECTS_VIEW = {
   position: new THREE.Vector3(0.6, 8.4, 15.2),
   target: new THREE.Vector3(0, 1.7, 0),
@@ -111,6 +123,7 @@ export function viewFor(world: V2World): CameraGoal {
     return { ...cloneView(KNOWLEDGE_VIEW), duration: 1.15 };
   }
   if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
+  if (world === "singularity") return { ...cloneView(SINGULARITY_VIEW), duration: 1.35 };
   if (world === "library") return { ...cloneView(LIBRARY_VIEW), duration: 1.15 };
   return { ...cloneView(HOME_VIEW), duration: 1.15 };
 }

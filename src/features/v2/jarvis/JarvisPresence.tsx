@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+
+import { reportJarvisHead } from "@/features/v2/jarvis/jarvisAnchor";
 
 import type { JarvisPhase } from "@/features/jarvis/JarvisCore";
 
@@ -61,6 +63,9 @@ type Props = {
 
 export function JarvisPresence({ mode, phase, levelRef, size = 132, compact = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** Eindeutig je Darstellung — die Kugel in der Ecke ist nicht das Gesicht
+      im Fenster, auch wenn beide dieselbe Komponente sind. */
+  const anchorId = useId();
 
   // Modus und Phase wandern per ref in die Schleife, damit ein Wechsel die
   // Schleife nicht abreißt und neu startet — sonst springt die Animation bei
@@ -89,8 +94,33 @@ export function JarvisPresence({ mode, phase, levelRef, size = 132, compact = fa
     /** Wann das nächste Mal geblinzelt wird. Unregelmäßig, sonst wirkt es tot. */
     let nextBlink = performance.now() + 2200;
     let blinkUntil = 0;
+    /**
+     * Zählt die Bilder, damit die Lage nur alle paar davon gemessen wird.
+     *
+     * `getBoundingClientRect` zwingt den Browser, das Layout zu berechnen.
+     * Einmal je Bild wäre für zwei kleine Canvas verkraftbar, aber unnötig:
+     * ein Fenster, das gezogen wird, bewegt sich nicht in einer Sechzigstel-
+     * sekunde so weit, dass ein Blitz danebenträfe.
+     */
+    let tick = 0;
 
     const draw = (now: number) => {
+      // Wo dieser Kopf gerade steht — der Blitz im Raum fragt danach.
+      if (tick++ % 5 === 0) {
+        const box = canvas.getBoundingClientRect();
+        // Ein Canvas ohne Fläche ist eingeklappt oder ausgeblendet und darf
+        // kein Ziel sein; sonst käme der Blitz aus einem unsichtbaren Kopf.
+        if (box.width > 0 && box.height > 0) {
+          reportJarvisHead(anchorId, {
+            x: box.left + box.width / 2,
+            y: box.top + box.height / 2,
+            size: box.width,
+          });
+        } else {
+          reportJarvisHead(anchorId, null);
+        }
+      }
+
       const phaseNow = phaseRef.current;
       const colour = PHASE_COLOR[phaseNow];
       const target = levelRef.current;
@@ -108,12 +138,22 @@ export function JarvisPresence({ mode, phase, levelRef, size = 132, compact = fa
       });
       else drawOrb(ctx, size, now, colour, smooth, phaseNow);
 
+      // Und darüber, solange gesucht wird: das Abtasten.
+      if (phaseNow === "searching" || phaseNow === "thinking") {
+        drawScanning(ctx, size, now, colour, phaseNow);
+      }
+
       raf = requestAnimationFrame(draw);
     };
 
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, [levelRef, size]);
+    return () => {
+      cancelAnimationFrame(raf);
+      // Abgemeldet, sobald die Darstellung verschwindet: ein Kopf, der nicht
+      // mehr da ist, darf kein Blitzursprung bleiben.
+      reportJarvisHead(anchorId, null);
+    };
+  }, [anchorId, levelRef, size]);
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -131,6 +171,121 @@ export function JarvisPresence({ mode, phase, levelRef, size = 132, compact = fa
       </div>
     </div>
   );
+}
+
+// ============================================================================
+// Das Abtasten
+// ============================================================================
+
+/**
+ * Was über Kugel und Gesicht liegt, während gesucht wird.
+ *
+ * Onur wollte, dass man sieht, "dass es hier irgendwie absurd abscannt". Das
+ * ist keine Übertreibung, sondern eine Anforderung: die Suche dauert Sekunden,
+ * und in diesen Sekunden muss das Ding aussehen, als arbeite es hart. Ein
+ * langsam kreisender Ring sagt "es lädt"; ein Messgerät sagt "es liest".
+ *
+ * Vier Schichten, absichtlich schnell und absichtlich hart:
+ *
+ * - ein **Fadenkreuz**, das sich dreht und Teilstriche hat,
+ * - zwei **Bänder**, die in unterschiedlichem Tempo durchs Bild fahren,
+ * - **Klammern**, die alle paar Zehntel auf eine neue Stelle springen — das
+ *   Bild von etwas, das eine Fundstelle nach der anderen greift,
+ * - ein **Zählwerk** aus Strichen am Rand, das mitläuft.
+ *
+ * Alles hängt an der Phase. Sobald die Suche vorbei ist, ist es weg — es gibt
+ * keinen Zustand, in dem das hier läuft und nichts passiert.
+ */
+function drawScanning(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  now: number,
+  colour: string,
+  phase: JarvisPhase,
+) {
+  const c = size / 2;
+  const t = now / 1000;
+  // Beim Nachdenken ruhiger als beim Suchen: gelesen wird nicht mehr.
+  const drive = phase === "searching" ? 1 : 0.45;
+
+  ctx.save();
+
+  // --- Bänder ---------------------------------------------------------------
+  for (const band of [
+    { speed: 1.9, height: size * 0.09, alpha: 0.22 },
+    { speed: -3.1, height: size * 0.035, alpha: 0.3 },
+  ]) {
+    const u = ((t * band.speed * drive) % 1 + 1) % 1;
+    const y = u * size;
+    const grad = ctx.createLinearGradient(0, y - band.height, 0, y + band.height);
+    grad.addColorStop(0, hexA(colour, 0));
+    grad.addColorStop(0.5, hexA(colour, band.alpha * drive));
+    grad.addColorStop(1, hexA(colour, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, y - band.height, size, band.height * 2);
+  }
+
+  // --- Fadenkreuz -----------------------------------------------------------
+  const spin = t * 1.4 * drive;
+  const r = c * 0.86;
+  ctx.strokeStyle = hexA(colour, 0.45 * drive);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 24; i++) {
+    // Vier lange Striche an den Achsen, der Rest kurz — daraus liest sich
+    // ein Instrument statt eines Kreises aus Punkten.
+    const long = i % 6 === 0;
+    const a = spin + (i / 24) * Math.PI * 2;
+    const inner = r - (long ? size * 0.075 : size * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(c + Math.cos(a) * inner, c + Math.sin(a) * inner);
+    ctx.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.strokeStyle = hexA(colour, 0.25 * drive);
+  ctx.arc(c, c, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // --- Klammern -------------------------------------------------------------
+  // Alle 0,22 Sekunden eine neue Stelle. Aus der Schrittzahl abgeleitet, nicht
+  // gewürfelt: derselbe Schritt ergibt dieselbe Stelle, also zittert nichts
+  // zwischen zwei Bildern.
+  const step = Math.floor(t / (phase === "searching" ? 0.22 : 0.5));
+  for (let k = 0; k < 2; k++) {
+    const seed = step * 3 + k * 17;
+    const bx = c + (Math.sin(seed * 12.9898) % 1) * c * 0.62;
+    const by = c + (Math.sin(seed * 78.233) % 1) * c * 0.62;
+    const w = size * 0.09;
+    ctx.strokeStyle = hexA(colour, (k === 0 ? 0.85 : 0.4) * drive);
+    ctx.lineWidth = 1.4;
+    // Vier Ecken statt eines Rechtecks: die Lücken lassen den Inhalt frei.
+    for (const [sx, sy] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ]) {
+      ctx.beginPath();
+      ctx.moveTo(bx + sx * w, by + sy * w - sy * w * 0.45);
+      ctx.lineTo(bx + sx * w, by + sy * w);
+      ctx.lineTo(bx + sx * w - sx * w * 0.45, by + sy * w);
+      ctx.stroke();
+    }
+  }
+
+  // --- Zählwerk -------------------------------------------------------------
+  // Striche unten, die weiterlaufen. Sie zählen nichts Bestimmtes und geben
+  // auch nicht vor, es zu tun — sie sind die Bewegung eines Geräts, das
+  // arbeitet, und stehen deshalb ohne Zahl daneben.
+  const bars = 14;
+  for (let i = 0; i < bars; i++) {
+    const on = (Math.sin(i * 2.1 + t * 9 * drive) + 1) / 2;
+    ctx.fillStyle = hexA(colour, 0.12 + on * 0.5 * drive);
+    const h = size * (0.012 + on * 0.03);
+    ctx.fillRect(size * 0.16 + i * (size * 0.05), size * 0.93 - h, size * 0.022, h);
+  }
+
+  ctx.restore();
 }
 
 // ============================================================================

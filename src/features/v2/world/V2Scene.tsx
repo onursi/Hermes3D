@@ -21,6 +21,7 @@ import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
+import { SingularityWorld } from "@/features/v2/world/SingularityWorld";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
@@ -562,6 +563,20 @@ export function V2Scene({
               onSelect={onSelectProject}
             />
           )
+        ) : world === "singularity" ? (
+          /**
+           * Derselbe Datensatz wie die Werft, ganz anders befragt.
+           *
+           * Die Werft zeigt, **was es gibt**; der Sog zeigt, **was liegen
+           * bleibt**. Beide lesen dieselben Projekte aus dem Vault — es gibt
+           * keinen zweiten Datenweg, der etwas anderes behaupten könnte.
+           */
+          <SingularityWorld
+            projects={projects}
+            selectedFolder={selectedProjectFolder}
+            onSelect={onSelectProject}
+            reducedMotion={prefs.reducedMotion}
+          />
         ) : (
           <LibraryWorld
             items={libraryItems}

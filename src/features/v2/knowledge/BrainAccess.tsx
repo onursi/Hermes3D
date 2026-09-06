@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { KNOWLEDGE_PULSE_EVENT } from "@/features/retro-office/scene/VaultStars";
+import { activeJarvisHead } from "@/features/v2/jarvis/jarvisAnchor";
 
 /**
  * Sichtbar machen, dass Jarvis in Onurs Wissen greift.
@@ -63,13 +64,15 @@ const BEAD_GAP = 0.04;
 const FEELERS = 3;
 
 /**
- * Wo die Kugel auf dem Bildschirm sitzt, von der rechten unteren Ecke aus.
+ * Falls kein Kopf gemeldet ist: dort, wo die Kugel steht.
  *
- * Muss zu JarvisOrb.tsx passen: dort steht sie 24 Bildpunkte vom Rand und ist
- * 56 groß, ihre Mitte liegt also 52 von rechts; unten sind es 96 plus 28.
+ * Das ist ein Notnagel und keine Rechnung. Der Ansatzpunkt kommt normalerweise
+ * aus der **gemessenen** Lage des sichtbaren Kopfes (siehe jarvisAnchor.ts) —
+ * feste Zahlen waren genau der Fehler, den Onur gesehen hat: der Blitz kam aus
+ * der Ecke, während er das Gesicht im Fenster ansah.
  */
-const ORB_INSET_X = 52;
-const ORB_INSET_Y = 124;
+const FALLBACK_INSET_X = 52;
+const FALLBACK_INSET_Y = 124;
 
 /** Wie weit vor der Kamera der Ansatzpunkt liegt. */
 const ANCHOR_DISTANCE = 4.2;
@@ -232,10 +235,14 @@ export function BrainAccess({
 
     // ---- Ansatzpunkt -----------------------------------------------------
     if (from === "camera") {
-      // Aus der Bildschirmlage der Kugel zurückgerechnet, damit der Blitz bei
-      // jedem Sichtfeld dort beginnt, wo das Licht wirklich leuchtet.
-      const ndcX = 1 - (2 * ORB_INSET_X) / size.width;
-      const ndcY = -1 + (2 * ORB_INSET_Y) / size.height;
+      // Aus der **gemessenen** Lage des sichtbaren Kopfes zurückgerechnet.
+      // Ist das Fenster offen, ist das das Gesicht darin; sonst die Kugel in
+      // der Ecke. So gehört der Blitz immer zu dem Kopf, den man ansieht.
+      const head = activeJarvisHead();
+      const px = head ? head.x : size.width - FALLBACK_INSET_X;
+      const py = head ? head.y : size.height - FALLBACK_INSET_Y;
+      const ndcX = (px / size.width) * 2 - 1;
+      const ndcY = -((py / size.height) * 2 - 1);
       anchor.set(ndcX, ndcY, 0.5).unproject(camera);
       forward.copy(anchor).sub(camera.position).normalize();
       anchor.copy(camera.position).addScaledVector(forward, ANCHOR_DISTANCE);
@@ -359,25 +366,58 @@ export function BrainAccess({
       }
     };
 
+    let written = 0;
+
     if (look === "arc" && scan.active) {
-      // Tastende Blitze: sie zucken in die Wolke und wieder weg. Kurz und
-      // unregelmäßig — er sucht noch, er hat noch nichts.
+      /**
+       * Das Abrastern.
+       *
+       * Vorher zuckten hier drei Blitze in zufällige Richtungen. Das sah nach
+       * Betrieb aus, aber nicht nach **Suchen**: nichts daran hatte eine
+       * Ordnung, und wer sucht, geht durch. Jetzt dreht sich eine Suchkeule
+       * mit fester Geschwindigkeit um den Kosmos, und die Blitze fahren in
+       * genau die Richtung, in der sie gerade steht.
+       *
+       * Und — das ist der Teil, der es zu einer Anzeige macht — jede Notiz,
+       * über die die Keule streicht, blitzt kurz auf. Man sieht also, **was
+       * gerade angesehen wird**, nicht nur, dass etwas passiert. Die Notizen
+       * sind echt; sie kommen aus derselben Karte, aus der später die Treffer
+       * kommen.
+       */
+      const sweep = (now - scan.since) * 1.25;
       for (let f = 0; f < FEELERS; f++) {
-        const u = ((now - scan.since) * 0.8 + f / FEELERS) % 1;
-        const angle = f * 2.399 + Math.floor(now * 1.6) * 1.1;
+        // Ein schmaler Fächer um die Keule, damit die Front eine Breite hat.
+        const angle = sweep + (f - (FEELERS - 1) / 2) * 0.22;
         probe
-          .set(Math.cos(angle), Math.sin(f * 1.7 + now * 0.4) * 0.6, Math.sin(angle))
+          .set(Math.cos(angle), Math.sin(now * 0.9 + f) * 0.35, Math.sin(angle))
           .normalize()
-          .multiplyScalar(reach * (0.35 + u * 0.6));
-        // Nur in Schüben: ein Blitz, der ununterbrochen brennt, ist eine
-        // Leitung, und Leitungen waren genau das Problem.
-        const burst = Math.max(0, Math.sin(u * Math.PI * 3));
-        const strobe = burst * (Math.sin(now * 30 + f * 2) > -0.3 ? 1 : 0.2);
-        if (strobe > 0.03) drawBolt(probe, f + 3, strobe * 0.5, 1);
+          .multiplyScalar(reach * 0.95);
+        // In Schüben: ein Blitz, der ununterbrochen brennt, ist eine Leitung,
+        // und Leitungen waren genau das Problem.
+        const strobe = Math.sin(now * 26 + f * 2) > -0.35 ? 1 : 0.22;
+        drawBolt(probe, f + 3, strobe * 0.55, 1);
+      }
+
+      // Die Notizen unter der Keule aufblitzen lassen.
+      const cos = Math.cos(sweep);
+      const sin = Math.sin(sweep);
+      for (const at of positionsById.values()) {
+        const len = Math.hypot(at.x, at.z);
+        if (len < 0.001) continue;
+        // Kosinus zwischen Notizrichtung und Keule — billiger als ein Winkel
+        // und für einen Schwellwert genauso gut.
+        const alignment = (at.x * cos + at.z * sin) / len;
+        if (alignment < 0.985) continue;
+        dummy.position.copy(at);
+        dummy.rotation.set(0, 0, 0);
+        // Klein: ein Streifschuss, kein Treffer. Treffer sehen anders aus.
+        dummy.scale.setScalar(0.75);
+        dummy.updateMatrix();
+        if (written < MAX_LINKS * BEADS) beads.setMatrixAt(written++, dummy.matrix);
+        else break;
       }
     }
 
-    let written = 0;
     let alive = false;
     for (let index = 0; index < links.length; index++) {
       const link = links[index];

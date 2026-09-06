@@ -82,6 +82,21 @@ export function Dock({
         </svg>
       </DockButton>
 
+      {/* Der Sog: dieselben Projekte, nach Vernachlässigung geordnet. Er
+          steht neben der Werft, weil er dieselbe Sache von der anderen Seite
+          zeigt — was es gibt, und was liegen bleibt. */}
+      <DockButton
+        active={world === "singularity"}
+        onClick={() => goTo("singularity")}
+        label="Sog"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+          <ellipse cx="12" cy="12" rx="9.5" ry="3.6" />
+          <path d="M20 9.4A9.5 3.6 0 0 1 4 14.6" />
+        </svg>
+      </DockButton>
+
       {showLibrary ? (
         <DockButton
           active={world === "library"}

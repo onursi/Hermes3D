@@ -8,6 +8,7 @@ const WORLD_NAMES: Record<V2World, string> = {
   universe: "Unterwegs",
   cosmos: "Wissenskosmos",
   projects: "Ergebniswerft",
+  singularity: "Der Sog",
   library: "Bibliothek",
 };
 

@@ -47,6 +47,12 @@ const HINTS: Record<V2World, Hint[]> = {
     { key: "Klick", what: "Notiz im Raum öffnen" },
     { key: "Esc", what: "eine Stufe zurück" },
   ],
+  singularity: [
+    { key: "Abstand", what: "Tage seit der letzten Änderung" },
+    { key: "Größe", what: "Zahl der Notizen" },
+    { key: "Reif", what: "offene Aufgaben" },
+    { key: "Klick", what: "Projekt betreten" },
+  ],
   library: [
     { key: "Klick", what: "Quelle wählen" },
     { key: "Esc", what: "zurück" },
