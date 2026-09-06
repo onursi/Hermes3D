@@ -1,13 +1,15 @@
 "use client";
 
 // Local synthesis only. Animation/engine sounds do not represent agent work.
-export const flightAudio = { speed: 0 };
+export const flightAudio = { speed: 0, hyperdrive: false };
 let context: AudioContext | null = null;
 
-/** Call from a click. Persisted preferences alone never open an audio device. */
+/** Call from a click or keypress. Persisted preferences alone never open an audio device. */
 export function unlockAtmosphere() {
   if (!context) context = new AudioContext();
-  void context.resume().catch(() => {});
+  if (context.state === "suspended") {
+    void context.resume().catch(() => {});
+  }
   window.dispatchEvent(new Event("hermes:audio-ready"));
 }
 
@@ -24,6 +26,7 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
   const nodes: AudioNode[] = [master, compressor];
   const brain = world === "cosmos";
   const travelling = world === "universe";
+
   function voice(hz: number, level: number, type: OscillatorType = "sine") {
     const oscillator = audio!.createOscillator();
     const gain = audio!.createGain();
@@ -32,15 +35,20 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     gain.gain.value = level;
     oscillator.connect(gain).connect(master);
     oscillator.start();
-    sources.push(oscillator); nodes.push(oscillator, gain);
+    sources.push(oscillator);
+    nodes.push(oscillator, gain);
     return { oscillator, gain };
   }
+
+  // --- Codex Original Normal-Modus Stimmen ---
   // Quiet, slightly detuned open fifths under an airy upper harmonic.
   const drone = voice(brain ? 196 : 65.4, brain ? 0.025 : 0.1);
   voice(brain ? 294.3 : 98.2, brain ? 0.015 : 0.065);
   const shimmer = voice(brain ? 1568 : 392.4, 0.008);
   const engine = voice(48, 0, "triangle");
   const spark = voice(2300, 0);
+
+  // Codex Noise Buffer (LCG Algorithmus)
   const buffer = audio.createBuffer(1, audio.sampleRate * 3, audio.sampleRate);
   const samples = buffer.getChannelData(0);
   let seed = 73;
@@ -49,31 +57,117 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     samples[i] = seed / 2147483648 - 1;
   }
   const noise = audio.createBufferSource();
-  noise.buffer = buffer; noise.loop = true;
+  noise.buffer = buffer;
+  noise.loop = true;
   const filter = audio.createBiquadFilter();
   filter.type = brain ? "bandpass" : "lowpass";
   filter.frequency.value = brain ? 3900 : 420;
   filter.Q.value = brain ? 1.2 : 0.45;
-  const air = audio.createGain(); air.gain.value = 0.015;
-  noise.connect(filter).connect(air).connect(master); noise.start();
-  sources.push(noise); nodes.push(noise, filter, air);
+  const air = audio.createGain();
+  air.gain.value = 0.015;
+  noise.connect(filter).connect(air).connect(master);
+  noise.start();
+  sources.push(noise);
+  nodes.push(noise, filter, air);
+
+  // --- Antigravity Hyperlichtantrieb (Lichtgeschwindigkeits-Sound) ---
+  const hyperSub = voice(28, 0, "sawtooth");
+  const hyperSubSub = voice(14, 0, "triangle");
+  const hyperTurbine = voice(220, 0, "sawtooth");
+  const hyperTurbine2 = voice(440, 0, "triangle");
+
+  // Sonic Boom / Warp-Impact Transient beim Zünden & Abschalten
+  const boomOsc = audio.createOscillator();
+  const boomGain = audio.createGain();
+  boomOsc.type = "triangle";
+  boomOsc.frequency.value = 90;
+  boomGain.gain.value = 0;
+  boomOsc.connect(boomGain).connect(master);
+  boomOsc.start();
+  sources.push(boomOsc);
+  nodes.push(boomOsc, boomGain);
+
+  // Aggressiver Hyperraum-Filter für Fahrtwind-Tosung bei Warp
+  const hyperFilter = audio.createBiquadFilter();
+  hyperFilter.type = "bandpass";
+  hyperFilter.frequency.value = 1600;
+  hyperFilter.Q.value = 4.0;
+  const hyperAir = audio.createGain();
+  hyperAir.gain.value = 0;
+  noise.connect(hyperFilter).connect(hyperAir).connect(master);
+  nodes.push(hyperFilter, hyperAir);
+
   let tick = 0;
+  let wasHyperdrive = false;
+  let turbineSweep = 220;
+
   const update = () => {
     const now = audio.currentTime;
     const audible = document.visibilityState === "visible" && document.hasFocus();
-    master.gain.setTargetAtTime(audible ? volume * 0.6 : 0, now, 0.12);
+    const isHyper = Boolean(flightAudio.hyperdrive);
+
+    // Master Volume: Codex 0.6 im Normalmodus, Antigravity 0.92 bei Hyperantrieb
+    master.gain.setTargetAtTime(audible ? volume * (isHyper ? 0.92 : 0.6) : 0, now, 0.12);
+
+    // Einschlag-Effekt bei Aktivierung / Deaktivierung
+    if (isHyper && !wasHyperdrive) {
+      // Sonic Boom / Warpsprung: Frequenz zieht rasant von 160Hz auf 24Hz runter
+      boomOsc.frequency.setValueAtTime(160, now);
+      boomOsc.frequency.exponentialRampToValueAtTime(24, now + 0.42);
+      boomGain.gain.setValueAtTime(0.55, now);
+      boomGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+      turbineSweep = 220;
+    } else if (!isHyper && wasHyperdrive) {
+      // Warp-Kollaps
+      boomOsc.frequency.setValueAtTime(85, now);
+      boomOsc.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+      boomGain.gain.setValueAtTime(0.35, now);
+      boomGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    }
+    wasHyperdrive = isHyper;
+
+    if (isHyper) {
+      // Hyperlichtgeschwindigkeit: Heftiges Motorendröhnen & pfeifende Turbine
+      turbineSweep = Math.min(2700, turbineSweep + 175);
+      hyperSub.gain.gain.setTargetAtTime(0.28, now, 0.08);
+      hyperSubSub.gain.gain.setTargetAtTime(0.22, now, 0.08);
+      hyperTurbine.gain.gain.setTargetAtTime(0.12, now, 0.08);
+      hyperTurbine2.gain.gain.setTargetAtTime(0.07, now, 0.08);
+
+      hyperTurbine.oscillator.frequency.setTargetAtTime(turbineSweep + Math.sin(tick * 0.45) * 55, now, 0.05);
+      hyperTurbine2.oscillator.frequency.setTargetAtTime(turbineSweep * 1.5, now, 0.05);
+
+      hyperFilter.frequency.setTargetAtTime(2400 + Math.sin(tick * 0.35) * 800, now, 0.1);
+      hyperAir.gain.setTargetAtTime(0.26, now, 0.08);
+    } else {
+      hyperSub.gain.gain.setTargetAtTime(0, now, 0.12);
+      hyperSubSub.gain.gain.setTargetAtTime(0, now, 0.12);
+      hyperTurbine.gain.gain.setTargetAtTime(0, now, 0.14);
+      hyperTurbine2.gain.gain.setTargetAtTime(0, now, 0.14);
+      hyperAir.gain.setTargetAtTime(0, now, 0.14);
+    }
+
+    // --- Codex Original Normal-Modus Klangmodulation ---
     const power = travelling ? Math.min(1, Math.log1p(flightAudio.speed / 26) / Math.log(101)) : 0;
     engine.oscillator.frequency.setTargetAtTime(48 + power * 180, now, 0.12);
     engine.gain.gain.setTargetAtTime(power * 0.19, now, 0.1);
     filter.frequency.setTargetAtTime(brain ? 3900 : 420 + power * 4200, now, 0.15);
-    air.gain.setTargetAtTime(brain ? 0.018 + Math.max(0, Math.sin(tick * 1.73)) ** 14 * 0.16 : 0.025 + power * 0.28, now, 0.025);
+    air.gain.setTargetAtTime(
+      brain
+        ? 0.018 + Math.max(0, Math.sin(tick * 1.73)) ** 14 * 0.16
+        : 0.025 + power * 0.28,
+      now,
+      0.025,
+    );
     shimmer.gain.gain.setTargetAtTime(0.008 + (1 + Math.sin(tick * 0.075)) * 0.005, now, 0.3);
     drone.oscillator.detune.setTargetAtTime(Math.sin(tick * 0.035) * 4, now, 0.3);
+
     if (brain && tick % 7 === 0) {
       spark.oscillator.frequency.setValueAtTime(1700 + (tick * 137 % 2100), now);
       spark.gain.gain.setTargetAtTime(0.018, now, 0.004);
       spark.gain.gain.setTargetAtTime(0, now + 0.022, 0.017);
     }
+
     tick++;
   };
   update();
@@ -87,32 +181,25 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     document.removeEventListener("visibilitychange", update);
     master.gain.cancelScheduledValues(audio.currentTime);
     master.gain.setTargetAtTime(0, audio.currentTime, 0.018);
-    sources.forEach(source => source.stop(audio.currentTime + 0.12));
-    window.setTimeout(() => nodes.forEach(node => node.disconnect()), 160);
+    sources.forEach((source) => source.stop(audio.currentTime + 0.12));
+    window.setTimeout(() => nodes.forEach((node) => node.disconnect()), 160);
   };
 }
 
 /**
- * Der Schlag beim Zünden der Hyperlichtgeschwindigkeit.
- *
- * Ein kurzer Rauschstoß, dessen Filter nach oben zieht, über einem tiefen
- * Ton, der gleichzeitig absackt — zusammen ergibt das den Ruck, den man von
- * einem Antrieb erwartet, der anspringt. Alles lokal erzeugt: es ist die
- * Vertonung einer Animation und stellt keine Arbeit eines Agenten dar.
- *
- * Ohne freigegebene Tonausgabe passiert nichts. Eine Geste hat den Ton
- * geöffnet oder eben nicht; hier wird keine nachgeholt.
+ * Der Schlag beim Zünden der Hyperlichtgeschwindigkeit (Sonic Boom).
  */
 export function playHyperJump(volume: number) {
+  unlockAtmosphere();
   const audio = context;
-  if (!audio || volume <= 0) return;
+  if (!audio) return;
   const now = audio.currentTime;
+  const vol = (volume > 0 ? volume : 0.5);
 
   const master = audio.createGain();
-  master.gain.value = Math.min(1, volume) * 0.5;
+  master.gain.value = Math.min(1, vol) * 0.7;
   master.connect(audio.destination);
 
-  // Rauschen: zwei Sekunden weißes Rauschen, durch ein aufziehendes Bandfilter.
   const frames = Math.floor(audio.sampleRate * 2.2);
   const buffer = audio.createBuffer(1, frames, audio.sampleRate);
   const data = buffer.getChannelData(0);
@@ -122,26 +209,25 @@ export function playHyperJump(volume: number) {
   noise.buffer = buffer;
   const band = audio.createBiquadFilter();
   band.type = "bandpass";
-  band.Q.value = 1.4;
+  band.Q.value = 1.6;
   band.frequency.setValueAtTime(180, now);
-  band.frequency.exponentialRampToValueAtTime(4200, now + 0.9);
-  band.frequency.exponentialRampToValueAtTime(600, now + 2.1);
+  band.frequency.exponentialRampToValueAtTime(4600, now + 0.85);
+  band.frequency.exponentialRampToValueAtTime(500, now + 2.0);
 
   const noiseGain = audio.createGain();
   noiseGain.gain.setValueAtTime(0, now);
-  noiseGain.gain.linearRampToValueAtTime(0.5, now + 0.16);
-  noiseGain.gain.setTargetAtTime(0, now + 0.5, 0.55);
+  noiseGain.gain.linearRampToValueAtTime(0.65, now + 0.14);
+  noiseGain.gain.setTargetAtTime(0, now + 0.45, 0.5);
   noise.connect(band).connect(noiseGain).connect(master);
 
-  // Der tiefe Ton darunter: er faellt, waehrend das Rauschen steigt.
   const drop = audio.createOscillator();
   drop.type = "sawtooth";
-  drop.frequency.setValueAtTime(140, now);
-  drop.frequency.exponentialRampToValueAtTime(38, now + 1.4);
+  drop.frequency.setValueAtTime(160, now);
+  drop.frequency.exponentialRampToValueAtTime(26, now + 1.2);
   const dropGain = audio.createGain();
   dropGain.gain.setValueAtTime(0, now);
-  dropGain.gain.linearRampToValueAtTime(0.22, now + 0.07);
-  dropGain.gain.setTargetAtTime(0, now + 0.35, 0.5);
+  dropGain.gain.linearRampToValueAtTime(0.35, now + 0.06);
+  dropGain.gain.setTargetAtTime(0, now + 0.3, 0.45);
   drop.connect(dropGain).connect(master);
 
   noise.start(now);
@@ -149,8 +235,7 @@ export function playHyperJump(volume: number) {
   noise.stop(now + 2.3);
   drop.stop(now + 2.3);
 
-  // Aufraeumen, wie im Rest des Moduls: nichts bleibt am Ausgang haengen.
   window.setTimeout(() => {
     [master, band, noiseGain, dropGain].forEach((node) => node.disconnect());
-  }, 2600);
+  }, 2500);
 }

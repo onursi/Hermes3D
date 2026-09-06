@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { flightAudio } from "@/features/v2/atmosphereAudio";
+import { flightAudio, unlockAtmosphere } from "@/features/v2/atmosphereAudio";
 import { HYPER_AUDIO_SPEED, HYPER_FOV_GAIN, hyperState } from "@/features/v2/universe/hyperState";
 import { useV2 } from "@/features/v2/state";
 import { placeInReach, type Place } from "@/features/v2/universe/places";
@@ -60,7 +60,7 @@ export function FreeFlight({
   /** Reports position and heading, so entering a place can come back to it. */
   onSample: (position: THREE.Vector3, target: THREE.Vector3) => void;
 }) {
-  const { prefs } = useV2();
+  const { prefs, setPref } = useV2();
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
 
@@ -137,6 +137,12 @@ export function FreeFlight({
       // Typing in the search field must not fly the ship.
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      if (event.key.toLowerCase() === "h") {
+        unlockAtmosphere();
+        if (prefs.sound === 0) setPref("sound", 0.5);
+        setPref("hyperRide", !prefs.hyperRide);
+        return;
+      }
       held.add(event.key.toLowerCase());
     };
     const up = (event: KeyboardEvent) => held.delete(event.key.toLowerCase());
@@ -153,7 +159,7 @@ export function FreeFlight({
       window.removeEventListener("blur", clear);
       held.clear();
     };
-  }, []);
+  }, [prefs.hyperRide, prefs.sound, setPref]);
 
   useEffect(() => {
     const element = gl.domElement;
@@ -223,14 +229,18 @@ export function FreeFlight({
     const shakeTime = state.clock.elapsedTime;
     const shakePitch =
       warp > 0.02
-        ? (Math.sin(shakeTime * 68) * 0.004 + Math.sin(shakeTime * 110) * 0.002) * warp
+        ? (Math.sin(shakeTime * 68) * 0.006 + Math.sin(shakeTime * 122) * 0.003) * warp
         : 0;
     const shakeYaw =
       warp > 0.02
-        ? (Math.cos(shakeTime * 58) * 0.004 + Math.cos(shakeTime * 96) * 0.002) * warp
+        ? (Math.cos(shakeTime * 62) * 0.006 + Math.cos(shakeTime * 110) * 0.003) * warp
+        : 0;
+    const shakeRoll =
+      warp > 0.02
+        ? (Math.sin(shakeTime * 46) * 0.011) * warp
         : 0;
     camera.quaternion.setFromEuler(
-      new THREE.Euler(pitch.current + shakePitch, yaw.current + shakeYaw, 0, "YXZ"),
+      new THREE.Euler(pitch.current + shakePitch, yaw.current + shakeYaw, shakeRoll, "YXZ"),
     );
     if (!lastOrientation.current) lastOrientation.current = camera.quaternion.clone();
     else lastOrientation.current.copy(camera.quaternion);
@@ -244,6 +254,10 @@ export function FreeFlight({
     if (forward || strafe || lift) {
       const heading = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
       const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+      // Kein Geschwindigkeits-Aufschlag: Der Schalter sagt "keine Reise", und
+      // das muss wahr bleiben. Ein Faktor 5,5 auf das echte Tempo wuerde bei
+      // 100x dazu fuehren, dass man in Sekunden ausserhalb von allem steht.
+      // Der Rausch kommt aus Bild und Ton, nicht aus der Bewegung.
       wanted
         .addScaledVector(heading, forward)
         .addScaledVector(right, strafe)
@@ -285,6 +299,11 @@ export function FreeFlight({
      */
     // Der Ritt zieht den Antrieb auf Anschlag, auch wenn das Schiff steht — er
     // vertont die Animation und nicht die Arbeit eines Agenten.
+    // An dieser Marke hängt Antigravitys Hyperantrieb: vier Stimmen, ein
+    // Überschallknall beim Zünden, ein Kollaps beim Abschalten. Sie geht schon
+    // beim Umlegen des Schalters an, nicht erst wenn der Tunnel steht — so
+    // fällt der Knall mit dem Klick zusammen und nicht eine Sekunde danach.
+    flightAudio.hyperdrive = Boolean(prefs.hyperRide || warp > 0.02);
     flightAudio.speed = Math.max(velocity.current.length(), warp * HYPER_AUDIO_SPEED);
     const rush = prefs.reducedMotion ? 0 : Math.min(1, Math.log1p(velocity.current.length() / baseSpeed) / Math.log(101));
 
@@ -352,6 +371,7 @@ export function FreeFlight({
     const perspective = camera as THREE.PerspectiveCamera;
     return () => {
       flightAudio.speed = 0;
+      flightAudio.hyperdrive = false;
       if (perspective.isPerspectiveCamera && perspective.fov !== 46) {
         perspective.fov = 46;
         perspective.updateProjectionMatrix();
