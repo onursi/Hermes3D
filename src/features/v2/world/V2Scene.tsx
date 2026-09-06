@@ -16,6 +16,7 @@ import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
+import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
@@ -295,7 +296,7 @@ export function V2Scene({
       // changing a single pixel — the console has to stay readable, or the
       // one warning that matters gets lost among a thousand that do not.
       shadows={{ type: THREE.PCFShadowMap }}
-      camera={{ position: HOME_VIEW.position.toArray(), fov: 46, near: 0.1, far: 260 }}
+      camera={{ position: HOME_VIEW.position.toArray(), fov: 46, near: 0.1, far: 40000 }}
       gl={{
         // Inert while the composer is mounted, which is why it is tied to the
         // bloom preference rather than left permanently on: with a composer
@@ -363,16 +364,17 @@ export function V2Scene({
           target={HOME_VIEW.target.toArray()}
           enablePan={false}
           minDistance={3.2}
-          maxDistance={world === "cosmos" ? Math.max(30, vault.radius * 3) : 18}
+          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : 30}
           maxPolarAngle={Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
-          rotateSpeed={0.55 * prefs.flightSpeed}
-          zoomSpeed={0.85 * prefs.flightSpeed}
+          rotateSpeed={0.55 * Math.min(3, prefs.flightSpeed)}
+          zoomSpeed={0.85 * Math.min(3, prefs.flightSpeed)}
         />
       ) : null}
 
       <Suspense fallback={null}>
+        {world !== "library" && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>
@@ -436,8 +438,8 @@ export function V2Scene({
                und sieht einen Punkt. */
             <FreeFlight
               places={[]}
-              speed={prefs.flightSpeed}
-              boundary={34}
+              speed={Math.min(3, prefs.flightSpeed)}
+              boundary={80}
               baseSpeed={7.5}
               onReachChange={() => {}}
               onSample={sampleCamera}

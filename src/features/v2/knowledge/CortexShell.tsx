@@ -35,6 +35,7 @@ const SHELL_VERTEX = /* glsl */ `
 
   varying float vFade;
   varying float vCrest;
+  varying float vPulse;
 
   uniform float uTime;
   uniform vec3 uScale;
@@ -73,7 +74,7 @@ const SHELL_VERTEX = /* glsl */ `
     float gyri =
       sin(n.x * 8.5 + n.z * 3.2) * cos(n.y * 6.5 - n.z * 4.4)
       + 0.45 * sin(n.z * 11.0 + n.y * 5.0);
-    shaped *= 1.0 + gyri * 0.052;
+    shaped *= 1.0 + gyri * 0.075;
     vCrest = gyri;
 
     vec3 pos = shaped * aRadius * uScale;
@@ -85,6 +86,8 @@ const SHELL_VERTEX = /* glsl */ `
       pos.x = side * (uFissure + abs(pos.x) * 0.55);
     }
 
+    pos.y -= exp(-abs(pos.x) * 0.85) * max(0.0, n.y) * 2.0;
+    vPulse = pow(max(0.0, sin(aAngle * 3.0 + aHeight * 9.0 - uTime * 2.3)), 28.0);
     vec4 mv = modelViewMatrix * vec4(pos, 1.0);
 
     // Hinten liegende Teilchen treten zurück. Gemessen am Mittelpunkt des
@@ -112,7 +115,7 @@ const SHELL_VERTEX = /* glsl */ `
     gl_Position = projectionMatrix * mv;
     // Feste Pixelgröße. Größe nach Entfernung hat in dieser Anwendung schon
     // einmal die halbe Bildrate gekostet, als die Kamera näher kam.
-    gl_PointSize = aSize;
+    gl_PointSize = aSize + vPulse * 1.8;
   }
 `;
 
@@ -120,6 +123,7 @@ const SHELL_FRAGMENT = /* glsl */ `
   precision mediump float;
   varying float vFade;
   varying float vCrest;
+  varying float vPulse;
   uniform vec3 uColor;
   uniform float uOpacity;
 
@@ -134,7 +138,7 @@ const SHELL_FRAGMENT = /* glsl */ `
     // Ohne diesen Unterschied ist das Muster geometrisch vorhanden und
     // trotzdem unsichtbar.
     float lit = 0.45 + 0.55 * clamp(vCrest * 0.8 + 0.5, 0.0, 1.0);
-    gl_FragColor = vec4(uColor * (0.7 + lit * 0.5), core * uOpacity * vFade * lit * mask);
+    gl_FragColor = vec4(mix(uColor * (0.7 + lit * 0.5), vec3(0.15, 0.85, 1.0) * 1.8, vPulse), core * uOpacity * max(vFade, vPulse * 0.65) * lit * mask);
   }
 `;
 

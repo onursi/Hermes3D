@@ -140,7 +140,7 @@ export function Neighbourhood({
                   y1={from.y}
                   x2={to.x}
                   y2={to.y}
-                  stroke="#8a8378"
+                  stroke="#bca7ef"
                   strokeWidth={0.6}
                   opacity={0.45}
                 />
@@ -155,9 +155,9 @@ export function Neighbourhood({
                 y1={centre}
                 x2={entry.x}
                 y2={entry.y}
-                stroke={hovered === entry.node.id ? SELECTION_COLOR : "#b9b3a8"}
+                stroke={hovered === entry.node.id ? "#f1e8ff" : "#cbb5ff"}
                 strokeWidth={hovered === entry.node.id ? 1.4 : 0.8}
-                opacity={hovered === entry.node.id ? 0.9 : 0.35}
+                opacity={hovered === entry.node.id ? 1 : 0.65}
               />
             ))}
 

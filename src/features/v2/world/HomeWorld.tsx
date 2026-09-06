@@ -128,38 +128,23 @@ export function HomeWorld({
 function StagePlatform() {
   return (
     <group>
-      <mesh position={[0, -0.16, 0]} scale={[1, 1, 0.82]} receiveShadow castShadow>
-        <cylinderGeometry args={[PLATFORM_RADIUS, PLATFORM_RADIUS * 0.94, 0.32, 64]} />
-        <meshStandardMaterial color="#191714" roughness={0.62} metalness={0.35} />
-      </mesh>
-
-      {/* The walking surface, a shade lighter so the rim reads as an edge. */}
-      <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.82, 1]} receiveShadow>
-        <circleGeometry args={[PLATFORM_RADIUS * 0.985, 64]} />
-        <meshStandardMaterial color="#1d1a16" roughness={0.5} metalness={0.42} />
-      </mesh>
-
-      {/* The light channel. One thin emissive ring is the entire "premium"
-          budget of this object, and it does more than any texture would. */}
-      <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.82, 1]}>
-        <ringGeometry args={[PLATFORM_RADIUS * 0.9, PLATFORM_RADIUS * 0.935, 96]} />
-        <meshBasicMaterial color={COLOR_STRUCTURE} transparent opacity={0.3} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Two faint concentric guides. Without them the deck reads as a black
-          void with a bright rim: there is nothing for the eye to measure the
-          surface against, and a floor you cannot read is not a floor. */}
-      {[0.44, 0.68].map((factor) => (
-        <mesh
-          key={factor}
-          position={[0, 0.003, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          scale={[1, 0.82, 1]}
-        >
-          <ringGeometry args={[PLATFORM_RADIUS * factor, PLATFORM_RADIUS * factor + 0.014, 72]} />
-          <meshBasicMaterial color="#6d675e" transparent opacity={0.22} side={THREE.DoubleSide} />
-        </mesh>
+      {/* Open orbital terraces: empty space remains visible between the decks. */}
+      {[0, 1, 2].map((segment) => (
+        <group key={segment} rotation={[0, segment * Math.PI * 2 / 3 + 0.2, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <ringGeometry args={[1.75, PLATFORM_RADIUS, 48, 1, 0, Math.PI * 0.56]} />
+            <meshStandardMaterial color="#202933" roughness={0.34} metalness={0.65} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.014, 0]}>
+            <ringGeometry args={[PLATFORM_RADIUS - 0.035, PLATFORM_RADIUS, 48, 1, 0, Math.PI * 0.56]} />
+            <meshBasicMaterial color={segment === 1 ? "#c8a77c" : "#9dbbc8"} transparent opacity={0.65} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
       ))}
+      <mesh position={[0, -0.18, 0]}>
+        <cylinderGeometry args={[1.18, 0.6, 0.36, 6]} />
+        <meshStandardMaterial color="#26313c" roughness={0.3} metalness={0.7} />
+      </mesh>
     </group>
   );
 }
@@ -296,13 +281,32 @@ function AgentDock({
   onSelect: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const { prefs } = useV2();
+  const rig = useRef<THREE.Group>(null);
+  const head = useRef<THREE.Group>(null);
+  const eyes = useRef<THREE.Group>(null);
+  const arms = useRef<(THREE.Group | null)[]>([]);
+  const phase = agent.id.split("").reduce((n,c) => n+c.charCodeAt(0), 0) * 0.1;
   const glowRef = useRef<THREE.Mesh>(null);
 
   // Colour is identity, derived from the provider so the same provider always
   // looks the same. Not decoration: it answers "who actually answers this".
   const tone = useMemo(() => providerTone(agent.provider), [agent.provider]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    const t = prefs.reducedMotion ? 0 : clock.elapsedTime + phase;
+    if (rig.current) {
+      rig.current.position.y = 0.16 + (prefs.reducedMotion ? 0 : Math.sin(t*1.4)*0.025);
+      rig.current.rotation.z = prefs.reducedMotion ? 0 : Math.sin(t*0.7)*0.045;
+    }
+    if (head.current) {
+      head.current.rotation.y = prefs.reducedMotion ? 0 : Math.sin(t*0.55)*0.25;
+      head.current.rotation.z = prefs.reducedMotion ? 0 : (hovered ? -0.12 : Math.sin(t*0.85)*0.07);
+    }
+    if (eyes.current) eyes.current.scale.y = !prefs.reducedMotion && Math.sin(t*1.05)>0.995 ? 0.12 : hovered ? 1.2 : 1;
+    arms.current.forEach((arm,i) => {
+      if (arm) arm.rotation.z = (i===0 ? -1 : 1) * (0.2 + (prefs.reducedMotion ? 0 : Math.sin(t*1.2+i)*0.12 + (hovered ? 0.75+Math.sin(t*5)*0.2 : 0)));
+    });
     if (!glowRef.current) return;
     const material = glowRef.current.material as THREE.MeshBasicMaterial;
     const base = selected ? 0.5 : hovered ? 0.34 : 0.16;
@@ -327,7 +331,7 @@ function AgentDock({
         <meshBasicMaterial color={tone} transparent opacity={0.16} side={THREE.DoubleSide} />
       </mesh>
 
-      <group
+      <group ref={rig}
         onPointerOver={(event) => {
           event.stopPropagation();
           setHovered(true);
@@ -340,7 +344,7 @@ function AgentDock({
       >
         {/* Body */}
         <mesh position={[0, 0.42, 0]} castShadow>
-          <capsuleGeometry args={[0.16, 0.44, 6, 12]} />
+          <capsuleGeometry args={[0.23, 0.27, 6, 12]} />
           <meshStandardMaterial
             color="#8794a4"
             roughness={0.42}
@@ -349,9 +353,10 @@ function AgentDock({
             opacity={opacity}
           />
         </mesh>
+        <group ref={head} position={[0,0.92,0]}>
         {/* Head */}
-        <mesh position={[0, 0.86, 0]} castShadow>
-          <sphereGeometry args={[0.15, 20, 16]} />
+        <mesh position={[0, 0, 0]} scale={[1.25, 0.95, 0.9]} castShadow>
+          <sphereGeometry args={[0.25, 20, 16]} />
           <meshStandardMaterial
             color="#aab6c4"
             roughness={0.3}
@@ -360,17 +365,33 @@ function AgentDock({
             opacity={opacity}
           />
         </mesh>
-        {/* Identity band — the one coloured element on the figure. */}
-        <mesh position={[0, 0.86, 0.115]}>
-          <boxGeometry args={[0.17, 0.045, 0.03]} />
-          <meshBasicMaterial color={tone} transparent opacity={dimmed ? 0.3 : 0.95} />
+        {/* Rounded visor and two eyes give the real roster a friendly face. */}
+        <mesh position={[0, 0.02, 0.19]} scale={[1.5, 0.72, 0.28]}>
+          <sphereGeometry args={[0.17, 16, 10]} />
+          <meshStandardMaterial color="#071018" roughness={0.28} transparent={dimmed} opacity={opacity} />
         </mesh>
+        <group ref={eyes}>
+        {[-1,1].map(side => <mesh key={side} position={[side*0.09,0.03,0.235]} scale={[1,1.5,0.5]}>
+          <sphereGeometry args={[0.03,8,6]} /><meshBasicMaterial color={tone} transparent opacity={opacity} />
+        </mesh>)}
+        </group>
+        <mesh position={[0,-0.055,0.233]} rotation={[0,0,Math.PI]}>
+          <torusGeometry args={[0.058,0.009,4,12,Math.PI]} /><meshBasicMaterial color={tone} transparent opacity={opacity*0.7} />
+        </mesh>
+        </group>
+        {[-1,1].map((side,i) => <group key={side}>
+          <group ref={g => { arms.current[i]=g; }} position={[side*0.3,0.58,0]}>
+            <mesh position={[0,-0.12,0]}><capsuleGeometry args={[0.07,0.16,4,8]} /><meshStandardMaterial color="#aab6c4" metalness={0.5} roughness={0.4} transparent={dimmed} opacity={opacity} /></mesh>
+            <mesh position={[0,-0.28,0.015]}><sphereGeometry args={[0.085,8,6]} /><meshStandardMaterial color="#657787" transparent={dimmed} opacity={opacity} /></mesh>
+          </group>
+          <mesh position={[side*0.12,0.015,0.04]} scale={[1,0.7,1.5]}><sphereGeometry args={[0.105,10,8]} /><meshStandardMaterial color="#657787" transparent={dimmed} opacity={opacity} /></mesh>
+        </group>)}
       </group>
 
       {/* The name only when it is wanted. A permanent label above every figure
           is how a room turns into a diagram. */}
       {(hovered || selected) && !dimmed ? (
-        <Billboard position={[0, 1.32, 0]}>
+        <Billboard position={[0, 1.55, 0]}>
           <Text
             fontSize={0.13}
             color="#e8eef6"

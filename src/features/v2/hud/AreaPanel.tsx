@@ -48,7 +48,7 @@ export function AreaPanel({
   const total = areas.reduce((sum, area) => sum + area.count, 0);
 
   return (
-    <section className="pointer-events-auto absolute right-4 bottom-20 z-30 w-[260px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 backdrop-blur-md">
+    <section className="pointer-events-auto relative z-30 w-[260px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 backdrop-blur-md">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -62,7 +62,7 @@ export function AreaPanel({
 
       {open ? (
         <>
-          <ul className="max-h-[46vh] overflow-y-auto border-t border-white/8">
+          <ul className="max-h-[30vh] overflow-y-auto border-t border-white/8">
             {areas.map((area) => {
               const active = area.id === activeId;
               const colour = AREA_COLORS[area.id] ?? AREA_FALLBACK;

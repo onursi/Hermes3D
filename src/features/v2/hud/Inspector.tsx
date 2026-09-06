@@ -57,7 +57,7 @@ export function Inspector({
   if (selection.kind === "none") return null;
 
   return (
-    <aside className="pointer-events-auto absolute right-4 top-16 z-30 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
+    <aside className="pointer-events-auto relative z-30 min-h-0 w-full shrink overflow-y-auto rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
       {selection.kind === "agent" ? (
         <AgentBody agent={agents.find((a) => a.id === selection.id)} councilAvailable={councilAvailable} />
       ) : null}

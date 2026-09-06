@@ -19,6 +19,7 @@ import { Neighbourhood } from "@/features/v2/hud/Neighbourhood";
 import { Reader } from "@/features/v2/hud/Reader";
 import { SearchField } from "@/features/v2/hud/SearchField";
 import { Settings } from "@/features/v2/hud/Settings";
+import { AtmosphereAudio } from "@/features/v2/hud/AtmosphereAudio";
 import { StatusBar } from "@/features/v2/hud/StatusBar";
 import { SystemState } from "@/features/v2/hud/SystemState";
 import { TravelBar } from "@/features/v2/hud/TravelBar";
@@ -506,6 +507,7 @@ export function V2Screen() {
       />
       </WorldBoundary>
 
+      <AtmosphereAudio />
       <StatusBar
         agentCount={roster.agents.length}
         rosterReachable={roster.reachable}
@@ -531,22 +533,58 @@ export function V2Screen() {
         />
       ) : null}
 
-      {approvalsOpen ? (
-        <Approvals
-          approvals={approvalState.items}
-          reachable={approvalState.reachable}
-          onClose={() => setApprovalsOpen(false)}
-        />
-      ) : (
-        <Inspector
-          agents={roster.agents}
-          nodes={vault.nodes}
-          projects={projects.projects}
-          onOpenSource={openSource}
-          onDiveToSource={diveToSource}
-          councilAvailable={live.methods.includes("council.start")}
-        />
-      )}
+      {/* Eine rechte Spalte statt zweier Kästen, die sich um dieselbe Ecke
+          streiten. Vorher stand der Inspektor absolut oben rechts und die
+          Arealliste absolut unten rechts; beide wuchsen aufeinander zu, und
+          sobald sie sich trafen, landete ein Klick auf dem Inspektor in der
+          Arealliste — die steht später im Dokument und gewann bei gleichem z.
+          Ein höheres z hätte den Fehler nur umgedreht statt behoben. Hier
+          liegen sie untereinander, also kann sich nichts mehr überdecken.
+
+          Der Inspektor schrumpft zuerst (`shrink` und `min-h-0`), weil die
+          Arealliste ihre Höhe selbst kennt; so bleibt die Spalte auch auf
+          niedrigen Fenstern innerhalb ihrer Grenzen. */}
+      <div className="pointer-events-none absolute right-4 top-16 bottom-20 z-30 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
+        {approvalsOpen ? (
+          <Approvals
+            approvals={approvalState.items}
+            reachable={approvalState.reachable}
+            onClose={() => setApprovalsOpen(false)}
+          />
+        ) : (
+          <Inspector
+            agents={roster.agents}
+            nodes={vault.nodes}
+            projects={projects.projects}
+            onOpenSource={openSource}
+            onDiveToSource={diveToSource}
+            councilAvailable={live.methods.includes("council.start")}
+          />
+        )}
+
+        {/* Die Areale gehoeren in die Wissenswelt und nirgendwo sonst: dort
+            stehen sie im Raum, und dort ist die Liste die zweite Art, sich zu
+            bewegen. */}
+        {world === "cosmos" ? (
+          <AreaPanel
+            areas={areas}
+            flying={flyThrough}
+            onToggleFlight={() => setFlyThrough((value) => !value)}
+            activeId={
+              selection.kind === "source"
+                ? (vault.byId.get(selection.id)?.folder ?? null)
+                : null
+            }
+            onFocus={(area) =>
+              setFocusRequest((previous) => ({
+                center: area.center,
+                radius: area.radius,
+                seq: (previous?.seq ?? 0) + 1,
+              }))
+            }
+          />
+        ) : null}
+      </div>
 
       <Reader
         node={readerNode}
@@ -573,29 +611,6 @@ export function V2Screen() {
         onRead={setReaderId}
         onClose={() => setDismissedGraphId(graphNode?.id ?? null)}
       />
-
-      {/* Die Areale gehoeren in die Wissenswelt und nirgendwo sonst: dort
-          stehen sie im Raum, und dort ist die Liste die zweite Art, sich zu
-          bewegen. */}
-      {world === "cosmos" ? (
-        <AreaPanel
-          areas={areas}
-          flying={flyThrough}
-          onToggleFlight={() => setFlyThrough((value) => !value)}
-          activeId={
-            selection.kind === "source"
-              ? (vault.byId.get(selection.id)?.folder ?? null)
-              : null
-          }
-          onFocus={(area) =>
-            setFocusRequest((previous) => ({
-              center: area.center,
-              radius: area.radius,
-              seq: (previous?.seq ?? 0) + 1,
-            }))
-          }
-        />
-      ) : null}
 
       {world === "universe" ? (
         <>

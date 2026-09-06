@@ -156,9 +156,8 @@ export function Silhouettes({
 
     for (const entry of portals.current.values()) {
       const { handle } = entry;
-      // Immer zur Kamera. Ein Tor von der Kante gesehen ist ein Strich, und
-      // eine Tuer, die man nicht sieht, ist keine Tuer.
-      if (handle.group) handle.group.quaternion.copy(camera.quaternion);
+      // Stable entrance orientation: the curved throat can be seen obliquely.
+      if (handle.group) handle.group.lookAt(0, 4, 0);
       const material = handle.material;
       if (!material) continue;
       // Reduzierte Bewegung behaelt die Form und laesst die Bewegung weg.
@@ -286,7 +285,8 @@ function Silhouette({
       <Suspense fallback={null}>
       <Billboard ref={labelRef} position={[0, place.radius * 1.5 + 1.2, 0]}>
         <Text
-          fontSize={Math.max(0.9, place.radius * 0.18)}
+          fontSize={Math.max(0.55, place.radius * 0.095)}
+          letterSpacing={0.14}
           color={highlighted ? SELECTION_COLOR : "#cfc9be"}
           anchorX="center"
           anchorY="middle"
@@ -297,7 +297,7 @@ function Silhouette({
           // against a wall of names, not against naming anything.
           maxWidth={26}
         >
-          {place.name}
+          {place.name.toLocaleUpperCase("de-DE")}
         </Text>
       </Billboard>
       </Suspense>

@@ -29,9 +29,15 @@ import * as THREE from "three";
 
 const PORTAL_VERTEX = /* glsl */ `
   varying vec2 vUv;
+  uniform mediump float uTime;
+  uniform float uRadius;
   void main() {
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec2 p = uv * 2.0 - 1.0;
+    float r = length(p);
+    vec3 warped = position;
+    warped.z += uRadius * (0.45 * sin(r * 5.0) + 0.07 * sin(atan(p.y,p.x) * 5.0 + uTime * 1.6));
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(warped, 1.0);
   }
 `;
 
@@ -46,7 +52,7 @@ const PORTAL_FRAGMENT = /* glsl */ `
   precision mediump float;
 
   varying vec2 vUv;
-  uniform float uTime;
+  uniform mediump float uTime;
   uniform vec3 uRim;
   uniform vec3 uCore;
   uniform float uOpen;   // 0 = calm, 1 = reacting to attention
@@ -104,14 +110,13 @@ const PORTAL_FRAGMENT = /* glsl */ `
     float angle = atan(centred.y, centred.x);
 
     if (uDetail < 0.5) {
-      // Billige Fassung: ein weicher Ring plus Saum, kein Rauschen, keine
-      // Schleife. Zwei smoothsteps statt vier fbm-Oktaven.
-      float band = 1.0 - abs(radius - 0.62) * 4.6;
-      band = clamp(band, 0.0, 1.0);
-      float glow = exp(-max(0.0, radius - 0.62) * 8.5) * 0.34;
-      float lift0 = 1.0 + uOpen * 1.1;
-      vec3 c0 = uRim * (band * 1.7 + glow) * lift0 + uCore * 0.25 * (1.0 - radius);
-      gl_FragColor = vec4(c0, clamp(band * 1.35 * lift0 + glow * lift0, 0.0, 1.0));
+      float wave = sin(angle*9.0-uTime*2.0)*0.035 + sin(angle*17.0+uTime*3.1)*0.017;
+      float rim = 0.67 + wave;
+      float band = exp(-abs(radius-rim)*14.0);
+      float electricity = exp(-abs(radius-rim-sin(angle*31.0-uTime*5.0)*0.013)*125.0);
+      float mist = exp(-abs(radius-rim)*8.0)*(0.65+0.3*sin(angle*13.0+radius*33.0-uTime*2.0));
+      vec3 tint = mix(uRim,vec3(0.2,0.65,1.0),0.5);
+      gl_FragColor=vec4(tint*(band*0.7+mist*1.2)+vec3(0.6,0.85,1.0)*electricity*0.75, clamp(band*0.65+mist*0.65+electricity*0.35,0.0,1.0));
       return;
     }
 
@@ -134,14 +139,14 @@ const PORTAL_FRAGMENT = /* glsl */ `
     // makes it a portal instead of a glowing coin, so it gets the width.
     // Der Ring sitzt bei 0.62 statt am Rand, damit außerhalb Platz für den
     // Lichtsaum bleibt. Die Fläche ist entsprechend größer als das Tor.
-    float ring = 0.62 + turbulence * 0.13;
-    float edge = 1.0 - abs(radius - ring) * 4.6;
+    float ring = 0.62 + turbulence * 0.18;
+    float edge = 1.0 - abs(radius - ring) * 9.0;
     edge = clamp(edge, 0.0, 1.0);
     edge = pow(edge, 1.35) * (0.62 + filaments * 0.75 + sparks * 1.8);
 
     // Light spilling outward. Without it the disc ends where the geometry
     // ends, and an edge you can see is the one thing a portal must not have.
-    float halo = exp(-max(0.0, radius - ring) * 8.5) * 0.34;
+    float halo = exp(-abs(radius - ring) * 16.0) * 0.18;
 
     // The throat. Streaks live in a band just inside the rim and die out
     // toward the middle, which stays almost black — a portal you can see the
@@ -157,9 +162,11 @@ const PORTAL_FRAGMENT = /* glsl */ `
     // Die Strähnen im Schlund tragen einen Hauch der Randfarbe, damit das
     // Innere zum Tor gehört und nicht wie ein zweites Objekt wirkt.
     vec3 throat = mix(uCore, uRim, 0.35) * inner * 1.9;
-    vec3 colour = throat + uRim * (edge * 1.7 + halo) * lift;
+    float lightning = pow(max(0.0, 1.0 - abs(radius - ring - sin(angle*17.0+uTime*4.0)*0.018)*95.0), 2.0);
+    float tunnel = pow(max(0.0, sin(radius*42.0 + angle*2.0 - uTime*3.2)), 12.0) * smoothstep(0.15,0.45,radius)*(1.0-smoothstep(0.48,0.68,radius))*0.35;
+    vec3 colour = throat + mix(uRim, vec3(0.25,0.65,1.0),0.5) * (edge*1.4 + halo + tunnel)*lift + vec3(0.65,0.9,1.0)*lightning*1.7;
 
-    float alpha = clamp(edge * 1.35 * lift + halo * lift + inner * 0.7, 0.0, 1.0);
+    float alpha = clamp(edge * 1.35 * lift + halo * lift + inner * 0.7 + lightning * 0.6 + tunnel, 0.0, 1.0);
 
     gl_FragColor = vec4(colour, alpha);
   }
@@ -204,6 +211,7 @@ export function Portal({
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
+      uRadius: { value: radius },
       uRim: { value: new THREE.Color("#ffffff") },
       uCore: { value: new THREE.Color("#000000") },
       uOpen: { value: 0 },
@@ -230,7 +238,7 @@ export function Portal({
       {/* Was hindurchscheint — hinter der Fläche und von ihr eingerahmt. */}
       {children}
       <mesh>
-        <planeGeometry args={[radius * 2.6, radius * 2.6]} />
+        <planeGeometry args={[radius * 2.6, radius * 2.6, 32, 32]} />
         <shaderMaterial
           ref={(material) => {
             handle.current.material = material;

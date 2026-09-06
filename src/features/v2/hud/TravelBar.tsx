@@ -1,5 +1,6 @@
 "use client";
 
+import * as THREE from "three";
 import { SELECTION_COLOR } from "@/features/v2/palette";
 import { useV2 } from "@/features/v2/state";
 import type { Place } from "@/features/v2/universe/places";
@@ -25,7 +26,7 @@ export function TravelBar({
   reachable: Place | null;
   onEnter: (place: Place) => void;
 }) {
-  const { prefs, setPref, goTo } = useV2();
+  const { prefs, setPref, goTo, rememberCamera } = useV2();
 
   return (
     <>
@@ -50,7 +51,7 @@ export function TravelBar({
         </div>
       ) : null}
 
-      <div className="pointer-events-auto absolute bottom-20 left-1/2 z-30 flex -translate-x-1/2 items-center gap-4 rounded-2xl border border-white/10 bg-[#0a1018]/90 px-4 py-2 backdrop-blur-md">
+      <div className="pointer-events-auto absolute bottom-20 left-1/2 z-30 flex -translate-x-1/2 w-[min(94vw,900px)] flex-wrap justify-center items-center gap-3 rounded-2xl border border-white/10 bg-[#0a1018]/90 px-4 py-2 backdrop-blur-md">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/35">
           W A S D · Q E hoch/runter · Ziehen zum Umsehen · Shift schneller
         </span>
@@ -62,7 +63,7 @@ export function TravelBar({
           <input
             type="range"
             min={0.5}
-            max={3}
+            max={100}
             step={0.1}
             value={prefs.flightSpeed}
             onChange={(event) => setPref("flightSpeed", Number(event.target.value))}
@@ -74,6 +75,12 @@ export function TravelBar({
           </span>
         </label>
 
+        <button type="button" onClick={() => setPref("flightSpeed", prefs.flightSpeed > 3 ? 1.4 : 12)} className="rounded-xl border border-cyan-200/25 px-3 py-1.5 text-xs text-cyan-100">{prefs.flightSpeed > 3 ? "Präzision" : "Hyperflug"}</button>
+        <button type="button" onClick={() => {
+          rememberCamera("universe", new THREE.Vector3(0, 300, 650), new THREE.Vector3(0, 0, 0));
+          goTo("universe", "direct");
+        }} className="rounded-xl border border-white/15 px-3 py-1.5 text-xs text-white/70">Weitblick</button>
+        {[50, 100].map(rate => <button key={rate} type="button" aria-pressed={prefs.flightSpeed === rate} onClick={() => setPref("flightSpeed", rate)} className="rounded-xl border border-violet-200/25 px-3 py-1.5 text-xs text-violet-100 aria-pressed:bg-violet-300/20">{rate}×</button>)}
         {/* Always here, always the same button. The way back is the one thing
             in this world that must never depend on where he has got to. */}
         <button

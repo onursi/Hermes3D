@@ -4,6 +4,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
+import { flightAudio } from "@/features/v2/atmosphereAudio";
+import { useV2 } from "@/features/v2/state";
 import { placeInReach, type Place } from "@/features/v2/universe/places";
 
 /**
@@ -29,7 +31,7 @@ const BASE_SPEED = 26;
 /** Shift. Onur's "Lichtgeschwindigkeit", bounded. */
 const BOOST = 3.2;
 /** How far out he can get. Past this there is nothing to see and no way to aim. */
-const BOUNDARY = 240;
+const BOUNDARY = 20000;
 /** Radians per pixel of drag. */
 const LOOK_RATE = 0.0032;
 
@@ -45,7 +47,7 @@ export function FreeFlight({
   /** The flight-speed preference. Scales the whole thing, boost included. */
   speed: number;
   /**
-   * Wie weit er kommt. Im All 240 Einheiten, im Wissenskoerper viel weniger:
+   * Wie weit er kommt. Im All 2400 Einheiten, im Wissenskoerper viel weniger:
    * dort ist alles innerhalb von zwanzig, und wer hundert Einheiten weit
    * hinausfliegt, sieht einen Punkt und findet nicht zurueck.
    */
@@ -57,6 +59,7 @@ export function FreeFlight({
   /** Reports position and heading, so entering a place can come back to it. */
   onSample: (position: THREE.Vector3, target: THREE.Vector3) => void;
 }) {
+  const { prefs } = useV2();
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
 
@@ -77,9 +80,10 @@ export function FreeFlight({
    */
   const reachedId = useRef<string | null | undefined>(undefined);
   const streaks = useRef<THREE.Group>(null);
-  const streakMaterial = useRef<THREE.LineBasicMaterial>(null);
+  const streakMaterial = useRef<THREE.ShaderMaterial>(null);
   /** Zuletzt gesetzter Blickwinkel. Nur bei Aenderung neu rechnen. */
   const lastFov = useRef(0);
+  const lastOrientation = useRef<THREE.Quaternion | null>(null);
 
   /**
    * Die Streifen: kurze Striche in einer Roehre um den Betrachter.
@@ -89,26 +93,22 @@ export function FreeFlight({
    * der ganze Geistmodus: kein Partikelsystem, kein zweiter Renderdurchgang,
    * ein einziger Zeichenaufruf, der bei Stillstand unsichtbar ist.
    */
+  const streakUniforms = useMemo(() => ({ uTime: { value: 0 }, uRush: { value: 0 } }), []);
   const streakGeometry = useMemo(() => {
-    const count = 220;
-    const positions = new Float32Array(count * 6);
-    for (let i = 0; i < count; i += 1) {
-      const angle = (i * 2.399963) % (Math.PI * 2);
-      // Ein Loch in der Mitte: Striche direkt vor der Nase lesen sich als
-      // Dreck auf der Scheibe, nicht als Fahrt.
-      const radius = 2.6 + ((i * 37) % 100) / 100 * 11;
-      const z = -34 + ((i * 53) % 100) / 100 * 44;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-      positions[i * 6] = x;
-      positions[i * 6 + 1] = y;
-      positions[i * 6 + 2] = z;
-      positions[i * 6 + 3] = x;
-      positions[i * 6 + 4] = y;
-      positions[i * 6 + 5] = z - 1;
+    const positions: number[] = [], uv: number[] = [], seeds: number[] = [];
+    for (let i = 0; i < 320; i++) {
+      const angle = i * 2.399963;
+      const radius = 3 + (i * 37 % 100) / 100 * 15;
+      const width = 0.015 + (i % 7) * 0.006;
+      for (const [side, along] of [[-1,0],[1,0],[1,1],[-1,0],[1,1],[-1,1]]) {
+        positions.push(Math.cos(angle)*radius - Math.sin(angle)*side*width, Math.sin(angle)*radius + Math.cos(angle)*side*width, along);
+        uv.push((side+1)/2, along); seeds.push((i*53%320)/320);
+      }
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions,3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv,2));
+    geo.setAttribute("aSeed", new THREE.Float32BufferAttribute(seeds,1));
     return geo;
   }, []);
 
@@ -199,7 +199,16 @@ export function FreeFlight({
     // Unclamped, that is a single frame that teleports him across the map.
     const delta = Math.min(rawDelta, 0.1);
 
+    // Adopt a director preset even when React batches the instant journey.
+    if (!lastOrientation.current || camera.quaternion.angleTo(lastOrientation.current) > 0.0001) {
+      const heading = new THREE.Euler().setFromQuaternion(camera.quaternion, "YXZ");
+      pitch.current = heading.x;
+      yaw.current = heading.y;
+      velocity.current.set(0, 0, 0);
+    }
     camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, "YXZ"));
+    if (!lastOrientation.current) lastOrientation.current = camera.quaternion.clone();
+    else lastOrientation.current.copy(camera.quaternion);
 
     const held = keys.current;
     const forward = (held.has("w") || held.has("arrowup") ? 1 : 0) - (held.has("s") || held.has("arrowdown") ? 1 : 0);
@@ -218,7 +227,7 @@ export function FreeFlight({
         .addScaledVector(new THREE.Vector3(0, 1, 0), lift)
         .normalize()
         .multiplyScalar(
-          baseSpeed * THREE.MathUtils.clamp(speed, 0.5, 3) * (held.has("shift") ? BOOST : 1),
+          baseSpeed * THREE.MathUtils.clamp(speed, 0.5, 100) * (held.has("shift") ? BOOST : 1),
         );
     }
 
@@ -249,18 +258,20 @@ export function FreeFlight({
      * beim Loslassen von selbst wieder ab — Anfahren und Abbremsen sind
      * derselbe Regler, rueckwaerts gelesen.
      */
-    const rush = Math.min(1, velocity.current.length() / (baseSpeed * 2.6));
+    flightAudio.speed = velocity.current.length();
+    const rush = prefs.reducedMotion ? 0 : Math.min(1, Math.log1p(velocity.current.length() / baseSpeed) / Math.log(101));
 
     if (streaks.current) {
       // Die Roehre sitzt am Betrachter und schaut, wohin er schaut.
       streaks.current.position.copy(camera.position);
       streaks.current.quaternion.copy(camera.quaternion);
       // Gestreckt statt neu gebaut: dieselbe Geometrie, laenger gezogen.
-      streaks.current.scale.set(1, 1, 1 + rush * 5.5);
+      streaks.current.scale.set(1, 1, 1);
       streaks.current.visible = rush > 0.02;
     }
     if (streakMaterial.current) {
-      streakMaterial.current.opacity = rush * rush * 0.55;
+      streakMaterial.current.uniforms.uRush.value = rush;
+      streakMaterial.current.uniforms.uTime.value = state.clock.elapsedTime;
     }
 
     /**
@@ -276,7 +287,7 @@ export function FreeFlight({
      * veraendern, und sie hat recht — wer eine Kamera aus einem Hook heraus
      * umbaut, aendert etwas, das React fuer unveraenderlich haelt.
      */
-    const wantedFov = 46 + rush * 9;
+    const wantedFov = 46 + rush * 25;
     if (Math.abs(wantedFov - lastFov.current) > 0.15) {
       lastFov.current = wantedFov;
       const perspective = state.camera as THREE.PerspectiveCamera;
@@ -303,6 +314,7 @@ export function FreeFlight({
   useEffect(() => {
     const perspective = camera as THREE.PerspectiveCamera;
     return () => {
+      flightAudio.speed = 0;
       if (perspective.isPerspectiveCamera && perspective.fov !== 46) {
         perspective.fov = 46;
         perspective.updateProjectionMatrix();
@@ -312,16 +324,33 @@ export function FreeFlight({
 
   return (
     <group ref={streaks} visible={false}>
-      <lineSegments geometry={streakGeometry}>
-        <lineBasicMaterial
-          ref={streakMaterial}
-          color="#dfe6f2"
-          transparent
-          opacity={0}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
+      <mesh geometry={streakGeometry} frustumCulled={false} raycast={() => {}}>
+        <shaderMaterial ref={streakMaterial} uniforms={streakUniforms} transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide}
+          vertexShader={`
+            attribute float aSeed;
+            uniform float uTime;
+            uniform float uRush;
+            varying vec2 vUv;
+            varying float vSeed;
+            void main() {
+              vUv=uv; vSeed=aSeed;
+              vec3 p=position;
+              float travel=fract(aSeed + uTime * (0.12+uRush*1.8));
+              p.z=-95.0+travel*104.0-position.z*(2.0+uRush*25.0);
+              gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
+            }`}
+          fragmentShader={`
+            uniform float uRush;
+            varying vec2 vUv;
+            varying float vSeed;
+            void main() {
+              float core=pow(max(0.0,1.0-abs(vUv.x*2.0-1.0)),1.4);
+              float tail=pow(1.0-vUv.y,1.7);
+              vec3 tint=mix(vec3(0.2,0.75,1.0),vec3(0.75,0.45,1.0),vSeed);
+              gl_FragColor=vec4(mix(tint,vec3(1.0),core*0.75)*1.8,core*tail*uRush*0.9);
+            }`}
         />
-      </lineSegments>
+      </mesh>
     </group>
   );
 }
