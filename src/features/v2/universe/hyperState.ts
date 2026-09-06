@@ -32,13 +32,16 @@ export const hyperState = {
 /**
  * Wie viel Grad Sichtfeld der Ritt oben drauf legt.
  *
- * Antigravitys Baustein bietet 58 Grad (bis 104°) an und nennt im Kommentar
- * selbst 39 Grad (bis 85°) als schonendere Wahl für die Vega 11. Genau die
- * steht hier: ein weiteres Sichtfeld zeigt mehr Fläche, und Fläche ist auf
- * einer integrierten Grafikeinheit die Grenze. Gemessen wird nach dem Einbau,
- * nicht vermutet — steht der Wert stabil bei 60 fps, kann er wieder hoch.
+ * Antigravitys Wert, unverändert: 58 Grad, also bis 104°.
+ *
+ * Ich hatte zuerst die schonenderen 39 (85°) genommen, die sein Kommentar
+ * anbietet — und damit genau das weggenommen, was den Ritt ausmacht. Onur hat
+ * es sofort gesehen: „so ist es jetzt einfach nur eine schnellere
+ * Geschwindigkeit". Vorsicht vor der Füllrate ist richtig, aber sie darf nicht
+ * heimlich die Wirkung kosten, um die es geht. Der volle Wert wird gemessen;
+ * fällt die Bildrate, wird das gemeldet und nicht still gedrosselt.
  */
-export const HYPER_FOV_GAIN = 39;
+export const HYPER_FOV_GAIN = 58;
 
 /** Wie laut der Antrieb beim vollen Ritt wird, in derselben Einheit wie die Fluggeschwindigkeit. */
 export const HYPER_AUDIO_SPEED = 2200;

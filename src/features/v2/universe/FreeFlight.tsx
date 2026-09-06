@@ -314,7 +314,17 @@ export function FreeFlight({
      * veraendern, und sie hat recht — wer eine Kamera aus einem Hook heraus
      * umbaut, aendert etwas, das React fuer unveraenderlich haelt.
      */
-    const wantedFov = 46 + rush * 25 + warp * HYPER_FOV_GAIN;
+    /**
+     * Das Sichtfeld des Ritts — mit dem Pulsieren, das ich zuerst weggelassen
+     * hatte. Ohne es zieht das Bild nur gleichmäßig auf, und das liest sich als
+     * „schneller" statt als „Hyperlicht". Antigravitys Zahlen: 58 Grad Zuwachs
+     * und anderthalb Grad Flirren bei 24 Hertz.
+     */
+    const wantedFov =
+      46 +
+      rush * 25 +
+      warp * HYPER_FOV_GAIN +
+      (warp > 0.002 ? Math.sin(shakeTime * 24) * 1.5 * warp : 0);
     if (Math.abs(wantedFov - lastFov.current) > 0.15) {
       lastFov.current = wantedFov;
       const perspective = state.camera as THREE.PerspectiveCamera;
