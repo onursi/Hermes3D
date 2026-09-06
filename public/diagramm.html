@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Endziel-Diagramm // Hermes Agent OS & 4D-Erinnerungsraum</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020612;
+      --glass: rgba(8, 15, 30, 0.86);
+      --border: rgba(56, 189, 248, 0.35);
+      --cyan: #00f0ff;
+      --purple: #c084fc;
+      --amber: #fbbf24;
+      --emerald: #34d399;
+      --rose: #fb7185;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1.5rem 5rem;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -15%, rgba(0, 240, 255, 0.16), transparent),
+        radial-gradient(ellipse 60% 40% at 85% 85%, rgba(192, 132, 252, 0.1), transparent),
+        radial-gradient(ellipse 50% 50% at 15% 75%, rgba(52, 211, 153, 0.08), transparent);
+      overflow-x: hidden;
+    }
+
+    header {
+      text-align: center;
+      max-width: 960px;
+      margin-bottom: 2rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      color: var(--cyan);
+      margin-bottom: 1rem;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 30%, #38bdf8 70%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.75rem;
+      line-height: 1.15;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 1.1rem;
+      line-height: 1.6;
+    }
+
+    /* MODE SELECTOR (TABS) */
+    .tab-bar {
+      display: flex;
+      gap: 0.75rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0.4rem;
+      border-radius: 16px;
+      margin-bottom: 2rem;
+    }
+
+    .tab-btn {
+      padding: 0.6rem 1.4rem;
+      border-radius: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #0284c7, #00f0ff);
+      color: #020612;
+      box-shadow: 0 4px 14px rgba(0, 240, 255, 0.35);
+    }
+
+    /* THE OBSIDIAN GLASS PLATE */
+    .glass-plate {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 2.5rem 2rem;
+      box-shadow: 
+        0 30px 80px -20px rgba(0, 0, 0, 0.9),
+        0 0 50px -10px rgba(0, 240, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(28px);
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+    }
+
+    .glass-plate::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+    }
+
+    .plate-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .plate-status {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--cyan);
+    }
+
+    .pulsing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+      animation: pDot 1.8s infinite;
+    }
+
+    @keyframes pDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.75); }
+    }
+
+    /* SVG DIAGRAM */
+    .diagram-svg {
+      width: 100%;
+      height: auto;
+      min-height: 520px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .wire-flow {
+      stroke-dasharray: 8 8;
+      animation: flowAnim 25s linear infinite;
+    }
+
+    @keyframes flowAnim {
+      from { stroke-dashoffset: 400; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    .node-interactive {
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .node-interactive:hover {
+      filter: drop-shadow(0 0 18px rgba(0, 240, 255, 0.6));
+    }
+
+    /* DETAILS INSPECTOR BOX */
+    .detail-inspector {
+      background: rgba(4, 9, 20, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 1.6rem 2rem;
+      margin-top: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .detail-text h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.4rem;
+    }
+
+    .detail-text p {
+      color: var(--muted);
+      font-size: 0.94rem;
+      max-width: 760px;
+      line-height: 1.55;
+    }
+
+    .btn-3d {
+      background: linear-gradient(135deg, #0284c7, #00f0ff);
+      color: #020612;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0.75rem 1.4rem;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn-3d:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 240, 255, 0.4);
+    }
+
+    /* 4D INTERSTELLAR MEMORIES PREVIEW SECTION */
+    .tesseract-section {
+      display: none;
+      position: relative;
+      z-index: 2;
+    }
+    .tesseract-section.active {
+      display: block;
+    }
+
+    .tesseract-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .tesseract-header h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: #c084fc;
+      margin-bottom: 0.5rem;
+    }
+    .tesseract-header p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* 4D Time string / Photo Gallery Grid */
+    .timeline-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .memory-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(192, 132, 252, 0.25);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .memory-card:hover {
+      transform: translateY(-6px) scale(1.02);
+      border-color: rgba(192, 132, 252, 0.7);
+      box-shadow: 0 15px 35px rgba(192, 132, 252, 0.25);
+    }
+
+    .memory-img {
+      width: 100%;
+      height: 180px;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+    }
+
+    .memory-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 9999px;
+      padding: 0.25rem 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #c084fc;
+    }
+
+    .memory-body {
+      padding: 1.25rem;
+    }
+
+    .memory-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.35rem;
+    }
+
+    .memory-desc {
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    /* 3 EXPLANATION PILLARS */
+    .pillar-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      max-width: 1200px;
+      width: 100%;
+    }
+
+    .pillar {
+      background: rgba(6, 13, 26, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 1.75rem;
+      backdrop-filter: blur(14px);
+    }
+
+    .pillar h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .pillar p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge">💎 Visuelle Endziel-Blaupause</div>
+    <h1>Hermes Agent OS auf 1 Blick</h1>
+    <p class="sub">Kein Datei-Chaos, kein 10.000-Dokumente-Dschungel. Ein Blick auf diese Obsidian-Glasplatte genügt, um sofort Sinn, Zweck und das Endziel des Projekts zu verstehen.</p>
+  </header>
+
+  <!-- TAB SELECTION -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabBlueprint" onclick="setTab('blueprint')">📐 Endziel-Diagramm</button>
+    <button class="tab-btn" id="tabTesseract" onclick="setTab('tesseract')">🪐 4D-Erinnerungsraum (Interstellar-Modus)</button>
+  </div>
+
+  <!-- THE OBSIDIAN GLASS PLATE -->
+  <div class="glass-plate">
+    <div class="plate-top">
+      <div class="plate-status">
+        <div class="pulsing-dot"></div>
+        <span id="plateLabel">TRANSPARENTE OBSIDIAN-GLASPLATTE // ARCHITEKTUR</span>
+      </div>
+      <div style="font-family: 'JetBrains Mono'; font-size: 0.8rem; color: #94a3b8;">
+        Klicke auf Stationen für Sofort-Erklärung
+      </div>
+    </div>
+
+    <!-- VIEW 1: THE BLUEPRINT DIAGRAM -->
+    <div id="viewBlueprint">
+      <svg class="diagram-svg" viewBox="0 0 1060 520">
+        <defs>
+          <linearGradient id="cyanBox" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="#0284c7" stop-opacity="0.08" />
+          </linearGradient>
+          <linearGradient id="purpleBox" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c084fc" stop-opacity="0.3" />
+            <stop offset="100%" stop-color="#9333ea" stop-opacity="0.08" />
+          </linearGradient>
+          <linearGradient id="amberBox" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.3" />
+            <stop offset="100%" stop-color="#b45309" stop-opacity="0.08" />
+          </linearGradient>
+          <linearGradient id="emeraldBox" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#34d399" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="#047857" stop-opacity="0.08" />
+          </linearGradient>
+          <filter id="glowFilt" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <!-- PULSING DATA WIRES -->
+        <!-- 1. Du -> Council -->
+        <path d="M 230 260 L 370 260" stroke="#00f0ff" stroke-width="2.5" class="wire-flow" />
+        <circle cx="300" cy="260" r="4" fill="#00f0ff" filter="url(#glowFilt)" />
+
+        <!-- 2. Council -> Obsidian Vault -->
+        <path d="M 520 180 L 520 120" stroke="#c084fc" stroke-width="2.5" class="wire-flow" />
+
+        <!-- 3. Council -> 3D Welten -->
+        <path d="M 670 260 L 780 260" stroke="#00f0ff" stroke-width="2.5" class="wire-flow" />
+
+        <!-- 4. 3D Welten -> Reale Ergebnisse -->
+        <path d="M 880 340 L 880 430" stroke="#34d399" stroke-width="2.5" class="wire-flow" />
+
+        <!-- 5. Vault -> 3D Welten Sync -->
+        <path d="M 620 75 Q 880 75 880 180" fill="none" stroke="#fbbf24" stroke-width="2" class="wire-flow" />
+
+        <!-- STATION 1: ONUR (DER MENSCH) -->
+        <g class="node-interactive" onclick="inspectNode('onur')">
+          <rect x="40" y="195" width="190" height="130" rx="16" fill="url(#cyanBox)" stroke="#00f0ff" stroke-width="1.8" />
+          <text x="60" y="235" font-family="'Outfit'" font-size="18" font-weight="800" fill="#ffffff">1. DU (ONUR)</text>
+          <text x="60" y="258" font-family="'JetBrains Mono'" font-size="11" fill="#00f0ff">STIMME & GEDANKEN</text>
+          <text x="60" y="283" font-family="'Inter'" font-size="10.5" fill="#94a3b8">• Sprachmemos im Auto</text>
+          <text x="60" y="301" font-family="'Inter'" font-size="10.5" fill="#94a3b8">• Vision & Freigaben</text>
+        </g>
+
+        <!-- STATION 2: KI-COUNCIL -->
+        <g class="node-interactive" onclick="inspectNode('council')">
+          <rect x="370" y="180" width="300" height="160" rx="18" fill="url(#purpleBox)" stroke="#c084fc" stroke-width="2" />
+          <text x="395" y="215" font-family="'Outfit'" font-size="18" font-weight="800" fill="#ffffff">2. KI-COUNCIL</text>
+          <text x="395" y="238" font-family="'JetBrains Mono'" font-size="11" fill="#c084fc">HERMES ORCHESTRATOR</text>
+          <line x1="395" y1="250" x2="645" y2="250" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+          <text x="395" y="272" font-family="'Inter'" font-size="11" fill="#e2e8f0">🤖 Claude: Struktur & Refactoring</text>
+          <text x="395" y="292" font-family="'Inter'" font-size="11" fill="#e2e8f0">🤖 Antigravity: 3D-Welten & Design</text>
+          <text x="395" y="312" font-family="'Inter'" font-size="11" fill="#e2e8f0">🤖 Codex: Code-Reviews & Härtetests</text>
+        </g>
+
+        <!-- STATION 3: OBSIDIAN VAULT -->
+        <g class="node-interactive" onclick="inspectNode('vault')">
+          <rect x="420" y="20" width="200" height="95" rx="16" fill="url(#amberBox)" stroke="#fbbf24" stroke-width="1.8" />
+          <text x="440" y="55" font-family="'Outfit'" font-size="16" font-weight="800" fill="#ffffff">3. OBSIDIAN VAULT</text>
+          <text x="440" y="75" font-family="'JetBrains Mono'" font-size="10.5" fill="#fbbf24">LANGZEITGEDÄCHTNIS</text>
+          <text x="440" y="95" font-family="'Inter'" font-size="10" fill="#94a3b8">Lokale Markdown-Wahrheit</text>
+        </g>
+
+        <!-- STATION 4: SPATIAL LIFE OS -->
+        <g class="node-interactive" onclick="inspectNode('welten')">
+          <rect x="780" y="180" width="240" height="160" rx="18" fill="url(#cyanBox)" stroke="#00f0ff" stroke-width="2" />
+          <text x="805" y="215" font-family="'Outfit'" font-size="18" font-weight="800" fill="#ffffff">4. SPATIAL LIFE OS</text>
+          <text x="805" y="238" font-family="'JetBrains Mono'" font-size="11" fill="#00f0ff">DIE 3D-WELTEN</text>
+          <line x1="805" y1="250" x2="995" y2="250" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+          <text x="805" y="272" font-family="'Inter'" font-size="11" fill="#e2e8f0">🚢 1. Ergebniswerft (Werkbank)</text>
+          <text x="805" y="292" font-family="'Inter'" font-size="11" fill="#e2e8f0">🪐 2. 4D-Erinnerungsorbit (Tesserakt)</text>
+          <text x="805" y="312" font-family="'Inter'" font-size="11" fill="#e2e8f0">🌱 3. Ideengarten (Notizen-Biotop)</text>
+        </g>
+
+        <!-- STATION 5: REALE ERGEBNISSE -->
+        <g class="node-interactive" onclick="inspectNode('output')">
+          <rect x="770" y="420" width="260" height="85" rx="16" fill="url(#emeraldBox)" stroke="#34d399" stroke-width="1.8" />
+          <text x="795" y="452" font-family="'Outfit'" font-size="16" font-weight="800" fill="#ffffff">5. FERTIGE ERGEBNISSE</text>
+          <text x="795" y="472" font-family="'JetBrains Mono'" font-size="10.5" fill="#34d399">DAS ECHTE PRODUKT</text>
+          <text x="795" y="492" font-family="'Inter'" font-size="10" fill="#94a3b8">PDFs, laufende Web-Apps, befreiter Kopf</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- VIEW 2: THE 4D INTERSTELLAR MEMORIES PREVIEW -->
+    <div id="viewTesseract" class="tesseract-section">
+      <div class="tesseract-header">
+        <h2>🪐 4D-Erinnerungsorbit // Dein Leben im Zeitgitter</h2>
+        <p>So wie Cooper im Tesserakt durch Murphs Zimmer schwebt, schwebst du hier durch die besten Reisen und Momente deines Lebens. Zeit wird zur begehbaren Kunstgalerie.</p>
+      </div>
+
+      <div class="timeline-grid">
+        <!-- Memory 1: Reise Tokio -->
+        <div class="memory-card" onclick="alert('Reise-Echo aktiviert: Fotos und Sprachmemos aus Japan werden geladen!')">
+          <div class="memory-img" style="background-image: linear-gradient(180deg, transparent 40%, rgba(2,6,18,0.9)), radial-gradient(circle at center, #38bdf8 0%, #0369a1 80%);">
+            <span class="memory-badge">2024 · REISE</span>
+          </div>
+          <div class="memory-body">
+            <h4 class="memory-title">Reise nach Tokio // Cyberpunk Neon</h4>
+            <p class="memory-desc">Die besten Fotos aus Shibuya, Akihabara und Shinjuku. Damalige Sprachmemos und Eindrücke als schwebende Erinnerungs-Artefakte.</p>
+          </div>
+        </div>
+
+        <!-- Memory 2: Roadtrip Alpen -->
+        <div class="memory-card" onclick="alert('Reise-Echo aktiviert: Alpen-Panorama und Kurvenmemos!')">
+          <div class="memory-img" style="background-image: linear-gradient(180deg, transparent 40%, rgba(2,6,18,0.9)), radial-gradient(circle at center, #c084fc 0%, #7e22ce 80%);">
+            <span class="memory-badge">2025 · ROADTRIP</span>
+          </div>
+          <div class="memory-body">
+            <h4 class="memory-title">Alpen-Pässe // Sonnenaufgang</h4>
+            <p class="memory-desc">Passstraßen im Morgennebel, endlose Serpentinen und pure Freiheit. Schnappschüsse im 3D-Raum mit Tiefenschärfe.</p>
+          </div>
+        </div>
+
+        <!-- Memory 3: Die Entstehung von Hermes OS -->
+        <div class="memory-card" onclick="alert('Meilenstein-Echo: Original-Memos vom 04.09.2026!')">
+          <div class="memory-img" style="background-image: linear-gradient(180deg, transparent 40%, rgba(2,6,18,0.9)), radial-gradient(circle at center, #34d399 0%, #047857 80%);">
+            <span class="memory-badge">SEP 2026 · VISION</span>
+          </div>
+          <div class="memory-body">
+            <h4 class="memory-title">Der Urknall von Spatial Life OS</h4>
+            <p class="memory-desc">Die allererste Sprachnotiz im Auto. Die Geburtsstunde von Hermes 3D und die Vision eines autonomen Agenten-Betriebssystems.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM DETAILS INSPECTOR -->
+    <div class="detail-inspector">
+      <div class="detail-text">
+        <h3 id="panelHeading">Das Endziel auf den Punkt gebracht</h3>
+        <p id="panelText">
+          Du sprichst einfach deine Gedanken und Sprachmemos im Auto ein – dein KI-Team (Claude, Antigravity, Codex) setzt sie im Hintergrund um, speichert alles sauber in deinem Obsidian-Vault ab, und du erlebst und steuerst das Ergebnis visuell in deinen 3D-Welten – ohne jemals wieder in Datei-Chaos zu versinken.
+        </p>
+      </div>
+      <a href="http://localhost:3420/v2?world=projects" class="btn-3d">
+        <span>🚀 In 3D-Werft ansehen</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 3 SUMMARY PILLARS -->
+  <div class="pillar-row">
+    <div class="pillar">
+      <h4><span>🎯</span> 1. Nie wieder "Wofür war das?"</h4>
+      <p>Jedes Mal, wenn du vor dieser Glasplatte stehst, siehst du sofort: Du musst nicht wissen, wie das Routing oder der Websocket-Frame im Detail tickt. Das System übernimmt die Kleinarbeit. Du bist der Architekt auf der Brücke.</p>
+    </div>
+
+    <div class="pillar">
+      <h4><span>🪐</span> 2. Dein Leben als 4D-Tesserakt</h4>
+      <p>Deine coolsten Reisen und Lebensmeilensteine verstauben nicht auf der Festplatte. Sie schweben als Lichtkapseln im Raum, durch die du wie im Interstellar-Tesserakt hindurchgleiten kannst.</p>
+    </div>
+
+    <div class="pillar">
+      <h4><span>💎</span> 3. Vernetzte Dateien zum Anfassen</h4>
+      <p>Direkt neben der Glasplatte liegen die echten Dateien aus deinem Obsidian-Vault. Ein Klick öffnet sie auf einer gestochen scharfen 2D-Fläche direkt im 3D-Raum – absolut absturzsicher.</p>
+    </div>
+  </div>
+
+  <script>
+    const nodeData = {
+      onur: {
+        title: "Station 1: Du (Onur) – Der Kapitän",
+        desc: "Du musst keinen Code schreiben oder 10.000 Dokumente verwalten. Deine Aufgabe ist nur: Richtung vorgeben, Sprachnotizen einsprechen, Zwischenstände ansehen und finale Freigaben erteilen."
+      },
+      council: {
+        title: "Station 2: Der KI-Council – Dein Spezialisten-Team",
+        desc: "Hier arbeiten Hermes (Gateway & Regie), Claude (Architektur & Fundament), Antigravity (3D-Welten & UX) und Codex (Code-Reviews) als eingespieltes Team. Sie zerlegen deine Wünsche in konkrete Arbeitsschritte."
+      },
+      vault: {
+        title: "Station 3: Obsidian Vault – Das unzerstörbare Gedächtnis",
+        desc: "Keine Cloud, die deine Daten einsperrt. Alle Notizen, Memos, Entwürfe und Entscheidungen liegen als saubere Markdown-Dateien auf deiner Festplatte und gehören zu 100% dir."
+      },
+      welten: {
+        title: "Station 4: Spatial Life OS – Dein visueller Kontrollraum",
+        desc: "Statt 100 Tabs im Browser betrittst du räumliche Stationen: Die Ergebniswerft zum Arbeiten, den 4D-Erinnerungsorbit für Lebensreisen & Historie und den Ideengarten für lose Geistesblitze."
+      },
+      output: {
+        title: "Station 5: Fertige Ergebnisse – Der reale Mehrwert",
+        desc: "Am Ende zählt nur das Ergebnis: Ein fertiges PDF für einen Kunden, eine laufende Web-App, ein automatisiertes System und ein befreiter Kopf für dein echtes Leben."
+      }
+    };
+
+    function inspectNode(key) {
+      const d = nodeData[key];
+      if (!d) return;
+      document.getElementById('panelHeading').textContent = d.title;
+      document.getElementById('panelText').textContent = d.desc;
+    }
+
+    function setTab(tab) {
+      const isBlue = tab === 'blueprint';
+      document.getElementById('tabBlueprint').className = 'tab-btn ' + (isBlue ? 'active' : '');
+      document.getElementById('tabTesseract').className = 'tab-btn ' + (!isBlue ? 'active' : '');
+
+      document.getElementById('viewBlueprint').style.display = isBlue ? 'block' : 'none';
+      document.getElementById('viewTesseract').className = 'tesseract-section ' + (!isBlue ? 'active' : '');
+
+      document.getElementById('plateLabel').textContent = isBlue 
+        ? 'TRANSPARENTE OBSIDIAN-GLASPLATTE // ARCHITEKTUR' 
+        : 'INTERSTELLAR 4D-TESSERAKT // ZEIT- UND REISEFÄDEN';
+
+      if (!isBlue) {
+        document.getElementById('panelHeading').textContent = '🪐 Interstellar 4D-Erinnerungsraum';
+        document.getElementById('panelText').textContent = 'Hier fliegen deine besten Reisefotos, Sprachmemos und Lebensmeilensteine als begehbare Raumkoordinaten. Du kannst das Album deines Lebens wie einen Film im 3D-Raum ablaufen lassen.';
+      } else {
+        document.getElementById('panelHeading').textContent = 'Das Endziel auf den Punkt gebracht';
+        document.getElementById('panelText').textContent = 'Du sprichst einfach deine Gedanken und Sprachmemos im Auto ein – dein KI-Team (Claude, Antigravity, Codex) setzt sie im Hintergrund um, speichert alles sauber in deinem Obsidian-Vault ab, und du erlebst und steuerst das Ergebnis visuell in deinen 3D-Welten – ohne jemals wieder in Datei-Chaos zu versinken.';
+      }
+    }
+  </script>
+</body>
+</html>
