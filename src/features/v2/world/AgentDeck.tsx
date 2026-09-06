@@ -82,14 +82,17 @@ const DIM = 0.3;
 const AURA_VERTEX = /* glsl */ `
   attribute vec3 aTone;
   attribute float aGlow;
+  attribute float aPhase;
   varying vec2 vUv;
   varying vec3 vTone;
   varying float vGlow;
+  varying float vPhase;
 
   void main() {
     vUv = uv;
     vTone = aTone;
     vGlow = aGlow;
+    vPhase = aPhase;
     // Nur die Mitte kommt aus der Instanzmatrix; die Fläche selbst wird im
     // Sichtraum aufgespannt und steht damit immer zur Kamera.
     vec4 centre = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
@@ -98,26 +101,49 @@ const AURA_VERTEX = /* glsl */ `
   }
 `;
 
+/**
+ * Die Aura bewegt sich, und zwar aus einem Grund.
+ *
+ * Ein ruhender Farbkreis um eine Figur liest sich als Aufkleber. Was ihn zur
+ * Aura macht, ist, dass etwas von der Figur *ausgeht*: zwei Wellen laufen
+ * versetzt nach außen und vergehen am Rand, der Schleier atmet darunter, und
+ * der Saum flimmert in Umfangsrichtung, damit der Kreis nicht gedruckt wirkt.
+ *
+ * Alles davon ist Rechnung pro Bildpunkt auf einer Fläche, die ohnehin schon
+ * gezeichnet wird — es kommt kein einziger Bildpunkt hinzu. Die Prüfung auf
+ * `r > 1.0` bleibt die erste Zeile: auf einer Vega 11 ist Füllrate die Grenze,
+ * und eine verworfene Ecke kostet genauso viel wie eine gefüllte.
+ */
 const AURA_FRAGMENT = /* glsl */ `
   uniform float uTime;
   varying vec2 vUv;
   varying vec3 vTone;
   varying float vGlow;
+  varying float vPhase;
 
   void main() {
-    // Ausserhalb des Kreises gar nicht erst zeichnen: auf einer Vega 11 ist
-    // Fuellrate die Grenze, und unsichtbare Ecken kosten genauso viel.
     vec2 d = vUv - 0.5;
     float r = length(d) * 2.0;
     if (r > 1.0) discard;
 
-    // Weicher Kern plus ein schmaler, langsam atmender Saum. Der Saum ist das,
-    // was eine Aura von einem Farbfleck unterscheidet.
-    float core = pow(1.0 - r, 2.6);
-    float rim = smoothstep(0.60, 0.86, r) * (1.0 - smoothstep(0.86, 1.0, r));
-    float breath = 0.82 + 0.18 * sin(uTime * 1.1 + vTone.r * 12.0);
+    float angle = atan(d.y, d.x);
 
-    float a = (core * 0.42 + rim * 0.85) * vGlow * breath;
+    // Der Schleier darunter atmet — deutlicher als vorher, aber langsam.
+    float breath = 0.70 + 0.30 * sin(uTime * 1.25 + vPhase);
+    float core = pow(1.0 - r, 2.6) * breath;
+
+    // Zwei Wellen, um eine halbe Umlaufzeit versetzt, damit nie eine Lücke
+    // entsteht. Jede läuft von innen nach außen und verliert dabei an Kraft.
+    float t1 = fract(uTime * 0.40 + vPhase * 0.15);
+    float t2 = fract(uTime * 0.40 + vPhase * 0.15 + 0.5);
+    float wave1 = smoothstep(0.11, 0.0, abs(r - t1)) * (1.0 - t1);
+    float wave2 = smoothstep(0.11, 0.0, abs(r - t2)) * (1.0 - t2);
+
+    // Der Saum, mit einer langsam wandernden Schwankung im Umfang.
+    float shimmer = 0.72 + 0.28 * sin(angle * 5.0 + uTime * 1.5 + vPhase);
+    float rim = smoothstep(0.58, 0.86, r) * (1.0 - smoothstep(0.86, 1.0, r)) * shimmer;
+
+    float a = (core * 0.34 + (wave1 + wave2) * 0.62 + rim * 0.72) * vGlow;
     if (a <= 0.002) discard;
     gl_FragColor = vec4(vTone, a);
   }
@@ -179,6 +205,9 @@ export function AgentDeck({
     const n = Math.max(1, count);
     geometry.setAttribute("aTone", new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3));
     geometry.setAttribute("aGlow", new THREE.InstancedBufferAttribute(new Float32Array(n), 1));
+    // Eigene Phase je Agent: sonst pulsen fünf Auren im Gleichschritt, und das
+    // sieht nach Blinklicht aus statt nach fünf Anwesenden.
+    geometry.setAttribute("aPhase", new THREE.InstancedBufferAttribute(new Float32Array(n), 1));
     return geometry;
   }, [count]);
   useEffect(() => () => auraGeometry.dispose(), [auraGeometry]);
@@ -266,9 +295,11 @@ export function AgentDeck({
     const attributes = aura.current?.geometry.attributes;
     const toneAttribute = attributes?.aTone;
     const glowAttribute = attributes?.aGlow;
-    if (!toneAttribute || !glowAttribute) return;
+    const phaseAttribute = attributes?.aPhase;
+    if (!toneAttribute || !glowAttribute || !phaseAttribute) return;
     const toneBuffer = toneAttribute.array as Float32Array;
     const glowBuffer = glowAttribute.array as Float32Array;
+    const phaseBuffer = phaseAttribute.array as Float32Array;
 
     for (let i = 0; i < count; i += 1) {
       const colour = tones[i];
@@ -278,10 +309,12 @@ export function AgentDeck({
       const dimmed = focus && seats[i].agent.id !== selectedId;
       const selected = seats[i].agent.id === selectedId;
       glowBuffer[i] = dimmed ? 0.07 : selected ? 0.85 : hovered === i ? 0.58 : 0.3;
+      phaseBuffer[i] = phases[i] ?? 0;
     }
     toneAttribute.needsUpdate = true;
     glowAttribute.needsUpdate = true;
-  }, [count, seats, tones, focus, selectedId, hovered]);
+    phaseAttribute.needsUpdate = true;
+  }, [count, seats, tones, phases, focus, selectedId, hovered]);
 
   /**
    * Eine Schleife für alle Figuren. Sie setzt Matrizen und sonst nichts —
@@ -309,7 +342,9 @@ export function AgentDeck({
     if (n === 0) return;
 
     const now = clock.elapsedTime;
-    if (auraMaterial.current) auraMaterial.current.uniforms.uTime.value = now;
+    // Bei "weniger Bewegung" steht die Aura still statt zu pulsen — die
+    // Einstellung ist ein Versprechen und keine Empfehlung.
+    if (auraMaterial.current) auraMaterial.current.uniforms.uTime.value = state.reduced ? 0 : now;
 
     /** Ein Teil an seinen Platz, relativ zu einem Elternrahmen. */
     const place = (
