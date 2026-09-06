@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Html } from "@react-three/drei";
 import type { ProjectSectorItem, TimelineMilestone } from "@/features/v2/world/projectData";
 
 export function ProjectWorkspaceModal({
@@ -95,10 +96,11 @@ export function ProjectWorkspaceModal({
   };
 
   return (
-    <div
-      className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-all duration-200"
-      onClick={onClose}
-    >
+    <Html fullscreen style={{ pointerEvents: "auto" }}>
+      <div
+        className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-all duration-200"
+        onClick={onClose}
+      >
       <div
         className="relative flex max-h-[88vh] w-[min(94vw,860px)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#070e17]/95 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -205,5 +207,6 @@ export function ProjectWorkspaceModal({
         </div>
       </div>
     </div>
+    </Html>
   );
 }
