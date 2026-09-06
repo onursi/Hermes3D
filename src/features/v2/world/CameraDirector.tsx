@@ -58,6 +58,18 @@ export const SINGULARITY_VIEW = {
   target: new THREE.Vector3(0, 0, 0),
 };
 
+/**
+ * Der Erinnerungsorbit, von unten schräg hinauf.
+ *
+ * Die Wendel ist 24 Einheiten hoch und misst 7 im Radius. Von hier sieht man
+ * ihren ganzen Verlauf und behält unten die frühen Jahre im Blick — die
+ * Richtung der Zeit soll man sehen, bevor man eine einzelne Station liest.
+ */
+export const MEMORY_VIEW = {
+  position: new THREE.Vector3(23, 12, 27),
+  target: new THREE.Vector3(0, 8.5, 0),
+};
+
 export const PROJECTS_VIEW = {
   position: new THREE.Vector3(0.6, 8.4, 15.2),
   target: new THREE.Vector3(0, 1.7, 0),
@@ -123,6 +135,7 @@ export function viewFor(world: V2World): CameraGoal {
     return { ...cloneView(KNOWLEDGE_VIEW), duration: 1.15 };
   }
   if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
+  if (world === "memory") return { ...cloneView(MEMORY_VIEW), duration: 1.35 };
   if (world === "singularity") return { ...cloneView(SINGULARITY_VIEW), duration: 1.35 };
   if (world === "library") return { ...cloneView(LIBRARY_VIEW), duration: 1.15 };
   return { ...cloneView(HOME_VIEW), duration: 1.15 };

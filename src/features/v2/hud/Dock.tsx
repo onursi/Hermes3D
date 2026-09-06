@@ -97,6 +97,19 @@ export function Dock({
         </svg>
       </DockButton>
 
+      {/* Der Erinnerungsorbit: sein Zeitstrahl als Wendel. Er steht am Ende
+          der Orte, weil er der einzige ist, der nach hinten schaut. */}
+      <DockButton
+        active={world === "memory"}
+        onClick={() => goTo("memory")}
+        label="Erinnern"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 7v5.2l3.4 2" />
+        </svg>
+      </DockButton>
+
       {showLibrary ? (
         <DockButton
           active={world === "library"}

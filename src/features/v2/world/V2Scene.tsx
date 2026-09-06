@@ -11,6 +11,7 @@ import { useV2 } from "@/features/v2/state";
 import type { Project, ProjectNote } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
+import type { TimelineStation } from "@/features/v2/useTimeline";
 import { CameraDirector, HOME_VIEW, PROJECTS_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import { BrainAccess } from "@/features/v2/knowledge/BrainAccess";
@@ -22,6 +23,7 @@ import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
 import { SingularityWorld } from "@/features/v2/world/SingularityWorld";
+import { MemoryOrbit, type OrbitStation } from "@/features/v2/world/MemoryOrbit";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
@@ -75,6 +77,9 @@ export function V2Scene({
   flyThrough = false,
   inputBlocked = false,
   onFrame,
+  timeline,
+  selectedStationId,
+  onSelectStation,
   crashWorld,
 }: {
   agents: RosterAgent[];
@@ -114,6 +119,10 @@ export function V2Scene({
   flyThrough?: boolean;
   onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
   /** Test hook: makes the named world throw on entry. See V2Screen. */
+  /** Onurs Zeitstrahl, oben gelesen. Der Raum liest nichts selbst nach. */
+  timeline: TimelineStation[];
+  selectedStationId: string | null;
+  onSelectStation: (station: OrbitStation) => void;
   crashWorld?: string | null;
 }) {
   const { world, journey, travelling, selection, focus, prefs, goTo, setTravelling, rememberCamera, getCamera } =
@@ -563,6 +572,18 @@ export function V2Scene({
               onSelect={onSelectProject}
             />
           )
+        ) : world === "memory" ? (
+          /**
+           * Sein Zeitstrahl, wie er im Vault steht. Der Raum erfindet keine
+           * Lebensphase — er ordnet nach dem Jahr, das in der Überschrift
+           * steht, und lässt die Lücken Lücken sein.
+           */
+          <MemoryOrbit
+            stations={timeline}
+            selectedId={selectedStationId}
+            onSelect={onSelectStation}
+            reducedMotion={prefs.reducedMotion}
+          />
         ) : world === "singularity" ? (
           /**
            * Derselbe Datensatz wie die Werft, ganz anders befragt.

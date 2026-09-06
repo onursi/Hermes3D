@@ -53,6 +53,12 @@ const HINTS: Record<V2World, Hint[]> = {
     { key: "Reif", what: "offene Aufgaben" },
     { key: "Klick", what: "Projekt betreten" },
   ],
+  memory: [
+    { key: "Höhe", what: "das Jahr" },
+    { key: "Größe", what: "wie viel dazu geschrieben steht" },
+    { key: "Farbe", what: "aus welcher Notiz" },
+    { key: "Klick", what: "Erinnerung lesen" },
+  ],
   library: [
     { key: "Klick", what: "Quelle wählen" },
     { key: "Esc", what: "zurück" },

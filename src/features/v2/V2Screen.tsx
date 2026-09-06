@@ -7,17 +7,9 @@ import type { JarvisPhase } from "@/features/jarvis/JarvisCore";
 import type { JarvisMode } from "@/features/v2/jarvis/JarvisPresence";
 import { FloatingPanel } from "@/features/v2/hud/FloatingPanel";
 import { JarvisOrb } from "@/features/v2/hud/JarvisOrb";
+import { useTimeline } from "@/features/v2/useTimeline";
+import type { OrbitStation } from "@/features/v2/world/MemoryOrbit";
 
-/**
- * Wo das Jarvis-Fenster zuerst auftaucht: links, unterhalb der Suche.
- *
- * Links, weil rechts die Quelle und die Areale stehen; unterhalb der Suche,
- * weil die oben links steht. Danach entscheidet Onur — die Lage bleibt
- * gespeichert. Ein Objekt außerhalb der Komponente, damit es zwischen zwei
- * Renderdurchläufen dasselbe bleibt und den Effekt im Fenster nicht
- * fortlaufend neu auslöst.
- */
-const JARVIS_PANEL_START = { x: 24, y: 150 };
 import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
 import { WorldBoundary } from "@/features/v2/WorldBoundary";
@@ -47,6 +39,20 @@ import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { useContentSearch } from "@/features/v2/useContentSearch";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
+
+/**
+ * Wo das Jarvis-Fenster zuerst auftaucht: links, unterhalb der Suche.
+ *
+ * Links, weil rechts die Quelle und die Areale stehen; unterhalb der Suche,
+ * weil die oben links steht. Danach entscheidet Onur — die Lage bleibt
+ * gespeichert. Ein Objekt außerhalb der Komponente, damit es zwischen zwei
+ * Renderdurchläufen dasselbe bleibt und den Effekt im Fenster nicht
+ * fortlaufend neu auslöst.
+ */
+const JARVIS_PANEL_START = { x: 24, y: 150 };
+
+/** Und wo das Lesefenster einer Erinnerung steht: rechts daneben. */
+const MEMORY_PANEL_START = { x: 24, y: 150 };
 
 /**
  * V2, assembled.
@@ -81,6 +87,15 @@ export function V2Screen() {
   const { world, selection, select, goTo, prefs, clearSelection, setTravelling } = useV2();
 
   const [jarvisOpen, setJarvisOpen] = useState(false);
+  /**
+   * Der Zeitstrahl aus dem Vault und die Station, die er gerade liest.
+   *
+   * Oben gelesen und nach unten gereicht, wie Projekte und Vault auch: der
+   * Raum soll keine eigene Datenquelle haben, sonst können zwei Stellen
+   * Verschiedenes über dasselbe Jahr sagen.
+   */
+  const timeline = useTimeline();
+  const [station, setStation] = useState<OrbitStation | null>(null);
   /**
    * Jarvis' Zustand liegt hier oben, weil ihn zwei Dinge zeigen: die Kugel
    * unten rechts und das Fenster. Zwei getrennte Zustände wären zwei
@@ -637,6 +652,9 @@ export function V2Screen() {
         queryHitIds={contentSearch.ids}
         flyThrough={flyThrough}
         inputBlocked={readerId !== null}
+        timeline={timeline.stations}
+        selectedStationId={station?.id ?? null}
+        onSelectStation={setStation}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
       />
@@ -817,6 +835,35 @@ export function V2Screen() {
               if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
             }}
           />
+        </FloatingPanel>
+      ) : null}
+
+      {/**
+        * Eine Erinnerung, gelesen.
+        *
+        * Im selben verschiebbaren Fenster wie Jarvis, aus demselben Grund:
+        * der Text ist lang, der Raum dahinter ist der Punkt, und beides
+        * gleichzeitig geht nur, wenn man das Fenster wegschieben kann.
+        *
+        * Der Text steht **roh** da, so wie er in der Notiz steht. Keine
+        * Zusammenfassung: das hier sind seine eigenen Sätze über sein eigenes
+        * Leben, und die zu verkürzen wäre eine Anmaßung.
+        */}
+      {station ? (
+        <FloatingPanel
+          id="memory"
+          title={station.title}
+          hint={station.until ? `${station.year}–${station.until}` : String(station.year)}
+          initial={MEMORY_PANEL_START}
+          width={460}
+          onClose={() => setStation(null)}
+        >
+          <div className="min-h-0 overflow-y-auto px-5 py-4">
+            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/90">
+              {station.text}
+            </p>
+            <p className="mt-3 text-[10px] text-white/30">{station.source}</p>
+          </div>
         </FloatingPanel>
       ) : null}
 
