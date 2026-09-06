@@ -355,10 +355,16 @@ export function V2Screen() {
    * Umweg über den Graphen würde genau die Notizen verschlucken, die noch
    * nirgends verlinkt sind.
    */
+  /**
+   * Im Prototyp öffnet eine Projektnotiz die Fläche **im Raum**, nicht die
+   * Leiste am Rand. Der Leser bleibt für den Wissenskörper zuständig; hier
+   * geht es darum, nicht aus dem Ort herausgerissen zu werden.
+   */
   const openProjectNote = useCallback((note: ProjectNote) => {
     setOpenNotePath(note.path);
-    setReaderId(note.path);
   }, []);
+
+  const closeProjectNote = useCallback(() => setOpenNotePath(null), []);
 
   const selectSource = useCallback(
     (node: VaultNode) => select({ kind: "source", id: node.id, title: node.name, folder: node.folder }),
@@ -548,6 +554,7 @@ export function V2Screen() {
         openProject={openProject}
         openNotePath={openNotePath}
         onOpenProjectNote={openProjectNote}
+        onCloseProjectNote={closeProjectNote}
         places={places}
         onReachChange={setReachable}
         cockpitMarkers={cockpitMarkers}

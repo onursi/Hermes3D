@@ -55,6 +55,7 @@ export function V2Scene({
   openProject,
   openNotePath,
   onOpenProjectNote,
+  onCloseProjectNote,
   places,
   onReachChange,
   cockpitMarkers,
@@ -83,6 +84,7 @@ export function V2Scene({
   /** Die gerade gelesene Notiz, damit sie im Raum hervorsticht. */
   openNotePath: string | null;
   onOpenProjectNote: (note: ProjectNote) => void;
+  onCloseProjectNote: () => void;
   /** The map of the universe, derived once by the screen. */
   places: Place[];
   /** What the flight is currently close enough to enter. Null most of the time. */
@@ -499,6 +501,7 @@ export function V2Scene({
               project={openProject}
               openPath={openNotePath}
               onOpenNote={onOpenProjectNote}
+              onCloseNote={onCloseProjectNote}
             />
           ) : (
             <ProjectsWorld

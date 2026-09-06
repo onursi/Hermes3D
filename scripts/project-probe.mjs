@@ -18,7 +18,7 @@ import { chromium } from "playwright";
     ],
   });
   const p = await b.newPage({ viewport: { width: 1720, height: 1250 } });
-  await p.goto("http://localhost:3400/v2", { waitUntil: "domcontentloaded" });
+  await p.goto("http://localhost:3410/v2", { waitUntil: "domcontentloaded" });
   await p.waitForTimeout(12000);
   await p.getByLabel("Entwicklerwerte").click().catch(() => {});
   await p.getByRole("button", { name: /^projekte$/i }).first().click();

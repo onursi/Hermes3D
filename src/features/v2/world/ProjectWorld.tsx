@@ -7,7 +7,9 @@ import * as THREE from "three";
 
 import { AREA_COLORS, AREA_FALLBACK, SELECTION_COLOR } from "@/features/v2/palette";
 import { useV2 } from "@/features/v2/state";
+import { useDocument } from "@/features/v2/useDocument";
 import type { Project, ProjectArea, ProjectNote } from "@/features/v2/useProjects";
+import { RoomPanel } from "@/features/v2/world/RoomPanel";
 
 /**
  * Ein Projekt von innen.
@@ -114,11 +116,13 @@ export function ProjectWorld({
   project,
   openPath,
   onOpenNote,
+  onCloseNote,
 }: {
   project: Project;
   /** Die gerade geöffnete Notiz, damit sie im Raum hervorsticht. */
   openPath: string | null;
   onOpenNote: (note: ProjectNote) => void;
+  onCloseNote: () => void;
 }) {
   const { prefs } = useV2();
   const { areas, notes } = useMemo(() => layoutProject(project), [project]);
@@ -225,6 +229,10 @@ export function ProjectWorld({
   };
 
   const hoveredNote = hovered !== null ? notes[hovered] : null;
+  /** Die geöffnete Notiz — die Fläche hängt an ihrem Ort, nicht am Bildrand. */
+  const openHandle = openPath
+    ? (notes.find((entry) => entry.note.path === openPath) ?? null)
+    : null;
 
   return (
     <group>
@@ -288,7 +296,9 @@ export function ProjectWorld({
         onPointerOut={() => setHovered(null)}
         onClick={pick}
       >
-        <sphereGeometry args={[0.09, 10, 8]} />
+        {/* Größer als nötig fürs Auge: eine Notiz muss man treffen können,
+            ohne zu zielen. Mit 0,09 war sie sichtbar und kaum anklickbar. */}
+        <sphereGeometry args={[0.22, 12, 10]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
@@ -321,6 +331,24 @@ export function ProjectWorld({
         </Billboard>
       ))}
 
+      {/* Die geöffnete Notiz als Fläche im Raum, an ihrem Ort. */}
+      {openHandle ? (
+        <RoomPanel
+          position={
+            new THREE.Vector3(
+              openHandle.position.x,
+              openHandle.position.y + 1.5,
+              openHandle.position.z,
+            )
+          }
+          title={openHandle.note.title}
+          subtitle={`${openHandle.area.name} · ${new Date(openHandle.note.modified).toLocaleDateString("de-DE")}`}
+          onClose={onCloseNote}
+        >
+          <NoteBody path={openHandle.note.path} />
+        </RoomPanel>
+      ) : null}
+
       {/* Der Titel einer Notiz erst, wenn man sie meint. Ein festes Schild an
           jedem Punkt macht aus dem Raum ein Schaubild. */}
       {hoveredNote ? (
@@ -345,5 +373,64 @@ export function ProjectWorld({
         </Billboard>
       ) : null}
     </group>
+  );
+}
+
+/**
+ * Der Inhalt einer Notiz in der Fläche.
+ *
+ * Absichtlich schlicht: Der volle Leser mit Kopfdaten, Nachbarn und
+ * Obsidian-Verweis bleibt der Leiste vorbehalten. Hier geht es darum, dass man
+ * *im Raum* liest, ohne herausgerissen zu werden — Anfang des Textes, scharf,
+ * scrollbar, und ein Hinweis, wenn es mehr ist als das.
+ *
+ * Jeder Zustand wird benannt. „Lädt", „fehlt", „leer" und „nicht darstellbar"
+ * sehen gleich aus, wenn man nur Inhalt-oder-nicht kennt, und sie
+ * auseinanderzuhalten ist das meiste an einem vertrauenswürdigen Leser.
+ */
+function NoteBody({ path }: { path: string }) {
+  const document = useDocument(path);
+  const muted = { color: "#8fa0b0", fontFamily: "ui-monospace, monospace", fontSize: 12 };
+
+  if (document.status === "loading" || document.status === "idle") {
+    return <p style={muted}>Wird gelesen …</p>;
+  }
+  if (document.status === "missing") {
+    return <p style={muted}>Diese Notiz steht im Verzeichnis, aber nicht mehr auf der Platte. Meist ein Umbenennen.</p>;
+  }
+  if (document.status === "unsupported") {
+    return (
+      <p style={muted}>
+        {`Kein Text, sondern ${document.extension} (${Math.round(document.bytes / 1024)} kB). Wird hier nicht dargestellt.`}
+      </p>
+    );
+  }
+  if (document.status === "failed") {
+    return <p style={muted}>{`Konnte nicht gelesen werden: ${document.reason}`}</p>;
+  }
+
+  const body = document.content.replace(/^---[\s\S]*?---\s*/, "").trim();
+  if (!body) return <p style={muted}>Die Notiz ist leer. Das ist kein Fehler, nur nichts drin.</p>;
+
+  return (
+    <>
+      <div
+        style={{
+          fontSize: 13.5,
+          lineHeight: 1.62,
+          whiteSpace: "pre-wrap",
+          color: "#cdd8e4",
+          maxHeight: 300,
+          overflowY: "auto",
+        }}
+      >
+        {body.slice(0, 4000)}
+      </div>
+      {body.length > 4000 || document.truncated ? (
+        <p style={{ ...muted, marginTop: 10 }}>
+          Gekürzt. Der vollständige Text steht im Leser an der Seite.
+        </p>
+      ) : null}
+    </>
   );
 }
