@@ -7,6 +7,7 @@ import type { JarvisPhase } from "@/features/jarvis/JarvisCore";
 import type { JarvisMode } from "@/features/v2/jarvis/JarvisPresence";
 import { FloatingPanel } from "@/features/v2/hud/FloatingPanel";
 import { JarvisOrb } from "@/features/v2/hud/JarvisOrb";
+import { CouncilStation } from "@/features/v2/hud/CouncilStation";
 import { useTimeline } from "@/features/v2/useTimeline";
 import type { OrbitStation } from "@/features/v2/world/MemoryOrbit";
 
@@ -53,6 +54,9 @@ const JARVIS_PANEL_START = { x: 24, y: 150 };
 
 /** Und wo das Lesefenster einer Erinnerung steht: rechts daneben. */
 const MEMORY_PANEL_START = { x: 24, y: 150 };
+
+/** Die Konzilstation kommt rechts heraus, weil links Jarvis wohnt. */
+const COUNCIL_PANEL_START = { x: 900, y: 120 };
 
 /**
  * V2, assembled.
@@ -106,6 +110,7 @@ export function V2Screen() {
   const [jarvisMode, setJarvisMode] = useState<JarvisMode>("orb");
   /** Eine Frage von der Kugel an das Fenster. Die Zahl macht sie einmalig. */
   const [pendingAsk, setPendingAsk] = useState<{ text: string; nonce: number } | null>(null);
+  const [councilOpen, setCouncilOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
@@ -670,6 +675,8 @@ export function V2Screen() {
         approvalsReachable={approvalState.reachable}
         onOpenApprovals={() => setApprovalsOpen((open) => !open)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenCouncil={() => setCouncilOpen((open) => !open)}
+        councilOpen={councilOpen}
         onToggleDev={() => setDevOpen((open) => !open)}
         devOpen={devOpen}
       />
@@ -864,6 +871,19 @@ export function V2Screen() {
             </p>
             <p className="mt-3 text-[10px] text-white/30">{station.source}</p>
           </div>
+        </FloatingPanel>
+      ) : null}
+
+      {councilOpen ? (
+        <FloatingPanel
+          id="council"
+          title="KONZIL"
+          hint={roster.reachable ? `${roster.agents.length} Profile` : "Hermes offline"}
+          initial={COUNCIL_PANEL_START}
+          width={430}
+          onClose={() => setCouncilOpen(false)}
+        >
+          <CouncilStation agents={roster.agents} rosterReachable={roster.reachable} />
         </FloatingPanel>
       ) : null}
 

@@ -34,6 +34,8 @@ export function StatusBar({
   approvalsReachable,
   onOpenApprovals,
   onOpenSettings,
+  onOpenCouncil,
+  councilOpen,
   onToggleDev,
   devOpen,
 }: {
@@ -46,6 +48,8 @@ export function StatusBar({
   approvalsReachable: boolean;
   onOpenApprovals: () => void;
   onOpenSettings: () => void;
+  onOpenCouncil: () => void;
+  councilOpen: boolean;
   onToggleDev: () => void;
   devOpen: boolean;
 }) {
@@ -93,6 +97,19 @@ export function StatusBar({
         <Pill tone={vaultReachable ? "neutral" : "rose"}>
           {vaultReachable ? `${vaultCount} Notizen` : "Vault offline"}
         </Pill>
+
+        {/* Die Konzilstation. Sie steht neben den Agenten, weil sie über sie
+            berichtet — und weil die Frage "kann eine Runde laufen" von hier
+            aus in einem Klick beantwortbar sein soll. */}
+        <IconButton label="Konzil" onClick={onOpenCouncil} active={councilOpen}>
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="2.2" />
+            <circle cx="5" cy="8" r="1.6" />
+            <circle cx="19" cy="8" r="1.6" />
+            <circle cx="7" cy="18" r="1.6" />
+            <circle cx="17" cy="18" r="1.6" />
+          </svg>
+        </IconButton>
 
         <IconButton label="Einstellungen" onClick={onOpenSettings}>
           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
