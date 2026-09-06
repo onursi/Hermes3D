@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes 3D & Life OS – Dokumente, HTMLs & Welten-Hub</title>
+  <style>
+    :root {
+      --bg: #050b14;
+      --card-bg: rgba(13, 22, 38, 0.75);
+      --border: rgba(255, 255, 255, 0.12);
+      --cyan: #38bdf8;
+      --purple: #c084fc;
+      --amber: #fbbf24;
+      --emerald: #34d399;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #0f1f38 0%, var(--bg) 75%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--cyan);
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.lead {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 2rem 0 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+    .card-tag {
+      font-size: 0.7rem;
+      font-family: monospace;
+      text-transform: uppercase;
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.35rem;
+      width: fit-content;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-pdf { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .tag-html { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .tag-live { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }
+    .card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      color: #fff;
+    }
+    .card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 1rem;
+      flex-grow: 1;
+    }
+    .card-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.6rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--cyan);
+      flex: 1;
+    }
+    .btn-primary:hover {
+      background: var(--cyan);
+      color: #030712;
+    }
+    .btn-live {
+      background: rgba(52, 211, 153, 0.2);
+      border: 1px solid rgba(52, 211, 153, 0.5);
+      color: var(--emerald);
+      flex: 1;
+    }
+    .btn-live:hover {
+      background: var(--emerald);
+      color: #030712;
+    }
+    .server-banner {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 1.25rem;
+      padding: 1.75rem;
+      margin-bottom: 2.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    .server-info h2 {
+      font-size: 1.3rem;
+      margin-bottom: 0.25rem;
+    }
+    .server-info p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">Zentraler Dokumenten- & Welten-Hub</span>
+      <h1>Hermes Agent OS & Life OS</h1>
+      <p class="lead">Alle im Vault gespeicherten HTML-Reports, PDF-Konzepte und die Live-Server auf einen Blick.</p>
+    </header>
+
+    <!-- LIVE SERVERS BANNER -->
+    <div class="server-banner">
+      <div class="server-info">
+        <h2>🚀 Live 3D-Welten (Dual-Track)</h2>
+        <p>Track 2 (Antigravity) enthält die neue <strong>Projektwelt & Ergebniswerft</strong> sowie den Lichtgeschwindigkeits-Warp.</p>
+      </div>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="http://localhost:3420/v2" target="_blank" class="btn btn-live">
+          ⚡ Track 2: Antigravity (Port 3420)
+        </a>
+        <a href="http://localhost:3400/v2" target="_blank" class="btn btn-primary">
+          🏛️ Track 1: Claude (Port 3400)
+        </a>
+      </div>
+    </div>
+
+    <!-- 0. HIGHLIGHT: ERINNERUNGSORBIT -->
+    <h2 class="section-title">🪐 Neu: Stufe 3 – Erinnerungsorbit</h2>
+    <div class="grid">
+      <div class="card" style="border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(9, 17, 34, 0.8) 100%);">
+        <div>
+          <span class="card-tag" style="background: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5);">STUFE 3 · INTERAKTIV</span>
+          <h3 style="color: #c084fc;">Erinnerungsorbit – Vision & Simulation</h3>
+          <p>Die begehbare Zeitreise für Hermes Agent OS: Chrono-Kapseln, Audiomemo-Simulation, Zeitreise-Fly-Through und architektonische Blaupause.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Erinnerungsorbit_Vision_und_Simulation.html" target="_blank" class="btn" style="background: #9333ea; color: white; flex: 1;">🪐 Orbit erleben</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. PDF DOKUMENTE -->
+    <h2 class="section-title">📄 PDF Dokumente im Vault</h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <span class="card-tag tag-pdf">PDF · Konzept</span>
+          <h3>Spatial Life OS – Vision 2026-09-04</h3>
+          <p>Die 12-seitige architektonische Vision für das räumliche Betriebssystem. Behandelt Orientierung, 2D-im-3D-Ansatz und die Welten-Struktur.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/Spatial Life OS – Vision 2026-09-04.pdf" target="_blank" class="btn btn-primary">PDF öffnen</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. ARCHITEKTUR & VISION HTMLS -->
+    <h2 class="section-title">🏛️ Architektur- & Visions-HTMLs</h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">HTML · Vision</span>
+          <h3>Spatial Life OS – Vision (HTML-Fassung)</h3>
+          <p>Interaktive Web-Fassung der Vision mit typografischer Gestaltung und Gliederung.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/Spatial Life OS – Vision 2026-09-04.html" target="_blank" class="btn btn-primary">HTML öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">HTML · Architektur</span>
+          <h3>Hermes 3D – Fundament neu gedacht</h3>
+          <p>Analyse des Fundaments: Warum ein zusammenhängender Raum besser funktioniert als isolierte Menüs.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/Hermes 3D – Fundament neu gedacht 2026-09-04.html" target="_blank" class="btn btn-primary">HTML öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">HTML · Konzept</span>
+          <h3>Ein Ort ein Horizont</h3>
+          <p>Das räumliche Prinzip: Der Horizont hält alles zusammen, egal wie weit du fliegst.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/Ein Ort ein Horizont.html" target="_blank" class="btn btn-primary">HTML öffnen</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. ASTRA RUNDEN & WELTEN-REPORTS -->
+    <h2 class="section-title">🪐 ASTRA Welten & Runden-Audits</h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Report · Runde 1</span>
+          <h3>ASTRA – Onurs Universum (05.09.)</h3>
+          <p>Vollständige Auswertung und visuelle Dokumentation der ersten Universums-Gestaltung.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/ASTRA – Onurs Universum 2026-09-05.html" target="_blank" class="btn btn-primary">Report öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Report · Runde 2</span>
+          <h3>ASTRA – Weltideen Runde 02</h3>
+          <p>Konzepte für Nebel, Portale, Synapsenräume und den kosmischen Fahrtwind.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/ASTRA – Weltideen Runde 02 2026-09-05.html" target="_blank" class="btn btn-primary">Report öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Report · Runde 3</span>
+          <h3>ASTRA – Weltideen Runde 03 (Großer Bildvergleich)</h3>
+          <p>Umfangreicher Side-by-Side Bildbericht mit detaillierten visuellen Vergleichen.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/ASTRA – Weltideen Runde 03 2026-09-05.html" target="_blank" class="btn btn-primary">Report öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Report · Runde 4</span>
+          <h3>ASTRA – Weltideen Runde 04</h3>
+          <p>Zusammenfassung der Freigaben und finaler Beschluss zur Aufgabenaufteilung.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/ASTRA – Weltideen Runde 04 2026-09-05.html" target="_blank" class="btn btn-primary">Report öffnen</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. WORKFLOW & DEV-TRACKS -->
+    <h2 class="section-title">⚙️ Dual-Track Workflow & Betrieb</h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Dashboard · Live</span>
+          <h3>Dual-Track-Workflow Dashboard</h3>
+          <p>Das aktive Dashboard zur Überwachung der beiden Gleise (Track 1 Claude & Track 2 Antigravity).</p>
+        </div>
+        <div class="card-actions">
+          <a href="Dual-Track-Workflow.html" target="_blank" class="btn btn-primary">Dashboard öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Spezifikation</span>
+          <h3>Agent Dual-Track Workflow</h3>
+          <p>Spezifikation der Git- und Server-Trennung, Vergabe der Ports 3400 und 3420.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/agent_dual_track_workflow.html" target="_blank" class="btn btn-primary">Spec öffnen</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erinnerungsorbit // Die begehbare Zeitreise für Hermes Agent OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030712;
+      --card-bg: rgba(9, 17, 34, 0.85);
+      --card-border: rgba(14, 165, 233, 0.25);
+      --accent-cyan: #06b6d4;
+      --accent-purple: #a855f7;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.15), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 70%, rgba(6, 182, 212, 0.08), transparent),
+        radial-gradient(ellipse 50% 50% at 20% 90%, rgba(168, 85, 247, 0.08), transparent);
+    }
+
+    header {
+      padding: 3rem 2rem 2rem;
+      text-align: center;
+      position: relative;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      background: linear-gradient(180deg, rgba(6, 182, 212, 0.05) 0%, transparent 100%);
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #c084fc;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #ffffff 30%, #38bdf8 70%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      margin: 0 auto;
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    .main-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    /* Orbit Visualizer Simulator */
+    .orbit-section {
+      background: radial-gradient(circle at center, rgba(14, 165, 233, 0.06) 0%, rgba(3, 7, 18, 0.95) 75%);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 2rem;
+      margin-bottom: 3.5rem;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px -10px rgba(6, 182, 212, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .orbit-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 1rem;
+    }
+
+    .orbit-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .orbit-controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 0.55rem 1.1rem;
+      border-radius: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      border: none;
+      outline: none;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      color: white;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.55);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: white;
+    }
+
+    /* The interactive SVG/Canvas orbit stage */
+    .orbit-stage-wrapper {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    svg.orbit-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 25px rgba(6, 182, 212, 0.2));
+    }
+
+    .orbit-path {
+      fill: none;
+      stroke: rgba(56, 189, 248, 0.25);
+      stroke-width: 2;
+      stroke-dasharray: 8 6;
+      animation: rotateOrbit 120s linear infinite;
+      transform-origin: 500px 190px;
+    }
+
+    .orbit-path-solid {
+      fill: none;
+      stroke: url(#orbitGradient);
+      stroke-width: 2.5;
+      opacity: 0.8;
+    }
+
+    .core-sun {
+      fill: url(#coreGlow);
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+
+    .capsule-node {
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .capsule-node:hover {
+      filter: brightness(1.4) drop-shadow(0 0 12px currentColor);
+    }
+
+    .capsule-node.active circle.ring {
+      stroke-width: 4;
+      stroke: #38bdf8;
+      animation: pulseActive 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulseActive {
+      0%, 100% { r: 24; opacity: 1; }
+      50% { r: 32; opacity: 0.3; }
+    }
+
+    @keyframes rotateOrbit {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Holo-Inspector Box */
+    .holo-inspector {
+      background: rgba(6, 12, 24, 0.95);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 30px rgba(0, 0, 0, 0.6);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1.5rem;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      .holo-inspector {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .inspector-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .inspector-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .tag-blue { background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); }
+    .tag-purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+    .tag-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .tag-emerald { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+
+    .inspector-date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .inspector-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+
+    .inspector-desc {
+      color: #cbd5e1;
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+
+    .inspector-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      min-width: 220px;
+    }
+
+    /* Explanation Grid (Why it matters) */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 1.8rem;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    .card-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 1.25rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-text {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    /* The 4 Stations Roadmap Comparison */
+    .roadmap-section {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.7) 0%, rgba(3, 7, 18, 0.9) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .section-headline {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: white;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .section-sub {
+      text-align: center;
+      color: var(--text-muted);
+      margin-bottom: 2.5rem;
+      font-size: 1rem;
+    }
+
+    .station-row {
+      display: grid;
+      grid-template-columns: 80px 1fr 2fr 120px;
+      align-items: center;
+      padding: 1.2rem 1.5rem;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+      margin-bottom: 0.75rem;
+      gap: 1.5rem;
+      transition: all 0.2s;
+    }
+
+    @media (max-width: 860px) {
+      .station-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+    }
+
+    .station-row:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    .station-row.highlight {
+      background: rgba(168, 85, 247, 0.08);
+      border-color: rgba(168, 85, 247, 0.35);
+    }
+
+    .station-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    .station-name {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: white;
+    }
+
+    .station-desc {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    .status-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .status-done { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .status-active { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+    .status-next { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+
+    /* Audio simulation bar */
+    .audio-player-mock {
+      background: rgba(2, 6, 23, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .play-btn-round {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #0284c7;
+      border: none;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, background-color 0.2s;
+    }
+    .play-btn-round:hover {
+      transform: scale(1.08);
+      background: #0ea5e9;
+    }
+
+    .audio-wave {
+      flex: 1;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .wave-bar {
+      flex: 1;
+      height: 30%;
+      background: rgba(56, 189, 248, 0.4);
+      border-radius: 2px;
+      transition: height 0.2s ease;
+    }
+
+    .audio-player-mock.playing .wave-bar {
+      animation: soundWave 1s ease-in-out infinite alternate;
+    }
+
+    .audio-player-mock.playing .wave-bar:nth-child(2n) { animation-delay: 0.15s; }
+    .audio-player-mock.playing .wave-bar:nth-child(3n) { animation-delay: 0.3s; }
+    .audio-player-mock.playing .wave-bar:nth-child(5n) { animation-delay: 0.45s; }
+
+    @keyframes soundWave {
+      0% { height: 20%; background: rgba(56, 189, 248, 0.4); }
+      100% { height: 95%; background: #38bdf8; }
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge-top">🪐 Stufe 3 // Vision & Blaupause</div>
+    <h1>Erinnerungsorbit</h1>
+    <p class="subtitle">Die begehbare Zeitreise für Hermes Agent OS — Wie aus toten Projektordnern ein lebendiges 3D-Museum mit echten Memos, Wendepunkten und Durchbrüchen wird.</p>
+  </header>
+
+  <div class="main-container">
+
+    <!-- 1. Interaktive Orbit-Simulation -->
+    <section class="orbit-section">
+      <div class="orbit-header">
+        <div class="orbit-title">
+          <span>🌀</span> Interaktive Umlaufbahn // Chrono-Kapseln anklicken
+        </div>
+        <div class="orbit-controls">
+          <button id="btnPlayOrbit" class="btn btn-primary" onclick="startFlyThrough()">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+            Zeitreise abfliegen
+          </button>
+          <button class="btn btn-secondary" onclick="playFuturisticTone(520, 'sine', 0.2)">
+            🔊 Soundcheck
+          </button>
+        </div>
+      </div>
+
+      <!-- Orbit SVG Canvas -->
+      <div class="orbit-stage-wrapper">
+        <svg class="orbit-svg" viewBox="0 0 1000 380">
+          <defs>
+            <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="1" />
+              <stop offset="40%" stop-color="#0284c7" stop-opacity="0.8" />
+              <stop offset="100%" stop-color="#030712" stop-opacity="0" />
+            </radialGradient>
+            <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.7" />
+              <stop offset="50%" stop-color="#a855f7" stop-opacity="0.7" />
+              <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.7" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- Core Sun (Projektkern) -->
+          <circle cx="500" cy="190" r="46" fill="url(#coreGlow)" />
+          <circle cx="500" cy="190" r="18" fill="#38bdf8" filter="url(#glow)" />
+          <text x="500" y="195" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" fill="#030712">KERN</text>
+
+          <!-- Orbit Ellipsen -->
+          <ellipse cx="500" cy="190" rx="420" ry="135" class="orbit-path-solid" />
+          <ellipse cx="500" cy="190" rx="420" ry="135" class="orbit-path" />
+
+          <!-- Kapsel 1: Der Urknall -->
+          <g class="capsule-node active" id="node-0" onclick="selectCapsule(0)" transform="translate(110, 190)">
+            <circle class="ring" r="24" fill="none" stroke="#38bdf8" stroke-width="2" opacity="0.6" />
+            <circle r="14" fill="#0284c7" filter="url(#glow)" />
+            <text x="0" y="4" text-anchor="middle" font-family="'Outfit'" font-size="11" font-weight="800" fill="#ffffff">1</text>
+            <text x="0" y="42" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" fill="#38bdf8">04. SEP · URKNALL</text>
+          </g>
+
+          <!-- Kapsel 2: Der Härtetest -->
+          <g class="capsule-node" id="node-1" onclick="selectCapsule(1)" transform="translate(300, 75)">
+            <circle class="ring" r="22" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.4" />
+            <circle r="13" fill="#d97706" filter="url(#glow)" />
+            <text x="0" y="4" text-anchor="middle" font-family="'Outfit'" font-size="11" font-weight="800" fill="#ffffff">2</text>
+            <text x="0" y="-22" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" fill="#fbbf24">05. SEP · AUDIT</text>
+          </g>
+
+          <!-- Kapsel 3: Der Wendepunkt -->
+          <g class="capsule-node" id="node-2" onclick="selectCapsule(2)" transform="translate(700, 75)">
+            <circle class="ring" r="22" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4" />
+            <circle r="13" fill="#9333ea" filter="url(#glow)" />
+            <text x="0" y="4" text-anchor="middle" font-family="'Outfit'" font-size="11" font-weight="800" fill="#ffffff">3</text>
+            <text x="0" y="-22" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" fill="#c084fc">06. SEP · PIVOT</text>
+          </g>
+
+          <!-- Kapsel 4: Die Ergebniswerft -->
+          <g class="capsule-node" id="node-3" onclick="selectCapsule(3)" transform="translate(890, 190)">
+            <circle class="ring" r="22" fill="none" stroke="#10b981" stroke-width="1.5" opacity="0.4" />
+            <circle r="13" fill="#059669" filter="url(#glow)" />
+            <text x="0" y="4" text-anchor="middle" font-family="'Outfit'" font-size="11" font-weight="800" fill="#ffffff">4</text>
+            <text x="0" y="42" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" fill="#34d399">06. SEP · WERFT</text>
+          </g>
+
+          <!-- Kapsel 5: Der Living Orbit -->
+          <g class="capsule-node" id="node-4" onclick="selectCapsule(4)" transform="translate(500, 325)">
+            <circle class="ring" r="22" fill="none" stroke="#06b6d4" stroke-width="1.5" opacity="0.4" />
+            <circle r="13" fill="#0891b2" filter="url(#glow)" />
+            <text x="0" y="4" text-anchor="middle" font-family="'Outfit'" font-size="11" font-weight="800" fill="#ffffff">5</text>
+            <text x="0" y="38" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" fill="#22d3ee">ZUKUNFT · ORBIT</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Holo-Inspector Display Box -->
+      <div id="holoInspector" class="holo-inspector">
+        <div>
+          <div class="inspector-header">
+            <span id="inspTag" class="inspector-tag tag-blue">Phase 1 · Vision</span>
+            <span id="inspDate" class="inspector-date">04. September 2026</span>
+          </div>
+          <h3 id="inspTitle" class="inspector-title">Die Geburt von Spatial Life OS</h3>
+          <p id="inspDesc" class="inspector-desc">
+            Onurs ursprünglicher Geistesblitz: Warum arbeiten wir im Jahr 2026 noch mit überladenen 2D-Fenstern und toten Verzeichnissen? Das System soll ein zusammenhängendes, räumliches Betriebssystem sein, in dem Gedanken, Projekte und Agenten auf einen Blick erfasst werden können.
+          </p>
+
+          <!-- Mock Audio Memo Player -->
+          <div class="audio-player-mock" id="audioPlayer">
+            <button class="play-btn-round" onclick="toggleAudioMemo()">
+              <svg id="playIcon" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+            </button>
+            <div style="flex: 1;">
+              <div style="font-family: 'JetBrains Mono'; font-size: 0.72rem; color: #38bdf8; margin-bottom: 2px;" id="audioLabel">
+                🎙️ Memo_01_Vision_Start.webm (Simulation)
+              </div>
+              <div class="audio-wave">
+                <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="inspector-actions">
+          <a id="btnDocLink" href="./Spatial Life OS – Vision 2026-09-04.pdf" target="_blank" class="btn btn-primary" style="justify-content: center;">
+            📄 PDF-Vision öffnen
+          </a>
+          <a href="./Projekt_Dokumente_Hub.html" class="btn btn-secondary" style="justify-content: center;">
+            📑 Dokumente-Hub
+          </a>
+          <button class="btn btn-secondary" style="justify-content: center;" onclick="copyVaultPath()">
+            📋 Obsidian-Pfad kopieren
+          </button>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- 2. Warum brauchen wir den Erinnerungsorbit? -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-icon">🪦</div>
+        <h3 class="card-title">Schluss mit dem Projektfriedhof</h3>
+        <p class="card-text">
+          In normalen Systemen landet ein fertiges Projekt in einem Archivordner und wird vergessen. All die Erkenntnisse, der Schweiß und die Meilensteine lösen sich in Luft auf. Der Erinnerungsorbit hält die Identität des Projekts lebendig.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">🧠</div>
+        <h3 class="card-title">Perfektes Gedächtnis für KIs</h3>
+        <p class="card-text">
+          Wenn ein neuer KI-Agent (oder du in 6 Monaten) fragt: <em>„Warum haben wir damals Port 3400 und 3420 getrennt?“</em>, muss niemand raten. Die Kapsel im Orbit enthält die exakte Begründung, den Commit und das damalige Briefing.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">🚀</div>
+        <h3 class="card-title">Die Zeitreise als Flugbahn</h3>
+        <p class="card-text">
+          Per Knopfdruck gleitet die Kamera im 3D-Raum an allen Meilensteinen vorbei. Du siehst visuell, wie aus einer ersten flüchtigen Sprachnotiz ein gigantisches, funktionierendes System gewachsen ist.
+        </p>
+      </div>
+    </div>
+
+
+    <!-- 3. Die 4 Kernstufen des Bauplans im Überblick -->
+    <section class="roadmap-section">
+      <h2 class="section-headline">Die 4 Kernwelten deines Spatial Life OS</h2>
+      <p class="section-sub">Hier siehst du, wie die Ergebniswerft und der Erinnerungsorbit in das Gesamtsystem passen:</p>
+
+      <div class="station-row">
+        <div class="station-num">01</div>
+        <div class="station-name">Projektwelt & Ergebniswerft</div>
+        <div class="station-desc">Die Werkbank für die Gegenwart. Drei Sektoren (Quellen, Werkstatt, Ergebnisse) mit 2D-Arbeitsfläche im 3D-Raum.</div>
+        <div><span class="status-badge status-done">✓ LIVE (Port 3420)</span></div>
+      </div>
+
+      <div class="station-row">
+        <div class="station-num">02</div>
+        <div class="station-name">Council & Entscheidungsstation</div>
+        <div class="station-desc">Das Strategie-Deck für die Zukunft. Multi-Modell-Debatte mit Claude, Antigravity, Codex & Hermes für direkte Freigaben.</div>
+        <div><span class="status-badge status-next">Als Nächstes</span></div>
+      </div>
+
+      <div class="station-row highlight">
+        <div class="station-num">03</div>
+        <div class="station-name">Erinnerungsorbit</div>
+        <div class="station-desc">Das begehbare Museum für die Vergangenheit. Chrono-Kapseln mit Sprachnotizen, Wendepunkten und Dokument-Snapshots.</div>
+        <div><span class="status-badge status-active">Kompakt im Hafen</span></div>
+      </div>
+
+      <div class="station-row">
+        <div class="station-num">04</div>
+        <div class="station-name">Ideengarten</div>
+        <div class="station-desc">Das Biotop für ungeborene Ideen. Zettel aus Obsidian vernetzen, reifen lassen und per Klick zur Ergebniswerft befördern.</div>
+        <div><span class="status-badge status-next">Ausbaustufe</span></div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    <p>Hermes 3D Agent OS · Antigravity Track 2 · Spatial Life OS 2026</p>
+    <p style="margin-top: 0.5rem; opacity: 0.6;">Direkt gespeichert in deinem Obsidian-Vault unter „05 🚀 Projekte/01 Hermes Agent OS“</p>
+  </footer>
+
+  <script>
+    // Audio Synthesizer via Web Audio API (Futuristic UI Sounds)
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playFuturisticTone(freq, type = 'sine', duration = 0.15) {
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, ctx.currentTime + duration);
+
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {
+        console.warn('Audio not allowed yet', e);
+      }
+    }
+
+    const capsules = [
+      {
+        tag: "Phase 1 · Vision",
+        tagClass: "tag-blue",
+        date: "04. September 2026",
+        title: "Die Geburt von Spatial Life OS",
+        desc: "Onurs ursprünglicher Geistesblitz: Warum arbeiten wir im Jahr 2026 noch mit überladenen 2D-Fenstern und toten Verzeichnissen? Das System soll ein zusammenhängendes, räumliches Betriebssystem sein, in dem Gedanken, Projekte und Agenten auf einen Blick erfasst werden können.",
+        audio: "🎙️ Memo_01_Vision_Start.webm (Simulation)",
+        docUrl: "./Spatial Life OS – Vision 2026-09-04.pdf",
+        docLabel: "📄 PDF-Vision öffnen",
+        path: "05 🚀 Projekte/01 Hermes Agent OS/Spatial Life OS – Vision 2026-09-04.pdf"
+      },
+      {
+        tag: "Phase 2 · Stabilität",
+        tagClass: "tag-amber",
+        date: "05. September 2026",
+        title: "Der Härtetest & ASTRA-Audit",
+        desc: "Der Moment der Wahrheit: V1 hatte Frame-Drops und geskriptete Fake-Dialoge. In einer intensiven Bereinigung (ASTRA R1–R6) wurden CPU-Spikes eliminiert, ungenutzte Komponenten entfernt und das Fundament auf echte 60 FPS stabilisiert.",
+        audio: "🎙️ Memo_02_ASTRA_Audit.webm (Simulation)",
+        docUrl: "./Dual-Track-Workflow.html",
+        docLabel: "📑 Audit & Workflow",
+        path: "05 🚀 Projekte/01 Hermes Agent OS/Architektur & Betrieb/01 Fundament & Vision/ASTRA_R4_Ergebnisbericht.md"
+      },
+      {
+        tag: "Phase 3 · Wendepunkt",
+        tagClass: "tag-purple",
+        date: "06. September 2026 (Morgens)",
+        title: "Der Dual-Track Pivot (Claude & Antigravity)",
+        desc: "Der entscheidende strategische Durchbruch: Zwei KIs im selben Workspace blockierten sich gegenseitig. Die Lösung war die saubere Trennung in zwei unabhängige Gleise (Claude auf Port 3400 für Stabilität, Antigravity auf Port 3420 für neue Welten).",
+        audio: "🎙️ Memo_03_Dual_Track_Entscheidung.webm (Simulation)",
+        docUrl: "./Dual-Track-Workflow.html",
+        docLabel: "⚡ Dual-Track Hub",
+        path: "05 🚀 Projekte/01 Hermes Agent OS/Dual-Track-Workflow.html"
+      },
+      {
+        tag: "Phase 4 · Gegenwart",
+        tagClass: "tag-emerald",
+        date: "06. September 2026 (Abends)",
+        title: "Die Projektwelt & Ergebniswerft steht",
+        desc: "Die erste vollwertige 3D-Projektwelt geht auf Port 3420 live: Ein orbitaler Kristallhafen mit drei Sektoren (Quellen, Werkstatt, Ergebnisse) und einer scharfen 2D-Arbeitsfläche im Raum, die echte Obsidian-Notizen lädt.",
+        audio: "🎙️ Memo_04_Ergebniswerft_Live.webm (Simulation)",
+        docUrl: "http://localhost:3420/v2?world=projects",
+        docLabel: "🚀 Live auf Port 3420 öffnen",
+        path: "05 🚀 Projekte/01 Hermes Agent OS/Projekt_Dokumente_Hub.html"
+      },
+      {
+        tag: "Phase 5 · Ausblick",
+        tagClass: "tag-blue",
+        date: "Nächster Meilenstein",
+        title: "Der vollwertige Erinnerungsorbit",
+        desc: "Aus dem kompakten Meilenstein-Bogen in der Werft wird ein eigener 3D-Orbit: Mit schwebenden Hologrammen, echten abgespielten Sprachnotizen, Vorher-Nachher-3D-Vergleichen und einer Kamera-Zeitreise.",
+        audio: "🎙️ Memo_05_Zukunft_Orbit.webm (Simulation)",
+        docUrl: "./Projekt_Dokumente_Hub.html",
+        docLabel: "📑 Projekt Dokumente Hub",
+        path: "05 🚀 Projekte/01 Hermes Agent OS/Briefing für Hermes – Council bauen 2026-09-04.md"
+      }
+    ];
+
+    let currentCapsuleIdx = 0;
+    let isPlayingAudio = false;
+
+    function selectCapsule(idx) {
+      currentCapsuleIdx = idx;
+      playFuturisticTone(440 + idx * 80, 'sine', 0.18);
+
+      document.querySelectorAll('.capsule-node').forEach((el, i) => {
+        if (i === idx) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
+
+      const c = capsules[idx];
+      const tagEl = document.getElementById('inspTag');
+      tagEl.className = 'inspector-tag ' + c.tagClass;
+      tagEl.textContent = c.tag;
+
+      document.getElementById('inspDate').textContent = c.date;
+      document.getElementById('inspTitle').textContent = c.title;
+      document.getElementById('inspDesc').textContent = c.desc;
+      document.getElementById('audioLabel').textContent = c.audio;
+
+      const docBtn = document.getElementById('btnDocLink');
+      docBtn.href = c.docUrl;
+      docBtn.textContent = c.docLabel;
+
+      // Reset audio simulation
+      stopAudioMemo();
+    }
+
+    function toggleAudioMemo() {
+      const player = document.getElementById('audioPlayer');
+      const icon = document.getElementById('playIcon');
+      if (isPlayingAudio) {
+        stopAudioMemo();
+      } else {
+        isPlayingAudio = true;
+        player.classList.add('playing');
+        icon.innerHTML = '<rect x="3" y="2" width="4" height="12" rx="1"/><rect x="9" y="2" width="4" height="12" rx="1"/>';
+        playFuturisticTone(650, 'triangle', 0.25);
+        // Automatically stop after 6 seconds
+        setTimeout(() => {
+          if (isPlayingAudio) stopAudioMemo();
+        }, 6000);
+      }
+    }
+
+    function stopAudioMemo() {
+      isPlayingAudio = false;
+      const player = document.getElementById('audioPlayer');
+      const icon = document.getElementById('playIcon');
+      if (player) player.classList.remove('playing');
+      if (icon) icon.innerHTML = '<path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>';
+    }
+
+    let flyInterval = null;
+    function startFlyThrough() {
+      if (flyInterval) {
+        clearInterval(flyInterval);
+        flyInterval = null;
+        document.getElementById('btnPlayOrbit').innerHTML = '<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg> Zeitreise abfliegen';
+        return;
+      }
+
+      document.getElementById('btnPlayOrbit').innerHTML = '⏸️ Stop Zeitreise';
+      let idx = 0;
+      selectCapsule(idx);
+
+      flyInterval = setInterval(() => {
+        idx = (idx + 1) % capsules.length;
+        selectCapsule(idx);
+        if (idx === capsules.length - 1) {
+          setTimeout(() => {
+            clearInterval(flyInterval);
+            flyInterval = null;
+            document.getElementById('btnPlayOrbit').innerHTML = '<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg> Zeitreise abfliegen';
+          }, 3500);
+        }
+      }, 3500);
+    }
+
+    function copyVaultPath() {
+      const c = capsules[currentCapsuleIdx];
+      navigator.clipboard.writeText(c.path);
+      playFuturisticTone(880, 'sine', 0.1);
+      alert("Pfad in die Zwischenablage kopiert:\n" + c.path);
+    }
+  </script>
+</body>
+</html>

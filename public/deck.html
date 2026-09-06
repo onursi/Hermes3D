@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes Agenten Deck</title>
+  <style>
+    :root{
+      --bg:#06080e;
+      --bg2:#0c1220;
+      --panel:rgba(11,16,28,.62);
+      --panel-strong:rgba(12,18,32,.82);
+      --line:rgba(255,255,255,.08);
+      --text:#e9eefc;
+      --muted:#93a3c6;
+      --accent:#78b9ff;
+      --accent-2:#b86dff;
+      --good:#66e0a3;
+      --warn:#ffd166;
+      --danger:#ff6b81;
+      --glow:0 0 24px rgba(120,185,255,.25), 0 0 60px rgba(184,109,255,.08);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 20% 20%, rgba(120,185,255,.10), transparent 22%),
+        radial-gradient(circle at 80% 15%, rgba(184,109,255,.10), transparent 24%),
+        radial-gradient(circle at 50% 80%, rgba(102,224,163,.08), transparent 20%),
+        linear-gradient(180deg, #071019 0%, #05070d 100%);
+      overflow:hidden;
+    }
+
+    #space{
+      position:relative;
+      width:100%;
+      height:100%;
+      perspective:1400px;
+      overflow:hidden;
+      isolation:isolate;
+    }
+
+    #stars, #links, #particles{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      display:block;
+      pointer-events:none;
+    }
+
+    .vignette{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at center, transparent 48%, rgba(0,0,0,.22) 76%, rgba(0,0,0,.58) 100%);
+      z-index:1;
+    }
+
+    .grid-floor{
+      position:absolute;
+      left:-10%;
+      right:-10%;
+      bottom:-34vh;
+      height:70vh;
+      transform:rotateX(77deg);
+      transform-origin:center top;
+      background:
+        linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 64px 64px,
+        linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 64px 64px;
+      mask-image:linear-gradient(to bottom, rgba(0,0,0,.95), rgba(0,0,0,.55), transparent 78%);
+      opacity:.55;
+      z-index:0;
+    }
+
+    .topbar{
+      position:absolute;
+      top:18px;
+      left:22px;
+      right:22px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      z-index:4;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:14px 18px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      backdrop-filter:blur(18px);
+      box-shadow:var(--glow);
+    }
+
+    .brand-mark{
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.4), transparent 20%),
+        linear-gradient(135deg, rgba(120,185,255,.7), rgba(184,109,255,.55));
+      position:relative;
+      box-shadow:0 0 20px rgba(120,185,255,.35);
+      flex:0 0 auto;
+    }
+
+    .brand-mark::before,
+    .brand-mark::after{
+      content:"";
+      position:absolute;
+      inset:8px;
+      border:1.5px solid rgba(255,255,255,.7);
+      border-radius:10px;
+      transform:rotate(45deg);
+    }
+
+    .brand-mark::after{
+      inset:13px;
+      border-radius:7px;
+      opacity:.65;
+      transform:rotate(0deg);
+    }
+
+    .brand-copy h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing:.12em;
+      font-weight:800;
+      text-transform:uppercase;
+    }
+
+    .brand-copy p{
+      margin:2px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+
+    .status-bar{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .chip{
+      padding:11px 14px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:var(--panel);
+      backdrop-filter:blur(18px);
+      font-size:12px;
+      color:var(--muted);
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      box-shadow:0 6px 24px rgba(0,0,0,.14);
+    }
+
+    .chip strong{color:var(--text); font-weight:700}
+
+    .scene{
+      position:absolute;
+      inset:0;
+      transform-style:preserve-3d;
+      z-index:2;
+    }
+
+    .core{
+      position:absolute;
+      left:50%;
+      top:52%;
+      width:340px;
+      height:340px;
+      transform:translate3d(-50%, -50%, 0);
+      transform-style:preserve-3d;
+      pointer-events:none;
+      filter:drop-shadow(0 0 28px rgba(120,185,255,.18));
+    }
+
+    .halo{
+      position:absolute;
+      inset:0;
+      border-radius:50%;
+      border:1px solid rgba(120,185,255,.15);
+      background:radial-gradient(circle, rgba(120,185,255,.08) 0%, transparent 62%);
+      animation:slow-spin 34s linear infinite;
+    }
+
+    .ring{
+      position:absolute;
+      inset:28px;
+      border-radius:50%;
+      border:1px solid rgba(120,185,255,.25);
+      transform-style:preserve-3d;
+      box-shadow:0 0 30px rgba(120,185,255,.08), inset 0 0 30px rgba(120,185,255,.05);
+    }
+
+    .ring.one{ transform:rotateX(70deg) rotateY(14deg); animation:spin-x 22s linear infinite; }
+    .ring.two{ inset:50px; transform:rotateY(72deg); border-color:rgba(184,109,255,.26); animation:spin-y 16s linear infinite reverse; }
+    .ring.three{ inset:72px; transform:rotateX(20deg) rotateZ(35deg); border-color:rgba(102,224,163,.25); animation:spin-z 14s linear infinite; }
+
+    .core-center{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:120px;
+      height:120px;
+      transform:translate(-50%,-50%);
+      border-radius:30px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.30), transparent 20%),
+        linear-gradient(135deg, rgba(120,185,255,.26), rgba(184,109,255,.18));
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:
+        0 0 40px rgba(120,185,255,.18),
+        inset 0 0 30px rgba(255,255,255,.04);
+      display:grid;
+      place-items:center;
+      backdrop-filter:blur(10px);
+      animation:pulse 4.4s ease-in-out infinite;
+    }
+
+    .core-center svg{
+      width:62px;
+      height:62px;
+      opacity:.95;
+      filter:drop-shadow(0 0 10px rgba(120,185,255,.25));
+    }
+
+    .agent-orbit{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:12px;
+      height:12px;
+      border-radius:50%;
+      background:var(--accent);
+      box-shadow:0 0 12px currentColor, 0 0 24px currentColor;
+      transform-origin:-110px 0;
+      animation:orbit 9s linear infinite;
+      color:var(--accent);
+    }
+
+    .agent-orbit.b{ transform-origin:-150px 0; animation-duration:13s; animation-delay:-2s; color:var(--accent-2); }
+    .agent-orbit.c{ transform-origin:-185px 0; animation-duration:17s; animation-delay:-5s; color:var(--good); }
+
+    .agents-grid{
+      position:absolute;
+      left:50%;
+      top:53%;
+      width:min(1120px, calc(100vw - 70px));
+      transform:translateX(-50%);
+      display:grid;
+      grid-template-columns:repeat(3, minmax(240px, 1fr));
+      gap:28px;
+      z-index:3;
+      pointer-events:auto;
+    }
+
+    .agent-card{
+      position:relative;
+      min-height:340px;
+      padding:20px 18px 18px;
+      border-radius:26px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)),
+        var(--panel-strong);
+      border:1px solid var(--line);
+      backdrop-filter:blur(18px);
+      box-shadow:
+        0 18px 60px rgba(0,0,0,.28),
+        inset 0 1px 0 rgba(255,255,255,.04);
+      overflow:hidden;
+      transform:translateY(0) rotateX(0deg) rotateY(0deg);
+      transition:transform .28s ease, border-color .28s ease, box-shadow .28s ease;
+      cursor:pointer;
+    }
+
+    .agent-card:hover{
+      border-color:rgba(120,185,255,.26);
+      box-shadow:
+        0 24px 70px rgba(0,0,0,.34),
+        0 0 40px rgba(120,185,255,.12);
+      transform:translateY(-6px);
+    }
+
+    .agent-card.active{
+      border-color:rgba(120,185,255,.35);
+      box-shadow:
+        0 24px 70px rgba(0,0,0,.34),
+        0 0 56px rgba(120,185,255,.18);
+    }
+
+    .agent-card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(120,185,255,.12), transparent 28%),
+        radial-gradient(circle at 80% 10%, rgba(184,109,255,.10), transparent 24%);
+      pointer-events:none;
+    }
+
+    .agent-header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      position:relative;
+      z-index:1;
+    }
+
+    .agent-id{
+      display:flex;
+      gap:14px;
+      align-items:center;
+    }
+
+    .avatar{
+      width:58px;
+      height:58px;
+      border-radius:18px;
+      position:relative;
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.10);
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255,255,255,.30), transparent 16%),
+        linear-gradient(135deg, rgba(120,185,255,.28), rgba(184,109,255,.18));
+      box-shadow:0 0 24px rgba(120,185,255,.14);
+    }
+
+    .avatar::before{
+      content:"";
+      position:absolute;
+      inset:8px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      animation:soft-rotate 8s linear infinite;
+    }
+
+    .avatar svg{
+      width:32px;
+      height:32px;
+      opacity:.95;
+    }
+
+    .title h2{
+      margin:0;
+      font-size:18px;
+      font-weight:700;
+      letter-spacing:.04em;
+    }
+
+    .title p{
+      margin:4px 0 0;
+      color:var(--muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 11px;
+      border-radius:999px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      color:var(--muted);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      white-space:nowrap;
+    }
+
+    .dot{
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:currentColor;
+      box-shadow:0 0 12px currentColor;
+      animation:blink 1.8s ease-in-out infinite;
+    }
+
+    .pill.good{ color:var(--good) }
+    .pill.warn{ color:var(--warn) }
+    .pill.danger{ color:var(--danger) }
+
+    .figure{
+      position:relative;
+      height:160px;
+      margin-top:16px;
+      border-radius:22px;
+      background:
+        radial-gradient(circle at 50% 40%, rgba(120,185,255,.10), transparent 22%),
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.06);
+      overflow:hidden;
+    }
+
+    .wave{
+      position:absolute;
+      inset:auto 0 0;
+      height:48%;
+      background:
+        radial-gradient(circle at 50% 100%, rgba(120,185,255,.14), transparent 55%);
+    }
+
+    .radar{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:120px;
+      height:120px;
+      transform:translate(-50%,-50%);
+      border-radius:50%;
+      border:1px solid rgba(120,185,255,.18);
+      box-shadow:inset 0 0 30px rgba(120,185,255,.06);
+    }
+
+    .radar::before,
+    .radar::after{
+      content:"";
+      position:absolute;
+      inset:12px;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.06);
+    }
+
+    .radar::after{ inset:28px; }
+
+    .sweep{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:60px;
+      height:1px;
+      transform-origin:left center;
+      background:linear-gradient(90deg, rgba(120,185,255,.9), rgba(120,185,255,0));
+      animation:spin-radar 3.8s linear infinite;
+      filter:drop-shadow(0 0 7px rgba(120,185,255,.55));
+    }
+
+    .radar .point{
+      position:absolute;
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:var(--good);
+      box-shadow:0 0 14px rgba(102,224,163,.65);
+      animation:point-pulse 2.6s ease-in-out infinite;
+    }
+
+    .point.p1{ left:22%; top:34%; animation-delay:.2s; }
+    .point.p2{ left:62%; top:26%; animation-delay:1s; background:var(--accent-2); box-shadow:0 0 14px rgba(184,109,255,.55);}
+    .point.p3{ left:56%; top:67%; animation-delay:1.5s; background:var(--warn); box-shadow:0 0 14px rgba(255,209,102,.52);}
+
+    .mesh{
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+    }
+
+    .mesh svg{
+      width:86%;
+      height:86%;
+      opacity:.85;
+    }
+
+    .mesh .node{
+      animation:node-pulse 2.4s ease-in-out infinite;
+    }
+
+    .mesh .node.n2{ animation-delay:.6s }
+    .mesh .node.n3{ animation-delay:1.2s }
+    .mesh .node.n4{ animation-delay:1.8s }
+
+    .orbit-figure{
+      position:absolute;
+      inset:0;
+    }
+
+    .orbit-ring{
+      position:absolute;
+      left:50%;
+      top:50%;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.10);
+      transform:translate(-50%,-50%);
+    }
+
+    .orbit-ring.r1{ width:72px; height:72px; border-color:rgba(102,224,163,.18);}
+    .orbit-ring.r2{ width:112px; height:112px; border-color:rgba(120,185,255,.18);}
+    .orbit-ring.r3{ width:148px; height:148px; border-color:rgba(184,109,255,.16);}
+
+    .sat{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:var(--accent);
+      box-shadow:0 0 10px currentColor;
+      transform-origin:-36px 0;
+      animation:orbit 5.8s linear infinite;
+      color:var(--accent);
+    }
+
+    .sat.s2{ transform-origin:-56px 0; animation-duration:9s; color:var(--good); }
+    .sat.s3{ transform-origin:-74px 0; animation-duration:12s; color:var(--accent-2); }
+
+    .metrics{
+      position:relative;
+      z-index:1;
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:10px;
+      margin-top:16px;
+    }
+
+    .metric{
+      padding:12px;
+      border-radius:16px;
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.06);
+    }
+
+    .metric span{
+      display:block;
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:4px;
+    }
+
+    .metric strong{
+      font-size:18px;
+      font-weight:700;
+    }
+
+    .caption{
+      position:relative;
+      z-index:1;
+      margin-top:16px;
+      color:#c7d4f1;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .caption strong{ color:#fff }
+
+    .actions{
+      position:relative;
+      z-index:1;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:16px;
+    }
+
+    button{
+      appearance:none;
+      border:none;
+      cursor:pointer;
+      color:var(--text);
+      background:linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.04));
+      border:1px solid rgba(255,255,255,.08);
+      padding:11px 14px;
+      border-radius:14px;
+      font-weight:600;
+      letter-spacing:.02em;
+      transition:transform .2s ease, background .2s ease, border-color .2s ease;
+    }
+
+    button:hover{
+      transform:translateY(-2px);
+      border-color:rgba(120,185,255,.28);
+      background:linear-gradient(180deg, rgba(120,185,255,.12), rgba(255,255,255,.04));
+    }
+
+    button.primary{
+      background:linear-gradient(135deg, rgba(120,185,255,.18), rgba(184,109,255,.12));
+      border-color:rgba(120,185,255,.28);
+      box-shadow:0 0 22px rgba(120,185,255,.12);
+    }
+
+    .command-bar{
+      position:absolute;
+      left:50%;
+      bottom:22px;
+      transform:translateX(-50%);
+      width:min(1080px, calc(100vw - 46px));
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:14px;
+      align-items:center;
+      padding:14px;
+      border-radius:22px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      backdrop-filter:blur(18px);
+      box-shadow:var(--glow);
+      z-index:5;
+    }
+
+    .command-wrap{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+    }
+
+    .prompt{
+      color:var(--accent);
+      font-weight:700;
+      font-size:14px;
+      white-space:nowrap;
+    }
+
+    .command-input{
+      width:100%;
+      border:none;
+      outline:none;
+      background:transparent;
+      color:var(--text);
+      font-size:14px;
+      font-family:inherit;
+    }
+
+    .command-input::placeholder{ color:#9caad0; }
+
+    .hint{
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .telemetry{
+      position:absolute;
+      right:22px;
+      top:110px;
+      width:min(310px, calc(100vw - 44px));
+      padding:18px;
+      border-radius:22px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      backdrop-filter:blur(18px);
+      box-shadow:0 12px 40px rgba(0,0,0,.18);
+      z-index:4;
+    }
+
+    .telemetry h3{
+      margin:0 0 14px;
+      font-size:13px;
+      font-weight:700;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#dfe8fb;
+    }
+
+    .log{
+      display:grid;
+      gap:10px;
+      max-height:260px;
+      overflow:auto;
+      padding-right:4px;
+    }
+
+    .log-item{
+      padding:12px 12px 12px 14px;
+      border-radius:16px;
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.06);
+      position:relative;
+    }
+
+    .log-item::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:12px;
+      bottom:12px;
+      width:3px;
+      border-radius:999px;
+      background:linear-gradient(180deg, var(--accent), var(--accent-2));
+      opacity:.9;
+    }
+
+    .log-item strong{
+      display:block;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-bottom:4px;
+      color:#f3f6ff;
+    }
+
+    .log-item p{
+      margin:0;
+      color:#bdc9e7;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .focus-panel{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:min(760px, calc(100vw - 34px));
+      transform:translate(-50%, -50%) scale(.92);
+      padding:24px;
+      border-radius:28px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)),
+        rgba(8, 12, 22, .9);
+      border:1px solid rgba(255,255,255,.08);
+      backdrop-filter:blur(20px);
+      box-shadow:
+        0 40px 100px rgba(0,0,0,.45),
+        0 0 60px rgba(120,185,255,.12);
+      z-index:8;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .24s ease, transform .24s ease;
+    }
+
+    .focus-panel.open{
+      opacity:1;
+      pointer-events:auto;
+      transform:translate(-50%, -50%) scale(1);
+    }
+
+    .focus-header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      margin-bottom:18px;
+    }
+
+    .focus-header h2{
+      margin:0;
+      font-size:24px;
+    }
+
+    .focus-header p{
+      margin:6px 0 0;
+      color:var(--muted);
+      line-height:1.5;
+      max-width:580px;
+    }
+
+    .focus-meta{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0,1fr));
+      gap:12px;
+      margin:18px 0;
+    }
+
+    .focus-block{
+      padding:14px;
+      border-radius:18px;
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.06);
+    }
+
+    .focus-block span{
+      display:block;
+      color:var(--muted);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:6px;
+    }
+
+    .focus-block strong{
+      font-size:18px;
+      display:block;
+      margin-bottom:4px;
+    }
+
+    .focus-steps{
+      display:grid;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    .focus-step{
+      padding:14px 16px;
+      border-radius:16px;
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.06);
+      color:#d8e1f7;
+    }
+
+    .focus-step strong{
+      display:block;
+      margin-bottom:4px;
+      font-size:14px;
+      color:#fff;
+    }
+
+    .scrim{
+      position:absolute;
+      inset:0;
+      background:rgba(3,5,10,.42);
+      backdrop-filter:blur(3px);
+      z-index:7;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .24s ease;
+    }
+
+    .scrim.show{
+      opacity:1;
+      pointer-events:auto;
+    }
+
+    .toast{
+      position:absolute;
+      left:50%;
+      top:104px;
+      transform:translateX(-50%) translateY(-10px);
+      padding:12px 16px;
+      border-radius:14px;
+      background:rgba(9,14,24,.9);
+      border:1px solid rgba(120,185,255,.24);
+      color:#eaf0ff;
+      box-shadow:0 18px 40px rgba(0,0,0,.28);
+      backdrop-filter:blur(14px);
+      z-index:9;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .22s ease, transform .22s ease;
+      font-size:14px;
+    }
+
+    .toast.show{
+      opacity:1;
+      transform:translateX(-50%) translateY(0);
+    }
+
+    @keyframes slow-spin{ to{ transform:rotate(360deg); } }
+    @keyframes spin-x{ to{ transform:rotateX(70deg) rotateY(374deg); } }
+    @keyframes spin-y{ to{ transform:rotateY(432deg); } }
+    @keyframes spin-z{ to{ transform:rotateX(20deg) rotateZ(395deg); } }
+    @keyframes pulse{
+      0%,100%{ transform:translate(-50%,-50%) scale(1); box-shadow:0 0 40px rgba(120,185,255,.18), inset 0 0 30px rgba(255,255,255,.04); }
+      50%{ transform:translate(-50%,-50%) scale(1.045); box-shadow:0 0 54px rgba(120,185,255,.26), inset 0 0 40px rgba(255,255,255,.06); }
+    }
+    @keyframes orbit{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+    @keyframes blink{
+      0%,100%{ opacity:1; transform:scale(1); }
+      50%{ opacity:.45; transform:scale(.78); }
+    }
+    @keyframes point-pulse{
+      0%,100%{ transform:scale(1); opacity:.8; }
+      50%{ transform:scale(1.35); opacity:1; }
+    }
+    @keyframes spin-radar{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+    @keyframes node-pulse{
+      0%,100%{ r:4; opacity:.7; }
+      50%{ r:6; opacity:1; }
+    }
+    @keyframes soft-rotate{ to{ transform:rotate(360deg); } }
+
+    @media (max-width: 1100px){
+      .agents-grid{
+        grid-template-columns:1fr;
+        width:min(720px, calc(100vw - 44px));
+        top:56%;
+      }
+      .telemetry{
+        display:none;
+      }
+      .core{
+        top:28%;
+        transform:translate3d(-50%, -50%, -60px) scale(.82);
+      }
+      .command-bar{
+        width:calc(100vw - 28px);
+      }
+    }
+
+    @media (max-width: 680px){
+      .topbar{
+        top:12px;
+        left:12px;
+        right:12px;
+        flex-direction:column;
+        align-items:stretch;
+      }
+      .status-bar{
+        justify-content:flex-start;
+      }
+      .agents-grid{
+        width:calc(100vw - 24px);
+        gap:18px;
+        top:59%;
+      }
+      .agent-card{
+        min-height:320px;
+      }
+      .core{
+        width:260px;
+        height:260px;
+        top:30%;
+      }
+      .brand{
+        padding:12px 14px;
+      }
+      .command-bar{
+        left:12px;
+        right:12px;
+        bottom:12px;
+        transform:none;
+        width:auto;
+        grid-template-columns:1fr;
+      }
+      .focus-meta{
+        grid-template-columns:1fr;
+      }
+      .metrics{
+        grid-template-columns:1fr 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="space">
+    <canvas id="stars"></canvas>
+    <canvas id="links"></canvas>
+    <canvas id="particles"></canvas>
+    <div class="grid-floor"></div>
+    <div class="vignette"></div>
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div class="brand-copy">
+          <h1>Hermes Agent OS</h1>
+          <p>Animiertes Command Deck für deine Agenten</p>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="chip"><strong id="clock">--:--:--</strong> lokale Zeit</div>
+        <div class="chip"><strong>3</strong> aktive Agenten</div>
+        <div class="chip"><strong id="health">98%</strong> Systemfluss</div>
+      </div>
+    </div>
+
+    <div class="scene" id="scene">
+      <div class="core">
+        <div class="halo"></div>
+        <div class="ring one"></div>
+        <div class="ring two"></div>
+        <div class="ring three"></div>
+        <div class="core-center">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M22 11C22 7.68629 24.6863 5 28 5H36C39.3137 5 42 7.68629 42 11V17C42 21.9706 37.9706 26 33 26H31C26.0294 26 22 21.9706 22 17V11Z" stroke="rgba(233,238,252,.95)" stroke-width="2.8"/>
+            <path d="M32 26V38" stroke="rgba(233,238,252,.95)" stroke-width="2.8" stroke-linecap="round"/>
+            <path d="M18 48C18 42.4772 22.4772 38 28 38H36C41.5228 38 46 42.4772 46 48V58H18V48Z" stroke="rgba(233,238,252,.95)" stroke-width="2.8"/>
+            <path d="M8 22L16 30L8 38" stroke="rgba(120,185,255,.95)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M56 22L48 30L56 38" stroke="rgba(184,109,255,.95)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="agent-orbit a"></div>
+        <div class="agent-orbit b"></div>
+        <div class="agent-orbit c"></div>
+      </div>
+
+      <div class="agents-grid">
+        <article class="agent-card active" data-agent="astra">
+          <div class="agent-header">
+            <div class="agent-id">
+              <div class="avatar">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M24 8L35 14V26C35 33.1797 30.0751 39.6723 24 41C17.9249 39.6723 13 33.1797 13 26V14L24 8Z" stroke="rgba(233,238,252,.95)" stroke-width="2"/>
+                  <path d="M24 16V31" stroke="rgba(120,185,255,.95)" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M17 23H31" stroke="rgba(120,185,255,.95)" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="title">
+                <h2>Astra</h2>
+                <p>Lead Vision Agent</p>
+              </div>
+            </div>
+            <div class="pill good"><span class="dot"></span> aktiv</div>
+          </div>
+
+          <div class="figure">
+            <div class="wave"></div>
+            <div class="radar">
+              <div class="sweep"></div>
+              <div class="point p1"></div>
+              <div class="point p2"></div>
+              <div class="point p3"></div>
+            </div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric"><span>Ideenfluss</span><strong>91%</strong></div>
+            <div class="metric"><span>Fokus</span><strong>High</strong></div>
+            <div class="metric"><span>Queue</span><strong>04</strong></div>
+          </div>
+
+          <p class="caption">
+            Entwickelt neue Raumideen, visuelle Leitbilder und die nächste große Richtung für <strong>Hermes3D</strong>.
+          </p>
+
+          <div class="actions">
+            <button class="primary inspect-btn">Öffnen</button>
+            <button class="ping-btn">Pingen</button>
+          </div>
+        </article>
+
+        <article class="agent-card" data-agent="claude">
+          <div class="agent-header">
+            <div class="agent-id">
+              <div class="avatar">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect x="10" y="8" width="28" height="32" rx="10" stroke="rgba(233,238,252,.95)" stroke-width="2"/>
+                  <path d="M16 19H32" stroke="rgba(184,109,255,.95)" stroke-width="2.4" stroke-linecap="round"/>
+                  <path d="M16 25H28" stroke="rgba(184,109,255,.95)" stroke-width="2.4" stroke-linecap="round"/>
+                  <path d="M16 31H24" stroke="rgba(184,109,255,.95)" stroke-width="2.4" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="title">
+                <h2>Claude</h2>
+                <p>Review und Council Agent</p>
+              </div>
+            </div>
+            <div class="pill warn"><span class="dot"></span> denkt</div>
+          </div>
+
+          <div class="figure">
+            <div class="mesh">
+              <svg viewBox="0 0 240 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="rgba(120,185,255,.7)"/>
+                    <stop offset="100%" stop-color="rgba(184,109,255,.6)"/>
+                  </linearGradient>
+                </defs>
+                <g stroke="rgba(120,185,255,.28)" stroke-width="1.3" fill="none">
+                  <path d="M40 90L92 44L150 64L197 34" />
+                  <path d="M40 90L90 118L150 102L197 126" />
+                  <path d="M92 44L90 118" />
+                  <path d="M150 64L150 102" />
+                  <path d="M90 118L150 64" />
+                </g>
+                <g fill="#78b9ff">
+                  <circle class="node n1" cx="40" cy="90" r="4"/>
+                  <circle class="node n2" cx="92" cy="44" r="4"/>
+                  <circle class="node n3" cx="150" cy="64" r="4"/>
+                  <circle class="node n4" cx="197" cy="34" r="4"/>
+                  <circle class="node n2" cx="90" cy="118" r="4"/>
+                  <circle class="node n4" cx="150" cy="102" r="4"/>
+                  <circle class="node n3" cx="197" cy="126" r="4"/>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric"><span>Prüfung</span><strong>87%</strong></div>
+            <div class="metric"><span>Risiko</span><strong>Low</strong></div>
+            <div class="metric"><span>Threads</span><strong>07</strong></div>
+          </div>
+
+          <p class="caption">
+            Prüft Architektur, hinterfragt Annahmen und moderiert auf Wunsch einen kleinen <strong>Council-Prozess</strong>.
+          </p>
+
+          <div class="actions">
+            <button class="primary inspect-btn">Öffnen</button>
+            <button class="ping-btn">Pingen</button>
+          </div>
+        </article>
+
+        <article class="agent-card" data-agent="codex">
+          <div class="agent-header">
+            <div class="agent-id">
+              <div class="avatar">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M11 15L20 24L11 33" stroke="rgba(102,224,163,.95)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M26 33H37" stroke="rgba(102,224,163,.95)" stroke-width="2.5" stroke-linecap="round"/>
+                  <rect x="8" y="8" width="32" height="32" rx="11" stroke="rgba(233,238,252,.95)" stroke-width="2"/>
+                </svg>
+              </div>
+              <div class="title">
+                <h2>Codex</h2>
+                <p>Build und System Agent</p>
+              </div>
+            </div>
+            <div class="pill good"><span class="dot"></span> bereit</div>
+          </div>
+
+          <div class="figure">
+            <div class="orbit-figure">
+              <div class="orbit-ring r1"></div>
+              <div class="orbit-ring r2"></div>
+              <div class="orbit-ring r3"></div>
+              <div class="sat"></div>
+              <div class="sat s2"></div>
+              <div class="sat s3"></div>
+            </div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric"><span>Build</span><strong>94%</strong></div>
+            <div class="metric"><span>Status</span><strong>Stable</strong></div>
+            <div class="metric"><span>Jobs</span><strong>02</strong></div>
+          </div>
+
+          <p class="caption">
+            Baut Module, behebt Fehler und setzt konkrete Änderungen an deinem <strong>Hermes Agent OS</strong> um.
+          </p>
+
+          <div class="actions">
+            <button class="primary inspect-btn">Öffnen</button>
+            <button class="ping-btn">Pingen</button>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <aside class="telemetry">
+      <h3>Live Telemetrie</h3>
+      <div class="log" id="log">
+        <div class="log-item">
+          <strong>System</strong>
+          <p>Hermes Command Deck initialisiert. Räumliche Szene stabil.</p>
+        </div>
+        <div class="log-item">
+          <strong>Astra</strong>
+          <p>Neue Weltlogik für Projektorte wird vorbereitet.</p>
+        </div>
+        <div class="log-item">
+          <strong>Claude</strong>
+          <p>Council Review Queue erkannt. Kritische Fragen werden gesammelt.</p>
+        </div>
+      </div>
+    </aside>
+
+    <div class="scrim" id="scrim"></div>
+
+    <section class="focus-panel" id="focusPanel" aria-live="polite">
+      <div class="focus-header">
+        <div>
+          <h2 id="focusTitle">Agent</h2>
+          <p id="focusText">Detailansicht</p>
+        </div>
+        <button id="closePanel">Schließen</button>
+      </div>
+
+      <div class="focus-meta" id="focusMeta"></div>
+      <div class="focus-steps" id="focusSteps"></div>
+    </section>
+
+    <div class="toast" id="toast">Ping gesendet</div>
+
+    <div class="command-bar">
+      <div class="command-wrap">
+        <div class="prompt">hermes://</div>
+        <input class="command-input" id="commandInput" placeholder="Tippe z. B. 'öffne astra', 'council starten' oder 'status'" />
+      </div>
+      <div class="hint">Enter zum Ausführen</div>
+    </div>
+  </div>
+
+  <script>
+    const starsCanvas = document.getElementById('stars');
+    const particlesCanvas = document.getElementById('particles');
+    const linksCanvas = document.getElementById('links');
+    const scene = document.getElementById('scene');
+    const cards = [...document.querySelectorAll('.agent-card')];
+    const logEl = document.getElementById('log');
+    const clockEl = document.getElementById('clock');
+    const healthEl = document.getElementById('health');
+    const commandInput = document.getElementById('commandInput');
+    const toast = document.getElementById('toast');
+    const focusPanel = document.getElementById('focusPanel');
+    const focusTitle = document.getElementById('focusTitle');
+    const focusText = document.getElementById('focusText');
+    const focusMeta = document.getElementById('focusMeta');
+    const focusSteps = document.getElementById('focusSteps');
+    const closePanel = document.getElementById('closePanel');
+    const scrim = document.getElementById('scrim');
+
+    const agentData = {
+      astra: {
+        name: 'Astra',
+        subtitle: 'Lead Vision Agent',
+        description: 'Astra denkt groß. Der Agent baut neue räumliche Konzepte, entwickelt starke Produktbilder und schiebt Hermes3D von einer guten Idee zu einer spürbaren Welt.',
+        meta: [
+          ['Primärer Modus', 'Konzept + Vision'],
+          ['Aktuelle Mission', 'Projektorte definieren'],
+          ['Nächster Schritt', 'Arbeitsorbit verfeinern']
+        ],
+        steps: [
+          ['Beobachten', 'Analysiert, welche Projektteile räumlich konstant bleiben sollten.'],
+          ['Entwerfen', 'Formt daraus eine visuelle Richtung mit hoher Wiedererkennbarkeit.'],
+          ['Empfehlen', 'Gibt dir die eine große Sache, die als Nächstes gebaut werden sollte.']
+        ],
+        ping: 'Astra wurde gepingt und sammelt gerade neue Weltideen.'
+      },
+      claude: {
+        name: 'Claude',
+        subtitle: 'Review und Council Agent',
+        description: 'Claude arbeitet als kritischer Prüfer. Er erkennt Brüche in deiner Logik, testet Annahmen und hilft dir dabei, aus mehreren Ideen eine saubere Richtung abzuleiten.',
+        meta: [
+          ['Primärer Modus', 'Review + Gegenthese'],
+          ['Aktuelle Mission', 'Council vorbereiten'],
+          ['Nächster Schritt', 'Risikopunkte priorisieren']
+        ],
+        steps: [
+          ['Hinterfragen', 'Prüft, ob 3D an einer Stelle echten Nutzen bringt oder nur gut aussieht.'],
+          ['Verdichten', 'Zieht die wichtigsten Unterschiede zwischen mehreren Ideen zusammen.'],
+          ['Moderieren', 'Kann zusammen mit anderen Agenten einen kleinen Council starten.']
+        ],
+        ping: 'Claude prüft gerade Argumente und bereitet einen Council vor.'
+      },
+      codex: {
+        name: 'Codex',
+        subtitle: 'Build und System Agent',
+        description: 'Codex ist dein Umsetzer. Er übersetzt Konzepte in Module, Animationen und konkrete technische Schritte. Wenn du eine Richtung klar hast, macht Codex daraus greifbare Systeme.',
+        meta: [
+          ['Primärer Modus', 'Build + Umsetzung'],
+          ['Aktuelle Mission', 'Agenten-Deck animieren'],
+          ['Nächster Schritt', 'Modulstruktur schärfen']
+        ],
+        steps: [
+          ['Verknüpfen', 'Verbindet Idee, Oberfläche und technische Struktur.'],
+          ['Bauen', 'Erstellt UI-Module, States und Interaktionslogik.'],
+          ['Absichern', 'Achtet darauf, dass Performance und Lesbarkeit stabil bleiben.']
+        ],
+        ping: 'Codex ist bereit und wartet auf eine konkrete Umsetzungsaufgabe.'
+      }
+    };
+
+    function resizeCanvas(canvas){
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(canvas.clientWidth * dpr);
+      canvas.height = Math.floor(canvas.clientHeight * dpr);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return ctx;
+    }
+
+    let starsCtx, particlesCtx, linksCtx;
+    const starField = [];
+    const particles = [];
+    const linkNodes = [];
+
+    function setupBackground(){
+      starsCtx = resizeCanvas(starsCanvas);
+      particlesCtx = resizeCanvas(particlesCanvas);
+      linksCtx = resizeCanvas(linksCanvas);
+
+      const w = starsCanvas.clientWidth;
+      const h = starsCanvas.clientHeight;
+
+      starField.length = 0;
+      particles.length = 0;
+      linkNodes.length = 0;
+
+      for(let i=0;i<160;i++){
+        starField.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          z: Math.random() * 1 + 0.2,
+          r: Math.random() * 1.8 + 0.3,
+          a: Math.random() * 0.75 + 0.1
+        });
+      }
+
+      for(let i=0;i<42;i++){
+        particles.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.18,
+          vy: (Math.random() - 0.5) * 0.18,
+          r: Math.random() * 2.4 + 1,
+          a: Math.random() * 0.22 + 0.04,
+          hue: i % 3
+        });
+      }
+
+      for(let i=0;i<14;i++){
+        linkNodes.push({
+          x: Math.random() * w * 0.9 + w * 0.05,
+          y: Math.random() * h * 0.45 + h * 0.2,
+          vx: (Math.random() - 0.5) * 0.15,
+          vy: (Math.random() - 0.5) * 0.15
+        });
+      }
+    }
+
+    let pointerX = window.innerWidth * 0.5;
+    let pointerY = window.innerHeight * 0.5;
+    let currentRX = 0;
+    let currentRY = 0;
+    let targetRX = 0;
+    let targetRY = 0;
+    let rafId = null;
+    let startTime = performance.now();
+
+    function animate(now){
+      const t = (now - startTime) * 0.001;
+      const w = starsCanvas.clientWidth;
+      const h = starsCanvas.clientHeight;
+
+      currentRX += (targetRX - currentRX) * 0.05;
+      currentRY += (targetRY - currentRY) * 0.05;
+
+      scene.style.transform = `rotateX(${currentRX}deg) rotateY(${currentRY}deg)`;
+
+      drawStars(w, h, t);
+      drawParticles(w, h, t);
+      drawLinks(w, h, t);
+
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function drawStars(w, h, t){
+      starsCtx.clearRect(0,0,w,h);
+      for(const s of starField){
+        const driftX = (pointerX / w - 0.5) * 14 * s.z;
+        const driftY = (pointerY / h - 0.5) * 10 * s.z;
+        const twinkle = 0.5 + Math.sin(t * 1.2 + s.x * 0.02 + s.y * 0.01) * 0.35;
+        starsCtx.beginPath();
+        starsCtx.fillStyle = `rgba(232, 240, 255, ${Math.max(0.06, s.a * twinkle)})`;
+        starsCtx.arc(s.x + driftX, s.y + driftY, s.r, 0, Math.PI*2);
+        starsCtx.fill();
+      }
+    }
+
+    function drawParticles(w, h, t){
+      particlesCtx.clearRect(0,0,w,h);
+      for(const p of particles){
+        p.x += p.vx;
+        p.y += p.vy;
+        if(p.x < -20) p.x = w + 20;
+        if(p.x > w + 20) p.x = -20;
+        if(p.y < -20) p.y = h + 20;
+        if(p.y > h + 20) p.y = -20;
+
+        const driftX = (pointerX / w - 0.5) * 22;
+        const driftY = (pointerY / h - 0.5) * 15;
+        let color = '120,185,255';
+        if(p.hue === 1) color = '184,109,255';
+        if(p.hue === 2) color = '102,224,163';
+
+        const pulse = 0.55 + Math.sin(t * 1.1 + p.x * 0.03) * 0.18;
+        particlesCtx.beginPath();
+        particlesCtx.fillStyle = `rgba(${color}, ${p.a * pulse})`;
+        particlesCtx.arc(p.x + driftX, p.y + driftY, p.r, 0, Math.PI * 2);
+        particlesCtx.fill();
+      }
+    }
+
+    function drawLinks(w, h, t){
+      linksCtx.clearRect(0,0,w,h);
+
+      for(const n of linkNodes){
+        n.x += n.vx;
+        n.y += n.vy;
+        if(n.x < w * 0.08 || n.x > w * 0.92) n.vx *= -1;
+        if(n.y < h * 0.12 || n.y > h * 0.75) n.vy *= -1;
+      }
+
+      for(let i=0;i<linkNodes.length;i++){
+        for(let j=i+1;j<linkNodes.length;j++){
+          const a = linkNodes[i];
+          const b = linkNodes[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const d = Math.hypot(dx, dy);
+          if(d < 180){
+            const alpha = (1 - d / 180) * 0.18;
+            linksCtx.strokeStyle = `rgba(120,185,255, ${alpha})`;
+            linksCtx.lineWidth = 1;
+            linksCtx.beginPath();
+            linksCtx.moveTo(a.x, a.y);
+            linksCtx.lineTo(b.x, b.y);
+            linksCtx.stroke();
+          }
+        }
+      }
+
+      for(const n of linkNodes){
+        const pulse = 0.6 + Math.sin(t * 2 + n.x * 0.02) * 0.25;
+        linksCtx.beginPath();
+        linksCtx.fillStyle = `rgba(120,185,255, ${0.34 * pulse})`;
+        linksCtx.arc(n.x, n.y, 3.2, 0, Math.PI*2);
+        linksCtx.fill();
+      }
+    }
+
+    function updateClock(){
+      const now = new Date();
+      clockEl.textContent = now.toLocaleTimeString('de-DE', { hour12:false });
+      const base = 96 + Math.round(Math.sin(Date.now()/4000) * 2);
+      healthEl.textContent = `${base}%`;
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function addLog(title, text){
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = `<strong>${title}</strong><p>${text}</p>`;
+      logEl.prepend(item);
+      while(logEl.children.length > 6){
+        logEl.removeChild(logEl.lastElementChild);
+      }
+    }
+
+    function showToast(text){
+      toast.textContent = text;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    function openAgent(key){
+      const data = agentData[key];
+      if(!data) return;
+      cards.forEach(card => card.classList.toggle('active', card.dataset.agent === key));
+      focusTitle.textContent = `${data.name}`;
+      focusText.textContent = data.description;
+
+      focusMeta.innerHTML = data.meta.map(([label, value]) => `
+        <div class="focus-block">
+          <span>${label}</span>
+          <strong>${value}</strong>
+        </div>
+      `).join('');
+
+      focusSteps.innerHTML = data.steps.map(([title, desc]) => `
+        <div class="focus-step">
+          <strong>${title}</strong>
+          <div>${desc}</div>
+        </div>
+      `).join('');
+
+      focusPanel.classList.add('open');
+      scrim.classList.add('show');
+      addLog(data.name, `${data.subtitle} wurde in der Detailansicht geöffnet.`);
+      showToast(`${data.name} geöffnet`);
+    }
+
+    function closeAgent(){
+      focusPanel.classList.remove('open');
+      scrim.classList.remove('show');
+    }
+
+    closePanel.addEventListener('click', closeAgent);
+    scrim.addEventListener('click', closeAgent);
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Escape') closeAgent();
+    });
+
+    cards.forEach(card => {
+      const key = card.dataset.agent;
+      card.querySelector('.inspect-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAgent(key);
+      });
+      card.querySelector('.ping-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const data = agentData[key];
+        addLog(data.name, data.ping);
+        showToast(`Ping an ${data.name} gesendet`);
+      });
+      card.addEventListener('click', () => openAgent(key));
+    });
+
+    function executeCommand(raw){
+      const input = raw.trim().toLowerCase();
+      if(!input) return;
+      commandInput.value = '';
+
+      if(input.includes('öffne astra') || input === 'astra'){
+        openAgent('astra');
+        return;
+      }
+      if(input.includes('öffne claude') || input === 'claude'){
+        openAgent('claude');
+        return;
+      }
+      if(input.includes('öffne codex') || input === 'codex'){
+        openAgent('codex');
+        return;
+      }
+      if(input.includes('status')){
+        addLog('Status', 'Alle Kernagenten sind erreichbar. Räumliche Animationen laufen stabil.');
+        showToast('Status aktualisiert');
+        return;
+      }
+      if(input.includes('council')){
+        addLog('Council', 'Astra, Claude und Codex wurden zu einem kleinen Council synchronisiert.');
+        showToast('Council gestartet');
+        cards.forEach(card => card.classList.add('active'));
+        setTimeout(() => cards.forEach(card => card.classList.remove('active')), 1400);
+        return;
+      }
+      if(input.includes('hilfe') || input === 'help'){
+        addLog('Hilfe', "Verfügbare Befehle: 'öffne astra', 'öffne claude', 'öffne codex', 'status', 'council starten'.");
+        showToast('Hilfe geladen');
+        return;
+      }
+
+      addLog('Hermes', `Befehl '${raw}' wurde verstanden, aber ist noch nicht an einen Workflow gebunden.`);
+      showToast('Befehl erfasst');
+    }
+
+    commandInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){
+        executeCommand(commandInput.value);
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      pointerX = e.clientX;
+      pointerY = e.clientY;
+      const x = e.clientX / window.innerWidth - 0.5;
+      const y = e.clientY / window.innerHeight - 0.5;
+      targetRY = x * 8;
+      targetRX = -y * 6;
+    });
+
+    window.addEventListener('resize', () => {
+      setupBackground();
+    });
+
+    setupBackground();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(animate);
+
+    addLog('Hermes', 'Tippe unten einen Befehl oder öffne einen Agenten direkt im Raum.');
+  </script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes 3D & Life OS – Dokumente, HTMLs & Welten-Hub</title>
+  <style>
+    :root {
+      --bg: #050b14;
+      --card-bg: rgba(13, 22, 38, 0.75);
+      --border: rgba(255, 255, 255, 0.12);
+      --cyan: #38bdf8;
+      --purple: #c084fc;
+      --amber: #fbbf24;
+      --emerald: #34d399;
+      --rose: #fb7185;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #0f1f38 0%, var(--bg) 75%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+    }
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.3rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--cyan);
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.lead {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 760px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.35rem;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+    .card-tag {
+      font-size: 0.7rem;
+      font-family: monospace;
+      text-transform: uppercase;
+      padding: 0.2rem 0.55rem;
+      border-radius: 0.35rem;
+      width: fit-content;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-pdf { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .tag-html { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .tag-live { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }
+    .tag-purple { background: rgba(192, 132, 252, 0.2); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.4); }
+    .tag-amber { background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); }
+    .tag-cyan { background: rgba(0, 240, 255, 0.2); color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.4); }
+
+    .card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: #fff;
+    }
+    .card p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1.25rem;
+      flex-grow: 1;
+    }
+    .card-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.9rem;
+      border-radius: 0.5rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid var(--border);
+    }
+    .btn-primary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .btn-live {
+      background: #0284c7;
+      color: white;
+      border: 1px solid #38bdf8;
+    }
+    .btn-live:hover {
+      background: #0369a1;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+    }
+    .btn-highlight {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: white;
+      border: 1px solid #38bdf8;
+    }
+    .btn-purple {
+      background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
+      color: white;
+      border: 1px solid #c084fc;
+    }
+    .btn-purple:hover {
+      box-shadow: 0 0 12px rgba(192, 132, 252, 0.5);
+    }
+    .server-banner {
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .server-info h2 {
+      font-size: 1.15rem;
+      margin-bottom: 0.25rem;
+    }
+    .server-info p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">Master-Hub · Vault & Prototypen</span>
+      <h1>Hermes 3D & Life OS</h1>
+      <p class="lead">Zentrale Steuerzentrale für alle Dokumente, Spezifikationen, PDFs, räumlichen 3D-Konzepte und interaktiven Prototypen im Vault.</p>
+    </header>
+
+    <!-- LIVE SERVERS BANNER -->
+    <div class="server-banner">
+      <div class="server-info">
+        <h2>🚀 Live 3D-Welten (Dual-Track System)</h2>
+        <p>Track 2 (Antigravity) enthält das neue <strong>Projekttor & Project Singularity</strong>, <strong>Ergebniswerft</strong>, <strong>Erinnerungsorbit</strong> sowie den Lichtgeschwindigkeits-Warp.</p>
+      </div>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="http://localhost:3420/v2" target="_blank" class="btn btn-live">
+          ⚡ Track 2: Antigravity (Port 3420)
+        </a>
+        <a href="http://localhost:3400/v2" target="_blank" class="btn btn-primary">
+          🏛️ Track 1: Claude (Port 3400)
+        </a>
+      </div>
+    </div>
+
+    <!-- 0. HIGHLIGHT: DAS NEUE ENTWICKLERBRIEFING SEPTEMBER 2026 -->
+    <h2 class="section-title">⭐ Neues Entwicklerbriefing & Weltlogik (September 2026)</h2>
+    <div class="grid">
+      <div class="card" style="border-color: rgba(56, 189, 248, 0.45); background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(9, 17, 34, 0.85) 100%);">
+        <div>
+          <span class="card-tag tag-pdf">PDF · Offizielles Briefing</span>
+          <h3 style="color: #38bdf8;">Hermes3D Entwicklerbriefing – Räumliche Kernmodule</h3>
+          <p>Das verbindliche 8-seitige Entwicklerbriefing von Onur: Agent Project Room, Project Singularity (Schwarzes Loch & Gravitation), Memory Saturn (Lebensringe) und die gemeinsame Weltlogik.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Hermes3D_Entwicklerbriefing_Projektmodule.pdf" target="_blank" class="btn btn-live" style="flex: 1;">📄 Original-PDF öffnen</a>
+          <a href="Hermes3D Entwicklerbriefing – Räumliche Kernmodule.md" target="_blank" class="btn btn-primary" style="flex: 1;">📝 Markdown lesen</a>
+        </div>
+      </div>
+
+      <div class="card" style="border-color: rgba(192, 132, 252, 0.45); background: linear-gradient(135deg, rgba(192, 132, 252, 0.12) 0%, rgba(9, 17, 34, 0.85) 100%);">
+        <div>
+          <span class="card-tag tag-purple">Architektur · Synthese</span>
+          <h3 style="color: #c084fc;">Hermes3D – Räumliche Kernarchitektur & Weltlogik</h3>
+          <p>Die vertiefte Gesamtspezifikation des Dreiklangs: Wie Singularity (Makro), Agent Project Room (Mikro/Council) und Memory Saturn (Retrospektive) als geschlossener Lebenszyklus ohne zweite Datenwahrheit zusammenspielen.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Hermes3D – Räumliche Kernarchitektur und Weltlogik.md" target="_blank" class="btn btn-purple" style="flex: 1;">🏛️ Architektur öffnen</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. HIGHLIGHT: DIE DREI NEUEN RÄUMLICHEN PROTOTYPEN -->
+    <h2 class="section-title">🌌 Die 3 räumlichen Kernmodule (Interaktive Prototypen)</h2>
+    <div class="grid">
+      <!-- Modul B: Project Singularity -->
+      <div class="card" style="border-color: rgba(251, 191, 36, 0.4); background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(9, 17, 34, 0.8) 100%);">
+        <div>
+          <span class="card-tag tag-amber">Modul B · Schwarzes Loch</span>
+          <h3 style="color: #fbbf24;">Project Singularity (v2)</h3>
+          <p>Schwarzes Loch mit leuchtender Akkretionsscheibe, Photonenring und Gravitations-Lensing. Projekte umkreisen als Planeten: Abstand = Inaktivität/Vernachlässigung. Klick öffnet reduzierte 2D-Glasplatte.</p>
+        </div>
+        <div class="card-actions">
+          <a href="http://localhost:3420/singularity.html" target="_blank" class="btn btn-live" style="flex: 1;">🌌 Prototyp im Browser</a>
+          <a href="hermes_project_singularity_v2.html" target="_blank" class="btn btn-primary">Lokal</a>
+        </div>
+      </div>
+
+      <!-- Modul A: Agent Project Room & Deck -->
+      <div class="card" style="border-color: rgba(0, 240, 255, 0.4); background: linear-gradient(135deg, rgba(0, 240, 255, 0.1) 0%, rgba(9, 17, 34, 0.8) 100%);">
+        <div>
+          <span class="card-tag tag-cyan">Modul A · Agenten-Deck & Council</span>
+          <h3 style="color: #00f0ff;">Hermes Agenten-Deck & Council</h3>
+          <p>Kollaboratives Arbeiten mit mehreren KI-Mitarbeitern: Hermes im Zentrum, Agenten im Kreis, pulsierende Lichtlinien, Sprach- & Texteingabe, Status-Morphing und One-Click Obsidian- & To-Do-Export.</p>
+        </div>
+        <div class="card-actions">
+          <a href="http://localhost:3420/deck.html" target="_blank" class="btn btn-live" style="flex: 1;">🤖 Agenten-Deck öffnen</a>
+          <a href="hermes_agenten_deck.html" target="_blank" class="btn btn-primary">Lokal</a>
+        </div>
+      </div>
+
+      <!-- Modul C: Memory Saturn -->
+      <div class="card" style="border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(9, 17, 34, 0.8) 100%);">
+        <div>
+          <span class="card-tag tag-purple">Modul C · Saturn-Ringe</span>
+          <h3 style="color: #c084fc;">Memory Saturn & Freier Raum</h3>
+          <p>Lebensphasen als Saturn-Ringe von Kindheit bis Gegenwart. 3D Circular Carousel mit Trägheit für den dramatischen „Leben zieht vorbei“-Effekt. Klick auf Kugel öffnet den freien assoziativen Sternenraum.</p>
+        </div>
+        <div class="card-actions">
+          <a href="http://localhost:3420/memory_saturn.html" target="_blank" class="btn btn-live" style="flex: 1;">🪐 Saturn starten</a>
+          <a href="hermes_memory_saturn.html" target="_blank" class="btn btn-primary">Lokal</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. BEREITS EINGEBAUTE WELTEN & GLASPLATTEN -->
+    <h2 class="section-title">💎 Endziel & Erinnerungsorbit</h2>
+    <div class="grid">
+      <div class="card" style="border-color: rgba(0, 240, 255, 0.35);">
+        <div>
+          <span class="card-tag tag-cyan">DAS ENDZIEL · 2D GLASPLATTE</span>
+          <h3>Hermes Agent OS – Das Endziel auf 1 Blick</h3>
+          <p>Die transparente animierte Obsidian-Glasplatte: Warum existiert dieses Projekt? 1 klares Bild, das das gesamte Lebenswerk greifbar macht.</p>
+        </div>
+        <div class="card-actions">
+          <a href="http://localhost:3420/endziel.html" target="_blank" class="btn btn-live" style="flex: 1;">💎 Glasplatte ansehen</a>
+          <a href="http://localhost:3420/diagramm.html" target="_blank" class="btn btn-primary">📊 Diagramm</a>
+        </div>
+      </div>
+
+      <div class="card" style="border-color: rgba(168, 85, 247, 0.35);">
+        <div>
+          <span class="card-tag tag-purple">STUFE 3 · ZEITREISE</span>
+          <h3>Erinnerungsorbit – Vision & Simulation</h3>
+          <p>Die begehbare Zeitreise für Hermes Agent OS: Chrono-Kapseln, Audiomemo-Simulation, Zeitreise-Fly-Through und 4D-Tesseract-Architektur.</p>
+        </div>
+        <div class="card-actions">
+          <a href="http://localhost:3420/orbit.html" target="_blank" class="btn btn-purple" style="flex: 1;">🪐 Orbit erleben</a>
+          <a href="Erinnerungsorbit_Vision_und_Simulation.html" target="_blank" class="btn btn-primary">Lokal</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. WEITERE ARCHITEKTUR- UND REPORT-DOKUMENTE -->
+    <h2 class="section-title">📄 Vorhandene PDF- & Visions-Dokumente</h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <span class="card-tag tag-pdf">PDF · Konzept</span>
+          <h3>Spatial Life OS – Vision 2026-09-04</h3>
+          <p>Die 12-seitige architektonische Vision für das räumliche Betriebssystem. Behandelt Orientierung, 2D-im-3D-Ansatz und die Welten-Struktur.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/Spatial Life OS – Vision 2026-09-04.pdf" target="_blank" class="btn btn-primary" style="flex: 1;">PDF öffnen</a>
+          <a href="Architektur & Betrieb/Spatial Life OS – Vision 2026-09-04.html" target="_blank" class="btn btn-primary">HTML</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">HTML · Architektur</span>
+          <h3>Hermes 3D – Fundament neu gedacht</h3>
+          <p>Analyse des Fundaments: Warum ein zusammenhängender Raum besser funktioniert als isolierte Menüs.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/Hermes 3D – Fundament neu gedacht 2026-09-04.html" target="_blank" class="btn btn-primary" style="flex: 1;">HTML öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">HTML · Konzept</span>
+          <h3>Ein Ort ein Horizont</h3>
+          <p>Das räumliche Prinzip: Der Horizont hält alles zusammen, egal wie weit du fliegst.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/Ein Ort ein Horizont.html" target="_blank" class="btn btn-primary" style="flex: 1;">HTML öffnen</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. WORKFLOW & DEV-TRACKS -->
+    <h2 class="section-title">⚙️ Dual-Track Workflow & Betrieb</h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Dashboard · Live</span>
+          <h3>Dual-Track-Workflow Dashboard</h3>
+          <p>Das aktive Dashboard zur Überwachung der beiden Gleise (Track 1 Claude & Track 2 Antigravity).</p>
+        </div>
+        <div class="card-actions">
+          <a href="Dual-Track-Workflow.html" target="_blank" class="btn btn-primary" style="flex: 1;">Dashboard öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="card-tag tag-html">Spezifikation</span>
+          <h3>Agent Dual-Track Workflow</h3>
+          <p>Spezifikation der Git- und Server-Trennung, Vergabe der Ports 3400 und 3420.</p>
+        </div>
+        <div class="card-actions">
+          <a href="Architektur & Betrieb/_Assets/agent_dual_track_workflow.html" target="_blank" class="btn btn-primary" style="flex: 1;">Spec öffnen</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
