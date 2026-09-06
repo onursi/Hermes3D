@@ -6,7 +6,7 @@ import { useV2 } from "@/features/v2/state";
 import type { Project } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultNode } from "@/features/v2/useVault";
-import { providerTone } from "@/features/v2/world/HomeWorld";
+import { providerTone } from "@/features/v2/world/AgentDeck";
 
 /**
  * One inspector, opened by a selection, closed by Escape.

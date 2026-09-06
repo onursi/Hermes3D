@@ -2,12 +2,13 @@
 
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
 import { DECISION_COLOR } from "@/features/v2/palette";
 import type { RosterAgent } from "@/features/v2/useRoster";
+import { AgentDeck } from "@/features/v2/world/AgentDeck";
 
 /**
  * The home stage.
@@ -87,17 +88,14 @@ export function HomeWorld({
       <BackBrace />
       <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />
 
-      {seats.map(({ agent, position, angle }) => (
-        <AgentDock
-          key={agent.id}
-          agent={agent}
-          position={position}
-          angle={angle}
-          selected={selection.kind === "agent" && selection.id === agent.id}
-          dimmed={focus && !(selection.kind === "agent" && selection.id === agent.id)}
-          onSelect={() => onSelectAgent(agent.id)}
-        />
-      ))}
+      {/* Alle Agenten in einem Objekt statt einem pro Figur. Der Grund steht
+          in AgentDeck.tsx und ist gemessen, nicht vermutet. */}
+      <AgentDeck
+        seats={seats}
+        selectedId={selection.kind === "agent" ? selection.id : null}
+        focus={focus}
+        onSelect={onSelectAgent}
+      />
 
       {/* No roster is a real state and says so, rather than showing empty
           seats that look like a room nobody came to. */}
@@ -255,170 +253,4 @@ function HermesCore({
       <pointLight color={tone} intensity={2.6 * intensity} distance={7} decay={2} />
     </group>
   );
-}
-
-/**
- * One agent at its dock.
- *
- * A stylised figure, not a robot model: five of these plus the stage has to
- * cost less than the V1 room did, and a GLTF robot with its own skinned
- * animation costs more than the entire platform. Silhouette carries identity
- * here — the colour band and the height are what tell them apart at a glance.
- */
-function AgentDock({
-  agent,
-  position,
-  angle,
-  selected,
-  dimmed,
-  onSelect,
-}: {
-  agent: RosterAgent;
-  position: THREE.Vector3;
-  angle: number;
-  selected: boolean;
-  dimmed: boolean;
-  onSelect: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const { prefs } = useV2();
-  const rig = useRef<THREE.Group>(null);
-  const head = useRef<THREE.Group>(null);
-  const eyes = useRef<THREE.Group>(null);
-  const arms = useRef<(THREE.Group | null)[]>([]);
-  const phase = agent.id.split("").reduce((n,c) => n+c.charCodeAt(0), 0) * 0.1;
-  const glowRef = useRef<THREE.Mesh>(null);
-
-  // Colour is identity, derived from the provider so the same provider always
-  // looks the same. Not decoration: it answers "who actually answers this".
-  const tone = useMemo(() => providerTone(agent.provider), [agent.provider]);
-
-  useFrame(({ clock }) => {
-    const t = prefs.reducedMotion ? 0 : clock.elapsedTime + phase;
-    if (rig.current) {
-      rig.current.position.y = 0.16 + (prefs.reducedMotion ? 0 : Math.sin(t*1.4)*0.025);
-      rig.current.rotation.z = prefs.reducedMotion ? 0 : Math.sin(t*0.7)*0.045;
-    }
-    if (head.current) {
-      head.current.rotation.y = prefs.reducedMotion ? 0 : Math.sin(t*0.55)*0.25;
-      head.current.rotation.z = prefs.reducedMotion ? 0 : (hovered ? -0.12 : Math.sin(t*0.85)*0.07);
-    }
-    if (eyes.current) eyes.current.scale.y = !prefs.reducedMotion && Math.sin(t*1.05)>0.995 ? 0.12 : hovered ? 1.2 : 1;
-    arms.current.forEach((arm,i) => {
-      if (arm) arm.rotation.z = (i===0 ? -1 : 1) * (0.2 + (prefs.reducedMotion ? 0 : Math.sin(t*1.2+i)*0.12 + (hovered ? 0.75+Math.sin(t*5)*0.2 : 0)));
-    });
-    if (!glowRef.current) return;
-    const material = glowRef.current.material as THREE.MeshBasicMaterial;
-    const base = selected ? 0.5 : hovered ? 0.34 : 0.16;
-    material.opacity = dimmed ? base * 0.25 : base;
-  });
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    document.body.style.cursor = hovered ? "pointer" : "auto";
-    return () => {
-      document.body.style.cursor = "auto";
-    };
-  }, [hovered]);
-
-  const opacity = dimmed ? 0.3 : 1;
-
-  return (
-    <group position={position} rotation={[0, -angle + Math.PI / 2, 0]}>
-      {/* Dock plate */}
-      <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
-        <ringGeometry args={[0.34, 0.44, 32]} />
-        <meshBasicMaterial color={tone} transparent opacity={0.16} side={THREE.DoubleSide} />
-      </mesh>
-
-      <group ref={rig}
-        onPointerOver={(event) => {
-          event.stopPropagation();
-          setHovered(true);
-        }}
-        onPointerOut={() => setHovered(false)}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelect();
-        }}
-      >
-        {/* Body */}
-        <mesh position={[0, 0.42, 0]} castShadow>
-          <capsuleGeometry args={[0.23, 0.27, 6, 12]} />
-          <meshStandardMaterial
-            color="#8794a4"
-            roughness={0.42}
-            metalness={0.55}
-            transparent={dimmed}
-            opacity={opacity}
-          />
-        </mesh>
-        <group ref={head} position={[0,0.92,0]}>
-        {/* Head */}
-        <mesh position={[0, 0, 0]} scale={[1.25, 0.95, 0.9]} castShadow>
-          <sphereGeometry args={[0.25, 20, 16]} />
-          <meshStandardMaterial
-            color="#aab6c4"
-            roughness={0.3}
-            metalness={0.6}
-            transparent={dimmed}
-            opacity={opacity}
-          />
-        </mesh>
-        {/* Rounded visor and two eyes give the real roster a friendly face. */}
-        <mesh position={[0, 0.02, 0.19]} scale={[1.5, 0.72, 0.28]}>
-          <sphereGeometry args={[0.17, 16, 10]} />
-          <meshStandardMaterial color="#071018" roughness={0.28} transparent={dimmed} opacity={opacity} />
-        </mesh>
-        <group ref={eyes}>
-        {[-1,1].map(side => <mesh key={side} position={[side*0.09,0.03,0.235]} scale={[1,1.5,0.5]}>
-          <sphereGeometry args={[0.03,8,6]} /><meshBasicMaterial color={tone} transparent opacity={opacity} />
-        </mesh>)}
-        </group>
-        <mesh position={[0,-0.055,0.233]} rotation={[0,0,Math.PI]}>
-          <torusGeometry args={[0.058,0.009,4,12,Math.PI]} /><meshBasicMaterial color={tone} transparent opacity={opacity*0.7} />
-        </mesh>
-        </group>
-        {[-1,1].map((side,i) => <group key={side}>
-          <group ref={g => { arms.current[i]=g; }} position={[side*0.3,0.58,0]}>
-            <mesh position={[0,-0.12,0]}><capsuleGeometry args={[0.07,0.16,4,8]} /><meshStandardMaterial color="#aab6c4" metalness={0.5} roughness={0.4} transparent={dimmed} opacity={opacity} /></mesh>
-            <mesh position={[0,-0.28,0.015]}><sphereGeometry args={[0.085,8,6]} /><meshStandardMaterial color="#657787" transparent={dimmed} opacity={opacity} /></mesh>
-          </group>
-          <mesh position={[side*0.12,0.015,0.04]} scale={[1,0.7,1.5]}><sphereGeometry args={[0.105,10,8]} /><meshStandardMaterial color="#657787" transparent={dimmed} opacity={opacity} /></mesh>
-        </group>)}
-      </group>
-
-      {/* The name only when it is wanted. A permanent label above every figure
-          is how a room turns into a diagram. */}
-      {(hovered || selected) && !dimmed ? (
-        <Billboard position={[0, 1.55, 0]}>
-          <Text
-            fontSize={0.13}
-            color="#e8eef6"
-            anchorX="center"
-            outlineWidth={0.005}
-            outlineColor="#000000"
-          >
-            {agent.name}
-          </Text>
-        </Billboard>
-      ) : null}
-    </group>
-  );
-}
-
-/** Same provider, same colour — everywhere in V2. */
-export function providerTone(provider: string | null): string {
-  switch (provider) {
-    case "anthropic":
-      return "#e2703a";
-    case "openai-codex":
-      return "#4ade80";
-    case "gemini":
-      return "#a78bfa";
-    case "openrouter":
-      return "#38bdf8";
-    default:
-      return "#94a3b8";
-  }
 }
