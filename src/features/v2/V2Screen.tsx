@@ -367,9 +367,35 @@ export function V2Screen() {
 
   const closeProjectNote = useCallback(() => setOpenNotePath(null), []);
 
+  /**
+   * Ein Treffer ist ein Ort, kein Listeneintrag.
+   *
+   * Bisher hat die Suche den Raum gedimmt und die Auswahl gesetzt — hinfinden
+   * musste man selbst. In einem Raum, dessen ganze Behauptung „hier liegt
+   * etwas" ist, ist das die falsche Antwort auf „wo?".
+   *
+   * Angeflogen wird das **Areal** der Notiz und nicht der Punkt selbst. Das
+   * ist Absicht: Direkt auf einen einzelnen Stern zu fahren nimmt genau die
+   * Umgebung weg, wegen der man ihn im Raum sucht statt in einer Liste. Vom
+   * Areal aus sieht man ihn und seine Nachbarschaft.
+   */
   const selectSource = useCallback(
-    (node: VaultNode) => select({ kind: "source", id: node.id, title: node.name, folder: node.folder }),
-    [select],
+    (node: VaultNode) => {
+      select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+      // Das Areal wird über dieselbe Liste gefunden, die auch die Menüleiste
+      // benutzt — eine zweite Herleitung derselben Sache wäre eine zweite
+      // Gelegenheit, dass beide auseinanderlaufen.
+      const area = areas.find((entry) => entry.id === node.folder);
+      if (!area) return;
+      setFocusRequest((previous) => ({
+        center: area.center,
+        // Enger als beim Klick auf ein Areal in der Liste: Wer gesucht hat,
+        // will nah heran, nicht den Überblick.
+        radius: area.radius * 0.8,
+        seq: (previous?.seq ?? 0) + 1,
+      }));
+    },
+    [select, areas],
   );
 
   /**

@@ -40,7 +40,7 @@ const AT = (label, ok, detail) =>
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 120)));
 
-  await page.goto("http://localhost:3400/v2", { waitUntil: "domcontentloaded" });
+  await page.goto("http://localhost:3410/v2", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(13000);
   await page.getByLabel("Entwicklerwerte").click().catch(() => {});
 
@@ -587,7 +587,7 @@ VERGLEICH: frisch ${fresh.median} fps / ${fresh.geo} Geometrien, nach dem Durchl
   const crashPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const crashErrors = [];
   crashPage.on("pageerror", (e) => crashErrors.push(e.message.slice(0, 80)));
-  await crashPage.goto("http://localhost:3400/v2?boom=home", { waitUntil: "domcontentloaded" });
+  await crashPage.goto("http://localhost:3410/v2?boom=home", { waitUntil: "domcontentloaded" });
   await crashPage.waitForTimeout(9000);
 
   const boundaryShown = await crashPage
