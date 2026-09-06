@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { flightAudio } from "@/features/v2/atmosphereAudio";
+import { HYPER_AUDIO_SPEED, HYPER_FOV_GAIN, hyperState } from "@/features/v2/universe/hyperState";
 import { useV2 } from "@/features/v2/state";
 import { placeInReach, type Place } from "@/features/v2/universe/places";
 
@@ -206,7 +207,31 @@ export function FreeFlight({
       yaw.current = heading.y;
       velocity.current.set(0, 0, 0);
     }
-    camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, "YXZ"));
+    /**
+     * Das Kanzel-Rütteln des Hyperschalls — als Teil der Blickrichtung, nicht
+     * obendrauf.
+     *
+     * Antigravitys Baustein addierte es mit `rotation.x += ...`. Genau darüber
+     * wäre es weggewandert: Ein paar Zeilen höher wird eine von aussen
+     * veränderte Blickrichtung erkannt und in `pitch`/`yaw` übernommen, also
+     * hätte sich das Rütteln Bild für Bild in die echte Richtung eingeschrieben
+     * und Onur langsam weggedreht. Hier fliesst es in denselben Euler, aus dem
+     * die Drehung ohnehin jedes Bild neu gebaut wird — es kann sich damit gar
+     * nicht ansammeln.
+     */
+    const warp = hyperState.warp;
+    const shakeTime = state.clock.elapsedTime;
+    const shakePitch =
+      warp > 0.02
+        ? (Math.sin(shakeTime * 68) * 0.004 + Math.sin(shakeTime * 110) * 0.002) * warp
+        : 0;
+    const shakeYaw =
+      warp > 0.02
+        ? (Math.cos(shakeTime * 58) * 0.004 + Math.cos(shakeTime * 96) * 0.002) * warp
+        : 0;
+    camera.quaternion.setFromEuler(
+      new THREE.Euler(pitch.current + shakePitch, yaw.current + shakeYaw, 0, "YXZ"),
+    );
     if (!lastOrientation.current) lastOrientation.current = camera.quaternion.clone();
     else lastOrientation.current.copy(camera.quaternion);
 
@@ -258,7 +283,9 @@ export function FreeFlight({
      * beim Loslassen von selbst wieder ab — Anfahren und Abbremsen sind
      * derselbe Regler, rueckwaerts gelesen.
      */
-    flightAudio.speed = velocity.current.length();
+    // Der Ritt zieht den Antrieb auf Anschlag, auch wenn das Schiff steht — er
+    // vertont die Animation und nicht die Arbeit eines Agenten.
+    flightAudio.speed = Math.max(velocity.current.length(), warp * HYPER_AUDIO_SPEED);
     const rush = prefs.reducedMotion ? 0 : Math.min(1, Math.log1p(velocity.current.length() / baseSpeed) / Math.log(101));
 
     if (streaks.current) {
@@ -287,7 +314,7 @@ export function FreeFlight({
      * veraendern, und sie hat recht — wer eine Kamera aus einem Hook heraus
      * umbaut, aendert etwas, das React fuer unveraenderlich haelt.
      */
-    const wantedFov = 46 + rush * 25;
+    const wantedFov = 46 + rush * 25 + warp * HYPER_FOV_GAIN;
     if (Math.abs(wantedFov - lastFov.current) > 0.15) {
       lastFov.current = wantedFov;
       const perspective = state.camera as THREE.PerspectiveCamera;

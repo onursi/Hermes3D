@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { flightAudio } from "@/features/v2/atmosphereAudio";
+import { hyperState } from "@/features/v2/universe/hyperState";
 import { useV2 } from "@/features/v2/state";
 
 /**
@@ -53,7 +53,8 @@ const VERTEX = /* glsl */ `
   void main() {
     // Die Tiefe laeuft um: erreicht ein Streifen die Kamera, setzt er hinten
     // wieder ein. Kein Zustand, keine Verwaltung — nur ein Rest.
-    float travelled = mod(aDepth + uTime * aSpeed * (0.25 + uWarp * 2.4), uRange);
+    float speedMult = 0.25 + uWarp * 3.8;
+    float travelled = mod(aDepth + uTime * aSpeed * speedMult, uRange);
     float z = -uRange + travelled;
 
     // Radiale Richtung im Bild, und die Senkrechte dazu fuer die Breite.
@@ -62,8 +63,8 @@ const VERTEX = /* glsl */ `
 
     // Je staerker der Ritt, desto laenger der Streifen. Bei null ist er ein
     // Punkt und faellt nicht auf.
-    float len = aLength * (0.12 + uWarp * uWarp * 3.4);
-    vec2 across = perp * position.x * (0.06 + uWarp * 0.10);
+    float len = aLength * (0.12 + uWarp * uWarp * 8.5);
+    vec2 across = perp * position.x * (0.05 + uWarp * 0.08);
 
     vec3 viewPos = vec3(aOffset + across, z + position.y * len);
 
@@ -95,7 +96,7 @@ const FRAGMENT = /* glsl */ `
     float along = 1.0 - abs(vLocal.y * 2.0);
     float shape = pow(max(across, 0.0), 1.6) * pow(max(along, 0.0), 0.55);
 
-    float a = shape * vFade * uWarp * 0.9;
+    float a = shape * vFade * uWarp * 0.92;
     if (a <= 0.003) discard;
     gl_FragColor = vec4(vTone, a);
   }
@@ -135,11 +136,11 @@ export function HyperRide() {
       offset[i * 2 + 1] = Math.sin(angle) * radius;
 
       depth[i] = noise(i, 3) * RANGE;
-      speed[i] = 26 + noise(i, 4) * 44;
-      length[i] = 1.6 + noise(i, 5) * 5.2;
+      speed[i] = 28 + noise(i, 4) * 48;
+      length[i] = 1.8 + noise(i, 5) * 5.4;
 
       const pick = noise(i, 6);
-      const colour = pick > 0.9 ? warm : pick > 0.45 ? cool : pale;
+      const colour = pick > 0.88 ? warm : pick > 0.42 ? cool : pale;
       tone[i * 3] = colour.r;
       tone[i * 3 + 1] = colour.g;
       tone[i * 3 + 2] = colour.b;
@@ -172,16 +173,18 @@ export function HyperRide() {
     const wanted = prefs.hyperRide && !prefs.reducedMotion ? 1 : 0;
     // Anziehen dauert, Auslaufen dauert länger: ein Ritt, der sofort steht,
     // fühlt sich nach einem Schalter an und nicht nach Geschwindigkeit.
-    const rate = wanted > warp.current ? 1.4 : 0.85;
+    const rate = wanted > warp.current ? 1.6 : 0.85;
     warp.current += Math.max(-1, Math.min(1, wanted - warp.current)) * Math.min(1, delta * rate);
     if (Math.abs(wanted - warp.current) < 0.002) warp.current = wanted;
 
     material.current.uniforms.uTime.value = clock.elapsedTime;
     material.current.uniforms.uWarp.value = warp.current;
 
-    // Der Antriebsklang von ASTRAs Atmosphäre liest diesen Wert. Er beschreibt
-    // die Animation und nicht die Arbeit eines Agenten.
-    flightAudio.speed = Math.max(flightAudio.speed, warp.current * 100);
+    // Sichtfeld, Rütteln und Antriebsklang setzt FreeFlight — dort gehören sie
+    // hin, weil er die Steuerung besitzt und sie ohnehin jedes Bild schreibt.
+    // Hier wird nur gemeldet, wie stark der Ritt gerade zieht. Warum das nicht
+    // beides an derselben Stelle stehen darf, steht in hyperState.ts.
+    hyperState.warp = warp.current;
 
     if (mesh.current) mesh.current.visible = warp.current > 0.002;
   });
