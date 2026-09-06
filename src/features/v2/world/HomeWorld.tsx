@@ -9,6 +9,7 @@ import { useV2 } from "@/features/v2/state";
 import { DECISION_COLOR } from "@/features/v2/palette";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import { AgentDeck } from "@/features/v2/world/AgentDeck";
+import { DeckDust } from "@/features/v2/world/DeckDust";
 
 /**
  * The home stage.
@@ -84,6 +85,7 @@ export function HomeWorld({
 
   return (
     <group>
+      <DeckDust />
       <StagePlatform />
       <BackBrace />
       <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />

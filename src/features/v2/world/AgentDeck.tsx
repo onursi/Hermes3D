@@ -96,6 +96,28 @@ export function agentRole(provider: string | null): { role: string; motto: strin
 }
 
 /**
+ * Jede Figur hat ihre eigene Geste — und zwar die zu ihrer Rolle.
+ *
+ * Fünf gleich wippende Puppen sind eine Reihe; fünf, die verschiedene Dinge
+ * tun, sind eine Mannschaft. Die Geste läuft nicht dauernd: sie zündet alle
+ * paar Sekunden für gut zwei, mit eigenem Versatz je Figur, damit nie zwei
+ * gleichzeitig loslegen.
+ *
+ * 0 tippen (Entwickler) · 1 malen (Designer) · 2 überlegen (Stratege) ·
+ * 3 strecken (Reserve) · 4 winken (alle übrigen)
+ */
+const GESTURE_BY_PROVIDER: Record<string, number> = {
+  anthropic: 0,
+  gemini: 1,
+  "openai-codex": 2,
+  "opencode-free": 3,
+};
+
+/** Wie lange ein Zyklus dauert und wie viel davon Geste ist. */
+const GESTURE_CYCLE = 9.5;
+const GESTURE_LENGTH = 2.6;
+
+/**
  * Heller Kunststoff statt grauem Metall.
  *
  * Onur hat beide Fassungen nebeneinander gesehen und die freundlichere
@@ -259,6 +281,15 @@ export function AgentDeck({
     [seats],
   );
 
+  /** Welche Geste welche Figur macht — nach Rolle, sonst winken. */
+  const kinds = useMemo(
+    () =>
+      seats.map((seat) =>
+        seat.agent.provider ? (GESTURE_BY_PROVIDER[seat.agent.provider] ?? 4) : 4,
+      ),
+    [seats],
+  );
+
   /** Ein eigener Phasenversatz je Agent, damit sie nicht im Gleichschritt atmen. */
   const phases = useMemo(
     () =>
@@ -415,6 +446,21 @@ export function AgentDeck({
       const t = state.reduced ? 0 : now + (phases[i] ?? 0);
       const isHovered = state.hovered === i;
 
+      /**
+       * Der Gestentakt.
+       *
+       * `local` läuft von 0 bis 1 durch das Fenster, `ease` blendet an beiden
+       * Enden weich ein und aus — ohne das zuckt der Arm im Moment des
+       * Zündens. Der Versatz je Figur kommt aus ihrer Phase, damit nicht fünf
+       * gleichzeitig loslegen.
+       */
+      const kind = kinds[i] ?? 4;
+      const cycle = (now + (phases[i] ?? 0) * 3.1) % GESTURE_CYCLE;
+      const active = cycle < GESTURE_LENGTH;
+      const local = active ? cycle : 0;
+      const span = local / GESTURE_LENGTH;
+      const ease = active ? Math.sin(Math.PI * span) : 0;
+
       // Wurzel: der Sitz auf dem Ring, zur Mitte gedreht.
       scratch.euler.set(0, -seat.angle + Math.PI / 2, 0);
       scratch.quat.setFromEuler(scratch.euler);
@@ -422,7 +468,9 @@ export function AgentDeck({
       scratch.root.compose(seat.position, scratch.quat, scratch.scale);
 
       // Rumpf: leichtes Schweben und Wiegen.
-      const lift = 0.16 + (state.reduced ? 0 : Math.sin(t * 1.4) * 0.025);
+      // Beim Strecken hebt die ganze Figur ab, beim Tippen wippt sie leicht.
+      const gestureLift = kind === 3 ? ease * 0.1 : kind === 0 ? Math.sin(local * 11) * 0.012 * ease : 0;
+      const lift = 0.16 + (state.reduced ? 0 : Math.sin(t * 1.4) * 0.025 + gestureLift);
       scratch.euler.set(0, 0, state.reduced ? 0 : Math.sin(t * 0.7) * 0.045);
       scratch.quat.setFromEuler(scratch.euler);
       scratch.pos.set(0, lift, 0);
@@ -451,9 +499,21 @@ export function AgentDeck({
       look = Math.atan2(Math.sin(look), Math.cos(look));
       look = Math.max(-LOOK_LIMIT, Math.min(LOOK_LIMIT, look));
 
+      /**
+       * Der Kopf macht bei der Geste mit — sonst turnt nur ein Arm und der
+       * Rest der Figur steht daneben, als gehöre er nicht dazu.
+       *
+       * Überlegen neigt den Kopf zur Seite, Tippen lässt ihn kurz auf die
+       * Hände schauen, Strecken hebt ihn.
+       */
+      const nod =
+        kind === 2 ? ease * 0.3 : kind === 0 ? ease * 0.22 : kind === 3 ? -ease * 0.28 : 0;
+
       const turn = look + (state.reduced ? 0 : Math.sin(t * 0.55) * 0.06);
-      const tilt = state.reduced ? 0 : isHovered ? -0.12 : Math.sin(t * 0.85) * 0.05;
-      scratch.euler.set(0, turn, tilt);
+      const tilt =
+        (state.reduced ? 0 : isHovered ? -0.12 : Math.sin(t * 0.85) * 0.05) +
+        (kind === 2 ? ease * 0.24 : 0);
+      scratch.euler.set(nod, turn, tilt);
       scratch.quat.setFromEuler(scratch.euler);
       scratch.pos.set(0, 0.92, 0);
       scratch.scale.set(1, 1, 1);
@@ -472,12 +532,46 @@ export function AgentDeck({
 
       for (let k = 0; k < PAIRED; k += 1) {
         const side = k === 0 ? -1 : 1;
+
+        /**
+         * Die Geste: eine Zusatzdrehung auf dem Arm, die nur während des
+         * Fensters wirkt und an beiden Enden weich ein- und ausblendet. Ohne
+         * das Weichzeichnen zuckt der Arm im Moment des Zündens.
+         */
+        let gesture = 0;
+        if (!state.reduced && ease > 0) {
+          switch (kind) {
+            case 0:
+              // Tippen: beide Unterarme klein und schnell, gegeneinander.
+              gesture = Math.sin(local * 11 + k * Math.PI) * 0.34 - 0.35;
+              break;
+            case 1:
+              // Malen: ein weiter Bogen mit der rechten Hand.
+              gesture = k === 1 ? Math.sin(local * 2.1) * 0.95 - 0.5 : 0.06;
+              break;
+            case 2:
+              // Überlegen: eine Hand ans Kinn, die andere bleibt unten.
+              gesture = k === 0 ? -1.55 : 0.05;
+              break;
+            case 3:
+              // Strecken: beide Arme langsam nach oben und wieder herunter.
+              gesture = -Math.sin(local * 1.2) * 1.75;
+              break;
+            default:
+              // Winken: eine Hand oben, die hin und her schwingt.
+              gesture = k === 1 ? -1.5 + Math.sin(local * 7) * 0.42 : 0.04;
+              break;
+          }
+          gesture *= ease;
+        }
+
         const swing =
           side *
-          (0.2 +
-            (state.reduced
-              ? 0
-              : Math.sin(t * 1.2 + k) * 0.12 + (isHovered ? 0.75 + Math.sin(t * 5) * 0.2 : 0)));
+            (0.2 +
+              (state.reduced
+                ? 0
+                : Math.sin(t * 1.2 + k) * 0.12 + (isHovered ? 0.75 + Math.sin(t * 5) * 0.2 : 0))) +
+          side * gesture;
         scratch.euler.set(0, 0, swing);
         scratch.quat.setFromEuler(scratch.euler);
         scratch.pos.set(side * 0.3, 0.58, 0);
