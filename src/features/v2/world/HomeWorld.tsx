@@ -128,38 +128,23 @@ export function HomeWorld({
 function StagePlatform() {
   return (
     <group>
-      <mesh position={[0, -0.16, 0]} scale={[1, 1, 0.82]} receiveShadow castShadow>
-        <cylinderGeometry args={[PLATFORM_RADIUS, PLATFORM_RADIUS * 0.94, 0.32, 64]} />
-        <meshStandardMaterial color="#191714" roughness={0.62} metalness={0.35} />
-      </mesh>
-
-      {/* The walking surface, a shade lighter so the rim reads as an edge. */}
-      <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.82, 1]} receiveShadow>
-        <circleGeometry args={[PLATFORM_RADIUS * 0.985, 64]} />
-        <meshStandardMaterial color="#1d1a16" roughness={0.5} metalness={0.42} />
-      </mesh>
-
-      {/* The light channel. One thin emissive ring is the entire "premium"
-          budget of this object, and it does more than any texture would. */}
-      <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.82, 1]}>
-        <ringGeometry args={[PLATFORM_RADIUS * 0.9, PLATFORM_RADIUS * 0.935, 96]} />
-        <meshBasicMaterial color={COLOR_STRUCTURE} transparent opacity={0.3} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Two faint concentric guides. Without them the deck reads as a black
-          void with a bright rim: there is nothing for the eye to measure the
-          surface against, and a floor you cannot read is not a floor. */}
-      {[0.44, 0.68].map((factor) => (
-        <mesh
-          key={factor}
-          position={[0, 0.003, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          scale={[1, 0.82, 1]}
-        >
-          <ringGeometry args={[PLATFORM_RADIUS * factor, PLATFORM_RADIUS * factor + 0.014, 72]} />
-          <meshBasicMaterial color="#6d675e" transparent opacity={0.22} side={THREE.DoubleSide} />
-        </mesh>
+      {/* Open orbital terraces: empty space remains visible between the decks. */}
+      {[0, 1, 2].map((segment) => (
+        <group key={segment} rotation={[0, segment * Math.PI * 2 / 3 + 0.2, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <ringGeometry args={[1.75, PLATFORM_RADIUS, 48, 1, 0, Math.PI * 0.56]} />
+            <meshStandardMaterial color="#202933" roughness={0.34} metalness={0.65} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.014, 0]}>
+            <ringGeometry args={[PLATFORM_RADIUS - 0.035, PLATFORM_RADIUS, 48, 1, 0, Math.PI * 0.56]} />
+            <meshBasicMaterial color={segment === 1 ? "#c8a77c" : "#9dbbc8"} transparent opacity={0.65} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
       ))}
+      <mesh position={[0, -0.18, 0]}>
+        <cylinderGeometry args={[1.18, 0.6, 0.36, 6]} />
+        <meshStandardMaterial color="#26313c" roughness={0.3} metalness={0.7} />
+      </mesh>
     </group>
   );
 }
@@ -340,7 +325,7 @@ function AgentDock({
       >
         {/* Body */}
         <mesh position={[0, 0.42, 0]} castShadow>
-          <capsuleGeometry args={[0.16, 0.44, 6, 12]} />
+          <capsuleGeometry args={[0.23, 0.27, 6, 12]} />
           <meshStandardMaterial
             color="#8794a4"
             roughness={0.42}
@@ -350,8 +335,8 @@ function AgentDock({
           />
         </mesh>
         {/* Head */}
-        <mesh position={[0, 0.86, 0]} castShadow>
-          <sphereGeometry args={[0.15, 20, 16]} />
+        <mesh position={[0, 0.92, 0]} scale={[1.25, 0.95, 0.9]} castShadow>
+          <sphereGeometry args={[0.25, 20, 16]} />
           <meshStandardMaterial
             color="#aab6c4"
             roughness={0.3}
@@ -360,11 +345,21 @@ function AgentDock({
             opacity={opacity}
           />
         </mesh>
-        {/* Identity band — the one coloured element on the figure. */}
-        <mesh position={[0, 0.86, 0.115]}>
-          <boxGeometry args={[0.17, 0.045, 0.03]} />
-          <meshBasicMaterial color={tone} transparent opacity={dimmed ? 0.3 : 0.95} />
+        {/* Rounded visor and two eyes give the real roster a friendly face. */}
+        <mesh position={[0, 0.94, 0.19]} scale={[1.5, 0.72, 0.28]}>
+          <sphereGeometry args={[0.17, 16, 10]} />
+          <meshStandardMaterial color="#071018" roughness={0.28} transparent={dimmed} opacity={opacity} />
         </mesh>
+        {[-1, 1].map(side => <group key={side}>
+          <mesh position={[side * 0.09, 0.95, 0.235]} scale={[1, 1.5, 0.5]}>
+            <sphereGeometry args={[0.03, 8, 6]} />
+            <meshBasicMaterial color={tone} transparent opacity={opacity} />
+          </mesh>
+          <mesh position={[side * 0.3, 0.45, 0]} rotation={[0, 0, side * 0.2]}>
+            <capsuleGeometry args={[0.07, 0.17, 4, 8]} />
+            <meshStandardMaterial color="#aab6c4" metalness={0.5} roughness={0.4} transparent={dimmed} opacity={opacity} />
+          </mesh>
+        </group>)}
       </group>
 
       {/* The name only when it is wanted. A permanent label above every figure

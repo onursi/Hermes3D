@@ -52,7 +52,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
           label="Fluggeschwindigkeit"
           value={prefs.flightSpeed}
           min={0.5}
-          max={3}
+          max={20}
           step={0.1}
           format={(v) => `${v.toFixed(1)}×`}
           onChange={(value) => setPref("flightSpeed", value)}

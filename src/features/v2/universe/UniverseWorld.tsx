@@ -92,7 +92,7 @@ function FixedStars() {
       const theta = golden * i;
       // Just outside the flight boundary, so he can never reach the backdrop
       // and discover it is a sphere.
-      const shell = 300 + ((i * 53) % 40);
+      const shell = 3200 + ((i * 53) % 400);
       positions[i * 3] = Math.cos(theta) * ring * shell;
       positions[i * 3 + 1] = y * shell;
       positions[i * 3 + 2] = Math.sin(theta) * ring * shell;

@@ -156,9 +156,8 @@ export function Silhouettes({
 
     for (const entry of portals.current.values()) {
       const { handle } = entry;
-      // Immer zur Kamera. Ein Tor von der Kante gesehen ist ein Strich, und
-      // eine Tuer, die man nicht sieht, ist keine Tuer.
-      if (handle.group) handle.group.quaternion.copy(camera.quaternion);
+      // Stable entrance orientation: the curved throat can be seen obliquely.
+      if (handle.group) handle.group.lookAt(0, 4, 0);
       const material = handle.material;
       if (!material) continue;
       // Reduzierte Bewegung behaelt die Form und laesst die Bewegung weg.

@@ -137,7 +137,7 @@ const TRACT_FRAGMENT = /* glsl */ `
   uniform float uGlow;
 
   void main() {
-    gl_FragColor = vec4(uColor * (0.55 + vGlow * uGlow), uBase + vGlow * uGlow * 0.45);
+    gl_FragColor = vec4(mix(uColor, vec3(0.15, 0.8, 1.0), vGlow) * (0.55 + vGlow * uGlow), uBase + vGlow * uGlow * 0.45);
   }
 `;
 

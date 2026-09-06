@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
+import { useV2 } from "@/features/v2/state";
 import { placeInReach, type Place } from "@/features/v2/universe/places";
 
 /**
@@ -29,7 +30,7 @@ const BASE_SPEED = 26;
 /** Shift. Onur's "Lichtgeschwindigkeit", bounded. */
 const BOOST = 3.2;
 /** How far out he can get. Past this there is nothing to see and no way to aim. */
-const BOUNDARY = 240;
+const BOUNDARY = 2400;
 /** Radians per pixel of drag. */
 const LOOK_RATE = 0.0032;
 
@@ -45,7 +46,7 @@ export function FreeFlight({
   /** The flight-speed preference. Scales the whole thing, boost included. */
   speed: number;
   /**
-   * Wie weit er kommt. Im All 240 Einheiten, im Wissenskoerper viel weniger:
+   * Wie weit er kommt. Im All 2400 Einheiten, im Wissenskoerper viel weniger:
    * dort ist alles innerhalb von zwanzig, und wer hundert Einheiten weit
    * hinausfliegt, sieht einen Punkt und findet nicht zurueck.
    */
@@ -57,6 +58,7 @@ export function FreeFlight({
   /** Reports position and heading, so entering a place can come back to it. */
   onSample: (position: THREE.Vector3, target: THREE.Vector3) => void;
 }) {
+  const { prefs } = useV2();
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
 
@@ -80,6 +82,7 @@ export function FreeFlight({
   const streakMaterial = useRef<THREE.LineBasicMaterial>(null);
   /** Zuletzt gesetzter Blickwinkel. Nur bei Aenderung neu rechnen. */
   const lastFov = useRef(0);
+  const lastOrientation = useRef<THREE.Quaternion | null>(null);
 
   /**
    * Die Streifen: kurze Striche in einer Roehre um den Betrachter.
@@ -199,7 +202,16 @@ export function FreeFlight({
     // Unclamped, that is a single frame that teleports him across the map.
     const delta = Math.min(rawDelta, 0.1);
 
+    // Adopt a director preset even when React batches the instant journey.
+    if (!lastOrientation.current || camera.quaternion.angleTo(lastOrientation.current) > 0.0001) {
+      const heading = new THREE.Euler().setFromQuaternion(camera.quaternion, "YXZ");
+      pitch.current = heading.x;
+      yaw.current = heading.y;
+      velocity.current.set(0, 0, 0);
+    }
     camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, "YXZ"));
+    if (!lastOrientation.current) lastOrientation.current = camera.quaternion.clone();
+    else lastOrientation.current.copy(camera.quaternion);
 
     const held = keys.current;
     const forward = (held.has("w") || held.has("arrowup") ? 1 : 0) - (held.has("s") || held.has("arrowdown") ? 1 : 0);
@@ -218,7 +230,7 @@ export function FreeFlight({
         .addScaledVector(new THREE.Vector3(0, 1, 0), lift)
         .normalize()
         .multiplyScalar(
-          baseSpeed * THREE.MathUtils.clamp(speed, 0.5, 3) * (held.has("shift") ? BOOST : 1),
+          baseSpeed * THREE.MathUtils.clamp(speed, 0.5, 20) * (held.has("shift") ? BOOST : 1),
         );
     }
 
@@ -249,7 +261,7 @@ export function FreeFlight({
      * beim Loslassen von selbst wieder ab — Anfahren und Abbremsen sind
      * derselbe Regler, rueckwaerts gelesen.
      */
-    const rush = Math.min(1, velocity.current.length() / (baseSpeed * 2.6));
+    const rush = prefs.reducedMotion ? 0 : Math.min(1, velocity.current.length() / (baseSpeed * 2.6));
 
     if (streaks.current) {
       // Die Roehre sitzt am Betrachter und schaut, wohin er schaut.

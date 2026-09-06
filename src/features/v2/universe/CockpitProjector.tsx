@@ -48,6 +48,9 @@ export function CockpitProjector({
 
       TO_PLACE.copy(place.position).sub(camera.position);
       const distance = TO_PLACE.length();
+      // In the galactic overview the destinations overlap. Keep home as the
+      // orientation anchor; individual markers return on approach.
+      marker.root.style.visibility = distance > 400 && place.kind !== "home" ? "hidden" : "visible";
 
       PROJECTED.copy(place.position).project(camera);
       // `project` liefert hinter der Kamera gespiegelte Werte. Ohne diese

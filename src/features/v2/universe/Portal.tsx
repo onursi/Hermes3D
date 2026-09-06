@@ -29,9 +29,15 @@ import * as THREE from "three";
 
 const PORTAL_VERTEX = /* glsl */ `
   varying vec2 vUv;
+  uniform mediump float uTime;
+  uniform float uRadius;
   void main() {
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec2 p = uv * 2.0 - 1.0;
+    float r = length(p);
+    vec3 warped = position;
+    warped.z += uRadius * (0.45 * sin(r * 5.0) + 0.07 * sin(atan(p.y,p.x) * 5.0 + uTime * 1.6));
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(warped, 1.0);
   }
 `;
 
@@ -46,7 +52,7 @@ const PORTAL_FRAGMENT = /* glsl */ `
   precision mediump float;
 
   varying vec2 vUv;
-  uniform float uTime;
+  uniform mediump float uTime;
   uniform vec3 uRim;
   uniform vec3 uCore;
   uniform float uOpen;   // 0 = calm, 1 = reacting to attention
@@ -106,9 +112,10 @@ const PORTAL_FRAGMENT = /* glsl */ `
     if (uDetail < 0.5) {
       // Billige Fassung: ein weicher Ring plus Saum, kein Rauschen, keine
       // Schleife. Zwei smoothsteps statt vier fbm-Oktaven.
-      float band = 1.0 - abs(radius - 0.62) * 4.6;
+      float wave = sin(angle * 7.0 + uTime * 2.4) * 0.025 + sin(angle * 11.0 - uTime * 1.7) * 0.015;
+      float band = 1.0 - abs(radius - 0.66 - wave) * 19.0;
       band = clamp(band, 0.0, 1.0);
-      float glow = exp(-max(0.0, radius - 0.62) * 8.5) * 0.34;
+      float glow = exp(-abs(radius - 0.66 - wave) * 16.0) * 0.16;
       float lift0 = 1.0 + uOpen * 1.1;
       vec3 c0 = uRim * (band * 1.7 + glow) * lift0 + uCore * 0.25 * (1.0 - radius);
       gl_FragColor = vec4(c0, clamp(band * 1.35 * lift0 + glow * lift0, 0.0, 1.0));
@@ -135,13 +142,13 @@ const PORTAL_FRAGMENT = /* glsl */ `
     // Der Ring sitzt bei 0.62 statt am Rand, damit außerhalb Platz für den
     // Lichtsaum bleibt. Die Fläche ist entsprechend größer als das Tor.
     float ring = 0.62 + turbulence * 0.13;
-    float edge = 1.0 - abs(radius - ring) * 4.6;
+    float edge = 1.0 - abs(radius - ring) * 13.0;
     edge = clamp(edge, 0.0, 1.0);
     edge = pow(edge, 1.35) * (0.62 + filaments * 0.75 + sparks * 1.8);
 
     // Light spilling outward. Without it the disc ends where the geometry
     // ends, and an edge you can see is the one thing a portal must not have.
-    float halo = exp(-max(0.0, radius - ring) * 8.5) * 0.34;
+    float halo = exp(-abs(radius - ring) * 16.0) * 0.18;
 
     // The throat. Streaks live in a band just inside the rim and die out
     // toward the middle, which stays almost black — a portal you can see the
@@ -204,6 +211,7 @@ export function Portal({
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
+      uRadius: { value: radius },
       uRim: { value: new THREE.Color("#ffffff") },
       uCore: { value: new THREE.Color("#000000") },
       uOpen: { value: 0 },
@@ -230,7 +238,7 @@ export function Portal({
       {/* Was hindurchscheint — hinter der Fläche und von ihr eingerahmt. */}
       {children}
       <mesh>
-        <planeGeometry args={[radius * 2.6, radius * 2.6]} />
+        <planeGeometry args={[radius * 2.6, radius * 2.6, 32, 32]} />
         <shaderMaterial
           ref={(material) => {
             handle.current.material = material;
