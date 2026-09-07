@@ -26,6 +26,7 @@ import {
 import { JarvisHologramFace } from "./JarvisHologramFace";
 import { JarvisArcReactor } from "./JarvisArcReactor";
 import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
+import { reportJarvisHead } from "./beamAnchors";
 import { jarvisAudio } from "./jarvisAudio";
 import { useVoice } from "@/features/jarvis/useVoice";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
@@ -95,6 +96,17 @@ export function JarvisCompanion({
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<JarvisSource[]>([]);
+
+  /**
+   * Wo Jarvis' Kopf gerade wirklich steht.
+   *
+   * Es gibt zwei: den grossen im geoeffneten Fenster und die Kugel unten
+   * rechts, wenn zugeklappt ist. Welcher sichtbar ist, haengt vom Zustand ab —
+   * und genau deshalb darf der Strahl nicht auf die Fensterecke rechnen. Beide
+   * melden ihre gemessene Mitte; der groessere sichtbare gewinnt.
+   */
+  const kopfOffenRef = useRef<HTMLButtonElement>(null);
+  const kopfKugelRef = useRef<HTMLButtonElement>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [phase, setPhase] = useState<JarvisPhase>("idle");
   const [savedAs, setSavedAs] = useState<string | null>(null);
@@ -520,6 +532,42 @@ export function JarvisCompanion({
     : voice.listening ? "Hört zu"
     : "Bereit";
 
+  /**
+   * Die Messung des Kopfes, solange der Strahl laeuft.
+   *
+   * Pro Bild ein `getBoundingClientRect` auf zwei Knoepfen — das liest das
+   * Layout, schreibt aber nichts, und laeuft nur waehrend der 2,6 Sekunden des
+   * Strahls. Ausserhalb davon meldet der Companion `null`, und der Strahl
+   * zeichnet dann nichts, statt auf einen alten Punkt zu zeigen.
+   */
+  useEffect(() => {
+    if (!isScanning) {
+      reportJarvisHead(null);
+      return;
+    }
+    let raf = 0;
+    const miss = () => {
+      let beste: { x: number; y: number; flaeche: number } | null = null;
+      for (const ref of [kopfOffenRef, kopfKugelRef]) {
+        const el = ref.current;
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        const flaeche = r.width * r.height;
+        if (flaeche <= 0) continue;
+        if (!beste || flaeche > beste.flaeche) {
+          beste = { x: r.left + r.width / 2, y: r.top + r.height / 2, flaeche };
+        }
+      }
+      reportJarvisHead(beste ? { x: beste.x, y: beste.y } : null);
+      raf = requestAnimationFrame(miss);
+    };
+    raf = requestAnimationFrame(miss);
+    return () => {
+      cancelAnimationFrame(raf);
+      reportJarvisHead(null);
+    };
+  }, [isScanning]);
+
   return (
     <>
       {/* Visueller Mehrsektoren-Laser- & Scanstrahl ins 3D-Gehirn */}
@@ -591,6 +639,7 @@ export function JarvisCompanion({
 
                 {/* Zentraler Avatar (Klickbar für 3D-Studio) */}
                 <button
+                  ref={kopfOffenRef}
                   type="button"
                   onClick={() => setStudioOpen(true)}
                   className="group relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-[#060a10]/80 shadow-[inset_0_0_20px_rgba(56,189,248,0.15)] transition hover:border-cyan-400/40 hover:scale-105"
@@ -1078,6 +1127,7 @@ export function JarvisCompanion({
           {/* Haupt-Avatar-Knopf (V2 Grundton & Cyan Aura) */}
           <div className="relative group">
             <button
+              ref={kopfKugelRef}
               type="button"
               onClick={handleToggleOpen}
               className={`relative flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-md transition-all duration-300 ${

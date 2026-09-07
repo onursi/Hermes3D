@@ -12,6 +12,7 @@ import type { Project, ProjectNote } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
 import { CameraDirector, HOME_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
+import { BeamProbe, type BeamProbePoint } from "@/features/v2/jarvis/BeamProbe";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
@@ -72,6 +73,8 @@ export function V2Scene({
   cockpitMarkers,
   knowledge,
   focusRequest,
+  queryHitIds,
+  citedSourceIds,
   flyThrough = false,
   inputBlocked = false,
   onFrame,
@@ -116,6 +119,10 @@ export function V2Scene({
   knowledge: { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] };
   /** Eine Kamerabitte aus dem HUD. Null, solange keine gestellt wurde. */
   focusRequest: { center: [number, number, number]; radius: number; seq: number } | null;
+  /** Volltexttreffer der Suche, damit der Wissenskoerper sie mitleuchten laesst. */
+  queryHitIds?: Set<string>;
+  /** Notizen, die Jarvis gerade zitiert — Ziel des Strahls, gemessen statt geraten. */
+  citedSourceIds?: string[];
   /** Im Wissenskoerper fliegen statt umkreisen. */
   flyThrough?: boolean;
   onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
@@ -352,6 +359,28 @@ export function V2Scene({
   const selectedSourceId = selection.kind === "source" ? selection.id : null;
   const selectedProjectFolder = selection.kind === "project" ? selection.folder : null;
 
+  /**
+   * Wo die zitierten Notizen liegen — in der Welt, in der man gerade steht.
+   *
+   * Dieselbe Notiz hat zwei Orte: im Wissenskoerper ihre Graphenposition, im
+   * Zuhause ihren Platz am Himmel. Welcher gilt, entscheidet die Welt — sonst
+   * zeigt der Strahl im Zuhause auf einen Punkt, der nur im Kosmos existiert.
+   */
+  const beamPoints = useMemo<BeamProbePoint[]>(() => {
+    if (!citedSourceIds || citedSourceIds.length === 0) return [];
+    const points: BeamProbePoint[] = [];
+    for (const id of citedSourceIds) {
+      const node = vault.byId.get(id);
+      if (!node) continue;
+      points.push({
+        id: node.id,
+        label: node.name,
+        position: world === "home" ? node.skyPosition : node.position,
+      });
+    }
+    return points;
+  }, [citedSourceIds, vault.byId, world]);
+
   return (
     <Canvas
       dpr={[1, 1.35]}
@@ -409,6 +438,15 @@ export function V2Scene({
       <hemisphereLight args={["#7b7468", "#0a0a0c", 0.55]} />
         </>
       ) : null}
+
+      {/*
+        Die Messstelle fuer den Jarvis-Strahl.
+        Sie zeichnet nichts — sie rechnet die Weltposition der zitierten Notizen
+        in Bildschirmkoordinaten um, damit der Strahl im DOM sie treffen kann.
+        Im Zuhause liegen dieselben Notizen als Himmelssterne weit draussen,
+        deshalb je nach Welt die andere Position derselben Notiz.
+      */}
+      <BeamProbe active={beamPoints.length > 0} points={beamPoints} />
 
       <CameraDirector
         goal={goal}
@@ -516,6 +554,7 @@ export function V2Scene({
             edges={knowledge.edges}
             selectedId={selectedSourceId}
             query={query}
+            queryHitIds={queryHitIds}
             reducedMotion={prefs.reducedMotion}
             onSelect={onSelectSourceId}
             onFocusRequest={handleFocusArea}

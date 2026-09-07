@@ -28,6 +28,7 @@ import { areaRadius, BRAIN_CENTERS } from "@/features/v2/knowledge/brainLayout";
 import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
 import { playArrive, playSelect } from "@/features/v2/sound";
 import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
+import { useContentSearch } from "@/features/v2/useContentSearch";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 import { JarvisCompanion } from "@/features/v2/jarvis";
@@ -74,6 +75,28 @@ export function V2Screen() {
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  /**
+   * Die Volltextsuche ueber die Notizen — einmal hier, fuer Liste und Raum.
+   *
+   * Vorher verglich die Suche nur Titel und Ordner. Wer nach einem Namen
+   * suchte, der im Text von zehn Notizen steht und in keinem Titel, bekam
+   * nichts und hielt die Suche fuer kaputt — zu Recht. Man sucht Menschen,
+   * Begriffe und Entscheidungen, nicht Dateinamen.
+   *
+   * Gesucht wird ueber denselben Weg, den Jarvis schon benutzt
+   * (`/api/jarvis/search`): eine Suche fuer beide, damit die Liste und der
+   * Raum nicht zwei verschiedene Antworten geben.
+   */
+  const contentSearch = useContentSearch(query);
+  /**
+   * Die Notizen, die Jarvis in seiner letzten Antwort wirklich zitiert hat.
+   *
+   * Der Strahl zielt genau auf diese — nicht auf die Bildmitte. Sie kommen aus
+   * dem `sources`-Ereignis des Antwortstroms, also aus derselben Quelle, aus
+   * der auch die Fussnoten der Antwort stammen. Damit kann der Strahl nichts
+   * anzeigen, was in der Antwort nicht steht.
+   */
+  const [citedSourceIds, setCitedSourceIds] = useState<string[]>([]);
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
   const [reachable, setReachable] = useState<Place | null>(null);
   /**
@@ -596,6 +619,8 @@ export function V2Screen() {
         cockpitMarkers={cockpitMarkers}
         knowledge={knowledge}
         focusRequest={focusRequest}
+        queryHitIds={contentSearch.ids}
+        citedSourceIds={citedSourceIds}
         flyThrough={flyThrough}
         inputBlocked={readerId !== null || memoryCard !== null}
         onFrame={devOpen ? setMeter : undefined}
@@ -733,6 +758,7 @@ export function V2Screen() {
           nodes={vault.nodes}
           query={query}
           onQuery={setQuery}
+          contentHits={contentSearch.hits}
           onPick={selectSource}
           selectedId={selection.kind === "source" ? selection.id : null}
         />
@@ -896,6 +922,7 @@ export function V2Screen() {
           if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
         }}
         onSourcesChange={(ids) => {
+          setCitedSourceIds(ids);
           const first = ids[0];
           if (!first) return;
           const node = vault.byId.get(first);

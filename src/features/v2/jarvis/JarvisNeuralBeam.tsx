@@ -1,35 +1,59 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { readBeamAnchors } from "./beamAnchors";
 
 export interface JarvisNeuralBeamProps {
   active: boolean;
   onComplete?: () => void;
+  /** Fällt zurück, solange noch keine Quelle gemeldet ist. */
   targetLabel?: string;
 }
 
 /**
- * Jarvis Neural Beam & Brain Scan Effect
+ * Der Strahl von Jarvis' Kopf in die Notizen, die er tatsächlich liest.
  *
- * Visuelle Verbindung zwischen dem Jarvis-Knopf unten rechts und dem Gehirn/Index:
- * - Leuchtender Laser-/Synapsenstrahl mit vorwärts- und rückwärts fließenden Datenpaketen
- * - Zielerfassung am Index-Knoten im Gehirn mit drehender HUD-Zielmarkierung
- * - 3D-inspirierte sphärische Scan-Welle, die das neuronale Wissensnetz durchleuchtet
+ * Vorher standen Start und Ziel fest im Code: `calc(100vw - 44px)` unten
+ * rechts, `50% / 46%` in der Bildmitte, die Äste bei 35 %/36 % und 68 %/37 %.
+ * Die Choreografie war gut, die Zahlen waren erfunden. Der Strahl traf die
+ * Bildmitte — nicht das Gehirn, und schon gar nicht die Notiz, die gerade
+ * gelesen wurde. Sobald die Kamera irgendwo anders stand, zeigte er auf nichts
+ * und sah trotzdem überzeugend aus. Das ist die schlimmere Sorte Fehler.
+ *
+ * Jetzt kommen beide Enden aus einer Messung (siehe `beamAnchors.ts`):
+ * Der Companion meldet die Bildschirmlage seines Kopfes, die Szene projiziert
+ * die zitierten Notizen. Und wo nichts gemessen wurde, wird nichts gezeichnet.
+ *
+ * Zweite Änderung, unsichtbar aber spürbar: Es läuft **kein React-State pro
+ * Bild** mehr. Die alte Fassung rief 2,6 Sekunden lang sechzigmal pro Sekunde
+ * `setPulseProgress` und rechnete den ganzen SVG-Baum neu, während die 3D-Szene
+ * lief. Jetzt schreibt eine Schleife direkt auf die Attribute. Der Zustand
+ * (verbinden → scannen → übertragen) bleibt React — der wechselt dreimal, nicht
+ * hundertsechzigmal.
  */
-export function JarvisNeuralBeam({
-  active,
-  onComplete,
-  targetLabel = "INDEX: 02⚙️ SYSTEM",
-}: JarvisNeuralBeamProps) {
+
+/** Wie viele Notizen gleichzeitig angestrahlt werden. Mehr wird Matsch. */
+const MAX_ZIELE = 5;
+/** Datenpakete je Strahl. */
+const PAKETE = 2;
+
+const AST_FARBEN = [
+  "rgba(56, 189, 248, 0.9)",
+  "rgba(232, 121, 249, 0.75)",
+  "rgba(52, 211, 153, 0.75)",
+  "rgba(251, 191, 36, 0.75)",
+  "rgba(163, 230, 53, 0.7)",
+];
+
+export function JarvisNeuralBeam({ active, onComplete, targetLabel }: JarvisNeuralBeamProps) {
   const [stage, setStage] = useState<"idle" | "connecting" | "scanning" | "transferring">("idle");
-  const [pulseProgress, setPulseProgress] = useState(0);
 
   useEffect(() => {
     if (!active) {
       setStage("idle");
       return;
     }
-
     setStage("connecting");
     const t1 = setTimeout(() => setStage("scanning"), 400);
     const t2 = setTimeout(() => setStage("transferring"), 1400);
@@ -37,7 +61,6 @@ export function JarvisNeuralBeam({
       setStage("idle");
       onComplete?.();
     }, 2600);
-
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -45,247 +68,209 @@ export function JarvisNeuralBeam({
     };
   }, [active, onComplete]);
 
+  /**
+   * Der Zustand wird gelesen, nicht abhängig gemacht.
+   *
+   * Die Zeichenschleife soll nicht bei jedem Zustandswechsel neu starten —
+   * sonst reißt die Bewegung dreimal ab. Sie liest den aktuellen Wert aus dem
+   * Ref und läuft durch.
+   */
+  const stageRef = useRef(stage);
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+
+  const kopfRef = useRef<SVGGElement>(null);
+  const strahlRefs = useRef<(SVGLineElement | null)[]>([]);
+  const kernRefs = useRef<(SVGLineElement | null)[]>([]);
+  const paketRefs = useRef<(SVGCircleElement | null)[]>([]);
+  const zielRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const hinweisRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (stage === "idle") return;
+
     let raf = 0;
-    const loop = () => {
-      setPulseProgress((p) => (p + 0.025) % 1);
-      raf = requestAnimationFrame(loop);
+    const start = performance.now();
+
+    const zeichne = () => {
+      const t = (performance.now() - start) / 1000;
+      const { head, targets } = readBeamAnchors();
+      const zurueck = stageRef.current === "transferring";
+
+      /**
+       * Die Ehrlichkeitsregel.
+       *
+       * Ohne gemessenen Kopf oder ohne ein Ziel im Bild wird kein Strahl
+       * gezeichnet. Stattdessen steht da, dass gerade gesucht wird — was
+       * stimmt, solange die Antwort noch keine Quelle genannt hat.
+       */
+      const zeichenbar = head !== null && targets.length > 0;
+      if (hinweisRef.current) hinweisRef.current.hidden = zeichenbar;
+      if (kopfRef.current) kopfRef.current.setAttribute("opacity", head ? "1" : "0");
+
+      if (head && kopfRef.current) {
+        kopfRef.current.setAttribute("transform", `translate(${head.x} ${head.y})`);
+      }
+
+      for (let i = 0; i < MAX_ZIELE; i++) {
+        const ziel = zeichenbar ? targets[i] : undefined;
+        const strahl = strahlRefs.current[i];
+        const kern = kernRefs.current[i];
+        const knoten = zielRefs.current[i];
+
+        if (!ziel || !head) {
+          strahl?.setAttribute("opacity", "0");
+          kern?.setAttribute("opacity", "0");
+          if (knoten) knoten.hidden = true;
+          for (let p = 0; p < PAKETE; p++) {
+            paketRefs.current[i * PAKETE + p]?.setAttribute("opacity", "0");
+          }
+          continue;
+        }
+
+        /** Der erste Treffer ist der Hauptstrahl, die übrigen sind Äste. */
+        const stark = i === 0;
+
+        for (const [el, breite, farbe] of [
+          [strahl, stark ? 13 : 7, "rgba(0, 240, 255, 0.22)"],
+          [kern, stark ? 2.6 : 1.6, AST_FARBEN[i % AST_FARBEN.length]],
+        ] as const) {
+          if (!el) continue;
+          el.setAttribute("x1", String(head.x));
+          el.setAttribute("y1", String(head.y));
+          el.setAttribute("x2", String(ziel.x));
+          el.setAttribute("y2", String(ziel.y));
+          el.setAttribute("stroke-width", String(breite));
+          el.setAttribute("stroke", farbe);
+          el.setAttribute("opacity", stark ? "1" : "0.8");
+          /**
+           * Der Weichzeichner bleibt dem Hauptstrahl vorbehalten.
+           *
+           * Ein Gauss-Filter je Element ist mit Abstand der teuerste Teil der
+           * Zeichnung — auf den duennen Aesten sieht man ihn kaum, kosten tut
+           * er dort genauso viel.
+           */
+          if (stark) el.setAttribute("filter", "url(#laser-glow)");
+          else el.removeAttribute("filter");
+        }
+
+        for (let p = 0; p < PAKETE; p++) {
+          const paket = paketRefs.current[i * PAKETE + p];
+          if (!paket) continue;
+          const roh = (t * 0.85 + p / PAKETE + i * 0.13) % 1;
+          const u = zurueck ? 1 - roh : roh;
+          paket.setAttribute("cx", String(head.x + (ziel.x - head.x) * u));
+          paket.setAttribute("cy", String(head.y + (ziel.y - head.y) * u));
+          paket.setAttribute("r", String(zurueck ? 4 : 3));
+          paket.setAttribute("fill", zurueck ? "#c084fc" : "#ffffff");
+          paket.setAttribute("opacity", "1");
+          if (stark) paket.setAttribute("filter", "url(#laser-glow)");
+          else paket.removeAttribute("filter");
+        }
+
+        if (knoten) {
+          knoten.hidden = false;
+          knoten.style.transform = `translate(${ziel.x}px, ${ziel.y}px) translate(-50%, -50%)`;
+          const label = labelRefs.current[i];
+          if (label && label.textContent !== ziel.label) label.textContent = ziel.label;
+        }
+      }
+
+      raf = requestAnimationFrame(zeichne);
     };
-    raf = requestAnimationFrame(loop);
+
+    raf = requestAnimationFrame(zeichne);
     return () => cancelAnimationFrame(raf);
   }, [stage]);
 
   if (stage === "idle") return null;
 
-  // Koordinaten: Start unten rechts (beim Jarvis-Knopf) -> Ziel Bildschirmmitte / Gehirn-Index
   return (
     <div className="pointer-events-none fixed inset-0 z-40 overflow-hidden">
       <svg className="h-full w-full">
         <defs>
-          {/* Laser-Glow-Filter */}
           <filter id="laser-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="6" result="glow" />
             <feComposite in="SourceGraphic" in2="glow" operator="over" />
           </filter>
-
-          {/* Farbverlauf des Strahls */}
-          <linearGradient id="beam-grad" x1="100%" y1="100%" x2="50%" y2="50%">
-            <stop offset="0%" stopColor="#00f0ff" stopOpacity="0.9" />
-            <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-          </linearGradient>
-
-          {/* Rückfluss-Gradient */}
-          <linearGradient id="return-grad" x1="50%" y1="50%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.9" />
-            <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#00f0ff" stopOpacity="1" />
-          </linearGradient>
         </defs>
 
-        {/* 1. Haupt-Energiestrahl */}
-        <line
-          x1="calc(100vw - 44px)"
-          y1="calc(100vh - 44px)"
-          x2="50%"
-          y2="46%"
-          stroke="rgba(0, 240, 255, 0.25)"
-          strokeWidth="14"
-          filter="url(#laser-glow)"
-        />
-        <line
-          x1="calc(100vw - 44px)"
-          y1="calc(100vh - 44px)"
-          x2="50%"
-          y2="46%"
-          stroke={stage === "transferring" ? "url(#return-grad)" : "url(#beam-grad)"}
-          strokeWidth="3"
-          filter="url(#laser-glow)"
-        />
-        <line
-          x1="calc(100vw - 44px)"
-          y1="calc(100vh - 44px)"
-          x2="50%"
-          y2="46%"
-          stroke="#ffffff"
-          strokeWidth="1.2"
-        />
+        {Array.from({ length: MAX_ZIELE }, (_, i) => (
+          <line
+            key={`glow-${i}`}
+            ref={(el) => {
+              strahlRefs.current[i] = el;
+            }}
+            opacity="0"
+            filter="url(#laser-glow)"
+          />
+        ))}
+        {Array.from({ length: MAX_ZIELE }, (_, i) => (
+          <line
+            key={`kern-${i}`}
+            ref={(el) => {
+              kernRefs.current[i] = el;
+            }}
+            opacity="0"
+            filter="url(#laser-glow)"
+          />
+        ))}
+        {Array.from({ length: MAX_ZIELE * PAKETE }, (_, i) => (
+          <circle
+            key={`paket-${i}`}
+            ref={(el) => {
+              paketRefs.current[i] = el;
+            }}
+            opacity="0"
+            filter="url(#laser-glow)"
+          />
+        ))}
 
-        {/* 2. Fließende Daten-Energiepakete entlang des Hauptstrahls */}
-        {[0, 0.25, 0.5, 0.75].map((offset, idx) => {
-          const t = (pulseProgress + offset) % 1;
-          const isReturning = stage === "transferring";
-          const prog = isReturning ? 1 - t : t;
-
-          return (
-            <circle
-              key={idx}
-              cx={`calc((100vw - 44px) + (50vw - (100vw - 44px)) * ${prog})`}
-              cy={`calc((100vh - 44px) + (46vh - (100vh - 44px)) * ${prog})`}
-              r={isReturning ? 4.5 : 3.5}
-              fill={isReturning ? "#c084fc" : "#ffffff"}
-              filter="url(#laser-glow)"
-            />
-          );
-        })}
-
-        {/* 3. Verzweigte Synapsen-Strahlen in die spezifischen Gehirn-Areale */}
-        {(stage === "scanning" || stage === "transferring") && (
-          <>
-            {/* Areal 03/04: Identität & Lebensprofil (Links oben) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="35%"
-              y2="36%"
-              stroke="rgba(232, 121, 249, 0.7)"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 05: Projekte (Rechts oben) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="68%"
-              y2="37%"
-              stroke="rgba(52, 211, 153, 0.7)"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 07: Wissen (Zentrum oben) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="50%"
-              y2="28%"
-              stroke="rgba(56, 189, 248, 0.85)"
-              strokeWidth="2.5"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 08/01: Quellen & RAW (Unten) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="45%"
-              y2="64%"
-              stroke="rgba(251, 191, 36, 0.7)"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 06/09: Interessen & Parkplatz (Ganz rechts oben) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="63%"
-              y2="25%"
-              stroke="rgba(163, 230, 53, 0.65)"
-              strokeWidth="1.8"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
-            />
-          </>
-        )}
+        {/* Der Austritt am Kopf — sitzt da, wo der Kopf gemessen wurde. */}
+        <g ref={kopfRef} opacity="0">
+          <circle r="16" fill="rgba(0,240,255,0.18)" filter="url(#laser-glow)" />
+          <circle r="5" fill="#ffffff" filter="url(#laser-glow)" />
+        </g>
       </svg>
 
-      {/* 4. Areal-Scan-Knoten & Sektor-Markierungen im Gehirn */}
-      {(stage === "scanning" || stage === "transferring") && (
-        <>
-          {/* Sektor 03: Identität */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "35%", top: "36%" }}>
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-fuchsia-400/60" style={{ animationDuration: "1.4s" }} />
-              <div className="h-2.5 w-2.5 rounded-full bg-fuchsia-300 shadow-[0_0_10px_#e879f9]" />
-            </div>
-            <div className="rounded border border-fuchsia-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-fuchsia-300 shadow-md backdrop-blur-md">
-              03🪪 IDENTITÄT (19)
-            </div>
+      {/* Ein Ring je wirklich gelesener Notiz, an ihrer gemessenen Stelle. */}
+      {Array.from({ length: MAX_ZIELE }, (_, i) => (
+        <div
+          key={`ziel-${i}`}
+          ref={(el) => {
+            zielRefs.current[i] = el;
+          }}
+          hidden
+          className="absolute left-0 top-0 flex flex-col items-center"
+        >
+          <div className="relative flex h-16 w-16 items-center justify-center">
+            <div
+              className="absolute inset-0 animate-ping rounded-full border border-cyan-400/70"
+              style={{ animationDuration: i === 0 ? "1.1s" : "1.5s", animationDelay: `${i * 0.12}s` }}
+            />
+            <div className="absolute inset-3 animate-spin rounded-full border border-dashed border-cyan-300/50" style={{ animationDuration: "5s" }} />
+            <div className="h-2.5 w-2.5 rounded-full bg-cyan-200 shadow-[0_0_10px_#00f0ff]" />
           </div>
+          <span
+            ref={(el) => {
+              labelRefs.current[i] = el;
+            }}
+            className="max-w-[210px] truncate rounded border border-cyan-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200 shadow-md backdrop-blur-md"
+          />
+        </div>
+      ))}
 
-          {/* Sektor 05: Projekte */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "68%", top: "37%" }}>
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-emerald-400/60" style={{ animationDuration: "1.6s", animationDelay: "0.2s" }} />
-              <div className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_10px_#34d399]" />
-            </div>
-            <div className="rounded border border-emerald-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300 shadow-md backdrop-blur-md">
-              05🚀 PROJEKTE (58)
-            </div>
-          </div>
-
-          {/* Sektor 07: Wissen */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "50%", top: "28%" }}>
-            <div className="relative flex h-16 w-16 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-cyan-400/80 shadow-[0_0_15px_rgba(0,240,255,0.6)]" style={{ animationDuration: "1.1s" }} />
-              <div className="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_12px_#00f0ff]" />
-            </div>
-            <div className="rounded border border-cyan-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200 shadow-md backdrop-blur-md">
-              07🧠 WISSEN (7)
-            </div>
-          </div>
-
-          {/* Sektor 08: Quellen & RAW */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "45%", top: "64%" }}>
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-amber-400/60" style={{ animationDuration: "1.5s", animationDelay: "0.4s" }} />
-              <div className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_10px_#fbbf24]" />
-            </div>
-            <div className="rounded border border-amber-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-amber-300 shadow-md backdrop-blur-md">
-              08📚 QUELLEN (69)
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* 5. Zentrales Index-Docking (Zentrum) */}
+      {/*
+        Solange nichts gemessen ist: sagen, was gerade passiert, statt einen
+        Strahl auf einen Punkt zu zeichnen, an dem nichts liegt.
+      */}
       <div
-        className="absolute -translate-x-1/2 -translate-y-1/2"
-        style={{ left: "50%", top: "46%" }}
+        ref={hinweisRef}
+        className="absolute left-1/2 top-6 -translate-x-1/2 rounded border border-cyan-500/40 bg-[#0a1018]/90 px-2 py-0.5 font-mono text-[10px] tracking-wider text-cyan-300 backdrop-blur-md"
       >
-        {/* Drehende Ziel-Klammern */}
-        <div className="relative flex h-24 w-24 items-center justify-center">
-          <div
-            className="absolute inset-0 animate-spin rounded-full border border-dashed border-cyan-400/60"
-            style={{ animationDuration: "6s" }}
-          />
-          <div
-            className="absolute inset-2 animate-spin rounded-full border-2 border-t-transparent border-r-cyan-300 border-b-transparent border-l-cyan-300"
-            style={{ animationDuration: "2.5s", animationDirection: "reverse" }}
-          />
-
-          {/* Zentraler Docking-Point */}
-          <div className="h-3 w-3 animate-ping rounded-full bg-cyan-300" />
-          <div className="absolute h-2 w-2 rounded-full bg-white shadow-[0_0_12px_#00f0ff]" />
-
-          {/* Sphärische Scan-Wellen (wenn im Scan-Stadium) */}
-          {stage === "scanning" || stage === "transferring" ? (
-            <>
-              <div
-                className="absolute -inset-20 animate-ping rounded-full border border-cyan-400/80 shadow-[0_0_25px_rgba(0,240,255,0.6)]"
-                style={{ animationDuration: "1.2s" }}
-              />
-              <div
-                className="absolute -inset-36 animate-ping rounded-full border border-cyan-300/40"
-                style={{ animationDuration: "1.8s", animationDelay: "0.3s" }}
-              />
-            </>
-          ) : null}
-        </div>
-
-        {/* HUD-Ziel-Label */}
-        <div className="mt-2 flex flex-col items-center">
-          <div className="rounded border border-cyan-500/40 bg-[#0a1018]/90 px-2 py-0.5 font-mono text-[10px] tracking-wider text-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.3)] backdrop-blur-md">
-            {stage === "connecting"
-              ? "⚡ NEURAL DOCK ESTABLISHED"
-              : stage === "scanning"
-              ? "🧠 CORTICAL MULTI-SECTOR SCAN ACTIVE"
-              : "📥 EXTRACTING KNOWLEDGE FROM 5 SECTORS"}
-          </div>
-          <div className="mt-0.5 font-mono text-[9px] text-cyan-200/60">{targetLabel}</div>
-        </div>
+        {stage === "connecting" ? "JARVIS SUCHT IM VAULT" : targetLabel ?? "KEINE QUELLE IM BILD"}
       </div>
     </div>
   );
