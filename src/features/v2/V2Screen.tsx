@@ -8,6 +8,7 @@ import type { JarvisMode } from "@/features/v2/jarvis/JarvisPresence";
 import { FloatingPanel } from "@/features/v2/hud/FloatingPanel";
 import { JarvisOrb } from "@/features/v2/hud/JarvisOrb";
 import { CouncilStation } from "@/features/v2/hud/CouncilStation";
+import { BrainLinkBeam } from "@/features/v2/hud/BrainLinkBeam";
 import { useTimeline } from "@/features/v2/useTimeline";
 import type { OrbitStation } from "@/features/v2/world/MemoryOrbit";
 
@@ -664,6 +665,11 @@ export function V2Screen() {
         crashWorld={crashWorld}
       />
       </WorldBoundary>
+
+      {/* Der Strahl von Jarvis ins Gehirn. Über der Szene gezeichnet, weil er
+          zwei Dinge auf dem Bildschirm verbindet — und weil er in 3D zweimal
+          die ganze Szene mitgerissen hat. */}
+      <BrainLinkBeam />
 
       <AtmosphereAudio />
       <StatusBar
