@@ -1,5 +1,6 @@
 "use client";
 
+import * as THREE from "three";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
@@ -30,6 +31,12 @@ import { playArrive, playSelect } from "@/features/v2/sound";
 import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
+import "./spatial/spatial.css";
+import { ProjectGlass } from "./spatial/ProjectGlass";
+import { MemoryHud, MemoryCard } from "./spatial/SpatialHud";
+import type { MemoryEntry, ProjectMeta } from "./spatial/model";
+import type { MemoryMode } from "./spatial/MemoryWorld";
+
 
 /**
  * V2, assembled.
@@ -110,6 +117,26 @@ export function V2Screen() {
   const [openProjectFolder, setOpenProjectFolder] = useState<string | null>(null);
   /** Welche Notiz im Projekt gerade gelesen wird — sie sticht im Raum hervor. */
   const [openNotePath, setOpenNotePath] = useState<string | null>(null);
+  const [metadata,setMetadata]=useState<Record<string,ProjectMeta>>({});
+  const [dive,setDive]=useState(0);
+  const [memoryEntries,setMemoryEntries]=useState<MemoryEntry[]>([]);
+  const [memoryMode,setMemoryMode]=useState<MemoryMode>("saturn");
+  const [memoryPhase,setMemoryPhase]=useState("Gegenwart");
+  const [memoryCard,setMemoryCard]=useState<MemoryEntry|null>(null);
+  const mediaUrls=useRef<string[]>([]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    const urls=mediaUrls.current;
+    void fetch('/api/vault/project-state',{signal:controller.signal}).then(r=>r.json()).then(d=>{if(d.ok)setMetadata(d.states);}).catch(()=>{});
+    void fetch('/api/vault/memories',{signal:controller.signal}).then(r=>r.json()).then(d=>{if(d.ok)setMemoryEntries(d.memories);}).catch(()=>{});
+    return ()=>{controller.abort();urls.forEach(url=>URL.revokeObjectURL(url));};
+  },[]);
+  const chooseMemoryPhase=useCallback((phase:string)=>{setMemoryPhase(phase);setMemoryMode("carousel");setMemoryCard(null);},[]);
+  const importMemories=useCallback((files:FileList,phase:string)=>{
+    const imported:MemoryEntry[]=Array.from(files).filter(f=>f.type.startsWith('image/')||f.type.startsWith('video/')).map(f=>{const url=URL.createObjectURL(f);mediaUrls.current.push(url);return {id:crypto.randomUUID(),title:f.name,date:'',phase,kind:f.type.startsWith('video/')?'video':'image',url,local:true};});
+    setMemoryEntries(previous=>[...previous,...imported]);setMemoryPhase(phase);setMemoryMode('carousel');
+  },[]);
+
   /**
    * Die Notiz, deren Nachbarschaft er zugeklappt hat — nicht ein Ja/Nein.
    *
@@ -275,7 +302,7 @@ export function V2Screen() {
    * world draws. Nothing is inferred: if the vault records no connection, the
    * footer is empty rather than filled with things that merely look related.
    */
-  const readerNode = readerId ? (vault.byId.get(readerId) ?? null) : null;
+  const readerNode = readerId ? (vault.byId.get(readerId) ?? {id:readerId,name:readerId.split('/').pop()?.replace(/\.md$/,'')||'Notiz',folder:readerId.split('/').slice(0,-1).join('/'),degree:0,color:'#bccadd',position:new THREE.Vector3(),skyPosition:new THREE.Vector3(),excerpt:''}) : null;
   const readerNeighbours = useMemo(
     () => (readerId ? neighboursOf(readerId, vault.links, vault.byId) : []),
     [readerId, vault.links, vault.byId],
@@ -427,14 +454,14 @@ export function V2Screen() {
    * A keyboard shortcut that depends on render timing is a shortcut that works
    * on the developer's machine.
    */
-  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder });
+  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder, memoryMode, memoryCard, dive });
   // Written in an effect, not during render. Assigning to a ref while
   // rendering is a rule this project has broken before, and the reason it is
   // a rule is that React may render without committing — the handler would
   // then act on a state that never reached the screen.
   useEffect(() => {
-    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder };
-  }, [readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder]);
+    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder, memoryMode, memoryCard, dive };
+  }, [readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world, openProjectFolder, memoryMode, memoryCard, dive]);
 
   /**
    * Enter enters. Same ref discipline as Escape, and for the same reason.
@@ -484,6 +511,9 @@ export function V2Screen() {
       // Dann aus dem Projekt heraus in die Werft — eine Stufe, nicht ganz raus.
       // Wer ein Projekt betreten hat, will beim Zurück die anderen Liegeplätze
       // sehen und nicht zu Hause landen.
+      if (state.world === "memory" && state.memoryCard) { setMemoryCard(null); return; }
+      if (state.world === "memory" && state.memoryMode !== "saturn") { setMemoryMode("saturn"); return; }
+      if (state.world === "projects" && state.dive > 0) { setDive(0); return; }
       if (state.openProjectFolder) {
         setOpenProjectFolder(null);
         return;
@@ -535,6 +565,9 @@ export function V2Screen() {
         }}
       >
       <V2Scene
+        metadata={metadata} dive={dive} onDive={()=>setDive(v=>v>.5?0:1)}
+        memoryEntries={memoryEntries} memoryMode={memoryMode} memoryPhase={memoryPhase}
+        onMemoryPhase={chooseMemoryPhase} onMemoryMode={setMemoryMode} onMemoryOpen={setMemoryCard}
         agents={roster.agents}
         rosterReachable={roster.reachable}
         approvalsWaiting={approvals}
@@ -554,12 +587,22 @@ export function V2Screen() {
         knowledge={knowledge}
         focusRequest={focusRequest}
         flyThrough={flyThrough}
-        inputBlocked={readerId !== null}
+        inputBlocked={readerId !== null || memoryCard !== null}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
       />
       </WorldBoundary>
 
+      <div className="r10-variant">ASTRA · R10 · ISOLIERTE VORSCHAU</div>
+      {world === "projects" && !openProject && <>
+        <div className="r10-title"><span className="r10-eyebrow">Projektuniversum / 01</span><h1>Project Singularity</h1><p>Was deine Aufmerksamkeit braucht, kommt näher. Bewusste Pausen dürfen ruhig bleiben.</p></div>
+        <div className="r10-project-list" aria-label="Projektplaneten">{projects.projects.map(p=><button key={p.folder} onClick={()=>selectProject(p)}>{p.name}</button>)}{projects.projects.length===0&&<p>Keine Projekte verfügbar.</p>}</div>
+        <div className="r10-flight"><button onClick={()=>setDive(v=>v>.5?0:1)}>{dive>.5?'Dive verlassen':'Singularity Dive'}</button><label>Nähe zum Horizont<input aria-label="Nähe zum Ereignishorizont" type="range" min="0" max="1" step=".025" value={dive} onChange={e=>setDive(+e.target.value)}/></label><button onClick={()=>{setDive(0);clearSelection();goTo('projects');}}>Gesamtansicht</button></div>
+        {selection.kind==='project' && (()=>{const p=projects.projects.find(p=>p.folder===selection.folder);return p?<ProjectGlass key={p.folder} project={p} meta={metadata[p.folder]} onClose={clearSelection} onEnter={()=>{setDive(0);setOpenProjectFolder(p.folder);}} onOpen={openProjectNote} onSaved={m=>{setMetadata(v=>({...v,[p.folder]:m}));projects.reload();}}/>:null;})()}
+      </>}
+      {world==='projects'&&openProject&&<aside className="r10-glass r10-room-bar"><span className="r10-eyebrow">Dein Projektraum</span><h2>{openProject.name}</h2><p className="r10-goal">{metadata[openProject.folder]?.goal||'Dokumente und Arbeitsstände direkt im Raum.'}</p><div className="r10-roster">{roster.agents.map(a=><span key={a.id}>{a.name}</span>)}</div><button onClick={()=>setOpenProjectFolder(null)}>← Zum Projektuniversum</button><button onClick={()=>setJarvisOpen(true)}>Mit Jarvis arbeiten</button><button onClick={()=>goTo('memory')}>Erinnerungen öffnen</button><small>Agenten aus dem Roster. Kein laufender Council simuliert.</small></aside>}
+      {world==='memory'&&<MemoryHud key={memoryMode+memoryPhase} mode={memoryMode} phase={memoryPhase} count={memoryMode==='carousel'?memoryEntries.filter(e=>e.phase===memoryPhase).length:memoryEntries.length} entries={memoryEntries} onOpen={setMemoryCard} onMode={setMemoryMode} onPhase={chooseMemoryPhase} onImport={importMemories}/>}
+      {world==='memory'&&memoryCard&&<MemoryCard entry={memoryCard} onClose={()=>setMemoryCard(null)} onRead={()=>{if(memoryCard.path){setReaderId(memoryCard.path);setMemoryCard(null);}}}/>}
       <AtmosphereAudio />
       <StatusBar
         agentCount={roster.agents.length}
@@ -604,7 +647,7 @@ export function V2Screen() {
             reachable={approvalState.reachable}
             onClose={() => setApprovalsOpen(false)}
           />
-        ) : (
+        ) : world !== "projects" && world !== "memory" ? (
           <Inspector
             agents={roster.agents}
             nodes={vault.nodes}
@@ -613,7 +656,7 @@ export function V2Screen() {
             onDiveToSource={diveToSource}
             councilAvailable={live.methods.includes("council.start")}
           />
-        )}
+        ) : null}
 
         {/* Die Areale gehoeren in die Wissenswelt und nirgendwo sonst: dort
             stehen sie im Raum, und dort ist die Liste die zweite Art, sich zu
@@ -657,7 +700,7 @@ export function V2Screen() {
           woran es hängt. In 3D ist die zweite Frage nicht beantwortbar —
           zwei Punkte überdecken sich oder verstecken sich hintereinander. */}
       <Neighbourhood
-        node={graphNode}
+        node={world === "cosmos" ? graphNode : null}
         links={vault.links}
         byId={vault.byId}
         onSelect={selectSourceId}

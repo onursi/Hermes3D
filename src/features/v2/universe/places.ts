@@ -54,8 +54,8 @@ export type Place = {
 export const HOME_POSITION = new THREE.Vector3(0, 0, 0);
 
 /** Where the project stations cluster. The yard, seen from very far away. */
-const PROJECT_FIELD = new THREE.Vector3(2, -10, -74);
-const PROJECT_RING = 23;
+
+
 
 const HOME_PLACE: Place = {
   id: "home",
@@ -82,57 +82,14 @@ const COSMOS_PLACE: Place = {
   world: "cosmos",
 };
 
-const LIBRARY_PLACE: Place = {
-  id: "library",
-  kind: "library",
-  name: "Bibliothek",
-  hint: "Der Regalraum.",
-  position: new THREE.Vector3(26, -4, -47),
-  radius: 7,
-  entryRadius: 18,
-  world: "library",
-};
-
-/**
- * The places, given the projects that actually exist.
- *
- * Stations are derived rather than listed: six projects make six stations, and
- * a seventh project makes a seventh. Sorted by folder, so a station keeps its
- * position between sessions — a place that moves when the data reloads is not
- * a place, and the whole point of coordinates is that they hold still.
- */
 export function placesFor(projects: Project[], includeLibrary: boolean): Place[] {
-  const stations = [...projects]
-    .sort((a, b) => a.folder.localeCompare(b.folder, "de"))
-    .map((project, index, all) => {
-      const angle = (index / Math.max(1, all.length)) * Math.PI * 2;
-      return {
-        id: `project:${project.folder}`,
-        kind: "project" as const,
-        name: project.name,
-        hint: `${project.noteCount} Notizen. Führt zur Ergebniswerft.`,
-        position: PROJECT_FIELD.clone().add(
-          new THREE.Vector3(
-            Math.cos(angle) * PROJECT_RING,
-            // A gentle tilt across the ring, so the stations do not read as a
-            // flat dial seen edge-on from the platform.
-            Math.sin(angle * 2) * 5,
-            Math.sin(angle) * PROJECT_RING,
-          ),
-        ),
-        radius: 4.2,
-        entryRadius: 12,
-        world: "projects" as const,
-        projectFolder: project.folder,
-      };
-    });
-
-  return [
-    HOME_PLACE,
-    COSMOS_PLACE,
-    ...(includeLibrary ? [LIBRARY_PLACE] : []),
-    ...stations,
-  ];
+  // Exactly one project entrance, independent of the project count.
+  void includeLibrary;
+  return [HOME_PLACE, COSMOS_PLACE, {
+    id: "projects", kind: "project", name: "Project Singularity",
+    hint: `${projects.length} Projekte im Gravitationsraum.`,
+    position: new THREE.Vector3(28, -5, -58), radius: 9, entryRadius: 18, world: "projects",
+  }];
 }
 
 /**

@@ -11,14 +11,16 @@ import { useV2 } from "@/features/v2/state";
 import type { Project, ProjectNote } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
-import { CameraDirector, HOME_VIEW, PROJECTS_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
+import { CameraDirector, HOME_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
-import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
+import { SingularityWorld } from "../spatial/SingularityWorld";
+import { MemoryWorld, type MemoryMode } from "../spatial/MemoryWorld";
+import type { MemoryEntry, ProjectMeta } from "../spatial/model";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
@@ -42,6 +44,7 @@ import { approachFor, type Place } from "@/features/v2/universe/places";
  */
 
 export function V2Scene({
+  metadata, dive, onDive, memoryEntries, memoryMode, memoryPhase, onMemoryPhase, onMemoryMode, onMemoryOpen,
   agents,
   rosterReachable,
   approvalsWaiting,
@@ -65,6 +68,9 @@ export function V2Scene({
   onFrame,
   crashWorld,
 }: {
+  metadata: Record<string,ProjectMeta>; dive: number; onDive: ()=>void;
+  memoryEntries: MemoryEntry[]; memoryMode: MemoryMode; memoryPhase: string;
+  onMemoryPhase: (p:string)=>void; onMemoryMode:(m:MemoryMode)=>void; onMemoryOpen:(e:MemoryEntry)=>void;
   agents: RosterAgent[];
   rosterReachable: boolean;
   approvalsWaiting: number;
@@ -197,14 +203,18 @@ export function V2Scene({
   const openFolder = openProject?.folder ?? null;
   useEffect(() => {
     if (world !== "projects") return;
-    const view = openFolder ? PROJECT_INSIDE_VIEW : PROJECTS_VIEW;
+    const view = openFolder ? PROJECT_INSIDE_VIEW : { position: new THREE.Vector3(0, 31*(1-dive)+5.5*dive,78*(1-dive)+20*dive), target:new THREE.Vector3(0,0,0) };
     setGoal({
       position: view.position.clone(),
       target: view.target.clone(),
       duration: 1.1,
       instant: prefs.reducedMotion,
     });
-  }, [openFolder, world, prefs.reducedMotion]);
+  }, [openFolder, world, prefs.reducedMotion, dive]);
+  useEffect(() => {
+    if (world !== "memory") return;
+    setGoal({position: new THREE.Vector3(0,memoryMode === "saturn" ? 17 : 3, memoryMode === "saturn" ? 34 : 24),target:new THREE.Vector3(0,0,0),duration:1.2,instant:prefs.reducedMotion});
+  },[world,memoryMode,prefs.reducedMotion]);
 
   /**
    * Leaving the universe clears the entry offer.
@@ -380,7 +390,7 @@ export function V2Scene({
       <CameraDirector
         goal={goal}
         controlsRef={controlsRef}
-        speed={prefs.flightSpeed}
+        speed={world === "projects" || world === "memory" ? 1 : prefs.flightSpeed}
         reducedMotion={prefs.reducedMotion}
         onArrive={handleArrive}
         onSampleHome={sampleCamera}
@@ -394,19 +404,20 @@ export function V2Scene({
         <OrbitControls
           ref={controlsRef as never}
           target={HOME_VIEW.target.toArray()}
+          enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={false}
-          minDistance={3.2}
-          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : 30}
-          maxPolarAngle={Math.PI * 0.52}
+          minDistance={world === "projects" && !openProject ? 7.8 : 3.2}
+          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : 30}
+          maxPolarAngle={world === "projects" || world === "memory" ? Math.PI*.94 : Math.PI*.52}
           enableDamping
           dampingFactor={0.08}
-          rotateSpeed={0.55 * Math.min(3, prefs.flightSpeed)}
-          zoomSpeed={0.85 * Math.min(3, prefs.flightSpeed)}
+          rotateSpeed={0.55}
+          zoomSpeed={0.85}
         />
       ) : null}
 
       <Suspense fallback={null}>
-        {world !== "library" && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
+        {world !== "library" && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>
@@ -487,6 +498,8 @@ export function V2Scene({
             onFocusRequest={handleFocusArea}
           />
           </>
+        ) : world === "memory" ? (
+          <MemoryWorld entries={memoryEntries} mode={memoryMode} phase={memoryPhase} reducedMotion={prefs.reducedMotion} onPhase={onMemoryPhase} onFree={()=>onMemoryMode("free")} onOpen={onMemoryOpen}/>
         ) : world === "projects" ? (
           /**
            * Zwei Ansichten, eine Welt: die Werft mit allen Liegeplätzen, und
@@ -501,11 +514,7 @@ export function V2Scene({
               onOpenNote={onOpenProjectNote}
             />
           ) : (
-            <ProjectsWorld
-              projects={projects}
-              selectedFolder={selectedProjectFolder}
-              onSelect={onSelectProject}
-            />
+            <SingularityWorld projects={projects} metadata={metadata} selected={selectedProjectFolder} onSelect={onSelectProject} onDive={onDive} reducedMotion={prefs.reducedMotion}/>
           )
         ) : (
           <LibraryWorld
