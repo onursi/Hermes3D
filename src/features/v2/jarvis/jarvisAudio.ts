@@ -114,6 +114,23 @@ class JarvisAudioEngine {
 
     osc.start(now);
     osc.stop(now + duration);
+
+    // 4 Sektor-Chimes nacheinander für die Gehirn-Areale (Identität, Wissen, Projekte, Quellen)
+    const sectorFreqs = [523.25, 659.25, 783.99, 1046.5];
+    sectorFreqs.forEach((freq, idx) => {
+      const pingOsc = ctx.createOscillator();
+      const pingGain = ctx.createGain();
+      const pingTime = now + 0.35 + idx * 0.22;
+      pingOsc.type = "sine";
+      pingOsc.frequency.setValueAtTime(freq, pingTime);
+      pingGain.gain.setValueAtTime(0.0001, pingTime);
+      pingGain.gain.linearRampToValueAtTime(0.035, pingTime + 0.02);
+      pingGain.gain.exponentialRampToValueAtTime(0.0001, pingTime + 0.3);
+      pingOsc.connect(pingGain);
+      pingGain.connect(ctx.destination);
+      pingOsc.start(pingTime);
+      pingOsc.stop(pingTime + 0.35);
+    });
   }
 
   /**
