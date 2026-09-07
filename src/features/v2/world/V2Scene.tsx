@@ -461,7 +461,7 @@ export function V2Scene({
             selectedFolder={selectedProjectFolder}
             onSelect={onSelectProject}
           />
-        ) : (
+        ) : world === "saturn" ? null : (
           <LibraryWorld
             items={libraryItems}
             selectedId={selectedSourceId}

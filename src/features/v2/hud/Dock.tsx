@@ -82,6 +82,17 @@ export function Dock({
         </svg>
       </DockButton>
 
+      <DockButton
+        active={world === "saturn"}
+        onClick={() => goTo("saturn")}
+        label="Memory Saturn"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="5" />
+          <ellipse cx="12" cy="12" rx="9" ry="3.2" transform="rotate(-25 12 12)" />
+        </svg>
+      </DockButton>
+
       {showLibrary ? (
         <DockButton
           active={world === "library"}

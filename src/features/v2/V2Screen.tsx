@@ -152,6 +152,9 @@ export function V2Screen() {
     setLiveMode(params.get("live") === "1");
     setCrashWorld(params.get("boom"));
   }, []);
+
+  const [saturnSubView, setSaturnSubView] = useState<"saturn" | "orbit">("saturn");
+
   /**
    * The queue itself, not just its length.
    *
@@ -544,6 +547,7 @@ export function V2Screen() {
           Der Inspektor schrumpft zuerst (`shrink` und `min-h-0`), weil die
           Arealliste ihre Höhe selbst kennt; so bleibt die Spalte auch auf
           niedrigen Fenstern innerhalb ihrer Grenzen. */}
+      {world !== "saturn" ? (
       <div className="pointer-events-none absolute right-4 top-16 bottom-20 z-30 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
         {approvalsOpen ? (
           <Approvals
@@ -585,6 +589,7 @@ export function V2Screen() {
           />
         ) : null}
       </div>
+      ) : null}
 
       <Reader
         node={readerNode}
@@ -617,6 +622,40 @@ export function V2Screen() {
           <Cockpit places={places} markers={cockpitMarkers} reachableId={reachable?.id ?? null} />
           <TravelBar reachable={reachable} onEnter={enterPlace} />
         </>
+      ) : null}
+
+      {world === "saturn" ? (
+        <div className="absolute inset-0 z-20 bg-[#03050b]">
+          <div className="pointer-events-auto absolute top-16 right-6 z-40 flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a1018]/90 p-1.5 backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setSaturnSubView("saturn")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+                saturnSubView === "saturn"
+                  ? "bg-cyan-500/25 text-cyan-200 border border-cyan-500/30 font-semibold"
+                  : "text-white/60 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              🪐 Memory Saturn
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaturnSubView("orbit")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+                saturnSubView === "orbit"
+                  ? "bg-purple-500/25 text-purple-200 border border-purple-500/30 font-semibold"
+                  : "text-white/60 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              💫 Erinnerungsorbit
+            </button>
+          </div>
+          <iframe
+            src={saturnSubView === "saturn" ? "/memory_saturn.html" : "/erinnerungsorbit.html"}
+            className="h-full w-full border-0 pb-16"
+            title="Memory Space"
+          />
+        </div>
       ) : null}
 
       <Dock
