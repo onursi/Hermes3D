@@ -30,6 +30,7 @@ import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
 import { CockpitProjector, type MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { FreeFlight } from "@/features/v2/universe/FreeFlight";
 import { approachFor, type Place } from "@/features/v2/universe/places";
+import { BeamProbe, type BeamProbePoint } from "@/features/v2/jarvis/BeamProbe";
 
 /**
  * One renderer, one active world.
@@ -73,6 +74,8 @@ export function V2Scene({
   cockpitMarkers,
   knowledge,
   focusRequest,
+  queryHitIds,
+  citedSourceIds = [],
   flyThrough = false,
   inputBlocked = false,
   onFrame,
@@ -117,6 +120,10 @@ export function V2Scene({
   knowledge: { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] };
   /** Eine Kamerabitte aus dem HUD. Null, solange keine gestellt wurde. */
   focusRequest: { center: [number, number, number]; radius: number; seq: number } | null;
+  /** Volltexttreffer der Suche, damit der Wissenskörper sie mitleuchten lässt. */
+  queryHitIds?: Set<string>;
+  /** Notizen, die Jarvis gerade zitiert — Ziel des Strahls, gemessen statt geraten. */
+  citedSourceIds?: string[];
   /** Im Wissenskoerper fliegen statt umkreisen. */
   flyThrough?: boolean;
   onFrame?: (sample: { fps: number; calls: number; triangles: number; geometries: number; textures: number; loops: number }) => void;
@@ -353,6 +360,38 @@ export function V2Scene({
   const selectedSourceId = selection.kind === "source" ? selection.id : null;
   const selectedProjectFolder = selection.kind === "project" ? selection.folder : null;
 
+  const beamPoints = useMemo<BeamProbePoint[]>(() => {
+    if (!citedSourceIds || citedSourceIds.length === 0) return [];
+    const points: BeamProbePoint[] = [];
+    for (const id of citedSourceIds) {
+      const node = vault.byId.get(id);
+      if (!node) continue;
+      points.push({
+        id: node.id,
+        label: node.name,
+        position: world === "home" ? node.skyPosition : node.position,
+      });
+    }
+    return points;
+  }, [citedSourceIds, vault.byId, world]);
+
+  const sweepPoints = useMemo<BeamProbePoint[]>(() => {
+    const alle = vault.nodes;
+    if (alle.length === 0) return [];
+    const ziel = 60;
+    const schritt = Math.max(1, Math.floor(alle.length / ziel));
+    const points: BeamProbePoint[] = [];
+    for (let i = 0; i < alle.length && points.length < ziel; i += schritt) {
+      const node = alle[i];
+      points.push({
+        id: node.id,
+        label: node.name,
+        position: world === "home" ? node.skyPosition : node.position,
+      });
+    }
+    return points;
+  }, [vault.nodes, world]);
+
   return (
     <Canvas
       dpr={[1, 1.35]}
@@ -441,6 +480,9 @@ export function V2Scene({
       ) : null}
 
       <Suspense fallback={null}>
+        {/* Messstelle für Jarvis Neural Beam & Scan-Tastfläche */}
+        <BeamProbe points={beamPoints} sweepPoints={sweepPoints} active={true} />
+
         {world !== "library" && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
@@ -517,6 +559,7 @@ export function V2Scene({
             edges={knowledge.edges}
             selectedId={selectedSourceId}
             query={query}
+            queryHitIds={queryHitIds}
             reducedMotion={prefs.reducedMotion}
             onSelect={onSelectSourceId}
             onFocusRequest={handleFocusArea}

@@ -27,6 +27,7 @@ import { JarvisHologramFace } from "./JarvisHologramFace";
 import { JarvisArcReactor } from "./JarvisArcReactor";
 import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
 import { jarvisAudio } from "./jarvisAudio";
+import { reportJarvisHead } from "./beamAnchors";
 import { useVoice } from "@/features/jarvis/useVoice";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 import { PersonalityStudioModal, PERSONAS, type PersonaConfig } from "./PersonalityStudioModal";
@@ -102,6 +103,42 @@ export function JarvisCompanion({
   const [voiceReply, setVoiceReply] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [beamLive, setBeamLive] = useState(false);
+
+  // Refs zur exakten Bildschirmmessung des aktiven Jarvis-Avatars
+  const headOpenRef = useRef<HTMLButtonElement>(null);
+  const headPillRef = useRef<HTMLButtonElement>(null);
+
+  // Kopf-Messschleife: Meldet während Scan & stehendem Strahl die exakten DOM-Koordinaten
+  useEffect(() => {
+    if (!isScanning && !beamLive) {
+      reportJarvisHead(null);
+      return;
+    }
+
+    let raf = 0;
+    const measure = () => {
+      let best: { x: number; y: number; area: number } | null = null;
+      for (const ref of [headOpenRef, headPillRef]) {
+        const el = ref.current;
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        const area = r.width * r.height;
+        if (area <= 0) continue;
+        if (!best || area > best.area) {
+          best = { x: r.left + r.width * 0.5, y: r.top + r.height * 0.5, area };
+        }
+      }
+      reportJarvisHead(best ? { x: best.x, y: best.y } : null);
+      raf = requestAnimationFrame(measure);
+    };
+
+    raf = requestAnimationFrame(measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      reportJarvisHead(null);
+    };
+  }, [isScanning, beamLive]);
 
   // Notiz-Vorschau & Aufgaben
   const [preview, setPreview] = useState<{ title: string; file: string; sources: string[] } | null>(null);
@@ -237,6 +274,7 @@ export function JarvisCompanion({
 
       // Visueller & auditiver Laser-Scan ins Gehirn
       setIsScanning(true);
+      setBeamLive(true);
       jarvisAudio.playScanSweep();
       jarvisAudio.startBeamSound();
 
@@ -412,6 +450,7 @@ export function JarvisCompanion({
     setPhase("thinking");
 
     setIsScanning(true);
+    setBeamLive(true);
     jarvisAudio.playScanSweep();
     jarvisAudio.startBeamSound();
 
@@ -524,9 +563,16 @@ export function JarvisCompanion({
     <>
       {/* Visueller Mehrsektoren-Laser- & Scanstrahl ins 3D-Gehirn */}
       <JarvisNeuralBeam
-        active={isScanning}
+        active={beamLive || isScanning}
+        isScanning={isScanning}
         targetLabel={currentWorld === "cosmos" ? "INDEX: SECOND BRAIN [0, 0, 0]" : "NEURAL CORE DOCK"}
-        onComplete={() => setIsScanning(false)}
+        onDismiss={() => {
+          setBeamLive(false);
+          setIsScanning(false);
+          setSources([]);
+          onSourcesChange?.([]);
+        }}
+        onFlyToSource={onFlyToSource}
       />
 
       {/* 3D Hologram & Personality Studio Modal */}
@@ -592,6 +638,7 @@ export function JarvisCompanion({
                 {/* Zentraler Avatar (Klickbar für 3D-Studio) */}
                 <button
                   type="button"
+                  ref={headOpenRef}
                   onClick={() => setStudioOpen(true)}
                   className="group relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-[#060a10]/80 shadow-[inset_0_0_20px_rgba(56,189,248,0.15)] transition hover:border-cyan-400/40 hover:scale-105"
                   title="Klick: 3D Hologramm-Modell & Persönlichkeit anpassen"
@@ -1079,6 +1126,7 @@ export function JarvisCompanion({
           <div className="relative group">
             <button
               type="button"
+              ref={headPillRef}
               onClick={handleToggleOpen}
               className={`relative flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-md transition-all duration-300 ${
                 isOpen

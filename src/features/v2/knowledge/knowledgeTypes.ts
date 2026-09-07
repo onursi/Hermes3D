@@ -45,6 +45,7 @@ export interface KnowledgeAreasProps {
   edges: KnowledgeEdge[];
   selectedId?: string | null;
   query?: string;
+  queryHitIds?: Set<string>;
   reducedMotion?: boolean;
   onSelect?: (id: string) => void;
   onFocusRequest?: (focus: FocusRequest) => void;

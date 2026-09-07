@@ -10,6 +10,7 @@ import { useProjects, type Project, type ProjectNote } from "@/features/v2/usePr
 import { useRoster } from "@/features/v2/useRoster";
 import { useHermesLive } from "@/features/v2/useHermesLive";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
+import { useContentSearch } from "@/features/v2/useContentSearch";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
 import { Inspector } from "@/features/v2/hud/Inspector";
@@ -74,6 +75,8 @@ export function V2Screen() {
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [citedSourceIds, setCitedSourceIds] = useState<string[]>([]);
+  const contentSearch = useContentSearch(world === "cosmos" ? query : "");
   /** What the flight is close enough to enter. Owned here, because the offer is HUD. */
   const [reachable, setReachable] = useState<Place | null>(null);
   /**
@@ -585,6 +588,8 @@ export function V2Screen() {
         projects={projects.projects}
         libraryItems={libraryItems}
         query={world === "cosmos" ? query : ""}
+        queryHitIds={contentSearch.ids}
+        citedSourceIds={citedSourceIds}
         onSelectAgent={selectAgent}
         onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
@@ -733,6 +738,7 @@ export function V2Screen() {
           nodes={vault.nodes}
           query={query}
           onQuery={setQuery}
+          contentHits={contentSearch.hits}
           onPick={selectSource}
           selectedId={selection.kind === "source" ? selection.id : null}
         />
@@ -896,6 +902,7 @@ export function V2Screen() {
           if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
         }}
         onSourcesChange={(ids) => {
+          setCitedSourceIds(ids);
           const first = ids[0];
           if (!first) return;
           const node = vault.byId.get(first);

@@ -1,0 +1,590 @@
+<title>Wie ich die neuen Räume bauen würde</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+:root {
+  --ground:#14120e; --surface:#1d1a15; --surface2:#262119; --line:#3a332a;
+  --ink:#f0eae0; --muted:#9d9384; --gold:#e0a93f; --gold-dim:#8a6f34;
+  --rust:#c8603c; --cool:#5f93ad; --violet:#8d7bb0;
+  --shadow:0 1px 0 rgba(255,255,255,0.04), 0 18px 40px -24px rgba(0,0,0,0.8);
+}
+:root[data-theme="light"] {
+  --ground:#f7f3ea; --surface:#fffdf8; --surface2:#f1ebdd; --line:#ded4c0;
+  --ink:#1b1710; --muted:#6d6555; --gold:#a97613; --gold-dim:#cbb583;
+  --rust:#a8462a; --cool:#3d6a83; --violet:#63527f;
+  --shadow:0 1px 0 rgba(255,255,255,0.7), 0 18px 40px -28px rgba(60,45,20,0.35);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground:#f7f3ea; --surface:#fffdf8; --surface2:#f1ebdd; --line:#ded4c0;
+    --ink:#1b1710; --muted:#6d6555; --gold:#a97613; --gold-dim:#cbb583;
+    --rust:#a8462a; --cool:#3d6a83; --violet:#63527f;
+    --shadow:0 1px 0 rgba(255,255,255,0.7), 0 18px 40px -28px rgba(60,45,20,0.35);
+  }
+}
+
+* { box-sizing:border-box; }
+body {
+  background:var(--ground); color:var(--ink);
+  font-family:"Newsreader", Georgia, serif; font-size:18px; line-height:1.62; font-weight:300;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:1180px; margin:0 auto; padding:0 28px 120px; }
+.spine { max-width:660px; margin:0 auto; }
+
+header { border-bottom:1px solid var(--line); padding:64px 0 40px; margin-bottom:56px; display:grid; gap:22px; }
+.kicker { font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.17em; text-transform:uppercase; color:var(--muted); display:flex; flex-wrap:wrap; gap:8px 18px; }
+.kicker b { color:var(--gold); font-weight:600; }
+h1 { font-family:"Instrument Serif",Georgia,serif; font-weight:400; font-size:clamp(42px,7.5vw,80px); line-height:.99; letter-spacing:-.015em; margin:0; text-wrap:balance; max-width:15ch; }
+h1 em { font-style:italic; color:var(--gold); }
+.standfirst { font-size:21px; line-height:1.5; max-width:58ch; margin:0; }
+.standfirst.sub { color:var(--muted); font-size:18px; }
+
+h2 { font-family:"Instrument Serif",Georgia,serif; font-weight:400; font-size:clamp(29px,4vw,40px); line-height:1.1; margin:0 0 8px; text-wrap:balance; }
+h3 { font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; }
+p { margin:0 0 18px; } p:last-child { margin-bottom:0; }
+strong { font-weight:600; color:var(--ink); }
+em.q { font-style:italic; color:var(--gold); }
+code { font-family:"JetBrains Mono",monospace; font-size:.84em; background:var(--surface2); padding:1px 5px; border-radius:2px; }
+
+section.teil { padding:60px 0; border-top:1px solid var(--line); }
+.spine > section.teil:first-child { border-top:none; }
+.nr { font-family:"Instrument Serif",Georgia,serif; font-size:15px; color:var(--gold); letter-spacing:.2em; display:block; margin-bottom:14px; }
+.lede { font-size:20px; line-height:1.5; margin-bottom:26px; }
+
+.figure { margin:34px 0; background:var(--surface); border:1px solid var(--line); border-radius:3px; box-shadow:var(--shadow); overflow:hidden; }
+.figure .body { padding:24px; }
+figcaption { font-family:"JetBrains Mono",monospace; font-size:11.5px; line-height:1.65; color:var(--muted); padding:14px 24px 18px; border-top:1px solid var(--line); background:var(--surface2); }
+figcaption b { color:var(--ink); font-weight:600; }
+
+.pull { border-left:2px solid var(--gold); padding:4px 0 4px 22px; margin:30px 0; font-size:22px; line-height:1.4; font-style:italic; max-width:46ch; }
+.vorschlag { border:1px solid var(--gold-dim); border-radius:3px; padding:22px 24px; margin:30px 0 0; background:color-mix(in srgb, var(--gold) 7%, var(--surface)); }
+.vorschlag h3 { color:var(--gold); }
+.warnung { border:1px solid var(--rust); border-radius:3px; padding:22px 24px; margin:30px 0 0; background:color-mix(in srgb, var(--rust) 8%, var(--surface)); }
+.warnung h3 { color:var(--rust); }
+.zahl { font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; color:var(--gold); font-weight:600; font-size:15px; }
+
+canvas { display:block; width:100%; height:auto; }
+
+/* Spuren */
+.spuren { display:grid; gap:11px; }
+.spurzeile { display:grid; grid-template-columns:150px 1fr; gap:14px; align-items:center; }
+.spurzeile > b { font-family:"JetBrains Mono",monospace; font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); text-align:right; }
+.chips { display:flex; gap:5px; }
+.chips span { flex:1 1 0; text-align:center; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.03em; padding:8px 4px; border-radius:2px; background:var(--surface2); border:1px solid var(--line); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chips span.on { border-color:var(--gold-dim); color:var(--ink); background:color-mix(in srgb, var(--gold) 10%, var(--surface2)); }
+
+/* Objektkarte */
+.objekt { display:grid; grid-template-columns:1fr 1.25fr; gap:26px; align-items:start; }
+.karte { border:1px solid var(--gold-dim); border-radius:3px; background:var(--surface2); overflow:hidden; }
+.karte header { border:none; padding:12px 16px; margin:0; display:block; background:color-mix(in srgb, var(--gold) 12%, var(--surface2)); border-bottom:1px solid var(--gold-dim); font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
+.karte dl { margin:0; padding:14px 16px; display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-family:"JetBrains Mono",monospace; font-size:12px; }
+.karte dt { color:var(--muted); } .karte dd { margin:0; color:var(--ink); }
+.renders { display:grid; gap:12px; }
+.render { border:1px solid var(--line); border-radius:3px; padding:13px 16px; background:var(--surface2); }
+.render b { display:block; font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:5px; }
+.render span { font-size:15px; color:var(--ink); }
+
+/* Rekorder */
+.rek { position:relative; height:56px; border:1px solid var(--line); border-radius:2px; overflow:hidden; display:flex; }
+.rek .tot { flex:0 0 62%; background:repeating-linear-gradient(135deg, var(--surface2) 0 6px, transparent 6px 12px); border-right:2px solid var(--rust); display:flex; align-items:center; justify-content:center; }
+.rek .lebt { flex:1; background:color-mix(in srgb, var(--gold) 16%, transparent); display:flex; align-items:center; justify-content:center; }
+.rek span { font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.rek .tot span { color:var(--rust); } .rek .lebt span { color:var(--gold); }
+.rek-achse { display:flex; justify-content:space-between; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted); margin-top:7px; }
+
+/* Sternbild-Zuordnung */
+.zuord { display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:12px; }
+.feld { border:1px solid var(--line); border-radius:3px; padding:14px 15px; background:var(--surface2); }
+.feld.leer { border-color:var(--rust); background:color-mix(in srgb, var(--rust) 8%, var(--surface2)); }
+.feld b { display:block; font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
+.feld.leer b { color:var(--rust); }
+.feld u { display:block; text-decoration:none; font-size:16px; color:var(--ink); margin-bottom:5px; }
+.feld i { font-style:normal; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--muted); }
+.feld.leer i { color:var(--rust); }
+
+/* Trichter */
+.trichter { display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:center; }
+.stapel { display:grid; gap:5px; }
+.stapel i { display:block; height:13px; border-radius:1px; background:var(--gold-dim); font-style:normal; }
+.stapel.aus i { background:var(--surface2); border:1px solid var(--line); }
+.trichter .mitte { text-align:center; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--muted); letter-spacing:.1em; }
+.trichter .mitte b { display:block; font-family:"Instrument Serif",serif; font-size:34px; color:var(--gold); letter-spacing:0; margin-bottom:2px; }
+.trichter .mitte.null b { color:var(--rust); }
+
+/* Böden */
+.boeden { display:grid; gap:0; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+.boden { padding:16px 20px; display:grid; grid-template-columns:118px 1fr; gap:18px; align-items:baseline; border-bottom:1px solid var(--line); }
+.boden:last-child { border-bottom:none; }
+.boden > b { font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; }
+.boden.q  { background:color-mix(in srgb, var(--gold) 15%, var(--surface)); }
+.boden.q > b { color:var(--gold); }
+.boden.h  { background:color-mix(in srgb, var(--gold) 7%, var(--surface)); }
+.boden.h > b { color:var(--gold-dim); }
+.boden.k  { background:var(--surface); }
+.boden.k > b { color:var(--violet); }
+.boden span { font-size:15.5px; }
+
+.tabelle-scroll { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:15px; min-width:560px; }
+th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); font-weight:600; border-bottom-color:var(--muted); }
+td.mono { font-family:"JetBrains Mono",monospace; font-size:12.5px; }
+td.ja { color:var(--gold); } td.nein { color:var(--muted); }
+tr:last-child td { border-bottom:none; }
+
+footer { border-top:1px solid var(--line); margin-top:64px; padding-top:40px; }
+footer ul { margin:0; padding-left:20px; }
+footer li { font-family:"JetBrains Mono",monospace; font-size:12px; line-height:1.85; color:var(--muted); }
+footer li b { color:var(--ink); font-weight:600; }
+
+.theme-toggle { position:fixed; top:16px; right:16px; z-index:10; font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:2px; padding:7px 11px; cursor:pointer; }
+.theme-toggle:hover { color:var(--ink); border-color:var(--muted); }
+.theme-toggle:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+
+@media (max-width:760px) {
+  body { font-size:17px; } .wrap { padding:0 20px 80px; }
+  .objekt { grid-template-columns:1fr; }
+  .spurzeile { grid-template-columns:96px 1fr; }
+  .chips span { font-size:8.5px; padding:7px 2px; }
+  .trichter { grid-template-columns:1fr; }
+  .boden { grid-template-columns:1fr; gap:6px; }
+}
+</style>
+
+<button class="theme-toggle" id="tt" type="button">Ansicht wechseln</button>
+
+<div class="wrap">
+
+<header>
+  <div class="kicker">
+    <span>Hermes 3D · Vorentwurf</span><span>2026-09-07</span>
+    <span><b>Claude</b> · Antwort auf „Weitere Raumideen"</span>
+  </div>
+  <h1>Wie ich die neuen Räume <em>bauen</em> würde</h1>
+  <p class="standfirst">Das Briefing beschreibt drei neue Räume und fünf neue Systeme. Meine Lesart nach dem Durchgehen: <strong>es fehlen nicht drei Räume, es fehlt ein gemeinsames Ding, das alle drei zeigen.</strong></p>
+  <p class="standfirst sub">Sechs Vorschläge, jeder mit dem, was er kostet. Zwei Stellen, an denen ich der Prioritätenliste widerspreche. Und eine Zahl aus dem Vault, die zeigt, warum ausgerechnet das Ideenatelier zuerst gebaut gehört.</p>
+</header>
+
+<div class="spine">
+<section class="teil">
+  <span class="nr">MEINE LESART</span>
+  <h2>Drei Räume, eine Bewegung</h2>
+  <p class="lede">Ideenatelier, Project Singularity und Goal Horizon beschreiben alle dasselbe: <strong>wie aus etwas Unklarem etwas Festes wird.</strong> Nur die Vokabeln unterscheiden sich.</p>
+  <p>Das Briefing gibt der Idee sieben Phasen (Funke → Reife Idee). Die Projektphasen im Vault kennen fünf (Idee → Fertig). Das Zielsystem kennt vier Zustände. Drei getrennt gebaute Zustandsmaschinen für ein und dieselbe Kurve.</p>
+  <p>Wenn jeder Raum seine eigene erfindet, sind Wurmlöcher zwischen ihnen nachher nicht mehr möglich — weil kein Raum weiß, wie „halb fertig" beim Nachbarn heißt. Ich würde deshalb <strong>eine Reifekurve</strong> bauen und die Räume nur unterschiedlich davon erzählen lassen.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <canvas id="kurve" width="1120" height="290" role="img"
+    aria-label="Sieben Stufen der Materialisierung: von einem diffusen Funken zu einem festen Körper."></canvas>
+  <div class="body" style="padding-top:4px">
+    <div class="spuren">
+      <div class="spurzeile"><b>Ideenatelier</b><div class="chips">
+        <span class="on">Funke</span><span class="on">Wolke</span><span class="on">Silhouette</span><span class="on">Formung</span><span class="on">Reality Check</span><span class="on">Prototype</span><span class="on">Reife</span>
+      </div></div>
+      <div class="spurzeile"><b>Singularität</b><div class="chips">
+        <span>—</span><span>—</span><span class="on">Idee</span><span class="on">Entwurf</span><span class="on">In Arbeit</span><span class="on">Abnahme</span><span class="on">Fertig</span>
+      </div></div>
+      <div class="spurzeile"><b>Goal Horizon</b><div class="chips">
+        <span>—</span><span>—</span><span>—</span><span class="on">unklar</span><span class="on">zurückgestellt</span><span class="on">aktiv</span><span class="on">erreicht</span>
+      </div></div>
+    </div>
+  </div>
+  <figcaption>
+    Eine Achse, drei Erzählweisen. Die Räume liegen <b>hintereinander auf derselben Kurve</b>, nicht nebeneinander:
+    Was im Atelier bei „Formung" ankommt, ist im Projektraum eine „Idee". Der Übergabepunkt ist damit definiert
+    statt verhandelt — und ein Wurmloch weiß, wo es landet.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil" style="border-top:none;padding-top:34px">
+  <div class="vorschlag">
+    <h3>Vorschlag 1 — die Reifekurve als eine Zahl</h3>
+    <p>Jedes Objekt in der Welt trägt <code>reife: 0.0 – 1.0</code>. Der Raum entscheidet, wie er das darstellt: Das Atelier lässt Fragmente zusammenziehen, die Singularität wählt die Bahn, der Himmel setzt die Helligkeit. <strong>Ein Wert, drei Bilder.</strong></p>
+    <p>Kosten: fast nichts, wenn es jetzt passiert. Sehr viel, wenn drei Räume erst fertig sind.</p>
+  </div>
+</section>
+
+<section class="teil">
+  <span class="nr">VORSCHLAG ZWEI</span>
+  <h2>Das Weltobjekt — die eigentliche P0-Aufgabe</h2>
+  <p class="lede">Die Prioritätenliste nennt Steuerung, Modus-System und Raumzustände als P0. Richtig. Aber der härteste Blocker fehlt: <strong>Was ist überhaupt ein Ding in dieser Welt?</strong></p>
+  <p>Solange jeder Raum sein eigenes Objekt definiert, sind die im Briefing beschriebenen Wurmlöcher (Ziel ↔ Projekt ↔ Flow ↔ Wissen ↔ Erfolg) technisch nicht baubar. Nicht schwer — <em>nicht baubar</em>, weil es nichts gibt, worüber zwei Räume dasselbe sagen könnten.</p>
+  <p>Sieben Felder reichen. Sie stehen fast alle schon im Vault:</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="objekt">
+      <div class="karte">
+        <header>Weltobjekt</header>
+        <dl>
+          <dt>id</dt><dd>hadsch-2027</dd>
+          <dt>art</dt><dd>ziel</dd>
+          <dt>reife</dt><dd>0.72</dd>
+          <dt>am_zug</dt><dd>andere</dd>
+          <dt>nachweis</dt><dd>selbsterklaerung</dd>
+          <dt>zeit</dt><dd>2026-09-04 … 2027</dd>
+          <dt>gehoert_zu</dt><dd>[spirituell]</dd>
+        </dl>
+      </div>
+      <div class="renders">
+        <div class="render"><b>Goal Horizon</b><span>Ein Stern, hell nach <code>reife</code>, mit ruhigem Ring weil andere am Zug sind.</span></div>
+        <div class="render"><b>Memory Orbit</b><span>Eine Station bei 2026 — die Anmeldung, aus demselben <code>zeit</code>-Feld.</span></div>
+        <div class="render"><b>Singularität</b><span>Ein Meilenstein am zugehörigen Vorhaben, dieselbe <code>id</code>.</span></div>
+        <div class="render"><b>Wurmloch</b><span>Weil die <code>id</code> in drei Räumen vorkommt, gibt es einen Trichter. Ohne Zusatzdaten.</span></div>
+      </div>
+    </div>
+  </div>
+  <figcaption>
+    Dasselbe Objekt, viermal gerendert. <b>Kein Raum besitzt Daten</b> — jeder Raum ist eine Lesebrille auf denselben
+    Satz Felder aus dem Vault. Damit bleibt Obsidian die einzige Wahrheit, wie im Briefing gefordert,
+    und die Wurmlöcher entstehen als Nebenwirkung statt als eigenes Feature.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil" style="border-top:none;padding-top:34px">
+  <p>Der Reiz daran: Die Wurmlöcher aus Kapitel 7 des Briefings — Ziel→Projekt, Projekt→Ziel, Erfolg→Ursprung — müssen dann nicht einzeln gebaut werden. Sie sind alle <em>dieselbe</em> Abfrage: <em class="q">„Wo kommt diese id noch vor?"</em></p>
+</section>
+
+<section class="teil">
+  <span class="nr">VORSCHLAG DREI · WIDERSPRUCH ZUR PRIORITÄT</span>
+  <h2>Der Rekorder gehört auf P0, nicht auf P1</h2>
+  <p class="lede">Das Cinematic Memory steht als P1 in der Liste, mit der Begründung, der Filmrenderer könne später kommen. Der Renderer — ja. <strong>Das Mitschreiben nicht.</strong></p>
+  <p>Es ist der einzige Punkt der ganzen Liste, bei dem Warten den Wert dauerhaft zerstört. Bei allem anderen kostet Aufschub Zeit. Hier kostet er <em>Vergangenheit</em>: Weltzustände, die heute nicht mitgeschrieben werden, sind in einem Jahr nicht nachträglich rekonstruierbar. Kein Renderer der Welt kann einen Tag filmen, von dem keine Daten existieren.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="rek">
+      <div class="tot"><span>nie verfilmbar — kein Mitschnitt existiert</span></div>
+      <div class="lebt"><span>ab hier erzählbar</span></div>
+    </div>
+    <div class="rek-achse"><span>1997</span><span>Tag, an dem der Rekorder startet</span><span>2028</span></div>
+  </div>
+  <figcaption>
+    Der Schnitt liegt dort, wo der Rekorder eingeschaltet wird — und er wandert jeden Tag nach rechts.
+    Die <b>33 datierten Stationen</b> aus dem Lebensprofil sind das Einzige, was aus der Zeit davor noch erzählbar ist,
+    und sie decken nur <b>12 von 31 Jahren</b> ab.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil" style="border-top:none;padding-top:34px">
+  <div class="vorschlag">
+    <h3>Vorschlag 3 — heute anfangen, klein</h3>
+    <p>Eine Datei, die nur angehängt wird. Pro Ereignis eine Zeile: <code>zeitpunkt</code>, <code>art</code>, <code>objekt-id</code>, <code>vorher</code>, <code>nachher</code>, <code>beteiligte</code>, <code>artefakte</code>. Kein Renderer, keine Kamera, keine Effekte.</p>
+    <p>Das ist ein Nachmittag Arbeit und keine Zeile 3D-Code. Wenn der Film Mode in einem Jahr gebaut wird, hat er dann ein Jahr Material — sonst fängt er bei null an. <strong>Es ist der billigste Punkt der Liste mit dem größten Verfallsdatum.</strong></p>
+  </div>
+</section>
+
+<section class="teil">
+  <span class="nr">VORSCHLAG VIER</span>
+  <h2>Vision Sanctuary ist kein Wellness-Raum</h2>
+  <p class="lede">Im Briefing steht Vision Sanctuary als emotionaler Aufladeraum. Ich glaube, er hat eine härtere Funktion, und die macht ihn erst rechtfertigbar.</p>
+  <p>Beim Messen deines Zielhimmels sind zwei Lebensrichtungen aufgefallen, die <strong>kein einziges konkretes Ziel</strong> haben: Familiär und Gesundheit. Beide stehen in deinen langfristigen Zielen, aber nichts zahlt darauf ein.</p>
+  <p>Jetzt der Abgleich mit den sechs Unterräumen aus dem Briefing:</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="zuord">
+      <div class="feld leer"><b>Körper &amp; Gesundheit</b><u>Sternbild Gesundheit</u><i>0 Ziele im Vault</i></div>
+      <div class="feld leer"><b>Familie &amp; Zuhause</b><u>Sternbild Familiär</u><i>0 Ziele im Vault</i></div>
+      <div class="feld"><b>Beruf &amp; Wohlstand</b><u>Sternbild Beruflich</u><i>4 Ziele</i></div>
+      <div class="feld"><b>Religion &amp; Frieden</b><u>Sternbild Spirituell</u><i>2 Ziele</i></div>
+      <div class="feld"><b>Wissen &amp; Persönlichkeit</b><u>Sternbild Lernen</u><i>3 Ziele</i></div>
+      <div class="feld"><b>Gesamtvision</b><u>alle fünf zusammen</u><i>Rahmen, kein Sternbild</i></div>
+    </div>
+  </div>
+  <figcaption>
+    Die Unterräume des Vision Sanctuary sind <b>deckungsgleich mit deinen fünf Sternbildern</b> — das ist kein Zufall,
+    beide beschreiben dieselbe Lebensbalance. Und die zwei Räume, für die es <b>kein einziges Ziel</b> gibt,
+    sind genau die zwei, in denen das Gefühl leichter zu fassen ist als eine SMART-Formulierung.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil" style="border-top:none;padding-top:34px">
+  <p>Daraus folgt für mich die eigentliche Aufgabe des Raums: <strong>Vision Sanctuary ist der Eingang für die Lebensbereiche, die noch kein Ziel haben.</strong> Nicht „Motivation tanken", sondern: hier darf ein Lebensbereich zuerst als Bild und Gefühl existieren, bevor er ein Ziel wird. Für Gesundheit und Familie ist das der einzig ehrliche Weg — ein Wunsch nach Nähe lässt sich nicht als Meilenstein anmelden.</p>
+
+  <div class="pull">Der Ausgang aus dem Vision Sanctuary ist kein Wohlgefühl, sondern ein Satz: „Das hier will ich — was wäre der erste kleine Schritt?"</div>
+
+  <div class="warnung">
+    <h3>Das Traumhaus — genau hier lauert der AI-Slop</h3>
+    <p>Ein begehbares Traumhaus mit Garten und Tieren ist der emotionalste Teil des Briefings und zugleich der Punkt, an dem die eigene No-Go-Liste am ehesten reißt. Ein fotorealistisches generiertes Haus ist genau die <em>„generische KI-Bilderfolge"</em>, gegen die das Dokument sonst argumentiert — und es wäre austauschbar, also emotional wertlos.</p>
+    <p><strong>Mein Gegenvorschlag: Zurückhaltung als Gestaltung.</strong> Wenige, starke, <em>deine</em> Motive statt eines vollständigen Hauses. Ein Gartentor. Ein Baum. Ein Platz mit zwei Stühlen. Die Tiere als Geräusch, nicht als Modell. Warmes Abendlicht. Der Rest bleibt bewusst unscharf — weil ein unfertiges Bild deiner Vorstellung Raum lässt und ein fertiges sie ersetzt.</p>
+    <p>Das ist außerdem in einem Bruchteil der Zeit baubar und läuft auf deiner integrierten Grafikeinheit.</p>
+  </div>
+</section>
+
+<section class="teil">
+  <span class="nr">VORSCHLAG FÜNF</span>
+  <h2>Das Ideenatelier braucht vor allem einen Ausgang</h2>
+  <p class="lede">Ich habe den Ideenparkplatz gezählt. <span class="zahl">12</span> offene Ideen. <span class="zahl">0</span> verworfene.</p>
+  <p>Das Briefing nennt sechs Ausgänge — Experiment, Ziel, Meilensteine, Projekt, Später prüfen, Archivieren/Verwerfen. In der Praxis wurde bisher <strong>keiner davon je benutzt.</strong> Ideen kommen hinein und bleiben.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="trichter">
+      <div>
+        <div class="stapel">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin:10px 0 0">12 offene Ideen · Stand 2026-09-07</p>
+      </div>
+      <div class="mitte null"><b>0</b>verworfen<br>oder entschieden</div>
+      <div>
+        <div class="stapel aus"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin:10px 0 0">6 vorgesehene Ausgänge · nie benutzt</p>
+      </div>
+    </div>
+  </div>
+  <figcaption>
+    Gezählt in <b>09🅿️Ideenparkplatz/Ideen.md</b>: zwölf Überschriften unter „Offene Ideen",
+    der Abschnitt „Verworfene Ideen" ist <b>leer</b>. Ein schöneres Atelier ohne Ausgang wäre
+    ein schönerer Parkplatz.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil" style="border-top:none;padding-top:34px">
+  <p>Deshalb würde ich das Atelier <em>vom Ausgang her</em> bauen, nicht vom Eintritt. Die sieben Phasen sind hübsch, aber die Mechanik, die den Unterschied macht, ist die Entscheidung am Ende — und die tut weh. Eine Idee zu verwerfen fühlt sich nach Verlust an, deshalb passiert es nie.</p>
+
+  <div class="vorschlag">
+    <h3>Vorschlag 5 — das Verwerfen sichtbar belohnen</h3>
+    <p><strong>Eine verworfene Idee verschwindet nicht, sie erlischt sichtbar</strong> und hinterlässt eine Spur im Raum: wann, und der eine Satz warum. Wer das Atelier betritt, sieht die erloschenen Formen am Rand — nicht als Friedhof, sondern als Beweis, dass hier entschieden wird.</p>
+    <p>Dazu <strong>ein Verfallsdatum je Idee</strong>, wie bei deinem YouTube-Kanal im Zielsystem: nicht „bis wann fertig", sondern <em>„bis wann entschieden"</em>. Läuft es ab, fragt Hermes genau einmal. Das ist die einzige Mechanik, die 12 offene Ideen wieder auf eine bearbeitbare Zahl bringt.</p>
+  </div>
+</section>
+
+<section class="teil">
+  <span class="nr">VORSCHLAG SECHS</span>
+  <h2>Zehn Räume, ein Mensch — wo lande ich?</h2>
+  <p class="lede">Nach dem Briefing hat die Welt zehn Räume mit klaren Rollen. Was fehlt, ist die Frage davor: <strong>Welchen davon öffne ich an einem Dienstagmorgen?</strong></p>
+  <p>Ohne eine Antwort konkurrieren die Räume um dieselbe knappe Ressource — deine Aufmerksamkeit in einem bestimmten Moment. Der Raum, den man aufsucht, wenn eine Frist drängt, ist nicht der Raum, den man aufsucht, wenn die Motivation weg ist. Zehn gleichberechtigte Türen führen dazu, dass drei benutzt werden und sieben verstauben.</p>
+
+  <div class="vorschlag">
+    <h3>Vorschlag 6 — Home ist keine Kulisse, sondern die Weiche</h3>
+    <p>Home zeigt beim Eintreten <strong>höchstens drei Türen</strong>, ausgewählt aus dem echten Zustand — und jede mit ihrem Grund:</p>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:13px;line-height:2;color:var(--muted)">
+      → <span style="color:var(--gold)">Goal Horizon</span> — eine Frist rückt näher<br>
+      → <span style="color:var(--gold)">Singularität</span> — ein Vorhaben wartet seit 9 Tagen auf deine Abnahme<br>
+      → <span style="color:var(--gold)">Vision Sanctuary</span> — in „Gesundheit" war seit Wochen niemand
+    </p>
+    <p>Das ist derselbe Gedanke wie die Mission aus Kapitel 6, nur eine Ebene darüber — und es ist das einzige Mittel, mit dem ein Raum wie Vision Sanctuary überhaupt Besucher bekommt. Ein Raum, den man aktiv suchen muss, wird genau einmal besucht: am Tag, an dem er fertig wird.</p>
+  </div>
+</section>
+
+<section class="teil">
+  <span class="nr">ZUM YOUTUBE-RAUM</span>
+  <h2>Der Quellenboden als sichtbares Bauteil</h2>
+  <p class="lede">Bei den religiösen Wissenswelten steht die richtige Regel schon in der No-Go-Liste: keine Darstellung mit Anspruch auf das Verborgene. Meine Ergänzung betrifft nicht die Regel, sondern ihre Form.</p>
+  <p>Ein Hinweistext am Rand wird nach dem dritten Video nicht mehr gelesen. Ich würde die Quellenlage stattdessen <strong>zum Boden machen, auf dem der Betrachter steht</strong> — dann kann er ihr nicht ausweichen, und sie wird zur Handschrift des Formats statt zu seiner Fußnote.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="boeden">
+      <div class="boden q"><b>Boden 1</b><span>Direkte Qur'an-Grundlage — fester Grund, klares Licht, Vers sichtbar am Ort.</span></div>
+      <div class="boden h"><b>Boden 2</b><span>Authentischer Hadith — etwas weicherer Grund, Quelle und Kette abrufbar.</span></div>
+      <div class="boden k"><b>Boden 3</b><span>Künstlerische Ausgestaltung — der Boden wird durchscheinend, das Licht kühler. Man sieht: hier gehe ich auf Deutung.</span></div>
+    </div>
+  </div>
+  <figcaption>
+    Drei Materialien statt eines Haftungshinweises. Der Betrachter erkennt an jeder Stelle, worauf er steht —
+    und der Übergang von Beleg zu Deutung ist ein <b>spürbarer Wechsel</b>, kein Kleingedrucktes.
+    Das ist zugleich das Merkmal, das dieses Format von jedem generierten Religionsvideo unterscheidet.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil">
+  <span class="nr">WAS ICH IN DIESER RUNDE BAUEN WÜRDE</span>
+  <h2>Vier Dinge, nicht zehn</h2>
+  <p class="lede">Das Briefing listet dreizehn Prioritäten von P0 bis P3. Realistisch für die laufende A/B-Runde sind vier — und drei davon sind kein 3D.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body tabelle-scroll">
+    <table>
+      <thead><tr><th>Was</th><th>Warum jetzt</th><th>3D?</th><th>Aufwand</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Reifekurve</strong> — ein Feld <code>reife</code> für alles</td><td>Danach unmöglich nachzurüsten, weil drei Räume dann drei Modelle haben</td><td class="nein">nein</td><td class="mono">klein</td></tr>
+        <tr><td><strong>Weltobjekt</strong> — sieben Felder, eine <code>id</code></td><td>Ohne das sind Wurmlöcher nicht schwer, sondern unmöglich</td><td class="nein">nein</td><td class="mono">klein</td></tr>
+        <tr><td><strong>Rekorder</strong> — angehängte Ereigniszeilen</td><td>Der einzige Punkt, bei dem Warten Vergangenheit vernichtet</td><td class="nein">nein</td><td class="mono">klein</td></tr>
+        <tr><td><strong>Ideenatelier</strong>, gebaut vom Ausgang her</td><td>12 offene, 0 entschiedene Ideen — hier ist echter Druck</td><td class="ja">ja</td><td class="mono">mittel</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <figcaption>
+    Die ersten drei sind zusammen weniger Arbeit als eine einzige neue Welt — und sie sind die Voraussetzung
+    dafür, dass Vision Sanctuary, Mission Mode, Film Mode und Wurmlöcher später <b>überhaupt zusammenpassen</b>.
+    Alles darunter ist aus meiner Sicht 2027.
+  </figcaption>
+</figure>
+
+<div class="spine">
+<section class="teil" style="border-top:none;padding-top:34px">
+  <p>Der Satz, mit dem das Briefing schließt, ist der beste darin: <em class="q">„Würde dieses Feature auch dann noch Sinn ergeben, wenn man alle Partikel und Glows entfernt?"</em></p>
+  <p>Ich habe meine sechs Vorschläge daran gemessen. Reifekurve, Weltobjekt, Rekorder, der Ausgang aus dem Atelier und die Weiche im Home überstehen den Test vollständig — sie funktionieren als reiner Text. Das Traumhaus und der Quellenboden überstehen ihn nicht, und das ist bei beiden in Ordnung: ihre Aufgabe <em>ist</em> das Gefühl. Man sollte nur wissen, in welcher der beiden Kategorien man gerade baut.</p>
+
+  <div class="pull">Baut zuerst das, was auch ohne Bild funktioniert. Dann hat das Bild etwas, worüber es reden kann.</div>
+</section>
+</div>
+
+<footer>
+  <div class="spine">
+    <h3>Woher die Zahlen kommen</h3>
+    <ul>
+      <li><b>12 offene, 0 verworfene Ideen</b> — Überschriften in <code>09🅿️Ideenparkplatz/Ideen.md</code>, gezählt 2026-09-07</li>
+      <li><b>2 Sternbilder ohne Ziel</b> (Familiär, Gesundheit) — Frontmatter in <code>03🪪 Identität/Ziele/</code></li>
+      <li><b>4 / 3 / 2 Ziele</b> in Beruflich / Lernen / Spirituell — dieselbe Quelle</li>
+      <li><b>33 Stationen, 12 von 31 Jahren</b> — <code>/api/vault/timeline</code> gegen <code>04📖 Lebensprofil</code></li>
+      <li><b>5 Projektphasen, 4 Zielzustände</b> — <code>05 🚀 Projekte/00 Übersicht/Projektphasen</code> und <code>03🪪 Identität/20 Zielsystem</code></li>
+      <li><b>7 Ideenphasen, 6 Ausgänge, 13 Prioritäten</b> — <code>Hermes3D_Weitere_Raumideen_Gamefeel_Cinematic_Vision_Ideenatelier.pdf</code>, Kapitel 10 und 12</li>
+    </ul>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);margin-top:26px;line-height:1.75">
+      Vorentwurf, nicht verbindlich. Antwort auf das Briefing vom 2026-09-07 — Ergänzung, kein Ersatz.
+      Schwesterseite: <b>Claude – Was der Raum nicht zeigt.html</b>
+    </p>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+
+  document.getElementById("tt").addEventListener("click", function () {
+    var dunkel = getComputedStyle(root).getPropertyValue("--ground").trim().indexOf("#14") === 0;
+    root.setAttribute("data-theme", dunkel ? "light" : "dark");
+    zeichne();
+  });
+
+  var STUFEN = ["Funke", "Gedankenwolke", "Silhouette", "Formung", "Reality Check", "Prototype Gate", "Reife Idee"];
+  var cv = document.getElementById("kurve");
+  var ctx = cv.getContext("2d");
+
+  function f(n) { return getComputedStyle(root).getPropertyValue(n).trim(); }
+
+  function zeichne() {
+    var W = cv.width, H = cv.height;
+    var gold = f("--gold"), goldDim = f("--gold-dim"), muted = f("--muted"),
+        ink = f("--ink"), line = f("--line"), surface = f("--surface");
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = surface;
+    ctx.fillRect(0, 0, W, H);
+
+    var n = STUFEN.length;
+    var breite = W / n;
+    var cy = H * 0.45;
+
+    // Achse
+    ctx.beginPath();
+    ctx.moveTo(breite * 0.5, H - 52);
+    ctx.lineTo(W - breite * 0.5, H - 52);
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    var seed = 19;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+
+    for (var i = 0; i < n; i++) {
+      var t = i / (n - 1);
+      var cx = breite * (i + 0.5);
+
+      // Streufragmente — werden weniger und rücken näher
+      var anzahl = Math.round(30 * (1 - t) * (1 - t * 0.35));
+      ctx.fillStyle = goldDim;
+      for (var p = 0; p < anzahl; p++) {
+        var w = rnd() * 6.2832;
+        var r = 20 + rnd() * (58 * (1 - t) + 6);
+        ctx.globalAlpha = 0.20 + 0.35 * (1 - t);
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(w) * r, cy + Math.sin(w) * r * 0.82, rnd() * 1.6 + 0.5, 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Körper: aus unruhigem Umriss wird ein festes Siebeneck
+      var ecken = 7, pts = [];
+      for (var e = 0; e < ecken; e++) {
+        var a = (e / ecken) * 6.2832 - 1.5708;
+        var unruhe = (rnd() - 0.5) * 26 * (1 - t);
+        var rad = 27 + unruhe;
+        pts.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]);
+      }
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (var k = 1; k < ecken; k++) ctx.lineTo(pts[k][0], pts[k][1]);
+      ctx.closePath();
+
+      ctx.fillStyle = gold;
+      ctx.globalAlpha = t * t * 0.42;
+      ctx.fill();
+      ctx.globalAlpha = 0.22 + 0.78 * t;
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = 1 + t * 1.2;
+      if (t < 0.55) ctx.setLineDash([4, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+
+      // Kern: anfangs stark, später aufgegangen im Körper
+      var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 22);
+      g.addColorStop(0, gold);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.65 * (1 - t) + 0.12;
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, 22, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = gold;
+      ctx.beginPath(); ctx.arc(cx, cy, 2.6 + (1 - t) * 1.6, 0, 6.2832); ctx.fill();
+
+      // Marke und Beschriftung
+      ctx.beginPath();
+      ctx.arc(cx, H - 52, 3, 0, 6.2832);
+      ctx.fillStyle = t === 1 ? gold : muted;
+      ctx.fill();
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillStyle = ink;
+      ctx.font = "13px 'Newsreader', Georgia, serif";
+      ctx.fillText(STUFEN[i], cx, H - 40);
+      ctx.fillStyle = muted;
+      ctx.font = "10px 'JetBrains Mono', monospace";
+      ctx.fillText("reife " + t.toFixed(2), cx, H - 22);
+    }
+
+    // Achsenbeschriftung
+    ctx.textAlign = "left";
+    ctx.fillStyle = muted;
+    ctx.font = "600 10px 'JetBrains Mono', monospace";
+    ctx.fillText("DIFFUS", 10, 14);
+    ctx.textAlign = "right";
+    ctx.fillText("FEST", W - 10, 14);
+  }
+
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(zeichne);
+  zeichne();
+})();
+</script>

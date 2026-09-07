@@ -18,6 +18,8 @@ import { matchesQuery } from "@/features/v2/search";
  * cosmos then says where it is.
  */
 
+import type { ContentHit } from "@/features/v2/useContentSearch";
+
 const MAX_RESULTS = 8;
 
 export function SearchField({
@@ -26,21 +28,19 @@ export function SearchField({
   onQuery,
   onPick,
   selectedId,
+  contentHits = [],
 }: {
   nodes: VaultNode[];
   query: string;
   onQuery: (value: string) => void;
   onPick: (node: VaultNode) => void;
   selectedId: string | null;
+  contentHits?: ContentHit[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
    * Slash focuses the field, the way every search field he already uses does.
-   *
-   * Never while he is typing somewhere else, and never as a second owner of
-   * Escape — that key belongs to exactly one chain, in V2Screen, and this
-   * component deliberately does not listen for it.
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -57,12 +57,19 @@ export function SearchField({
   const needle = query.trim().toLowerCase();
   const results = useMemo(() => {
     if (!needle) return [];
-    return nodes
+    const byTitle = nodes
       .filter((node) => matchesQuery(node, needle))
-      // The best connected first: in a knowledge graph, degree is the closest
-      // thing to relevance that is actually measured rather than guessed.
       .sort((a, b) => b.degree - a.degree);
-  }, [nodes, needle]);
+
+    const seen = new Set(byTitle.map((node) => node.id));
+    const fromText: VaultNode[] = [];
+    for (const hit of contentHits) {
+      if (seen.has(hit.id)) continue;
+      const node = nodes.find((entry) => entry.id === hit.id);
+      if (node) fromText.push(node);
+    }
+    return [...byTitle, ...fromText];
+  }, [nodes, needle, contentHits]);
 
   return (
     <div className="pointer-events-auto absolute left-4 top-16 z-30 w-[300px] max-w-[calc(100vw-2rem)]">

@@ -171,6 +171,7 @@ export function KnowledgeAreas({
   edges = [],
   selectedId = null,
   query = "",
+  queryHitIds,
   reducedMotion = false,
   onSelect,
   onFocusRequest,
@@ -401,10 +402,12 @@ export function KnowledgeAreas({
       const isNeighbor = directNeighborIds.has(node.id);
       const isHovered = hoveredId === node.id;
 
-      // Suchabgleich
-      const matchesQuery = !queryLower || 
+      // Suchabgleich — Titel, Ordner, oder Volltexttreffer
+      const matchesQuery =
+        !queryLower ||
         node.title.toLowerCase().includes(queryLower) ||
-        (node.groupId && node.groupId.toLowerCase().includes(queryLower));
+        (node.groupId && node.groupId.toLowerCase().includes(queryLower)) ||
+        Boolean(queryHitIds?.has(node.id));
 
       // Basis-Skalierung abhängig vom Vernetzungsgrad (degree)
       const baseScale = Math.max(0.75, Math.min(1.8, 0.8 + (node.degree || 1) * 0.08));
@@ -446,7 +449,7 @@ export function KnowledgeAreas({
 
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [positionedNodes, selectedId, directNeighborIds, hoveredId, query]);
+  }, [positionedNodes, selectedId, directNeighborIds, hoveredId, query, queryHitIds]);
 
   // 5. Animierte Effekte in useFrame (bei reducedMotion komplett statisch)
   useFrame(({ clock }, delta) => {

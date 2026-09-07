@@ -1,292 +1,449 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { readBeamAnchors } from "./beamAnchors";
 
 export interface JarvisNeuralBeamProps {
   active: boolean;
-  onComplete?: () => void;
+  isScanning?: boolean;
+  onDismiss?: () => void;
+  onFlyToSource?: (sourceId: string) => void;
   targetLabel?: string;
 }
 
-/**
- * Jarvis Neural Beam & Brain Scan Effect
- *
- * Visuelle Verbindung zwischen dem Jarvis-Knopf unten rechts und dem Gehirn/Index:
- * - Leuchtender Laser-/Synapsenstrahl mit vorwärts- und rückwärts fließenden Datenpaketen
- * - Zielerfassung am Index-Knoten im Gehirn mit drehender HUD-Zielmarkierung
- * - 3D-inspirierte sphärische Scan-Welle, die das neuronale Wissensnetz durchleuchtet
- */
+const MAX_TARGETS = 5;
+const PACKETS_PER_BEAM = 3;
+const MAX_SWEEP_PULSES = 8;
+const SCAN_PERIOD_SEC = 2.8;
+
+const BRANCH_COLORS = [
+  "rgba(0, 240, 255, 0.95)", // Cyan
+  "rgba(192, 132, 252, 0.85)", // Purple
+  "rgba(52, 211, 153, 0.85)", // Emerald
+  "rgba(251, 191, 36, 0.85)", // Amber
+  "rgba(244, 63, 94, 0.85)", // Rose
+];
+
 export function JarvisNeuralBeam({
   active,
-  onComplete,
-  targetLabel = "INDEX: 02⚙️ SYSTEM",
+  isScanning = false,
+  onDismiss,
+  onFlyToSource,
+  targetLabel,
 }: JarvisNeuralBeamProps) {
-  const [stage, setStage] = useState<"idle" | "connecting" | "scanning" | "transferring">("idle");
-  const [pulseProgress, setPulseProgress] = useState(0);
+  const labelText = useRef(targetLabel);
+  useEffect(() => {
+    labelText.current = targetLabel;
+  }, [targetLabel]);
+
+  // Refs für SVG-Elemente zur direkten High-FPS-Manipulation ohne React-Rerender-Stau
+  const containerRef = useRef<HTMLDivElement>(null);
+  const headGlowRef = useRef<SVGCircleElement>(null);
+  const centerTargetRef = useRef<SVGGElement>(null);
+  const centerTextRef = useRef<SVGTextElement>(null);
+  const sweepLineRef = useRef<SVGLineElement>(null);
+
+  const mainBeamRef = useRef<SVGLineElement>(null);
+  const mainCoreRef = useRef<SVGLineElement>(null);
+
+  const branchBeamRefs = useRef<(SVGLineElement | null)[]>([]);
+  const branchCoreRefs = useRef<(SVGLineElement | null)[]>([]);
+  const packetRefs = useRef<(SVGCircleElement | null)[]>([]);
+  const sweepSparkRefs = useRef<(SVGCircleElement | null)[]>([]);
+
+  // DOM Node Overlays für klickbare Targets
+  const [domTargets, setDomTargets] = useState<
+    Array<{ id: string; label: string; x: number; y: number }>
+  >([]);
 
   useEffect(() => {
     if (!active) {
-      setStage("idle");
+      setDomTargets([]);
       return;
     }
 
-    setStage("connecting");
-    const t1 = setTimeout(() => setStage("scanning"), 400);
-    const t2 = setTimeout(() => setStage("transferring"), 1400);
-    const t3 = setTimeout(() => {
-      setStage("idle");
-      onComplete?.();
-    }, 2600);
+    let rafId = 0;
+    const startTime = performance.now();
+    let lastDomUpdate = 0;
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
+    const tick = () => {
+      const now = performance.now();
+      const t = (now - startTime) / 1000;
+      const { head, brainCenter, targets, sweep } = readBeamAnchors();
+
+      // Fallback-Position für den Kopf (Standard: unten rechts)
+      const headPos = head ?? {
+        x: window.innerWidth - 60,
+        y: window.innerHeight - 60,
+      };
+
+      // Fallback-Position für das Gehirn-Zentrum (Standard: Bildschirmmitte)
+      const centerPos = brainCenter ?? {
+        x: window.innerWidth * 0.5,
+        y: window.innerHeight * 0.46,
+      };
+
+      // 1. Kopf-Aura animieren
+      if (headGlowRef.current) {
+        headGlowRef.current.setAttribute("cx", String(headPos.x));
+        headGlowRef.current.setAttribute("cy", String(headPos.y));
+        const pulse = Math.sin(t * 5) * 4 + 20;
+        headGlowRef.current.setAttribute("r", String(pulse));
+      }
+
+      const hasRealTargets = targets.length > 0;
+
+      // 2. Scan-Effekt (Sweep-Welle durch das neuronale Netz)
+      if (sweep.length > 0) {
+        let minX = Infinity,
+          maxX = -Infinity,
+          minY = Infinity,
+          maxY = -Infinity;
+        for (const p of sweep) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        }
+
+        const sweepProgress = (t % SCAN_PERIOD_SEC) / SCAN_PERIOD_SEC;
+        const pingPong =
+          sweepProgress < 0.5 ? sweepProgress * 2 : 2 - sweepProgress * 2;
+        const curY = minY + (maxY - minY) * pingPong;
+
+        if (sweepLineRef.current) {
+          sweepLineRef.current.setAttribute("x1", String(Math.max(20, minX - 40)));
+          sweepLineRef.current.setAttribute("x2", String(Math.min(window.innerWidth - 20, maxX + 40)));
+          sweepLineRef.current.setAttribute("y1", String(curY));
+          sweepLineRef.current.setAttribute("y2", String(curY));
+          sweepLineRef.current.setAttribute("opacity", isScanning ? "0.85" : "0.35");
+        }
+
+        // Funken an getroffenen Sweep-Notizen
+        for (let i = 0; i < MAX_SWEEP_PULSES; i++) {
+          const spark = sweepSparkRefs.current[i];
+          if (!spark) continue;
+          const pt = sweep[(i * 7 + Math.floor(t * 12)) % sweep.length];
+          if (pt && Math.abs(pt.y - curY) < 45) {
+            spark.setAttribute("cx", String(pt.x));
+            spark.setAttribute("cy", String(pt.y));
+            spark.setAttribute("opacity", "0.9");
+            spark.setAttribute("r", String(Math.sin(t * 10 + i) * 1.5 + 3));
+          } else {
+            spark.setAttribute("opacity", "0");
+          }
+        }
+      }
+
+      // 3. Haupt-Verbindung (entweder zu Gehirnmitte während Scan oder zu Notiz 1)
+      const primaryTarget = hasRealTargets ? targets[0] : centerPos;
+
+      if (mainBeamRef.current && mainCoreRef.current) {
+        mainBeamRef.current.setAttribute("x1", String(headPos.x));
+        mainBeamRef.current.setAttribute("y1", String(headPos.y));
+        mainBeamRef.current.setAttribute("x2", String(primaryTarget.x));
+        mainBeamRef.current.setAttribute("y2", String(primaryTarget.y));
+
+        mainCoreRef.current.setAttribute("x1", String(headPos.x));
+        mainCoreRef.current.setAttribute("y1", String(headPos.y));
+        mainCoreRef.current.setAttribute("x2", String(primaryTarget.x));
+        mainCoreRef.current.setAttribute("y2", String(primaryTarget.y));
+
+        mainBeamRef.current.setAttribute(
+          "stroke-width",
+          hasRealTargets ? "12" : isScanning ? "14" : "8"
+        );
+        mainBeamRef.current.setAttribute("opacity", hasRealTargets ? "0.9" : "0.7");
+      }
+
+      // Zentrum-Reticle (nur aktiv, wenn noch keine konkreten Notizen feststehen)
+      if (centerTargetRef.current) {
+        if (!hasRealTargets) {
+          centerTargetRef.current.setAttribute("opacity", "1");
+          centerTargetRef.current.setAttribute(
+            "transform",
+            `translate(${centerPos.x}, ${centerPos.y}) rotate(${t * 40})`
+          );
+          if (centerTextRef.current) {
+            centerTextRef.current.textContent = isScanning
+              ? "NEURAL SCAN • DURCHSUCHE GEHIRN"
+              : labelText.current ?? "HERMES KERNEL";
+          }
+        } else {
+          centerTargetRef.current.setAttribute("opacity", "0");
+        }
+      }
+
+      // 4. Verzweigte Strahlen zu weiteren Notizen
+      for (let i = 0; i < MAX_TARGETS; i++) {
+        const branchBeam = branchBeamRefs.current[i];
+        const branchCore = branchCoreRefs.current[i];
+        const tgt = targets[i];
+
+        if (!hasRealTargets || !tgt) {
+          branchBeam?.setAttribute("opacity", "0");
+          branchCore?.setAttribute("opacity", "0");
+          continue;
+        }
+
+        const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
+
+        if (branchBeam && branchCore) {
+          branchBeam.setAttribute("x1", String(headPos.x));
+          branchBeam.setAttribute("y1", String(headPos.y));
+          branchBeam.setAttribute("x2", String(tgt.x));
+          branchBeam.setAttribute("y2", String(tgt.y));
+          branchBeam.setAttribute("stroke", color);
+          branchBeam.setAttribute("opacity", "0.6");
+
+          branchCore.setAttribute("x1", String(headPos.x));
+          branchCore.setAttribute("y1", String(headPos.y));
+          branchCore.setAttribute("x2", String(tgt.x));
+          branchCore.setAttribute("y2", String(tgt.y));
+          branchCore.setAttribute("opacity", "0.9");
+        }
+      }
+
+      // 5. Datenpakete (fließen entlang der Strahlen)
+      for (let i = 0; i < MAX_TARGETS; i++) {
+        const tgt = hasRealTargets ? targets[i] : (i === 0 ? centerPos : null);
+        for (let p = 0; p < PACKETS_PER_BEAM; p++) {
+          const packetIdx = i * PACKETS_PER_BEAM + p;
+          const packetEl = packetRefs.current[packetIdx];
+          if (!packetEl) continue;
+
+          if (!tgt) {
+            packetEl.setAttribute("opacity", "0");
+            continue;
+          }
+
+          const progress = ((t * 0.75 + p / PACKETS_PER_BEAM + i * 0.15) % 1);
+          const px = headPos.x + (tgt.x - headPos.x) * progress;
+          const py = headPos.y + (tgt.y - headPos.y) * progress;
+
+          packetEl.setAttribute("cx", String(px));
+          packetEl.setAttribute("cy", String(py));
+          packetEl.setAttribute("opacity", "0.95");
+          packetEl.setAttribute("r", i === 0 ? "3.5" : "2.5");
+        }
+      }
+
+      // 6. DOM-Targets alle ~80ms synchronisieren
+      if (now - lastDomUpdate > 80) {
+        lastDomUpdate = now;
+        if (hasRealTargets) {
+          setDomTargets(
+            targets.map((tg) => ({
+              id: tg.id,
+              label: tg.label,
+              x: tg.x,
+              y: tg.y,
+            }))
+          );
+        } else {
+          setDomTargets([]);
+        }
+      }
+
+      rafId = requestAnimationFrame(tick);
     };
-  }, [active, onComplete]);
 
-  useEffect(() => {
-    if (stage === "idle") return;
-    let raf = 0;
-    const loop = () => {
-      setPulseProgress((p) => (p + 0.025) % 1);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [stage]);
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [active, isScanning]);
 
-  if (stage === "idle") return null;
+  if (!active) return null;
 
-  // Koordinaten: Start unten rechts (beim Jarvis-Knopf) -> Ziel Bildschirmmitte / Gehirn-Index
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
+    >
+      {/* SVG Canvas für Laser, Glüheffekte, Scanwellen und Datenpakete */}
       <svg className="h-full w-full">
         <defs>
-          {/* Laser-Glow-Filter */}
-          <filter id="laser-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="6" result="glow" />
-            <feComposite in="SourceGraphic" in2="glow" operator="over" />
+          <filter id="jarvis-laser-glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="7" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
-
-          {/* Farbverlauf des Strahls */}
-          <linearGradient id="beam-grad" x1="100%" y1="100%" x2="50%" y2="50%">
-            <stop offset="0%" stopColor="#00f0ff" stopOpacity="0.9" />
-            <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-          </linearGradient>
-
-          {/* Rückfluss-Gradient */}
-          <linearGradient id="return-grad" x1="50%" y1="50%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.9" />
-            <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#00f0ff" stopOpacity="1" />
-          </linearGradient>
         </defs>
 
-        {/* 1. Haupt-Energiestrahl */}
-        <line
-          x1="calc(100vw - 44px)"
-          y1="calc(100vh - 44px)"
-          x2="50%"
-          y2="46%"
-          stroke="rgba(0, 240, 255, 0.25)"
-          strokeWidth="14"
-          filter="url(#laser-glow)"
-        />
-        <line
-          x1="calc(100vw - 44px)"
-          y1="calc(100vh - 44px)"
-          x2="50%"
-          y2="46%"
-          stroke={stage === "transferring" ? "url(#return-grad)" : "url(#beam-grad)"}
-          strokeWidth="3"
-          filter="url(#laser-glow)"
-        />
-        <line
-          x1="calc(100vw - 44px)"
-          y1="calc(100vh - 44px)"
-          x2="50%"
-          y2="46%"
-          stroke="#ffffff"
-          strokeWidth="1.2"
+        {/* Kopf-Aura */}
+        <circle
+          ref={headGlowRef}
+          fill="none"
+          stroke="#00f0ff"
+          strokeWidth="2"
+          opacity="0.8"
+          filter="url(#jarvis-laser-glow)"
         />
 
-        {/* 2. Fließende Daten-Energiepakete entlang des Hauptstrahls */}
-        {[0, 0.25, 0.5, 0.75].map((offset, idx) => {
-          const t = (pulseProgress + offset) % 1;
-          const isReturning = stage === "transferring";
-          const prog = isReturning ? 1 - t : t;
+        {/* Scan-Horizont-Linie */}
+        <line
+          ref={sweepLineRef}
+          stroke="rgba(0, 240, 255, 0.7)"
+          strokeWidth="2.5"
+          strokeDasharray="6 4"
+          filter="url(#jarvis-laser-glow)"
+          opacity="0"
+        />
 
-          return (
-            <circle
-              key={idx}
-              cx={`calc((100vw - 44px) + (50vw - (100vw - 44px)) * ${prog})`}
-              cy={`calc((100vh - 44px) + (46vh - (100vh - 44px)) * ${prog})`}
-              r={isReturning ? 4.5 : 3.5}
-              fill={isReturning ? "#c084fc" : "#ffffff"}
-              filter="url(#laser-glow)"
-            />
-          );
-        })}
+        {/* Sweep-Notizfunken */}
+        {Array.from({ length: MAX_SWEEP_PULSES }).map((_, i) => (
+          <circle
+            key={`spark-${i}`}
+            ref={(el) => {
+              sweepSparkRefs.current[i] = el;
+            }}
+            fill="#38bdf8"
+            opacity="0"
+            filter="url(#jarvis-laser-glow)"
+          />
+        ))}
 
-        {/* 3. Verzweigte Synapsen-Strahlen in die spezifischen Gehirn-Areale */}
-        {(stage === "scanning" || stage === "transferring") && (
-          <>
-            {/* Areal 03/04: Identität & Lebensprofil (Links oben) */}
+        {/* Verzweigte Strahlen zu den Notizen */}
+        {Array.from({ length: MAX_TARGETS }).map((_, i) => (
+          <g key={`branch-${i}`}>
             <line
-              x1="50%"
-              y1="46%"
-              x2="35%"
-              y2="36%"
-              stroke="rgba(232, 121, 249, 0.7)"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
+              ref={(el) => {
+                branchBeamRefs.current[i] = el;
+              }}
+              strokeWidth="6"
+              filter="url(#jarvis-laser-glow)"
+              opacity="0"
             />
-            {/* Areal 05: Projekte (Rechts oben) */}
             <line
-              x1="50%"
-              y1="46%"
-              x2="68%"
-              y2="37%"
-              stroke="rgba(52, 211, 153, 0.7)"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 07: Wissen (Zentrum oben) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="50%"
-              y2="28%"
-              stroke="rgba(56, 189, 248, 0.85)"
-              strokeWidth="2.5"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 08/01: Quellen & RAW (Unten) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="45%"
-              y2="64%"
-              stroke="rgba(251, 191, 36, 0.7)"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
-            />
-            {/* Areal 06/09: Interessen & Parkplatz (Ganz rechts oben) */}
-            <line
-              x1="50%"
-              y1="46%"
-              x2="63%"
-              y2="25%"
-              stroke="rgba(163, 230, 53, 0.65)"
+              ref={(el) => {
+                branchCoreRefs.current[i] = el;
+              }}
+              stroke="#ffffff"
               strokeWidth="1.8"
-              strokeDasharray="4 4"
-              filter="url(#laser-glow)"
+              opacity="0"
             />
-          </>
-        )}
+          </g>
+        ))}
+
+        {/* Haupt-Strahl */}
+        <line
+          ref={mainBeamRef}
+          stroke="#00f0ff"
+          strokeWidth="10"
+          filter="url(#jarvis-laser-glow)"
+          opacity="0"
+        />
+        <line
+          ref={mainCoreRef}
+          stroke="#ffffff"
+          strokeWidth="2.8"
+          opacity="0"
+        />
+
+        {/* Fließende Datenpakete */}
+        {Array.from({ length: MAX_TARGETS * PACKETS_PER_BEAM }).map((_, i) => (
+          <circle
+            key={`packet-${i}`}
+            ref={(el) => {
+              packetRefs.current[i] = el;
+            }}
+            fill="#ffffff"
+            filter="url(#jarvis-laser-glow)"
+            opacity="0"
+          />
+        ))}
+
+        {/* Dreh-Reticle im Gehirn-Zentrum (vor Notiz-Erfassung) */}
+        <g ref={centerTargetRef} opacity="0">
+          <circle
+            r="32"
+            fill="none"
+            stroke="#00f0ff"
+            strokeWidth="1.5"
+            strokeDasharray="8 6"
+            filter="url(#jarvis-laser-glow)"
+          />
+          <circle r="6" fill="#00f0ff" opacity="0.9" />
+          <text
+            ref={centerTextRef}
+            y="-42"
+            textAnchor="middle"
+            fill="#38bdf8"
+            fontSize="10"
+            fontFamily="monospace"
+            letterSpacing="0.14em"
+            fontWeight="bold"
+          >
+            HERMES NEURAL SCAN
+          </text>
+        </g>
       </svg>
 
-      {/* 4. Areal-Scan-Knoten & Sektor-Markierungen im Gehirn */}
-      {(stage === "scanning" || stage === "transferring") && (
-        <>
-          {/* Sektor 03: Identität */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "35%", top: "36%" }}>
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-fuchsia-400/60" style={{ animationDuration: "1.4s" }} />
-              <div className="h-2.5 w-2.5 rounded-full bg-fuchsia-300 shadow-[0_0_10px_#e879f9]" />
-            </div>
-            <div className="rounded border border-fuchsia-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-fuchsia-300 shadow-md backdrop-blur-md">
-              03🪪 IDENTITÄT (19)
-            </div>
-          </div>
+      {/* Oberes Steuerungs-HUD: Verbindung trennen & Status */}
+      <div className="pointer-events-auto absolute top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-cyan-500/40 bg-[#0a1018]/90 px-4 py-1.5 backdrop-blur-md shadow-[0_0_20px_rgba(0,240,255,0.25)]">
+        <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping shadow-[0_0_8px_#00f0ff]" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-cyan-200 font-bold">
+          {isScanning
+            ? "NEURAL SCAN AKTIV • DURCHSUCHE GEHIRN"
+            : domTargets.length > 0
+            ? `VERBINDUNG STEHT • ${domTargets.length} QUELLEN IM GEHIRN ZITIERT`
+            : "JARVIS NEURAL LINK AKTIV"}
+        </span>
 
-          {/* Sektor 05: Projekte */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "68%", top: "37%" }}>
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-emerald-400/60" style={{ animationDuration: "1.6s", animationDelay: "0.2s" }} />
-              <div className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_10px_#34d399]" />
-            </div>
-            <div className="rounded border border-emerald-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300 shadow-md backdrop-blur-md">
-              05🚀 PROJEKTE (58)
-            </div>
-          </div>
-
-          {/* Sektor 07: Wissen */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "50%", top: "28%" }}>
-            <div className="relative flex h-16 w-16 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-cyan-400/80 shadow-[0_0_15px_rgba(0,240,255,0.6)]" style={{ animationDuration: "1.1s" }} />
-              <div className="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_12px_#00f0ff]" />
-            </div>
-            <div className="rounded border border-cyan-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200 shadow-md backdrop-blur-md">
-              07🧠 WISSEN (7)
-            </div>
-          </div>
-
-          {/* Sektor 08: Quellen & RAW */}
-          <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: "45%", top: "64%" }}>
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full border border-amber-400/60" style={{ animationDuration: "1.5s", animationDelay: "0.4s" }} />
-              <div className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_10px_#fbbf24]" />
-            </div>
-            <div className="rounded border border-amber-500/40 bg-[#0a1018]/90 px-1.5 py-0.5 font-mono text-[9px] text-amber-300 shadow-md backdrop-blur-md">
-              08📚 QUELLEN (69)
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* 5. Zentrales Index-Docking (Zentrum) */}
-      <div
-        className="absolute -translate-x-1/2 -translate-y-1/2"
-        style={{ left: "50%", top: "46%" }}
-      >
-        {/* Drehende Ziel-Klammern */}
-        <div className="relative flex h-24 w-24 items-center justify-center">
-          <div
-            className="absolute inset-0 animate-spin rounded-full border border-dashed border-cyan-400/60"
-            style={{ animationDuration: "6s" }}
-          />
-          <div
-            className="absolute inset-2 animate-spin rounded-full border-2 border-t-transparent border-r-cyan-300 border-b-transparent border-l-cyan-300"
-            style={{ animationDuration: "2.5s", animationDirection: "reverse" }}
-          />
-
-          {/* Zentraler Docking-Point */}
-          <div className="h-3 w-3 animate-ping rounded-full bg-cyan-300" />
-          <div className="absolute h-2 w-2 rounded-full bg-white shadow-[0_0_12px_#00f0ff]" />
-
-          {/* Sphärische Scan-Wellen (wenn im Scan-Stadium) */}
-          {stage === "scanning" || stage === "transferring" ? (
-            <>
-              <div
-                className="absolute -inset-20 animate-ping rounded-full border border-cyan-400/80 shadow-[0_0_25px_rgba(0,240,255,0.6)]"
-                style={{ animationDuration: "1.2s" }}
-              />
-              <div
-                className="absolute -inset-36 animate-ping rounded-full border border-cyan-300/40"
-                style={{ animationDuration: "1.8s", animationDelay: "0.3s" }}
-              />
-            </>
-          ) : null}
-        </div>
-
-        {/* HUD-Ziel-Label */}
-        <div className="mt-2 flex flex-col items-center">
-          <div className="rounded border border-cyan-500/40 bg-[#0a1018]/90 px-2 py-0.5 font-mono text-[10px] tracking-wider text-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.3)] backdrop-blur-md">
-            {stage === "connecting"
-              ? "⚡ NEURAL DOCK ESTABLISHED"
-              : stage === "scanning"
-              ? "🧠 CORTICAL MULTI-SECTOR SCAN ACTIVE"
-              : "📥 EXTRACTING KNOWLEDGE FROM 5 SECTORS"}
-          </div>
-          <div className="mt-0.5 font-mono text-[9px] text-cyan-200/60">{targetLabel}</div>
-        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Verbindung trennen"
+            className="ml-2 flex items-center gap-1 rounded-full bg-white/10 hover:bg-rose-500/20 hover:border-rose-500/50 border border-white/20 px-2.5 py-0.5 font-mono text-[10px] text-white/80 transition-all hover:text-white"
+          >
+            <span>×</span>
+            <span>TRENNEN</span>
+          </button>
+        )}
       </div>
+
+      {/* Klickbare Ziel-HUDs für jede gefundene Notiz im 3D-Gehirn */}
+      {domTargets.map((target, idx) => (
+        <div
+          key={target.id}
+          className="pointer-events-auto absolute z-50 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75"
+          style={{ left: `${target.x}px`, top: `${target.y}px` }}
+        >
+          <div className="group relative flex flex-col items-center">
+            {/* Ziel-Puls-Ring */}
+            <div className="relative flex h-8 w-8 items-center justify-center">
+              <span className="absolute inset-0 rounded-full border-2 border-cyan-400/80 animate-ping" />
+              <span className="h-3 w-3 rounded-full bg-cyan-400 shadow-[0_0_12px_#00f0ff]" />
+            </div>
+
+            {/* Notiz-Label & Heranfliegen-Button */}
+            <div className="mt-1 flex flex-col items-center gap-1 rounded-lg border border-white/20 bg-[#0a1018]/95 px-2.5 py-1.5 shadow-2xl backdrop-blur-md">
+              <span className="max-w-[200px] truncate text-[11.5px] font-semibold text-white/95">
+                {target.label}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-cyan-400">
+                  QUELLE #{idx + 1}
+                </span>
+                {onFlyToSource && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFlyToSource(target.id);
+                    }}
+                    className="rounded bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/40 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200 transition-colors"
+                  >
+                    HERANFLIEGEN
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
