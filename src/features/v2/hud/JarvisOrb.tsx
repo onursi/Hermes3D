@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { JarvisPhase } from "@/features/jarvis/JarvisCore";
 import { JarvisPresence, type JarvisMode } from "@/features/v2/jarvis/JarvisPresence";
 import { jarvisLevel } from "@/features/v2/jarvis/useJarvisVoice";
+import { JARVIS_SCAN_EVENT } from "@/features/v2/knowledge/BrainAccess";
 
 /**
  * Jarvis, immer da, und trotzdem fast nicht da.
@@ -38,6 +39,22 @@ type Props = {
 
 export function JarvisOrb({ phase, mode, onModeChange, onAsk, onOpenPanel, busy }: Props) {
   const [open, setOpen] = useState(false);
+  /**
+   * Ob der Raum gerade sucht.
+   *
+   * Die Kugel hört auf **dasselbe Ereignis** wie der Effekt im Kosmos. Vorher
+   * hing ihr Zustand allein am Fenster — und wenn das geschlossen war, stand
+   * bereit an der Kugel, während der Raum in vollem Gange abtastete. Zwei
+   * Anzeigen für einen Vorgang, die sich widersprechen können, sind schlimmer
+   * als eine.
+   */
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    const onScan = (event: Event) =>
+      setScanning(Boolean((event as CustomEvent).detail?.active));
+    window.addEventListener(JARVIS_SCAN_EVENT, onScan);
+    return () => window.removeEventListener(JARVIS_SCAN_EVENT, onScan);
+  }, []);
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -113,10 +130,40 @@ export function JarvisOrb({ phase, mode, onModeChange, onAsk, onOpenPanel, busy 
         </div>
       ) : null}
 
+      {/**
+       * Der Empfang.
+       *
+       * Onur hat dreimal gesagt, der Blitz müsse aus dem Kopf kommen — und
+       * beim dritten Mal war er das rechnerisch längst: der Ansatzpunkt trifft
+       * die Kopfmitte auf den Bildpunkt genau, nachgemessen. Trotzdem sah man
+       * es nicht, und das ist kein Streit über Zahlen, sondern mein Fehler.
+       * Der Punkt, an dem alles zusammenläuft, liegt in der 3D-Szene — also
+       * **hinter** dieser Kugel, denn die ist ein DOM-Element und liegt oben
+       * drauf. Was ankam, verschwand genau dort, wo man es sehen sollte.
+       *
+       * Deshalb leuchtet der Kopf jetzt selbst. Zwei Ringe, die nach außen
+       * laufen, solange gesucht oder gesprochen wird — im DOM, über allem, und
+       * damit unübersehbar. Sie hängen an derselben Phase wie der Effekt im
+       * Raum; wenn nichts läuft, ist hier auch nichts.
+       */}
+      {busy || scanning || phase === "speaking" ? (
+        <>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 right-0 h-14 w-14 animate-ping rounded-full bg-cyan-300/25"
+            style={{ animationDuration: "1.1s" }}
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 right-0 h-14 w-14 rounded-full ring-2 ring-cyan-200/60"
+          />
+        </>
+      ) : null}
+
       <button
         type="button"
         onClick={() => setOpen((was) => !was)}
-        className="rounded-full transition hover:scale-105"
+        className="relative rounded-full transition hover:scale-105"
         title={open ? "Zuklappen" : "Jarvis fragen"}
       >
         {/* Dieselbe Darstellung wie im großen Fenster, nur klein — und am
