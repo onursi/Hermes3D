@@ -15,12 +15,8 @@ import { useV2 } from "@/features/v2/state";
  */
 
 export function Dock({
-  jarvisOpen,
-  onToggleJarvis,
   showLibrary = false,
 }: {
-  jarvisOpen: boolean;
-  onToggleJarvis: () => void;
   /**
    * The library appears only with `?lab=1`.
    *
@@ -37,7 +33,7 @@ export function Dock({
   return (
     <nav className="pointer-events-auto absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/10 bg-[#0a1018]/90 p-1.5 backdrop-blur-md">
       <DockButton
-        active={world === "home" && !jarvisOpen}
+        active={world === "home"}
         onClick={() => goTo("home")}
         label="Zuhause"
       >
@@ -116,15 +112,6 @@ export function Dock({
           </svg>
         </DockButton>
       ) : null}
-
-      <span className="mx-1 h-5 w-px bg-white/10" />
-
-      <DockButton active={jarvisOpen} onClick={onToggleJarvis} label="Jarvis">
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
-        </svg>
-      </DockButton>
     </nav>
   );
 }

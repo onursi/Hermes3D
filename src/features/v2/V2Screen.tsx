@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { JarvisConsole } from "@/features/jarvis/JarvisConsole";
 import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
 import { WorldBoundary } from "@/features/v2/WorldBoundary";
@@ -64,7 +63,6 @@ export function V2Screen() {
   const live = useHermesLive(liveMode);
   const { world, selection, select, goTo, prefs, clearSelection, setTravelling } = useV2();
 
-  const [jarvisOpen, setJarvisOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
@@ -197,7 +195,6 @@ export function V2Screen() {
   const selectAgent = useCallback(
     (id: string) => {
       select({ kind: "agent", id });
-      setJarvisOpen(false);
     },
     [select],
   );
@@ -389,14 +386,14 @@ export function V2Screen() {
    * A keyboard shortcut that depends on render timing is a shortcut that works
    * on the developer's machine.
    */
-  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world });
+  const escapeState = useRef({ readerId, settingsOpen, approvalsOpen, query, selection, world });
   // Written in an effect, not during render. Assigning to a ref while
   // rendering is a rule this project has broken before, and the reason it is
   // a rule is that React may render without committing — the handler would
   // then act on a state that never reached the screen.
   useEffect(() => {
-    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world };
-  }, [readerId, settingsOpen, approvalsOpen, query, selection, jarvisOpen, world]);
+    escapeState.current = { readerId, settingsOpen, approvalsOpen, query, selection, world };
+  }, [readerId, settingsOpen, approvalsOpen, query, selection, world]);
 
   /**
    * Enter enters. Same ref discipline as Escape, and for the same reason.
@@ -459,10 +456,6 @@ export function V2Screen() {
       }
       if (state.selection.kind !== "none") {
         clearSelection();
-        return;
-      }
-      if (state.jarvisOpen) {
-        setJarvisOpen(false);
         return;
       }
       if (state.world !== "home") goTo("home");
@@ -659,29 +652,7 @@ export function V2Screen() {
         </div>
       ) : null}
 
-      <Dock
-        jarvisOpen={jarvisOpen}
-        onToggleJarvis={() => setJarvisOpen((open) => !open)}
-        showLibrary={labMode}
-      />
-
-      {jarvisOpen ? (
-        <section className="pointer-events-auto absolute bottom-20 left-1/2 z-30 w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
-          <JarvisConsole
-            compact
-            noteCount={vault.nodes.length}
-            onFlyToSource={flyToSource}
-            onSourcesChange={(ids) => {
-              // The first cited source becomes the selection, so the inspector
-              // has something to show the moment an answer lands.
-              const first = ids[0];
-              if (!first) return;
-              const node = vault.byId.get(first);
-              if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
-            }}
-          />
-        </section>
-      ) : null}
+      <Dock showLibrary={labMode} />
 
       {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}
 
@@ -741,12 +712,19 @@ export function V2Screen() {
         ]}
       />
 
-      {/* Globaler, ausblendbarer Jarvis Companion unten rechts (Hologramm-Gesicht & Arc Reactor Core) */}
+      {/* Globaler, vollumfänglicher Jarvis Companion unten rechts (Hologramm-Gesicht & Arc Reactor Core) */}
       <JarvisCompanion
+        noteCount={vault.nodes.length}
         currentWorld={world}
-        onFlyToNote={(id) => {
+        onFlyToSource={(id) => {
           flyToSource(id);
           const node = vault.byId.get(id);
+          if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+        }}
+        onSourcesChange={(ids) => {
+          const first = ids[0];
+          if (!first) return;
+          const node = vault.byId.get(first);
           if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
         }}
         onNavigateWorld={(w) => goTo(w)}
