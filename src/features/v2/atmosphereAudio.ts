@@ -4,6 +4,10 @@
 export const flightAudio = { speed: 0, hyperdrive: false };
 let context: AudioContext | null = null;
 
+export function getAudioContext(): AudioContext | null {
+  return context;
+}
+
 /** Call from a click or keypress. Persisted preferences alone never open an audio device. */
 export function unlockAtmosphere() {
   if (!context) context = new AudioContext();
@@ -26,6 +30,7 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
   const nodes: AudioNode[] = [master, compressor];
   const brain = world === "cosmos";
   const travelling = world === "universe";
+  const isTesseract = world === "tesseract";
 
   function voice(hz: number, level: number, type: OscillatorType = "sine") {
     const oscillator = audio!.createOscillator();
@@ -40,13 +45,32 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     return { oscillator, gain };
   }
 
-  // --- Codex Original Normal-Modus Stimmen ---
-  // Quiet, slightly detuned open fifths under an airy upper harmonic.
-  const drone = voice(brain ? 196 : 65.4, brain ? 0.025 : 0.1);
-  voice(brain ? 294.3 : 98.2, brain ? 0.015 : 0.065);
-  const shimmer = voice(brain ? 1568 : 392.4, 0.008);
+  // --- Codex Original Normal-Modus Stimmen (gedimmt im Tesserakt für pure 4D-Akkorde) ---
+  const drone = voice(brain ? 196 : (isTesseract ? 0 : 65.4), brain ? 0.025 : (isTesseract ? 0 : 0.1));
+  voice(brain ? 294.3 : (isTesseract ? 0 : 98.2), brain ? 0.015 : (isTesseract ? 0 : 0.065));
+  const shimmer = voice(brain ? 1568 : 392.4, isTesseract ? 0 : 0.008);
   const engine = voice(48, 0, "triangle");
   const spark = voice(2300, 0);
+
+  // --- 4D Interstellar Tesseract Soundscape (Hans Zimmer Deep C-Minor 9th Space Chords & Sub-Bass) ---
+  const tessSub = voice(isTesseract ? 32.7 : 0, isTesseract ? 0.28 : 0, "triangle");
+  const tessBinaural = voice(isTesseract ? 33.15 : 0, isTesseract ? 0.22 : 0, "sine");
+  const tessChord1 = voice(isTesseract ? 130.8 : 0, isTesseract ? 0.11 : 0, "triangle"); // C3
+  const tessChord2 = voice(isTesseract ? 155.6 : 0, isTesseract ? 0.09 : 0, "sine");     // Eb3
+  const tessChord3 = voice(isTesseract ? 196.0 : 0, isTesseract ? 0.08 : 0, "sine");     // G3
+  const tessChord4 = voice(isTesseract ? 293.7 : 0, isTesseract ? 0.07 : 0, "sine");     // D4 (Minor 9th)
+  const tessShimmer = voice(isTesseract ? 1046.5 : 0, isTesseract ? 0.03 : 0, "sine");   // C6
+
+  // Gravitational Time Dilation Pulse (Hans Zimmer Black Hole Pendulum)
+  const pulseOsc = audio.createOscillator();
+  const pulseGain = audio.createGain();
+  pulseOsc.type = "triangle";
+  pulseOsc.frequency.value = 55;
+  pulseGain.gain.value = 0;
+  pulseOsc.connect(pulseGain).connect(master);
+  pulseOsc.start();
+  sources.push(pulseOsc);
+  nodes.push(pulseOsc, pulseGain);
 
   // Codex Noise Buffer (LCG Algorithmus)
   const buffer = audio.createBuffer(1, audio.sampleRate * 3, audio.sampleRate);
@@ -166,6 +190,25 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
       spark.oscillator.frequency.setValueAtTime(1700 + (tick * 137 % 2100), now);
       spark.gain.gain.setTargetAtTime(0.018, now, 0.004);
       spark.gain.gain.setTargetAtTime(0, now + 0.022, 0.017);
+    }
+
+    // --- 4D Tesserakt Modulation & Hans Zimmer Gravitations-Puls ---
+    if (isTesseract) {
+      const lfo = 0.5 + 0.5 * Math.sin(tick * 0.05);
+      filter.frequency.setTargetAtTime(140 + lfo * 600, now, 0.1);
+      filter.Q.setTargetAtTime(2.2, now, 0.1);
+      air.gain.setTargetAtTime(0.015 + lfo * 0.02, now, 0.1);
+
+      tessChord4.oscillator.detune.setTargetAtTime(Math.sin(tick * 0.08) * 8, now, 0.2);
+      tessShimmer.oscillator.detune.setTargetAtTime(Math.cos(tick * 0.06) * 12, now, 0.2);
+
+      // Gravitations-Zeittakt (Heartbeat of the Singularity) alle 2.4 Sekunden
+      if (tick % 24 === 0) {
+        pulseOsc.frequency.setValueAtTime(65, now);
+        pulseOsc.frequency.exponentialRampToValueAtTime(22, now + 0.24);
+        pulseGain.gain.setValueAtTime(0.38, now);
+        pulseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
+      }
     }
 
     tick++;

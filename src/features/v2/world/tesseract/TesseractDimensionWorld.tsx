@@ -4,6 +4,16 @@ import { Billboard, Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { useV2 } from "@/features/v2/state";
+import { unlockAtmosphere } from "@/features/v2/atmosphereAudio";
+import {
+  playCrystalChime,
+  playPhoenixSynthesis,
+  playDimensionalShift,
+  playMonolithDrone,
+  playOracleBalance,
+  playAgentVoice,
+} from "./tesseractAudio";
 
 export type TesseractConceptMode = "kausalitaet" | "phoenix" | "maschinenraum" | "orakel";
 
@@ -308,6 +318,7 @@ function CausalityConceptView() {
             onClick={(e) => {
               e.stopPropagation();
               setSelectedNode(node);
+              playCrystalChime(DECISION_NODES.findIndex((n) => n.id === node.id));
             }}
           >
             {/* 3D Faceted Crystal */}
@@ -401,6 +412,7 @@ function PhoenixConceptView() {
   const [synthesizedTitle, setSynthesizedTitle] = useState<string | null>(null);
 
   const handleCrystalClick = (c: IdeaCrystal) => {
+    playPhoenixSynthesis(0.65);
     setActiveCollision(c.id);
     setSynthesizedTitle(`SYNTHESE: ${c.title} × Hermes 3D Brain Matrix`);
     setTimeout(() => {
@@ -512,7 +524,14 @@ function MachineRoomConceptView() {
   return (
     <group ref={groupRef}>
       {/* Central Monolithic Obsidian Stele (AGENTS.md System-DNA) */}
-      <mesh ref={monolithRef} position={[0, 4.0, 0]}>
+      <mesh
+        ref={monolithRef}
+        position={[0, 4.0, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          playMonolithDrone(0.5);
+        }}
+      >
         <boxGeometry args={[1.8, 14, 1.8]} />
         <meshStandardMaterial
           color="#090d16"
@@ -554,7 +573,13 @@ function OrbitingAgentSphere({ agent }: { agent: AgentOrb }) {
   });
 
   return (
-    <group ref={meshRef}>
+    <group
+      ref={meshRef}
+      onClick={(e) => {
+        e.stopPropagation();
+        playAgentVoice(agent.name, 0.4);
+      }}
+    >
       {/* 3D Agent Core Sphere */}
       <mesh>
         <sphereGeometry args={[0.65, 32, 32]} />
@@ -617,7 +642,13 @@ function OracleConceptView() {
         </mesh>
 
         {/* Left Scale Pan: Produkt & Tiefe */}
-        <group position={[-5.2, -1.8, 0]}>
+        <group
+          position={[-5.2, -1.8, 0]}
+          onClick={(e) => {
+            e.stopPropagation();
+            playOracleBalance(1, 0.4);
+          }}
+        >
           <mesh>
             <sphereGeometry args={[1.2, 32, 32]} />
             <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={1.5} roughness={0.1} />
@@ -633,7 +664,13 @@ function OracleConceptView() {
         </group>
 
         {/* Right Scale Pan: Breite & Vertrieb */}
-        <group position={[5.2, -1.8, 0]}>
+        <group
+          position={[5.2, -1.8, 0]}
+          onClick={(e) => {
+            e.stopPropagation();
+            playOracleBalance(-1, 0.4);
+          }}
+        >
           <mesh>
             <sphereGeometry args={[0.85, 32, 32]} />
             <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={1.2} roughness={0.1} />
@@ -690,6 +727,7 @@ function SpatialConceptSelector({
             position={[m.x, 0, 0]}
             onClick={(e) => {
               e.stopPropagation();
+              playDimensionalShift(0.35);
               onSelectMode(m.id);
             }}
           >
@@ -734,49 +772,16 @@ export function TesseractDimensionWorld({
 }) {
   const [activeConcept, setActiveConcept] = useState<TesseractConceptMode>("kausalitaet");
   const { camera } = useThree();
+  const { prefs, setPref } = useV2();
 
-  // Initial Camera position for 4D Tesseract view
+  // Initial Camera position for 4D Tesseract view & welcome chime
   useEffect(() => {
     camera.position.set(0, 3.2, 14);
     camera.lookAt(0, 3.0, 0);
+    if (prefs.sound > 0) {
+      playCrystalChime(0, 0.25);
+    }
   }, [camera]);
-
-  // Native Web Audio API 28Hz Sub-Bass Drone
-  useEffect(() => {
-    let ctx: AudioContext | null = null;
-    let osc: OscillatorNode | null = null;
-    let filter: BiquadFilterNode | null = null;
-    let gain: GainNode | null = null;
-
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      ctx = new AudioCtx();
-      osc = ctx.createOscillator();
-      filter = ctx.createBiquadFilter();
-      gain = ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(28, ctx.currentTime); // 28Hz sub-bass singular rumble
-
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(65, ctx.currentTime);
-
-      gain.gain.setValueAtTime(0.065, ctx.currentTime);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start();
-    } catch {}
-
-    return () => {
-      try {
-        osc?.stop();
-        ctx?.close();
-      } catch {}
-    };
-  }, []);
 
   return (
     <group>
@@ -801,8 +806,46 @@ export function TesseractDimensionWorld({
       {/* 3D Spatial Concept Selector on Ground */}
       <SpatialConceptSelector activeMode={activeConcept} onSelectMode={setActiveConcept} />
 
+      {/* 3D In-World Audio Beacon */}
+      <group
+        position={[0, -2.4, 5.0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          unlockAtmosphere();
+          const nextSound = prefs.sound > 0 ? 0 : 0.6;
+          setPref("sound", nextSound);
+          if (nextSound > 0) {
+            playCrystalChime(4, 0.45);
+          }
+        }}
+      >
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.3, 0.38, 32]} />
+          <meshBasicMaterial color={prefs.sound > 0 ? "#00f0ff" : "#f59e0b"} transparent opacity={0.85} />
+        </mesh>
+        <Billboard position={[0, 0.28, 0]}>
+          <Text
+            fontSize={0.2}
+            color={prefs.sound > 0 ? "#00f0ff" : "#fbbf24"}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.02}
+            outlineColor="#000000"
+          >
+            {prefs.sound > 0 ? "♫ 4D-Klang: Hans Zimmer Atmosphere (Aktiv)" : "🔊 Klick: 4D-Sound & Sub-Bass einschalten"}
+          </Text>
+        </Billboard>
+      </group>
+
       {/* 3D Spatial Re-surface Portal Beacon (Exit back to Gargantua) */}
-      <group position={[0, 9.2, 0]} onClick={onExit}>
+      <group
+        position={[0, 9.2, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          playDimensionalShift(0.4);
+          onExit();
+        }}
+      >
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[2.0, 0.08, 16, 48]} />
           <meshBasicMaterial color="#38bdf8" transparent opacity={0.8} />
