@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
 
-import { reportBeamTargets, reportSweepPoints, type BeamPoint, type BeamTarget } from "./beamAnchors";
+import { isBeamActive, reportBeamTargets, reportSweepPoints, type BeamPoint, type BeamTarget } from "./beamAnchors";
 
 export type BeamProbePoint = {
   id: string;
@@ -33,12 +33,10 @@ export type BeamProbePoint = {
 export function BeamProbe({
   points,
   sweepPoints = [],
-  active,
 }: {
   points: BeamProbePoint[];
   /** Weitere echte Notizen im Raum — die Tastflaeche fuer den Scandurchlauf. */
   sweepPoints?: BeamProbePoint[];
-  active: boolean;
 }) {
   const { camera, size } = useThree();
 
@@ -52,7 +50,14 @@ export function BeamProbe({
 
   useFrame((_, __, frame) => {
     void frame;
-    if (!active || points.length === 0) {
+    /**
+     * Gemessen wird, sobald der Strahl lebt — nicht erst, wenn Quellen da sind.
+     *
+     * Die Tastflaeche liegt sofort vor: Es sind die Notizen, die gerade im Bild
+     * stehen. Der Scan kann also loslaufen, waehrend Jarvis noch sucht, und die
+     * Strahlen rasten ein, sobald die Antwort ihre Quellen nennt.
+     */
+    if (!isBeamActive()) {
       reportBeamTargets([]);
       reportSweepPoints([]);
       return;

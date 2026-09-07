@@ -114,12 +114,20 @@ export function JarvisNeuralBeam({ active, onDismiss, targetLabel }: JarvisNeura
       const steht = t > AUFBAU_S;
 
       /**
-       * Die Ehrlichkeitsregel.
+       * Die Ehrlichkeitsregel — jetzt in zwei Stufen.
        *
-       * Ohne gemessenen Kopf oder ohne ein Ziel im Bild wird kein Strahl
-       * gezeichnet. Stattdessen steht da, dass gerade gesucht wird — was
-       * stimmt, solange die Antwort noch keine Quelle genannt hat.
+       * Der **Scan** braucht nur einen Kopf und Notizen im Bild. Beides liegt
+       * sofort vor, also tastet er los, waehrend Jarvis noch sucht. Das ist
+       * keine Behauptung, sondern die Wahrheit: In dem Moment wird tatsaechlich
+       * gesucht.
+       *
+       * Die **Strahlen** brauchen eine gemeldete Quelle. Sie rasten ein, sobald
+       * die Antwort ihre Notizen nennt — vorher zeigt nichts auf irgendwas.
+       *
+       * Vorher hing beides an derselben Bedingung, und die knappe halbe
+       * Sekunde, die die Suche im Vault braucht, stand als Leere im Bild.
        */
+      const scanBereit = head !== null && sweep.length > 0;
       const zeichenbar = head !== null && targets.length > 0;
       if (hinweisRef.current) {
         hinweisRef.current.hidden = zeichenbar;
@@ -208,7 +216,7 @@ export function JarvisNeuralBeam({ active, onDismiss, targetLabel }: JarvisNeura
        * suchen.
        */
       const band = bandRef.current;
-      if (!zeichenbar || sweep.length === 0 || !head) {
+      if (!scanBereit || !head) {
         band?.setAttribute("opacity", "0");
         for (let i = 0; i < MAX_FUEHLER; i++) {
           fuehlerRefs.current[i]?.setAttribute("opacity", "0");

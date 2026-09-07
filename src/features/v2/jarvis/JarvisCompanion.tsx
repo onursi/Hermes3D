@@ -26,7 +26,7 @@ import {
 import { JarvisHologramFace } from "./JarvisHologramFace";
 import { JarvisArcReactor } from "./JarvisArcReactor";
 import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
-import { reportJarvisHead } from "./beamAnchors";
+import { reportJarvisHead, setBeamActive } from "./beamAnchors";
 import { jarvisAudio } from "./jarvisAudio";
 import { useVoice } from "@/features/jarvis/useVoice";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
@@ -551,13 +551,42 @@ export function JarvisCompanion({
    * Strahls. Ausserhalb davon meldet der Companion `null`, und der Strahl
    * zeichnet dann nichts, statt auf einen alten Punkt zu zeigen.
    */
+  /**
+   * Eine Flagge statt zweier Abhaengigkeiten.
+   *
+   * `isScanning` kippt mitten in der Abfrage zurueck auf false, waehrend
+   * `beamLive` stehen bleibt. Stuenden beide in den Abhaengigkeiten, liefe der
+   * Effekt genau dann neu — mit Aufraeumen — und der Strahl waere fuer ein Bild
+   * geloescht. Zusammengefasst aendert sich der Wert in dem Moment gar nicht.
+   */
+  const messen = isScanning || beamLive;
+
   useEffect(() => {
-    if (!isScanning && !beamLive) {
+    if (!messen) {
+      setBeamActive(false);
       reportJarvisHead(null);
       return;
     }
+    setBeamActive(true);
+
+    /**
+     * Gemessen wird gedrosselt, nicht in jedem Bild.
+     *
+     * `getBoundingClientRect` erzwingt eine Layoutberechnung. Waehrend der
+     * Strahl nur 2,6 Sekunden lief, war das gleichgueltig. Seit die Verbindung
+     * stehen bleibt, liefe es unbegrenzt weiter — und ein Kopf, der sich nur
+     * bewegt, wenn das Fenster sich bewegt, braucht keine sechzig Messungen
+     * pro Sekunde. Zwoelf reichen; dazwischen gilt der letzte Wert.
+     */
+    const ABSTAND_MS = 80;
+    let zuletzt = 0;
     let raf = 0;
     const miss = () => {
+      raf = requestAnimationFrame(miss);
+      const jetzt = performance.now();
+      if (jetzt - zuletzt < ABSTAND_MS) return;
+      zuletzt = jetzt;
+
       let beste: { x: number; y: number; flaeche: number } | null = null;
       for (const ref of [kopfOffenRef, kopfKugelRef]) {
         const el = ref.current;
@@ -570,14 +599,14 @@ export function JarvisCompanion({
         }
       }
       reportJarvisHead(beste ? { x: beste.x, y: beste.y } : null);
-      raf = requestAnimationFrame(miss);
     };
     raf = requestAnimationFrame(miss);
     return () => {
       cancelAnimationFrame(raf);
+      setBeamActive(false);
       reportJarvisHead(null);
     };
-  }, [isScanning, beamLive]);
+  }, [messen]);
 
   return (
     <>

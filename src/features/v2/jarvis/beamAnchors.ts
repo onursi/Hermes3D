@@ -61,6 +61,29 @@ const GILT_MS = 400;
 
 const state: AnchorState = { head: null, headAt: 0, targets: [], targetsAt: 0, sweep: [], sweepAt: 0 };
 
+/**
+ * Ob der Strahl gerade lebt.
+ *
+ * Die Szene muss das wissen, bevor die erste Quelle gemeldet ist: Der Scan
+ * soll sofort loslaufen und nicht erst, wenn die Antwort ihre Notizen nennt.
+ * Sonst steht knapp eine halbe Sekunde nichts im Bild — und genau die liest
+ * sich als Verzoegerung.
+ */
+let beamAktiv = false;
+
+export function setBeamActive(aktiv: boolean): void {
+  beamAktiv = aktiv;
+  if (!aktiv) {
+    state.targets = [];
+    state.sweep = [];
+    state.head = null;
+  }
+}
+
+export function isBeamActive(): boolean {
+  return beamAktiv;
+}
+
 /** Der Companion meldet, wo sein Kopf steht. */
 export function reportJarvisHead(point: BeamPoint | null): void {
   state.head = point;

@@ -391,7 +391,6 @@ export function V2Scene({
    * weil der Graph nach Ordnern sortiert liegt.
    */
   const sweepPoints = useMemo<BeamProbePoint[]>(() => {
-    if (beamPoints.length === 0) return [];
     const alle = vault.nodes;
     const ziel = 70;
     const schritt = Math.max(1, Math.floor(alle.length / ziel));
@@ -405,7 +404,7 @@ export function V2Scene({
       });
     }
     return points;
-  }, [beamPoints.length, vault.nodes, world]);
+  }, [vault.nodes, world]);
 
   return (
     <Canvas
@@ -472,7 +471,7 @@ export function V2Scene({
         Im Zuhause liegen dieselben Notizen als Himmelssterne weit draussen,
         deshalb je nach Welt die andere Position derselben Notiz.
       */}
-      <BeamProbe active={beamPoints.length > 0} points={beamPoints} sweepPoints={sweepPoints} />
+      <BeamProbe points={beamPoints} sweepPoints={sweepPoints} />
 
       <CameraDirector
         goal={goal}
