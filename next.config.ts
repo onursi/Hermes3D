@@ -61,6 +61,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["msedge-tts", "ws"],
   turbopack: {
     root: path.resolve(__dirname),
   },

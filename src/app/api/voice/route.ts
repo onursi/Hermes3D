@@ -117,10 +117,10 @@ export async function POST(req: Request) {
       const tts = new MsEdgeTTS();
       let edgeVoice = "de-DE-ConradNeural";
       const lower = (agentId || "").toLowerCase();
-      if (lower.includes("gemini")) edgeVoice = "de-DE-KatjaNeural"; // hell, weiblich
-      else if (lower.includes("chatgpt")) edgeVoice = "de-DE-AmalaNeural"; // warm, weiblich
-      else if (lower.includes("hermes")) edgeVoice = "de-DE-ConradNeural"; // maskulin, dunkel
-      else if (lower.includes("claude")) edgeVoice = "de-DE-KillianNeural"; // maskulin, artikuliert
+      if (lower.includes("astra") || lower.includes("gemini")) edgeVoice = "de-DE-KatjaNeural"; // hell, motivierend, weiblich (Astra)
+      else if (lower.includes("solana") || lower.includes("chatgpt") || lower.includes("oracle")) edgeVoice = "de-DE-AmalaNeural"; // warm, philosophisch, reflektiert (Solana)
+      else if (lower.includes("jarvis") || lower.includes("claude")) edgeVoice = "de-DE-KillianNeural"; // präzise, eloquent, artikulierter Tech-Ton (Jarvis)
+      else if (lower.includes("hermes")) edgeVoice = "de-DE-ConradNeural"; // souverän, maskulin, dunkel (Hermes)
 
       await tts.setMetadata(edgeVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
       const { audioStream } = await tts.toStream(cleanText, { rate: "+25%" }); // genau 1.25x Speed!

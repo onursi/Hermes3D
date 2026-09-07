@@ -17,6 +17,10 @@ import {
   Minimize2,
   ChevronDown,
   Sparkles,
+  Play,
+  Pause,
+  Square,
+  Settings2,
 } from "lucide-react";
 import { JarvisHologramFace } from "./JarvisHologramFace";
 import { JarvisArcReactor } from "./JarvisArcReactor";
@@ -24,6 +28,7 @@ import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
 import { jarvisAudio } from "./jarvisAudio";
 import { useVoice } from "@/features/jarvis/useVoice";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
+import { PersonalityStudioModal, PERSONAS, type PersonaConfig } from "./PersonalityStudioModal";
 
 export type JarvisAvatarMode = "face" | "core";
 export type JarvisPhase =
@@ -64,9 +69,9 @@ export interface JarvisCompanionProps {
  * - Überall auf jedem Bildschirm verfügbar (unten rechts verankert)
  * - Minimierbar zu einem kompakten 40px HUD-Badge
  * - Umschaltbare Avatare: Hologram AI Face & Quantum Arc Reactor
- * - Volle Vault-Anbindung: Streaming-LLM (/api/jarvis/stream), Quellenzitate, Speichern in Inbox (/api/jarvis/remember)
- * - Sprachausgabe, Spracherkennung ("Hey Hermes"), Aufgaben-Extraktion
- * - Spektakulärer Mehrsektoren-Laser-Scan ins 3D-Gehirn mit prozeduralem Audio
+ * - Klick auf Avatar öffnet das 3D-Hologramm- & Persönlichkeits-Studio
+ * - Echte Neural-Voice-Sprachsynthese (Azure / msedge-tts) mit Play/Pause/Stop
+ * - Vollständige Typografie-Harmonie (font-sans) passend zum restlichen V2-UI
  */
 export function JarvisCompanion({
   noteCount = 0,
@@ -80,6 +85,10 @@ export function JarvisCompanion({
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Persönlichkeit & Studio
+  const [currentPersona, setCurrentPersona] = useState<PersonaConfig>(PERSONAS[0]);
+  const [studioOpen, setStudioOpen] = useState(false);
 
   // Jarvis Workflow Zustände
   const [question, setQuestion] = useState("");
@@ -99,13 +108,101 @@ export function JarvisCompanion({
   const [candidatesBusy, setCandidatesBusy] = useState(false);
   const [accepted, setAccepted] = useState<Record<string, "saving" | "done" | "failed">>({});
 
+  // Neural Voice Play/Pause/Stop Steuerung
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isAudioPaused, setIsAudioPaused] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
   const busyRef = useRef(false);
 
   // Aufräumen bei Unmount
-  useEffect(() => () => streamRef.current?.close(), []);
+  useEffect(() => {
+    return () => {
+      streamRef.current?.close();
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Neural Voice Vorlesefunktion
+  const speakText = useCallback(async (textToSpeak: string) => {
+    const clean = textToSpeak.replace(/[*#_`[\]()]/g, "").trim();
+    if (!clean) return;
+
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
+    }
+
+    setAudioLoading(true);
+    setIsPlayingAudio(true);
+    setIsAudioPaused(false);
+
+    try {
+      const res = await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: clean,
+          agentId: currentPersona.agentId,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Audio synthesis failed");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+
+      audio.onended = () => {
+        setIsPlayingAudio(false);
+        setIsAudioPaused(false);
+      };
+
+      audio.onerror = () => {
+        setIsPlayingAudio(false);
+        setIsAudioPaused(false);
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.warn("Neural TTS Error:", err);
+      setIsPlayingAudio(false);
+      setIsAudioPaused(false);
+    } finally {
+      setAudioLoading(false);
+    }
+  }, [currentPersona]);
+
+  const pauseAudio = () => {
+    if (ttsAudioRef.current && !ttsAudioRef.current.paused) {
+      ttsAudioRef.current.pause();
+      setIsAudioPaused(true);
+    }
+  };
+
+  const resumeAudio = () => {
+    if (ttsAudioRef.current && ttsAudioRef.current.paused) {
+      ttsAudioRef.current.play();
+      setIsAudioPaused(false);
+    }
+  };
+
+  const stopAudio = () => {
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
+    }
+    setIsPlayingAudio(false);
+    setIsAudioPaused(false);
+  };
 
   // Quellen an übergeordneten Graphen melden
   const onSourcesChangeRef = useRef(onSourcesChange);
@@ -126,6 +223,7 @@ export function JarvisCompanion({
       if (spoken) setQuestion(spoken);
 
       // Reset
+      stopAudio();
       streamRef.current?.close();
       setAnswer("");
       setSources([]);
@@ -168,8 +266,11 @@ export function JarvisCompanion({
         }
       });
 
+      let fullAnswerText = "";
       source.addEventListener("delta", (event) => {
-        setAnswer((prev) => prev + JSON.parse((event as MessageEvent).data).text);
+        const chunk = JSON.parse((event as MessageEvent).data).text;
+        fullAnswerText += chunk;
+        setAnswer((prev) => prev + chunk);
       });
 
       source.addEventListener("done", () => {
@@ -177,6 +278,11 @@ export function JarvisCompanion({
         setIsScanning(false);
         jarvisAudio.playChime(1.1);
         source.close();
+
+        // Wenn Vorlesen aktiviert ist, starte die hochauflösende Neural Voice
+        if (voiceReply && fullAnswerText) {
+          void speakText(fullAnswerText);
+        }
       });
 
       source.addEventListener("error", (event) => {
@@ -195,25 +301,17 @@ export function JarvisCompanion({
         source.close();
       });
     },
-    [question, phase]
+    [question, phase, voiceReply, speakText]
   );
 
-  // Spracherkennung
+  // Spracherkennung ("Hey Hermes")
   const voice = useVoice({ onTranscript: (text) => ask(text) });
 
   const displayPhase: JarvisPhase = voice.listening
     ? "listening"
-    : voice.speaking
+    : isPlayingAudio
     ? "speaking"
     : phase;
-
-  // Antwort vorlesen (falls gewünscht)
-  const spokenRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (phase !== "idle" || !answer || spokenRef.current === answer) return;
-    spokenRef.current = answer;
-    if (voice.supported && voiceReply) voice.speak(answer);
-  }, [phase, answer, voice, voiceReply]);
 
   // Audio-Synthese Aktivitäten
   useEffect(() => {
@@ -300,6 +398,7 @@ export function JarvisCompanion({
   // Briefing abrufen ("Wie ist mein Stand?")
   const briefing = useCallback(async () => {
     if (busyRef.current) return;
+    stopAudio();
     streamRef.current?.close();
     setAnswer("");
     setSources([]);
@@ -321,6 +420,9 @@ export function JarvisCompanion({
       if (data.ok && data.briefing) {
         setAnswer(data.briefing);
         jarvisAudio.playChime(1.15);
+        if (voiceReply) {
+          void speakText(data.briefing);
+        }
       } else {
         setReason(data.reason ?? "Kein Briefing erhalten.");
       }
@@ -331,7 +433,7 @@ export function JarvisCompanion({
       setIsScanning(false);
       jarvisAudio.stopBeamSound();
     }
-  }, []);
+  }, [voiceReply, speakText]);
 
   // Aufgaben aus Antwort suchen
   const findTasks = useCallback(async () => {
@@ -406,7 +508,7 @@ export function JarvisCompanion({
       ? "scanning"
       : phase === "thinking"
       ? "thinking"
-      : phase === "speaking" || phase === "listening"
+      : phase === "speaking" || phase === "listening" || isPlayingAudio
       ? "speaking"
       : "idle";
 
@@ -419,65 +521,88 @@ export function JarvisCompanion({
         onComplete={() => setIsScanning(false)}
       />
 
+      {/* 3D Hologram & Personality Studio Modal */}
+      {studioOpen ? (
+        <PersonalityStudioModal
+          currentPersonaId={currentPersona.id}
+          onSelectPersona={(p) => {
+            setCurrentPersona(p);
+            jarvisAudio.playChime(1.2);
+          }}
+          onClose={() => setStudioOpen(false)}
+        />
+      ) : null}
+
       {/* Haupt-Container unten rechts verankert */}
       <aside
         aria-label="Jarvis Unified Interface"
-        className="pointer-events-auto fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3 select-none"
+        className="pointer-events-auto fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3 select-none font-sans"
       >
         {/* ============================================================ */}
         {/* VOLLUMFÄNGLICHE JARVIS KONSOLE (WENN GEÖFFNET)              */}
         {/* ============================================================ */}
         {isOpen && !isMinimized && (
           <section
-            className={`relative flex flex-col overflow-hidden rounded-2xl border border-cyan-500/40 bg-[#070d14]/95 shadow-[0_16px_55px_rgba(0,0,0,0.85),0_0_35px_rgba(0,240,255,0.18)] backdrop-blur-xl transition-all duration-300 ${
+            className={`relative flex flex-col overflow-hidden rounded-2xl border border-cyan-500/40 bg-[#070d14]/95 shadow-[0_16px_55px_rgba(0,0,0,0.85),0_0_35px_rgba(0,240,255,0.18)] backdrop-blur-xl transition-all duration-300 font-sans ${
               isExpanded
                 ? "h-[min(780px,calc(100vh-6rem))] w-[min(760px,calc(100vw-2.5rem))]"
                 : "h-[min(640px,calc(100vh-6rem))] w-[min(560px,calc(100vw-2.5rem))]"
             }`}
           >
-            {/* Header: Cyber-Avatar + Telemetrie + Fenster-Steuerung */}
+            {/* Header: Cyber-Avatar + Telemetrie + Persönlichkeits-Studio + Fenster-Steuerung */}
             <div className="relative flex flex-col border-b border-cyan-500/25 bg-gradient-to-b from-cyan-950/30 to-transparent p-3.5">
               <div className="flex items-center justify-between gap-3">
-                {/* Avatar Umschalter & Mini-Vorschau */}
+                {/* Links: Modus & Persönlichkeit */}
                 <div className="flex items-center gap-2.5">
                   <button
                     type="button"
                     onClick={handleToggleMode}
-                    className="group relative flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-2.5 py-1.5 transition-all hover:border-cyan-300 hover:bg-cyan-900/60 hover:shadow-[0_0_15px_rgba(0,240,255,0.3)]"
+                    className="group relative flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-2.5 py-1.5 transition-all hover:border-cyan-300 hover:bg-cyan-900/60"
                     title="Zwischen Hologramm-KI-Gesicht und Quantum Arc Reactor wechseln"
                   >
-                    <span className="font-mono text-xs font-bold text-cyan-300 group-hover:text-white">
+                    <span className="font-sans text-xs font-bold text-cyan-300 group-hover:text-white">
                       {mode === "face" ? "🤖 FACE" : "⚡ CORE"}
                     </span>
-                    <span className="rounded-full bg-cyan-400/20 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200">
+                    <span className="rounded-full bg-cyan-400/20 px-1.5 py-0.5 font-sans text-[10px] text-cyan-200">
                       Wechseln
                     </span>
                   </button>
 
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 animate-ping rounded-full bg-cyan-400" />
-                      <span className="font-mono text-xs font-extrabold tracking-wider text-cyan-300 uppercase">
-                        JARVIS // HUD
-                      </span>
-                    </div>
-                    <span className="font-mono text-[10px] text-cyan-200/60">
-                      {noteCount} Notizen synchronisiert
+                  <button
+                    type="button"
+                    onClick={() => setStudioOpen(true)}
+                    className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-2 py-1.5 transition hover:border-cyan-300 hover:bg-cyan-900/50"
+                    title="3D Hologramm & Persönlichkeits-Studio öffnen"
+                  >
+                    <Settings2 size={13} className="text-cyan-400" />
+                    <span className="font-sans text-xs font-semibold text-white/90">
+                      {currentPersona.name}
                     </span>
-                  </div>
+                  </button>
                 </div>
 
-                {/* Zentraler Avatar */}
-                <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-cyan-500/30 bg-[#03070d]/80 shadow-[inset_0_0_20px_rgba(0,240,255,0.15)]">
+                {/* Zentraler Avatar (Klickbar für 3D-Studio) */}
+                <button
+                  type="button"
+                  onClick={() => setStudioOpen(true)}
+                  className="group relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-cyan-500/40 bg-[#03070d]/80 shadow-[inset_0_0_20px_rgba(0,240,255,0.15)] transition hover:border-cyan-300 hover:scale-105"
+                  title="Klick: 3D Hologramm-Modell & Persönlichkeit anpassen"
+                >
                   {mode === "face" ? (
-                    <JarvisHologramFace size={74} active={busy || isScanning} phase={avatarPhase} />
+                    <JarvisHologramFace size={74} active={busy || isScanning || isPlayingAudio} phase={avatarPhase} />
                   ) : (
-                    <JarvisArcReactor size={74} active={busy || isScanning} phase={avatarPhase} />
+                    <JarvisArcReactor size={74} active={busy || isScanning || isPlayingAudio} phase={avatarPhase} />
                   )}
-                </div>
+                  <span className="absolute -bottom-1.5 rounded-full border border-cyan-400/50 bg-[#070d14] px-1.5 py-0.2 font-sans text-[9px] font-bold text-cyan-300 group-hover:text-white opacity-90">
+                    3D STUDIO
+                  </span>
+                </button>
 
                 {/* Fenster-Aktionen */}
                 <div className="flex items-center gap-1">
+                  <span className="mr-2 hidden sm:inline font-mono text-[10px] text-cyan-300/60">
+                    {noteCount} NOTIZEN
+                  </span>
                   <button
                     type="button"
                     onClick={() => setIsExpanded((prev) => !prev)}
@@ -506,15 +631,15 @@ export function JarvisCompanion({
               </div>
             </div>
 
-            {/* Quick-Scan Action Chips */}
-            <div className="flex flex-wrap gap-1.5 border-b border-cyan-500/15 bg-black/30 px-3.5 py-2">
+            {/* Quick-Scan Action Chips (Konsistente Typografie: font-sans) */}
+            <div className="flex flex-wrap gap-1.5 border-b border-cyan-500/15 bg-black/30 px-3.5 py-2 font-sans">
               <button
                 type="button"
                 onClick={() => {
                   setQuestion("Scanne Second Brain und Index nach aktuellem Wissensstand");
                   ask("Scanne Second Brain und Index nach aktuellem Wissensstand");
                 }}
-                className="rounded-full border border-cyan-500/30 bg-cyan-950/40 px-2.5 py-1 font-mono text-[10px] text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-900/60"
+                className="rounded-full border border-cyan-500/30 bg-cyan-950/40 px-3 py-1 font-sans text-xs font-medium text-white/85 transition hover:border-cyan-300 hover:bg-cyan-900/60 hover:text-white"
               >
                 🧠 Gehirn & Index
               </button>
@@ -524,7 +649,7 @@ export function JarvisCompanion({
                   setQuestion("Projekt Singularität Reifegrade und nächste Schritte");
                   ask("Projekt Singularität Reifegrade und nächste Schritte");
                 }}
-                className="rounded-full border border-cyan-500/30 bg-cyan-950/40 px-2.5 py-1 font-mono text-[10px] text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-900/60"
+                className="rounded-full border border-cyan-500/30 bg-cyan-950/40 px-3 py-1 font-sans text-xs font-medium text-white/85 transition hover:border-cyan-300 hover:bg-cyan-900/60 hover:text-white"
               >
                 🌌 Singularität (Erfolgsmagnet)
               </button>
@@ -534,14 +659,14 @@ export function JarvisCompanion({
                   setQuestion("Kanonische Regeln und AGENTS.md prüfen");
                   ask("Kanonische Regeln und AGENTS.md prüfen");
                 }}
-                className="rounded-full border border-cyan-500/30 bg-cyan-950/40 px-2.5 py-1 font-mono text-[10px] text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-900/60"
+                className="rounded-full border border-cyan-500/30 bg-cyan-950/40 px-3 py-1 font-sans text-xs font-medium text-white/85 transition hover:border-cyan-300 hover:bg-cyan-900/60 hover:text-white"
               >
                 🛡️ AGENTS.md
               </button>
               <button
                 type="button"
                 onClick={() => void briefing()}
-                className="rounded-full border border-amber-500/30 bg-amber-950/30 px-2.5 py-1 font-mono text-[10px] text-amber-200 transition hover:border-amber-400 hover:bg-amber-900/50"
+                className="rounded-full border border-amber-500/30 bg-amber-950/30 px-3 py-1 font-sans text-xs font-medium text-amber-200 transition hover:border-amber-400 hover:bg-amber-900/50"
               >
                 🌅 Mein Stand (Briefing)
               </button>
@@ -559,13 +684,13 @@ export function JarvisCompanion({
                     if (e.key === "Enter") ask();
                   }}
                   placeholder="Was möchtest du aus deinem Second Brain wissen?..."
-                  className="min-w-0 flex-1 bg-transparent font-mono text-xs text-white placeholder-cyan-200/30 outline-none"
+                  className="min-w-0 flex-1 bg-transparent font-sans text-xs text-white placeholder:text-white/30 outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => ask()}
                   disabled={busy || !question.trim()}
-                  className="flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/60 bg-cyan-500/20 px-2.5 py-1 font-mono text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-500/40 disabled:opacity-30"
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/60 bg-cyan-500/20 px-3 py-1 font-sans text-xs font-bold text-cyan-200 transition hover:bg-cyan-500/40 disabled:opacity-30"
                   title="Abfrage starten (Scan & Analyse)"
                 >
                   {busy ? (
@@ -580,18 +705,18 @@ export function JarvisCompanion({
               </div>
 
               {/* Toolbar für Sprache & Klang */}
-              <div className="mt-2.5 flex items-center gap-2">
+              <div className="mt-2.5 flex items-center gap-2 font-sans">
                 {voice.supported ? (
                   <button
                     type="button"
                     onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}
                     disabled={busy}
-                    className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-[11px] font-medium transition disabled:opacity-30 ${
+                    className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-1.5 font-sans text-xs font-medium transition disabled:opacity-30 ${
                       voice.listening
                         ? "border-green-400/50 bg-green-400/20 text-green-200"
-                        : "border-cyan-500/30 bg-cyan-950/30 text-cyan-200 hover:border-cyan-400 hover:text-white"
+                        : "border-cyan-500/30 bg-cyan-950/30 text-white/80 hover:border-cyan-400 hover:text-white"
                     }`}
-                    title="Sprich deine Frage — die Erkennung läuft lokal im Browser"
+                    title="Sprich deine Frage — lokale Spracherkennung"
                   >
                     {voice.listening ? <MicOff size={13} /> : <Mic size={13} />}
                     <span>{voice.listening ? "Hört zu…" : "Hey Hermes"}</span>
@@ -601,17 +726,18 @@ export function JarvisCompanion({
                 <button
                   type="button"
                   onClick={() => {
-                    if (voice.speaking) voice.stopSpeaking();
+                    if (isPlayingAudio) stopAudio();
                     setVoiceReply((prev) => !prev);
                   }}
-                  className={`inline-flex items-center rounded-xl border px-2.5 py-1.5 transition ${
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 font-sans text-xs transition ${
                     voiceReply
                       ? "border-cyan-400 bg-cyan-400/20 text-cyan-200"
-                      : "border-cyan-500/30 bg-cyan-950/20 text-cyan-400/60 hover:text-cyan-200"
+                      : "border-cyan-500/30 bg-cyan-950/20 text-white/60 hover:text-white"
                   }`}
-                  title={voiceReply ? "Sprachausgabe aktiv" : "Sprachausgabe stumm"}
+                  title={voiceReply ? "Automatisches Vorlesen aktiv" : "Automatisches Vorlesen aus"}
                 >
                   {voiceReply ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                  <span className="hidden sm:inline">{voiceReply ? "Vorlesen an" : "Stumm"}</span>
                 </button>
 
                 <button
@@ -620,7 +746,7 @@ export function JarvisCompanion({
                   className={`inline-flex items-center rounded-xl border px-2.5 py-1.5 transition ${
                     soundOn
                       ? "border-violet-400 bg-violet-400/20 text-violet-200"
-                      : "border-cyan-500/30 bg-cyan-950/20 text-cyan-400/60 hover:text-cyan-200"
+                      : "border-cyan-500/30 bg-cyan-950/20 text-white/60 hover:text-white"
                   }`}
                   title={soundOn ? "Klang des Gehirns aktiv" : "Klang des Gehirns stumm"}
                 >
@@ -631,7 +757,7 @@ export function JarvisCompanion({
                   type="button"
                   onClick={() => void briefing()}
                   disabled={busy}
-                  className="inline-flex items-center gap-1 rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-2.5 py-1.5 font-mono text-[11px] text-cyan-300 transition hover:border-cyan-400 hover:text-white disabled:opacity-30"
+                  className="inline-flex items-center gap-1 rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-2.5 py-1.5 font-sans text-xs text-white/80 transition hover:border-cyan-400 hover:text-white disabled:opacity-30"
                   title="Wie ist mein Stand? — Briefing abrufen"
                 >
                   <Sunrise size={13} />
@@ -640,29 +766,93 @@ export function JarvisCompanion({
               </div>
 
               {voice.listening && voice.heard ? (
-                <p className="mt-2 font-mono text-[11px] italic text-green-200/80">
+                <p className="mt-2 font-sans text-xs italic text-green-200/90">
                   „{voice.heard}“
                 </p>
               ) : null}
+
+              {/* Neural Voice Audio Player Bar (Play / Pause / Stop) */}
+              {isPlayingAudio ? (
+                <div className="mt-2.5 flex items-center justify-between rounded-xl border border-cyan-400/40 bg-cyan-950/50 px-3 py-2 shadow-[0_0_15px_rgba(0,240,255,0.15)]">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-0.5">
+                      <span className="h-3 w-1 bg-cyan-400 animate-pulse rounded-full" />
+                      <span className="h-4 w-1 bg-cyan-300 animate-pulse delay-75 rounded-full" />
+                      <span className="h-2 w-1 bg-cyan-400 animate-pulse delay-150 rounded-full" />
+                    </div>
+                    <span className="font-sans text-xs font-semibold text-white">
+                      {isAudioPaused ? "Pausiert" : "Liest vor"}: {currentPersona.name}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {isAudioPaused ? (
+                      <button
+                        type="button"
+                        onClick={resumeAudio}
+                        className="flex items-center gap-1 rounded-lg border border-cyan-400 bg-cyan-500/20 px-2.5 py-1 font-sans text-xs font-bold text-cyan-100 hover:bg-cyan-500/40"
+                        title="Wiedergabe fortsetzen"
+                      >
+                        <Play size={11} className="fill-current" />
+                        <span>Fortsetzen</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={pauseAudio}
+                        className="flex items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-500/20 px-2.5 py-1 font-sans text-xs font-bold text-amber-100 hover:bg-amber-500/40"
+                        title="Wiedergabe pausieren"
+                      >
+                        <Pause size={11} className="fill-current" />
+                        <span>Pausieren</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={stopAudio}
+                      className="flex items-center gap-1 rounded-lg border border-red-500/40 bg-red-500/20 px-2.5 py-1 font-sans text-xs font-bold text-red-200 hover:bg-red-500/40"
+                      title="Vorlesen stoppen"
+                    >
+                      <Square size={10} className="fill-current" />
+                      <span>Stopp</span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            {/* Antwort- & Quellen-Bereich */}
-            <div ref={answerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            {/* Antwort- & Quellen-Bereich (Typografie font-sans) */}
+            <div ref={answerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3 font-sans">
               {answer ? (
                 <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/15 p-3.5 shadow-inner">
                   <div className="mb-2 flex items-center justify-between border-b border-cyan-500/20 pb-1.5">
-                    <span className="font-mono text-[10px] font-bold text-cyan-300 uppercase">
-                      JARVIS SYNTHESE // VAULT STREAM:
+                    <span className="font-sans text-[11px] font-bold text-cyan-300 uppercase tracking-wider">
+                      {currentPersona.name} Synthese // Vault Stream:
                     </span>
-                    {phase === "speaking" ? (
-                      <span className="flex items-center gap-1 font-mono text-[9px] text-cyan-400 animate-pulse">
-                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                        STREAMING
-                      </span>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                      {!isPlayingAudio && !audioLoading ? (
+                        <button
+                          type="button"
+                          onClick={() => void speakText(answer)}
+                          className="flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-950/30 px-2 py-0.5 font-sans text-[11px] text-cyan-200 hover:border-cyan-300 hover:text-white"
+                          title="Diese Antwort vorlesen lassen"
+                        >
+                          <Volume2 size={12} />
+                          <span>Vorlesen</span>
+                        </button>
+                      ) : null}
+
+                      {phase === "speaking" ? (
+                        <span className="flex items-center gap-1 font-sans text-[10px] text-cyan-400 animate-pulse">
+                          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                          STREAMING
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <p className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-200">
+                  <p className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-white/95">
                     {answer}
                     {phase === "speaking" ? (
                       <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-cyan-400 align-middle" />
@@ -672,7 +862,7 @@ export function JarvisCompanion({
               ) : null}
 
               {reason ? (
-                <p className="mt-2 font-mono text-xs leading-relaxed text-amber-300">
+                <p className="mt-2 font-sans text-xs leading-relaxed text-amber-300">
                   {reason}
                 </p>
               ) : null}
@@ -684,7 +874,7 @@ export function JarvisCompanion({
                     type="button"
                     onClick={() => void proposeNote()}
                     disabled={saving || Boolean(savedAs)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-950/40 px-3 py-1 font-mono text-[11px] font-medium text-cyan-200 transition hover:border-cyan-300 hover:text-white disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-950/40 px-3 py-1 font-sans text-xs font-medium text-white/85 transition hover:border-cyan-300 hover:text-white disabled:opacity-40"
                     title="Legt diese Antwort mit Frage und Quellen als Notiz in der Inbox ab"
                   >
                     <BookmarkPlus size={12} />
@@ -695,7 +885,7 @@ export function JarvisCompanion({
                     type="button"
                     onClick={() => void findTasks()}
                     disabled={candidatesBusy}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-950/40 px-3 py-1 font-mono text-[11px] font-medium text-cyan-200 transition hover:border-cyan-300 hover:text-white disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-950/40 px-3 py-1 font-sans text-xs font-medium text-white/85 transition hover:border-cyan-300 hover:text-white disabled:opacity-40"
                     title="Sucht Aufgaben, die aus dieser Antwort folgen"
                   >
                     <ListChecks size={12} />
@@ -713,7 +903,7 @@ export function JarvisCompanion({
               {/* Notiz-Vorschau Dialog */}
               {preview ? (
                 <div className="mt-3 rounded-xl border border-cyan-500/30 bg-cyan-950/30 p-3">
-                  <p className="pb-1.5 font-mono text-[10px] font-semibold tracking-wider text-cyan-300 uppercase">
+                  <p className="pb-1.5 font-sans text-xs font-semibold tracking-wide text-cyan-300 uppercase">
                     Vorschau: Speicherung in Inbox
                   </p>
                   <input
@@ -722,13 +912,13 @@ export function JarvisCompanion({
                       setPreview((prev) => (prev ? { ...prev, title: e.target.value } : prev))
                     }
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="w-full rounded-lg border border-cyan-500/40 bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white outline-none focus:border-cyan-300"
+                    className="w-full rounded-lg border border-cyan-500/40 bg-black/60 px-2.5 py-1.5 font-sans text-xs text-white outline-none focus:border-cyan-300"
                   />
                   <p className="mt-1.5 truncate font-mono text-[10px] text-cyan-200/50" title={preview.file}>
                     {preview.file}
                   </p>
                   {preview.sources.length > 0 ? (
-                    <p className="mt-1 font-mono text-[10px] text-cyan-200/50">
+                    <p className="mt-1 font-sans text-[11px] text-white/50">
                       Verlinkt: {preview.sources.join(" · ")}
                     </p>
                   ) : null}
@@ -737,14 +927,14 @@ export function JarvisCompanion({
                       type="button"
                       onClick={() => void confirmNote()}
                       disabled={saving || !preview.title.trim()}
-                      className="rounded-full border border-emerald-400/50 bg-emerald-500/20 px-3 py-1 font-mono text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-40"
+                      className="rounded-full border border-emerald-400/50 bg-emerald-500/20 px-3 py-1 font-sans text-xs font-bold text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-40"
                     >
                       {saving ? "Speichert…" : "Bestätigen & Ablegen"}
                     </button>
                     <button
                       type="button"
                       onClick={() => setPreview(null)}
-                      className="font-mono text-[11px] text-cyan-400/60 hover:text-white"
+                      className="font-sans text-xs text-white/50 hover:text-white"
                     >
                       Abbrechen
                     </button>
@@ -754,9 +944,9 @@ export function JarvisCompanion({
 
               {/* Aufgaben-Vorschläge */}
               {candidates ? (
-                <div className="mt-3 rounded-xl border border-cyan-500/20 bg-black/40 p-2.5">
+                <div className="mt-3 rounded-xl border border-cyan-500/20 bg-black/40 p-2.5 font-sans">
                   {candidates.length === 0 ? (
-                    <p className="font-mono text-[11px] text-cyan-200/50">
+                    <p className="font-sans text-xs text-white/50">
                       Keine konkreten Handlungsaufgaben aus der Antwort abgeleitet.
                     </p>
                   ) : (
@@ -769,14 +959,14 @@ export function JarvisCompanion({
                               type="button"
                               onClick={() => void acceptCandidate(line)}
                               disabled={Boolean(state)}
-                              className="shrink-0 rounded-md border border-cyan-500/30 px-2 py-0.5 font-mono text-[10px] text-cyan-200 hover:border-emerald-400 hover:text-emerald-200 disabled:opacity-40"
+                              className="shrink-0 rounded-md border border-cyan-500/30 px-2 py-0.5 font-sans text-xs text-cyan-200 hover:border-emerald-400 hover:text-emerald-200 disabled:opacity-40"
                               title="In Todoist anlegen"
                             >
                               {state === "done" ? "✓" : state === "saving" ? "…" : state === "failed" ? "!" : "+ Todo"}
                             </button>
                             <span
-                              className={`min-w-0 flex-1 truncate font-mono text-[11px] ${
-                                state === "done" ? "text-cyan-200/40 line-through" : "text-slate-200"
+                              className={`min-w-0 flex-1 truncate font-sans text-xs ${
+                                state === "done" ? "text-white/40 line-through" : "text-white/85"
                               }`}
                               title={line}
                             >
@@ -787,7 +977,7 @@ export function JarvisCompanion({
                               onClick={() =>
                                 setCandidates((prev) => (prev ?? []).filter((entry) => entry !== line))
                               }
-                              className="shrink-0 text-cyan-400/40 hover:text-white"
+                              className="shrink-0 text-white/40 hover:text-white"
                               title="Verwerfen"
                             >
                               <X size={12} />
@@ -802,8 +992,8 @@ export function JarvisCompanion({
 
               {/* Zitierte Quellen mit Kameraflug */}
               {sources.length > 0 ? (
-                <div className="mt-4 border-t border-cyan-500/20 pt-2.5">
-                  <p className="pb-1.5 font-mono text-[10px] font-bold tracking-wider text-cyan-400 uppercase">
+                <div className="mt-4 border-t border-cyan-500/20 pt-2.5 font-sans">
+                  <p className="pb-1.5 font-sans text-xs font-bold tracking-wide text-cyan-300 uppercase">
                     Zitierte Vault-Quellen (Klicken für 3D-Kameraflug):
                   </p>
                   <ol className="space-y-1">
@@ -815,10 +1005,10 @@ export function JarvisCompanion({
                           className="flex w-full items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1.5 text-left transition hover:border-cyan-400 hover:bg-cyan-900/50"
                           title={source.folder}
                         >
-                          <span className="shrink-0 font-mono text-[10px] font-bold text-cyan-300">
+                          <span className="shrink-0 font-mono text-[11px] font-bold text-cyan-300">
                             [{index + 1}]
                           </span>
-                          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-cyan-100">
+                          <span className="min-w-0 flex-1 truncate font-sans text-xs text-white/90">
                             {source.title}
                           </span>
                           <span className="shrink-0 font-mono text-[9px] text-cyan-300/50">
@@ -832,9 +1022,9 @@ export function JarvisCompanion({
               ) : null}
 
               {!busy && !answer && !reason && sources.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                  <Sparkles size={24} className="text-cyan-400/40 mb-2 animate-pulse" />
-                  <p className="max-w-[340px] font-mono text-[11px] leading-relaxed text-cyan-200/50">
+                <div className="flex flex-col items-center justify-center py-6 text-center font-sans">
+                  <Sparkles size={24} className="text-cyan-400/50 mb-2 animate-pulse" />
+                  <p className="max-w-[340px] font-sans text-xs leading-relaxed text-white/55">
                     Antworten kommen unmittelbar aus deinen {noteCount} Notizen — mit Live-Zitaten
                     und 3D-Kameraflug zu den Wissenssternen.
                   </p>
@@ -847,7 +1037,7 @@ export function JarvisCompanion({
         {/* ============================================================ */}
         {/* SCHWEBENDER BEGLEITER-KNOPF UNTEN RECHTS                      */}
         {/* ============================================================ */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 font-sans">
           {/* Minimierte Badge / Pill */}
           {isMinimized ? (
             <button
@@ -856,8 +1046,10 @@ export function JarvisCompanion({
               className="flex items-center gap-2.5 rounded-full border border-cyan-400/60 bg-[#070d14]/95 px-3.5 py-1.5 shadow-[0_0_20px_rgba(0,240,255,0.3)] backdrop-blur-xl transition hover:scale-105 active:scale-95"
             >
               <div className="h-2 w-2 animate-ping rounded-full bg-cyan-400" />
-              <span className="font-mono text-xs font-bold text-cyan-300">JARVIS HUD</span>
-              <span className="font-mono text-[10px] text-cyan-200/60">{phase}</span>
+              <span className="font-sans text-xs font-bold text-cyan-300">
+                {currentPersona.name} HUD
+              </span>
+              <span className="font-sans text-[10px] text-white/60">{phase}</span>
             </button>
           ) : null}
 
@@ -871,12 +1063,12 @@ export function JarvisCompanion({
                   ? "border-cyan-300 bg-[#070d14] shadow-[0_0_35px_rgba(0,240,255,0.6),inset_0_0_15px_rgba(0,240,255,0.3)] scale-105"
                   : "border-cyan-500/50 bg-[#070d14]/90 shadow-[0_0_20px_rgba(0,240,255,0.25)] hover:border-cyan-300 hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] hover:scale-105"
               }`}
-              title={isOpen ? "Jarvis Konsole schließen" : "Jarvis Konsole öffnen (Klick)"}
+              title={isOpen ? "Jarvis Konsole schließen" : `${currentPersona.name} Konsole öffnen (Klick)`}
             >
               {mode === "face" ? (
-                <JarvisHologramFace size={56} active={isOpen || busy || isScanning} phase={avatarPhase} />
+                <JarvisHologramFace size={56} active={isOpen || busy || isScanning || isPlayingAudio} phase={avatarPhase} />
               ) : (
-                <JarvisArcReactor size={56} active={isOpen || busy || isScanning} phase={avatarPhase} />
+                <JarvisArcReactor size={56} active={isOpen || busy || isScanning || isPlayingAudio} phase={avatarPhase} />
               )}
 
               {/* Status-Punkt */}
@@ -884,6 +1076,8 @@ export function JarvisCompanion({
                 className={`absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-black transition-colors ${
                   busy
                     ? "bg-amber-400 animate-ping"
+                    : isPlayingAudio
+                    ? "bg-cyan-300 shadow-[0_0_8px_#00f0ff] animate-pulse"
                     : isOpen
                     ? "bg-cyan-300 shadow-[0_0_6px_#00f0ff]"
                     : "bg-emerald-400"
@@ -896,7 +1090,7 @@ export function JarvisCompanion({
               type="button"
               onClick={handleToggleMode}
               className="absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full border border-cyan-400/60 bg-[#070d14] text-[10px] text-cyan-300 shadow-md transition hover:scale-110 hover:border-cyan-200 hover:text-white"
-              title={`Modus wechseln (aktuell: ${mode === "face" ? "Hologram Face" : "Quantum Arc Core"})`}
+              title={`Avatar-Modus wechseln (${mode === "face" ? "Zu Arc Reactor" : "Zu Hologram Face"})`}
             >
               {mode === "face" ? "⚡" : "🤖"}
             </button>
