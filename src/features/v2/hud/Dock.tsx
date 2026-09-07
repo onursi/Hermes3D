@@ -78,26 +78,10 @@ export function Dock({
         </svg>
       </DockButton>
 
-      <DockButton
-        active={world === "saturn"}
-        onClick={() => goTo("saturn")}
-        label="Memory Saturn"
-      >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <DockButton active={world === "memory"} onClick={() => goTo("memory")} label="Memory">
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5">
           <circle cx="12" cy="12" r="5" />
-          <ellipse cx="12" cy="12" rx="9" ry="3.2" transform="rotate(-25 12 12)" />
-        </svg>
-      </DockButton>
-
-      <DockButton
-        active={world === "tesseract"}
-        onClick={() => goTo("tesseract")}
-        label="4D-Tesserakt"
-      >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <rect x="7" y="7" width="10" height="10" rx="1" />
-          <path d="M3 3l4 4M21 3l-4 4M3 21l4-4M21 21l-4-4" />
+          <ellipse cx="12" cy="12" rx="11" ry="3" transform="rotate(-25 12 12)" />
         </svg>
       </DockButton>
 

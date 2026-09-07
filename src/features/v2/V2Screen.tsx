@@ -1,11 +1,12 @@
 "use client";
 
+import * as THREE from "three";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { shelfFor } from "@/features/v2/libraryItems";
 import { useV2 } from "@/features/v2/state";
 import { WorldBoundary } from "@/features/v2/WorldBoundary";
-import { useProjects, type Project } from "@/features/v2/useProjects";
+import { useProjects, type Project, type ProjectNote } from "@/features/v2/useProjects";
 import { useRoster } from "@/features/v2/useRoster";
 import { useHermesLive } from "@/features/v2/useHermesLive";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
@@ -30,6 +31,11 @@ import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 import { JarvisCompanion } from "@/features/v2/jarvis";
+import "./spatial/spatial.css";
+import { ProjectGlass } from "./spatial/ProjectGlass";
+import { MemoryHud, MemoryCard } from "./spatial/SpatialHud";
+import type { MemoryEntry, ProjectMeta } from "./spatial/model";
+import type { MemoryMode } from "./spatial/MemoryWorld";
 
 /**
  * V2, assembled.
@@ -99,6 +105,60 @@ export function V2Screen() {
    * leaves the selection standing where it was.
    */
   const [readerId, setReaderId] = useState<string | null>(null);
+  const [openProjectFolder, setOpenProjectFolder] = useState<string | null>(null);
+  const [openNotePath, setOpenNotePath] = useState<string | null>(null);
+  const [metadata, setMetadata] = useState<Record<string, ProjectMeta>>({});
+  const [dive, setDive] = useState(0);
+  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [memoryMode, setMemoryMode] = useState<MemoryMode>("saturn");
+  const [memoryPhase, setMemoryPhase] = useState("Gegenwart");
+  const [memoryCard, setMemoryCard] = useState<MemoryEntry | null>(null);
+  const mediaUrls = useRef<string[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const urls = mediaUrls.current;
+    void fetch("/api/vault/project-state", { signal: controller.signal })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setMetadata(d.states);
+      })
+      .catch(() => {});
+    void fetch("/api/vault/memories", { signal: controller.signal })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setMemoryEntries(d.memories);
+      })
+      .catch(() => {});
+    return () => {
+      controller.abort();
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
+  const chooseMemoryPhase = useCallback((phase: string) => {
+    setMemoryPhase(phase);
+    setMemoryMode("carousel");
+    setMemoryCard(null);
+  }, []);
+  const importMemories = useCallback((files: FileList, phase: string) => {
+    const imported: MemoryEntry[] = Array.from(files)
+      .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
+      .map((f) => {
+        const url = URL.createObjectURL(f);
+        mediaUrls.current.push(url);
+        return {
+          id: crypto.randomUUID(),
+          title: f.name,
+          date: "",
+          phase,
+          kind: f.type.startsWith("video/") ? "video" : "image",
+          url,
+          local: true,
+        };
+      });
+    setMemoryEntries((previous) => [...previous, ...imported]);
+    setMemoryPhase(phase);
+    setMemoryMode("carousel");
+  }, []);
   /**
    * Die Notiz, deren Nachbarschaft er zugeklappt hat — nicht ein Ja/Nein.
    *
@@ -266,7 +326,18 @@ export function V2Screen() {
    * world draws. Nothing is inferred: if the vault records no connection, the
    * footer is empty rather than filled with things that merely look related.
    */
-  const readerNode = readerId ? (vault.byId.get(readerId) ?? null) : null;
+  const readerNode = readerId
+    ? vault.byId.get(readerId) ?? {
+        id: readerId,
+        name: readerId.split("/").pop()?.replace(/\.md$/, "") || "Notiz",
+        folder: readerId.split("/").slice(0, -1).join("/"),
+        degree: 0,
+        color: "#bccadd",
+        position: new THREE.Vector3(),
+        skyPosition: new THREE.Vector3(),
+        excerpt: "",
+      }
+    : null;
   const readerNeighbours = useMemo(
     () => (readerId ? neighboursOf(readerId, vault.links, vault.byId) : []),
     [readerId, vault.links, vault.byId],
@@ -315,9 +386,25 @@ export function V2Screen() {
       : null;
 
   const selectProject = useCallback(
-    (project: Project) => select({ kind: "project", folder: project.folder, name: project.name }),
-    [select],
+    (project: Project) => {
+      if (selection.kind === "project" && selection.folder === project.folder) {
+        setOpenProjectFolder(project.folder);
+        return;
+      }
+      select({ kind: "project", folder: project.folder, name: project.name });
+    },
+    [select, selection],
   );
+
+  const openProject = useMemo(
+    () => projects.projects.find((entry) => entry.folder === openProjectFolder) ?? null,
+    [projects.projects, openProjectFolder],
+  );
+
+  const openProjectNote = useCallback((note: ProjectNote) => {
+    setOpenNotePath(note.path);
+    setReaderId(note.path);
+  }, []);
 
   const selectSource = useCallback(
     (node: VaultNode) => select({ kind: "source", id: node.id, title: node.name, folder: node.folder }),
@@ -482,6 +569,15 @@ export function V2Screen() {
         }}
       >
       <V2Scene
+        metadata={metadata}
+        dive={dive}
+        onDive={() => setDive((v) => (v > 0.5 ? 0 : 1))}
+        memoryEntries={memoryEntries}
+        memoryMode={memoryMode}
+        memoryPhase={memoryPhase}
+        onMemoryPhase={chooseMemoryPhase}
+        onMemoryMode={setMemoryMode}
+        onMemoryOpen={setMemoryCard}
         agents={roster.agents}
         rosterReachable={roster.reachable}
         approvalsWaiting={approvals}
@@ -492,17 +588,129 @@ export function V2Screen() {
         onSelectAgent={selectAgent}
         onSelectSourceId={selectSourceId}
         onSelectProject={selectProject}
+        openProject={openProject}
+        openNotePath={openNotePath}
+        onOpenProjectNote={openProjectNote}
         places={places}
         onReachChange={setReachable}
         cockpitMarkers={cockpitMarkers}
         knowledge={knowledge}
         focusRequest={focusRequest}
         flyThrough={flyThrough}
-        inputBlocked={readerId !== null}
+        inputBlocked={readerId !== null || memoryCard !== null}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
       />
       </WorldBoundary>
+
+      {world === "projects" && !openProject && (
+        <>
+          <div className="r10-title">
+            <span className="r10-eyebrow">Projektuniversum / 01</span>
+            <h1>Project Singularity</h1>
+            <p>Was deine Aufmerksamkeit braucht, kommt näher. Bewusste Pausen dürfen ruhig bleiben.</p>
+          </div>
+          <div className="r10-project-list" aria-label="Projektplaneten">
+            {projects.projects.map((p) => (
+              <button key={p.folder} onClick={() => selectProject(p)}>
+                {p.name}
+              </button>
+            ))}
+            {projects.projects.length === 0 && <p>Keine Projekte verfügbar.</p>}
+          </div>
+          <div className="r10-flight">
+            <button onClick={() => setDive((v) => (v > 0.5 ? 0 : 1))}>
+              {dive > 0.5 ? "Dive verlassen" : "Singularity Dive"}
+            </button>
+            <label>
+              Nähe zum Horizont
+              <input
+                aria-label="Nähe zum Ereignishorizont"
+                type="range"
+                min="0"
+                max="1"
+                step="0.025"
+                value={dive}
+                onChange={(e) => setDive(+e.target.value)}
+              />
+            </label>
+            <button
+              onClick={() => {
+                setDive(0);
+                clearSelection();
+                goTo("projects");
+              }}
+            >
+              Gesamtansicht
+            </button>
+          </div>
+          {selection.kind === "project" &&
+            (() => {
+              const p = projects.projects.find((p) => p.folder === selection.folder);
+              return p ? (
+                <ProjectGlass
+                  key={p.folder}
+                  project={p}
+                  meta={metadata[p.folder]}
+                  onClose={clearSelection}
+                  onEnter={() => {
+                    setDive(0);
+                    setOpenProjectFolder(p.folder);
+                  }}
+                  onOpen={openProjectNote}
+                  onSaved={(m) => {
+                    setMetadata((v) => ({ ...v, [p.folder]: m }));
+                    projects.reload();
+                  }}
+                />
+              ) : null;
+            })()}
+        </>
+      )}
+      {world === "projects" && openProject && (
+        <aside className="r10-glass r10-room-bar">
+          <span className="r10-eyebrow">Dein Projektraum</span>
+          <h2>{openProject.name}</h2>
+          <p className="r10-goal">{metadata[openProject.folder]?.goal || "Dokumente und Arbeitsstände direkt im Raum."}</p>
+          <div className="r10-roster">
+            {roster.agents.map((a) => (
+              <span key={a.id}>{a.name}</span>
+            ))}
+          </div>
+          <button onClick={() => setOpenProjectFolder(null)}>← Zum Projektuniversum</button>
+          <button onClick={() => goTo("memory")}>Erinnerungen öffnen</button>
+          <small>Agenten aus dem Roster. Kein laufender Council simuliert.</small>
+        </aside>
+      )}
+      {world === "memory" && (
+        <MemoryHud
+          key={memoryMode + memoryPhase}
+          mode={memoryMode}
+          phase={memoryPhase}
+          count={
+            memoryMode === "carousel"
+              ? memoryEntries.filter((e) => e.phase === memoryPhase).length
+              : memoryEntries.length
+          }
+          entries={memoryEntries}
+          onOpen={setMemoryCard}
+          onMode={setMemoryMode}
+          onPhase={chooseMemoryPhase}
+          onImport={importMemories}
+        />
+      )}
+      {world === "memory" && memoryCard && (
+        <MemoryCard
+          entry={memoryCard}
+          onClose={() => setMemoryCard(null)}
+          onRead={() => {
+            if (memoryCard.path) {
+              setReaderId(memoryCard.path);
+              setMemoryCard(null);
+            }
+          }}
+        />
+      )}
 
       <AtmosphereAudio />
       <StatusBar
@@ -541,7 +749,7 @@ export function V2Screen() {
           Der Inspektor schrumpft zuerst (`shrink` und `min-h-0`), weil die
           Arealliste ihre Höhe selbst kennt; so bleibt die Spalte auch auf
           niedrigen Fenstern innerhalb ihrer Grenzen. */}
-      {world !== "saturn" ? (
+      {world !== "projects" && world !== "memory" ? (
       <div className="pointer-events-none absolute right-4 top-16 bottom-20 z-30 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
         {approvalsOpen ? (
           <Approvals

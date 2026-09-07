@@ -1,4 +1,5 @@
 "use client";
+import { spatialSignal } from "./spatial/model";
 
 // Local synthesis only. Animation/engine sounds do not represent agent work.
 export const flightAudio = { speed: 0, hyperdrive: false };
@@ -29,6 +30,8 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
   const sources: (OscillatorNode | AudioBufferSourceNode)[] = [];
   const nodes: AudioNode[] = [master, compressor];
   const brain = world === "cosmos";
+  const gravity = world === "projects";
+  const memory = world === "memory";
   const travelling = world === "universe";
   const isTesseract = world === "tesseract";
 
@@ -45,9 +48,9 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     return { oscillator, gain };
   }
 
-  // --- Codex Original Normal-Modus Stimmen (gedimmt im Tesserakt für pure 4D-Akkorde) ---
-  const drone = voice(brain ? 196 : (isTesseract ? 0 : 65.4), brain ? 0.025 : (isTesseract ? 0 : 0.1));
-  voice(brain ? 294.3 : (isTesseract ? 0 : 98.2), brain ? 0.015 : (isTesseract ? 0 : 0.065));
+  // --- Codex Original Normal-Modus Stimmen (inkl. Singularity & Memory Saturn) ---
+  const drone = voice(brain ? 196 : gravity ? 43.65 : memory ? 130.81 : (isTesseract ? 0 : 65.4), brain ? 0.025 : (isTesseract ? 0 : 0.08));
+  voice(brain ? 294.3 : gravity ? 65.7 : memory ? 196 : (isTesseract ? 0 : 98.2), brain ? 0.015 : (isTesseract ? 0 : 0.045));
   const shimmer = voice(brain ? 1568 : 392.4, isTesseract ? 0 : 0.008);
   const engine = voice(48, 0, "triangle");
   const spark = voice(2300, 0);
@@ -172,18 +175,21 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     }
 
     // --- Codex Original Normal-Modus Klangmodulation ---
+    const depth = spatialSignal.depth;
+    const memoryFlow = spatialSignal.memorySpeed;
     const power = travelling ? Math.min(1, Math.log1p(flightAudio.speed / 26) / Math.log(101)) : 0;
-    engine.oscillator.frequency.setTargetAtTime(48 + power * 180, now, 0.12);
-    engine.gain.gain.setTargetAtTime(power * 0.19, now, 0.1);
-    filter.frequency.setTargetAtTime(brain ? 3900 : 420 + power * 4200, now, 0.15);
+    engine.oscillator.frequency.setTargetAtTime(gravity ? 32 + depth * 43 + Math.sin(tick * 0.12) * 3 : 48 + power * 180, now, 0.12);
+    engine.gain.gain.setTargetAtTime(gravity ? 0.025 + depth * 0.14 : power * 0.19, now, 0.1);
+    filter.frequency.setTargetAtTime(brain ? 3900 : gravity ? 140 + depth * 2200 : memory ? 1100 + memoryFlow * 2200 : 420 + power * 4200, now, 0.15);
     air.gain.setTargetAtTime(
       brain
         ? 0.018 + Math.max(0, Math.sin(tick * 1.73)) ** 14 * 0.16
-        : 0.025 + power * 0.28,
+        : gravity ? 0.035 + depth * 0.19 * (0.8 + 0.2 * Math.sin(tick * 0.15)) : memory ? 0.008 + memoryFlow * 0.08 : 0.025 + power * 0.28,
       now,
       0.025,
     );
-    shimmer.gain.gain.setTargetAtTime(0.008 + (1 + Math.sin(tick * 0.075)) * 0.005, now, 0.3);
+    shimmer.oscillator.frequency.setTargetAtTime(gravity ? 174.6 + depth * 310 : memory ? 523.25 : brain ? 1568 : 392.4, now, 0.4);
+    shimmer.gain.gain.setTargetAtTime((gravity ? 0.012 + depth * 0.02 : memory ? 0.018 : 0.008) + (1 + Math.sin(tick * 0.075)) * 0.005, now, 0.3);
     drone.oscillator.detune.setTargetAtTime(Math.sin(tick * 0.035) * 4, now, 0.3);
 
     if (brain && tick % 7 === 0) {

@@ -47,8 +47,13 @@ export type CameraGoal = {
  * data changes. A seventh project moves the ring not at all.
  */
 export const PROJECTS_VIEW = {
-  position: new THREE.Vector3(0.6, 8.4, 15.2),
-  target: new THREE.Vector3(0, 1.7, 0),
+  position: new THREE.Vector3(0, 31, 78),
+  target: new THREE.Vector3(0, 0, 0),
+};
+
+export const PROJECT_INSIDE_VIEW = {
+  position: new THREE.Vector3(0, 9.5, 21),
+  target: new THREE.Vector3(0, 0.2, 0),
 };
 
 /**
@@ -94,6 +99,7 @@ export const TESSERACT_VIEW = {
 };
 
 export function viewFor(world: V2World): CameraGoal {
+  if (world === "memory") return { position: new THREE.Vector3(0, 17, 34), target: new THREE.Vector3(0, 0, 0), duration: 1.2 };
   if (world === "universe") return { ...cloneView(UNIVERSE_VIEW), duration: 1.15 };
   if (world === "cosmos") {
     // The knowledge world is W1's layout now, and W1 places its areas on its

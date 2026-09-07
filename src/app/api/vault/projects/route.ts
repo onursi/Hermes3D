@@ -45,6 +45,29 @@ export type VaultProjectNote = {
   modified: string;
 };
 
+/**
+ * Ein Bereich innerhalb eines Projekts — und zwar ein echter Ordner.
+ *
+ * Die Projektwelt braucht eine Einteilung, und die Versuchung wäre, drei
+ * hübsche Bereiche zu erfinden: Quellen, Werkbank, Ergebnisse. Genau das wäre
+ * falsch. Onurs Projekte **haben** bereits eine Ordnung — „Architektur &
+ * Betrieb", „Code", „Website", „Ströer Kundenportfolio" —, und die ist von ihm
+ * und nicht von mir. Ein Bereich ist deshalb ein Unterordner, nicht mehr.
+ *
+ * Was direkt im Projektordner liegt, wird ein Bereich mit dem Namen des
+ * Projekts. Ein Projekt ohne Unterordner hat also genau einen Bereich, und das
+ * ist die richtige Antwort und keine leere Welt: es *ist* eins.
+ */
+export type VaultProjectArea = {
+  /** Ordnername auf der Platte, oder "" für das, was oben liegt. */
+  folder: string;
+  name: string;
+  noteCount: number;
+  lastTouched: string | null;
+  /** Die zuletzt angefassten Notizen dieses Bereichs. */
+  notes: VaultProjectNote[];
+};
+
 export type VaultProject = {
   name: string;
   /** The folder name as it sits on disk, prefix and all. */
@@ -56,6 +79,8 @@ export type VaultProject = {
   lastTouched: string | null;
   /** The handful of notes touched most recently — what you would open first. */
   recentNotes: VaultProjectNote[];
+  /** Die Bereiche, aus denen die Projektwelt ihre Anordnung bekommt. */
+  areas: VaultProjectArea[];
 };
 
 const countMatches = (text: string, pattern: RegExp): number => {
@@ -131,6 +156,38 @@ const readProject = (projectsRoot: string, folder: string): VaultProject => {
 
   notes.sort((a, b) => b.modified.localeCompare(a.modified));
 
+  /**
+   * Die Bereiche: ein Unterordner, ein Bereich. Was oben liegt, wird der
+   * Bereich mit dem Projektnamen.
+   *
+   * Zugeordnet wird über den Pfad der schon gesammelten Notizen — also über
+   * das, was tatsächlich gefunden wurde, statt den Ordner ein zweites Mal zu
+   * lesen. Zwei Durchgänge über dieselbe Platte könnten sich unterscheiden,
+   * und dann stimmen die Zahlen der Welt nicht mit ihrem Inhalt überein.
+   */
+  const byArea = new Map<string, VaultProjectNote[]>();
+  const prefix = path.relative(VAULT_PATH, projectDir).split(path.sep).join("/") + "/";
+  for (const note of notes) {
+    const rest = note.path.startsWith(prefix) ? note.path.slice(prefix.length) : note.path;
+    const cut = rest.indexOf("/");
+    const area = cut === -1 ? "" : rest.slice(0, cut);
+    const list = byArea.get(area);
+    if (list) list.push(note);
+    else byArea.set(area, [note]);
+  }
+
+  const areas: VaultProjectArea[] = [...byArea.entries()]
+    .map(([areaFolder, areaNotes]) => ({
+      folder: areaFolder,
+      name: areaFolder ? displayName(areaFolder) : displayName(folder),
+      noteCount: areaNotes.length,
+      lastTouched: areaNotes[0]?.modified ?? null,
+      notes: areaNotes.slice(0, 40),
+    }))
+    // Grösster Bereich zuerst: die Anordnung im Raum soll die Verhältnisse
+    // zeigen, und die Reihenfolge ist der billigste Teil davon.
+    .sort((a, b) => b.noteCount - a.noteCount);
+
   return {
     name: displayName(folder),
     folder,
@@ -139,6 +196,7 @@ const readProject = (projectsRoot: string, folder: string): VaultProject => {
     doneTasks,
     lastTouched: newest > 0 ? new Date(newest).toISOString() : null,
     recentNotes: notes.slice(0, 6),
+    areas,
   };
 };
 

@@ -8,17 +8,20 @@ import * as THREE from "three";
 
 import { SPACE_BLACK } from "@/features/v2/palette";
 import { useV2 } from "@/features/v2/state";
-import type { Project } from "@/features/v2/useProjects";
+import type { Project, ProjectNote } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import type { VaultState } from "@/features/v2/useVault";
-import { CameraDirector, HOME_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
+import { CameraDirector, HOME_VIEW, PROJECT_INSIDE_VIEW, viewFor, type CameraGoal } from "@/features/v2/world/CameraDirector";
 import { KnowledgeAreas } from "@/features/v2/knowledge/KnowledgeAreas";
 import type { KnowledgeEdge, KnowledgeNode } from "@/features/v2/knowledge/knowledgeTypes";
 import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
-import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
+import { SingularityWorld } from "../spatial/SingularityWorld";
+import { MemoryWorld, type MemoryMode } from "../spatial/MemoryWorld";
+import type { MemoryEntry, ProjectMeta } from "../spatial/model";
+import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { TesseractDimensionWorld } from "@/features/v2/world/tesseract/TesseractDimensionWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
@@ -42,6 +45,15 @@ import { approachFor, type Place } from "@/features/v2/universe/places";
  */
 
 export function V2Scene({
+  metadata = {},
+  dive = 0,
+  onDive,
+  memoryEntries = [],
+  memoryMode = "saturn",
+  memoryPhase = "Gegenwart",
+  onMemoryPhase,
+  onMemoryMode,
+  onMemoryOpen,
   agents,
   rosterReachable,
   approvalsWaiting,
@@ -52,6 +64,9 @@ export function V2Scene({
   onSelectAgent,
   onSelectSourceId,
   onSelectProject,
+  openProject = null,
+  openNotePath = null,
+  onOpenProjectNote,
   places,
   onReachChange,
   cockpitMarkers,
@@ -62,6 +77,15 @@ export function V2Scene({
   onFrame,
   crashWorld,
 }: {
+  metadata?: Record<string, ProjectMeta>;
+  dive?: number;
+  onDive?: () => void;
+  memoryEntries?: MemoryEntry[];
+  memoryMode?: MemoryMode;
+  memoryPhase?: string;
+  onMemoryPhase?: (p: string) => void;
+  onMemoryMode?: (m: MemoryMode) => void;
+  onMemoryOpen?: (e: MemoryEntry) => void;
   agents: RosterAgent[];
   rosterReachable: boolean;
   approvalsWaiting: number;
@@ -75,6 +99,11 @@ export function V2Scene({
   /** The library speaks in ids, not in nodes — the module knows nothing of the vault. */
   onSelectSourceId: (id: string) => void;
   onSelectProject: (project: Project) => void;
+  /** Das betretene Projekt, oder null fuer die Werft mit allen Liegeplaetzen. */
+  openProject?: Project | null;
+  /** Die gerade gelesene Notiz, damit sie im Raum hervorsticht. */
+  openNotePath?: string | null;
+  onOpenProjectNote?: (note: ProjectNote) => void;
   /** The map of the universe, derived once by the screen. */
   places: Place[];
   /** What the flight is currently close enough to enter. Null most of the time. */
@@ -187,6 +216,41 @@ export function V2Scene({
     setReachable(null);
     onReachChange(null);
   }, [world, onReachChange]);
+
+  const openFolder = openProject?.folder ?? null;
+  useEffect(() => {
+    if (world !== "projects") return;
+    const view = openFolder
+      ? PROJECT_INSIDE_VIEW
+      : {
+          position: new THREE.Vector3(
+            0,
+            31 * (1 - dive) + 5.5 * dive,
+            78 * (1 - dive) + 20 * dive,
+          ),
+          target: new THREE.Vector3(0, 0, 0),
+        };
+    setGoal({
+      position: view.position.clone(),
+      target: view.target.clone(),
+      duration: 1.1,
+      instant: prefs.reducedMotion,
+    });
+  }, [openFolder, world, prefs.reducedMotion, dive]);
+
+  useEffect(() => {
+    if (world !== "memory") return;
+    setGoal({
+      position: new THREE.Vector3(
+        0,
+        memoryMode === "saturn" ? 17 : 3,
+        memoryMode === "saturn" ? 34 : 24,
+      ),
+      target: new THREE.Vector3(0, 0, 0),
+      duration: 1.2,
+      instant: prefs.reducedMotion,
+    });
+  }, [world, memoryMode, prefs.reducedMotion]);
 
   const handleArrive = useCallback(() => {
     setGoal(null);
@@ -456,15 +520,36 @@ export function V2Scene({
             onFocusRequest={handleFocusArea}
           />
           </>
-        ) : world === "projects" ? (
-          <ProjectsWorld
-            projects={projects}
-            selectedFolder={selectedProjectFolder}
-            onSelect={onSelectProject}
+        ) : world === "memory" ? (
+          <MemoryWorld
+            entries={memoryEntries}
+            mode={memoryMode}
+            phase={memoryPhase}
+            reducedMotion={prefs.reducedMotion}
+            onPhase={onMemoryPhase ?? (() => {})}
+            onFree={() => onMemoryMode?.("free")}
+            onOpen={onMemoryOpen ?? (() => {})}
           />
+        ) : world === "projects" ? (
+          openProject ? (
+            <ProjectWorld
+              project={openProject}
+              openPath={openNotePath}
+              onOpenNote={onOpenProjectNote ?? (() => {})}
+            />
+          ) : (
+            <SingularityWorld
+              projects={projects}
+              metadata={metadata}
+              selected={selectedProjectFolder}
+              onSelect={onSelectProject}
+              onDive={onDive ?? (() => {})}
+              reducedMotion={prefs.reducedMotion}
+            />
+          )
         ) : world === "tesseract" ? (
           <TesseractDimensionWorld onExit={() => goTo("home")} />
-        ) : world === "saturn" ? null : (
+        ) : (
           <LibraryWorld
             items={libraryItems}
             selectedId={selectedSourceId}
