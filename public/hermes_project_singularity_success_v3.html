@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hermes3D – Project Singularity</title>
+<style>
+  :root{
+    --bg:#04070f;
+    --panel:rgba(8,16,30,.62);
+    --panel-strong:rgba(8,16,30,.84);
+    --line:rgba(125,188,255,.16);
+    --text:#e8f0ff;
+    --muted:#9bb0cf;
+    --accent:#6de8ff;
+    --accent2:#ffd78c;
+    --good:#8bf5a9;
+    --warning:#ffd78c;
+    --danger:#ff8f8f;
+    --shadow:0 24px 80px rgba(0,0,0,.45);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 50% 30%, #0d1630 0%, #05070f 46%, #02030a 100%);color:var(--text);overflow:hidden}
+  button,input{font:inherit}
+
+  #stars, #fx {
+    position:fixed; inset:0; width:100%; height:100%; display:block;
+  }
+  #stars{z-index:0}
+  #fx{z-index:4; pointer-events:none}
+
+  .nebula,.nebula:before,.nebula:after{
+    position:fixed; inset:auto; border-radius:50%; filter:blur(70px); pointer-events:none; z-index:0;
+    content:"";
+  }
+  .nebula{ width:38vw; height:38vw; left:-10vw; top:18vh; background:rgba(86,106,255,.10); }
+  .nebula:before{ width:30vw; height:30vw; left:64vw; top:-8vh; background:rgba(255,94,136,.10); }
+  .nebula:after{ width:34vw; height:34vw; left:42vw; top:55vh; background:rgba(35,174,255,.08); }
+
+  .topbar,.bottombar,.lefttools,.righttools,.hud-card,.panel,.success-room,.toast{
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .topbar{
+    position:fixed; left:24px; right:24px; top:18px; z-index:6;
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 16px; border-radius:18px; background:var(--panel);
+    border:1px solid var(--line); box-shadow:var(--shadow);
+  }
+  .brand-dot{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #fff, var(--accent));box-shadow:0 0 18px rgba(109,232,255,.8)}
+  .brand h1{margin:0;font-size:15px;letter-spacing:.26em;font-weight:700;text-transform:uppercase}
+  .brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-top:2px}
+
+  .pills{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end}
+  .pill{
+    padding:10px 14px; border-radius:999px; background:var(--panel);
+    border:1px solid var(--line); color:var(--text); font-size:12px; letter-spacing:.16em;
+    text-transform:uppercase; box-shadow:var(--shadow);
+  }
+  .pill strong{color:var(--accent2)}
+
+  .lefttools{
+    position:fixed; left:24px; top:116px; z-index:6; width:min(320px, 34vw);
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .hud-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:22px;
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .hud-title{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent2); margin-bottom:10px}
+  .hud-card h2{font-size:42px; line-height:1.02; margin:0 0 10px 0; font-weight:700}
+  .hud-card p{margin:0; color:var(--muted); line-height:1.55}
+  .legend{display:grid; gap:10px; margin-top:14px}
+  .legend-row{display:grid; grid-template-columns:14px 1fr auto; gap:10px; align-items:center; color:var(--muted); font-size:13px}
+  .legend-dot{width:10px;height:10px;border-radius:50%}
+  .c1{background:#769eff; box-shadow:0 0 12px rgba(118,158,255,.8)}
+  .c2{background:#7cefc1; box-shadow:0 0 12px rgba(124,239,193,.8)}
+  .c3{background:#ffd78c; box-shadow:0 0 12px rgba(255,215,140,.8)}
+  .c4{background:#ff94be; box-shadow:0 0 12px rgba(255,148,190,.8)}
+
+  .controls{display:grid; gap:10px; margin-top:10px}
+  .control-row{display:grid; grid-template-columns:1fr auto; align-items:center; gap:12px}
+  .control-row span{font-size:13px; color:var(--muted)}
+  input[type="range"]{
+    width:100%; accent-color: var(--accent2);
+  }
+  .button-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px}
+  .btn{
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    color:var(--text); border:1px solid var(--line); border-radius:16px; padding:12px 14px;
+    cursor:pointer; transition:.25s ease; box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 25px rgba(0,0,0,.18);
+  }
+  .btn:hover{transform:translateY(-1px); border-color:rgba(109,232,255,.3); background:linear-gradient(180deg, rgba(109,232,255,.10), rgba(255,255,255,.03))}
+  .btn.primary{border-color:rgba(255,215,140,.25); background:linear-gradient(180deg, rgba(255,215,140,.14), rgba(255,255,255,.03))}
+  .btn.full{grid-column:1/-1}
+
+  .righttools{
+    position:fixed; right:24px; top:110px; z-index:6; width:min(320px, 34vw);
+    display:grid; gap:12px;
+  }
+  .mini-list{display:grid; gap:8px; margin-top:12px}
+  .mini-item{padding:12px 14px; border-radius:16px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03);}
+  .mini-item strong{display:block; font-size:13px; margin-bottom:4px}
+  .mini-item small{color:var(--muted)}
+
+  .scene-wrap{
+    position:fixed; inset:0; z-index:2; perspective:1200px;
+  }
+  .scene{
+    position:absolute; inset:0; transform-style:preserve-3d; transition:transform .25s ease-out;
+  }
+
+  .orbit-label{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    z-index:3; color:rgba(255,215,140,.75); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    pointer-events:none;
+  }
+
+  .blackhole-wrap{
+    position:absolute; left:50%; top:54%; width:min(44vw,600px); height:min(44vw,600px); transform:translate(-50%,-50%);
+    z-index:2;
+  }
+  .gravitational-halo{
+    position:absolute; inset:-8%; border-radius:50%;
+    background:radial-gradient(circle at 50% 48%, rgba(255,239,196,.2) 0%, rgba(255,232,177,.08) 25%, rgba(83,98,170,.09) 52%, rgba(0,0,0,0) 72%);
+    filter:blur(12px); animation:pulseHalo 7s ease-in-out infinite;
+  }
+  .hole-shadow{
+    position:absolute; inset:18%; border-radius:50%; background:radial-gradient(circle at 50% 50%, #000 52%, #08090d 72%, rgba(0,0,0,0) 78%);
+    box-shadow:0 0 60px rgba(0,0,0,.85), inset 0 0 50px rgba(255,230,180,.08);
+  }
+  .accretion{
+    position:absolute; inset:6%; border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 22%, rgba(255,240,212,.95) 26%, rgba(255,214,140,.92) 29%, rgba(255,191,110,.46) 35%, rgba(255,160,90,.12) 42%, rgba(0,0,0,0) 50%),
+      repeating-radial-gradient(circle at 50% 50%, rgba(255,234,190,.25) 0 2px, rgba(255,167,99,.14) 2px 7px, rgba(0,0,0,0) 7px 12px);
+    filter:blur(.4px) drop-shadow(0 0 22px rgba(255,220,150,.35));
+    transform:perspective(900px) rotateX(76deg) rotateZ(0deg) scale(1.18);
+    animation:spinDisk 18s linear infinite;
+  }
+  .accretion::after{
+    content:""; position:absolute; inset:-4%; border-radius:50%;
+    background:repeating-radial-gradient(circle at 50% 50%, rgba(255,196,115,.06) 0 4px, rgba(255,255,255,0) 4px 15px);
+    transform:rotate(22deg);
+    filter:blur(2px);
+  }
+  .lens-streak{
+    position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle at 50% 50%, rgba(255,245,220,0) 34%, rgba(255,250,240,.18) 48%, rgba(93,115,210,.06) 63%, rgba(0,0,0,0) 70%);
+    filter:blur(16px); animation:floatLens 9s ease-in-out infinite;
+  }
+  .singularity-core{
+    position:absolute; inset:24%; border-radius:50%;
+    background:radial-gradient(circle at 48% 46%, rgba(14,18,24,.2), #000 58%, #030408 80%);
+    box-shadow:inset 0 0 40px rgba(255,220,170,.05), 0 0 18px rgba(255,230,200,.12);
+  }
+  .event-horizon-text{
+    position:absolute; left:50%; top:50%; transform:translate(-50%, -50%);
+    font-size:13px; letter-spacing:.22em; text-transform:uppercase; color:rgba(255,230,190,.82);
+    text-shadow:0 0 20px rgba(255,210,120,.35); white-space:nowrap; pointer-events:none;
+  }
+  .center-note{
+    position:absolute; left:50%; bottom:-44px; transform:translateX(-50%); text-align:center; width:min(560px,80vw);
+    color:var(--muted); font-size:13px; line-height:1.45;
+  }
+
+  .planet{
+    position:absolute; left:50%; top:54%; width:var(--size); height:var(--size); margin-left:calc(var(--size) / -2); margin-top:calc(var(--size) / -2);
+    transform: translate(calc(cos(var(--angle)) * var(--radius)), calc(sin(var(--angle)) * var(--radius)));
+    animation: orbit var(--period) linear infinite;
+    transform-origin:0 0; z-index:5; cursor:pointer;
+  }
+  .planet-inner{
+    position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle at 34% 32%, rgba(255,255,255,.86), var(--pcolor) 36%, color-mix(in srgb, var(--pcolor) 65%, black 35%) 76%, rgba(5,5,10,.45) 100%);
+    box-shadow:0 0 22px color-mix(in srgb, var(--pcolor) 48%, transparent 52%), inset -12px -16px 24px rgba(0,0,0,.28);
+    transition:transform .25s ease, box-shadow .25s ease;
+  }
+  .planet:hover .planet-inner{transform:scale(1.08); box-shadow:0 0 28px color-mix(in srgb, var(--pcolor) 70%, transparent 30%), inset -12px -16px 24px rgba(0,0,0,.22)}
+  .planet-ring{
+    position:absolute; left:-18%; right:-18%; top:40%; height:22%; border-radius:50%;
+    border:2px solid color-mix(in srgb, var(--pcolor) 70%, #ffe8c4 30%); opacity:.72; filter:drop-shadow(0 0 12px color-mix(in srgb, var(--pcolor) 52%, transparent 48%));
+    transform:rotateZ(18deg) rotateX(74deg);
+  }
+  .planet-label{
+    position:absolute; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%); white-space:nowrap; text-align:center;
+    font-size:13px; color:#eff5ff;
+    text-shadow:0 0 16px rgba(0,0,0,.55);
+  }
+  .planet-label strong{display:block; font-size:15px; font-weight:650}
+  .planet-label small{display:block; color:var(--muted); margin-top:2px}
+  .planet[data-completion="100"] .planet-inner{box-shadow:0 0 38px rgba(255,226,165,.55), inset -10px -14px 24px rgba(0,0,0,.22)}
+
+  .panel{
+    position:fixed; right:24px; bottom:104px; z-index:9; width:min(430px, calc(100vw - 48px)); max-height:min(72vh, 760px);
+    overflow:auto; border-radius:28px; background:var(--panel-strong); border:1px solid rgba(125,188,255,.18); box-shadow:var(--shadow);
+    padding:22px; opacity:0; transform:translateY(20px) scale(.98); pointer-events:none; transition:.28s ease;
+  }
+  .panel.open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto}
+  .panel-header{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px}
+  .panel-eyebrow{font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent2); margin-bottom:8px}
+  .panel h3{font-size:30px; line-height:1.04; margin:0 0 10px 0}
+  .panel p{margin:0; color:var(--muted); line-height:1.6}
+  .close{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);cursor:pointer}
+
+  .progress-wrap{margin:18px 0}
+  .progress-top{display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:8px}
+  .progress-bar{height:12px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.06); overflow:hidden}
+  .progress-fill{height:100%; width:0; background:linear-gradient(90deg, var(--accent), var(--accent2)); border-radius:999px; transition:width .6s ease}
+  .tags{display:flex; gap:8px; flex-wrap:wrap; margin:16px 0}
+  .tag{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); color:#d8e7ff; font-size:12px}
+  .facts{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px}
+  .fact{padding:12px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06)}
+  .fact strong{display:block; font-size:12px; letter-spacing:.13em; text-transform:uppercase; color:var(--accent2); margin-bottom:6px}
+  .fact span{font-size:14px; color:#edf5ff}
+
+  .success-room{
+    position:fixed; inset:0; z-index:12; opacity:0; pointer-events:none; transition:.35s ease;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(255,214,143,.12) 0%, rgba(88,112,255,.08) 22%, rgba(5,8,16,.85) 58%, rgba(2,3,8,.98) 100%);
+  }
+  .success-room.open{opacity:1; pointer-events:auto}
+  .success-grid{
+    position:absolute; inset:0; background:
+      linear-gradient(rgba(113,146,255,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(113,146,255,.06) 1px, transparent 1px);
+    background-size:48px 48px; mask-image:radial-gradient(circle at 50% 50%, black 10%, rgba(0,0,0,.25) 48%, transparent 86%);
+    transform:perspective(900px) rotateX(66deg) translateY(30vh) scale(1.8);
+  }
+  .success-content{
+    position:absolute; inset:0; display:grid; place-items:center; padding:40px;
+  }
+  .tesseract{
+    position:relative; width:min(72vw,860px); aspect-ratio:1.2 / 1; display:grid; place-items:center;
+  }
+  .cube,.cube::before,.cube::after{
+    position:absolute; border:1px solid rgba(255,235,196,.35); box-shadow:0 0 40px rgba(255,214,143,.15), inset 0 0 24px rgba(255,214,143,.04);
+  }
+  .cube{width:280px; height:280px; transform:rotate(45deg); animation:spinCube 18s linear infinite}
+  .cube::before{content:""; inset:-54px; transform:translate(16px,16px)}
+  .cube::after{content:""; inset:-108px; transform:translate(34px,34px)}
+  .success-card{
+    position:relative; z-index:2; width:min(460px, calc(100vw - 48px));
+    padding:26px; border-radius:28px; background:rgba(7,13,28,.72); border:1px solid rgba(255,255,255,.1); box-shadow:var(--shadow);
+    text-align:left;
+  }
+  .success-card h4{font-size:34px; margin:0 0 10px 0}
+  .success-card p{color:var(--muted); line-height:1.6; margin:0}
+  .success-stats{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:18px 0}
+  .success-note{margin-top:14px; padding:14px 16px; border-radius:18px; background:rgba(255,255,255,.04); color:#e9f2ff; border:1px solid rgba(255,255,255,.06)}
+  .success-actions{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap}
+  .ghost{
+    position:absolute; width:110px; height:110px; border-radius:18px; border:1px solid rgba(109,232,255,.18); box-shadow:0 0 30px rgba(109,232,255,.07);
+    background:rgba(20,28,60,.14); animation:floatGhost var(--dur) ease-in-out infinite;
+  }
+  .g1{left:16%; top:22%; transform:rotate(18deg)} .g2{right:16%; top:20%; transform:rotate(-16deg)}
+  .g3{left:22%; bottom:18%; transform:rotate(-12deg)} .g4{right:18%; bottom:15%; transform:rotate(12deg)}
+
+  .bottombar{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:8;
+    display:flex; gap:8px; flex-wrap:wrap; justify-content:center;
+    padding:12px; border-radius:999px; background:var(--panel);
+    border:1px solid var(--line); box-shadow:var(--shadow); width:min(calc(100vw - 32px), 980px);
+  }
+  .nav-item{padding:12px 16px; border-radius:999px; border:1px solid transparent; color:var(--muted); font-size:12px; letter-spacing:.18em; text-transform:uppercase; cursor:default}
+  .nav-item.active{color:var(--text); border-color:rgba(109,232,255,.26); background:rgba(109,232,255,.08)}
+
+  .toast{
+    position:fixed; left:50%; top:92px; transform:translateX(-50%) translateY(-8px); z-index:20;
+    background:rgba(8,16,30,.82); color:var(--text); padding:12px 16px; border-radius:16px; border:1px solid var(--line);
+    box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:.25s ease;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  @keyframes orbit {
+    from { transform:rotate(0deg) translateX(var(--radius)) rotate(0deg); }
+    to { transform:rotate(360deg) translateX(var(--radius)) rotate(-360deg); }
+  }
+  @keyframes spinDisk {
+    from { transform:perspective(900px) rotateX(76deg) rotateZ(0deg) scale(1.18); }
+    to { transform:perspective(900px) rotateX(76deg) rotateZ(360deg) scale(1.18); }
+  }
+  @keyframes pulseHalo {
+    0%,100%{transform:scale(1); opacity:.9}
+    50%{transform:scale(1.04); opacity:1}
+  }
+  @keyframes floatLens {
+    0%,100%{transform:scale(1) translateY(0)}
+    50%{transform:scale(1.03) translateY(-4px)}
+  }
+  @keyframes spinCube {
+    from { transform:rotate(45deg) scale(1); }
+    to { transform:rotate(405deg) scale(1); }
+  }
+  @keyframes floatGhost {
+    0%,100%{transform:translateY(0) rotate(var(--rot,0deg))}
+    50%{transform:translateY(-16px) rotate(var(--rot,0deg))}
+  }
+
+  @media (max-width: 1100px){
+    .lefttools,.righttools{width:280px}
+    .hud-card h2{font-size:34px}
+  }
+  @media (max-width: 920px){
+    .lefttools,.righttools{position:fixed; width:calc(50vw - 30px); top:auto; bottom:108px}
+    .lefttools{left:18px}
+    .righttools{right:18px}
+    .topbar{left:18px; right:18px}
+    .panel{left:18px; right:18px; width:auto; bottom:96px}
+    .blackhole-wrap{width:min(70vw,520px); height:min(70vw,520px); top:48%}
+  }
+  @media (max-width: 720px){
+    .topbar{flex-direction:column; align-items:stretch}
+    .pills{justify-content:flex-start}
+    .lefttools,.righttools{display:none}
+    .blackhole-wrap{width:min(82vw,520px); height:min(82vw,520px); top:48%}
+    .panel h3{font-size:24px}
+    .success-card h4{font-size:28px}
+    .brand h1{font-size:13px}
+    .bottombar{bottom:12px; padding:10px 8px}
+    .nav-item{padding:10px 12px; font-size:11px}
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<canvas id="fx"></canvas>
+<div class="nebula"></div>
+<div class="toast" id="toast"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <div>
+      <h1>Project Singularity</h1>
+      <small>Motivierender Projektraum im Hermes Agent OS</small>
+    </div>
+  </div>
+  <div class="pills">
+    <div class="pill">5 Agenten</div>
+    <div class="pill">289 Notizen</div>
+    <div class="pill">Erfolgslogik <strong>aktiv</strong></div>
+    <div class="pill" id="time-pill">00:00 Uhr</div>
+  </div>
+</div>
+
+<div class="lefttools">
+  <div class="hud-card">
+    <div class="hud-title">Projektuniversum / neue Logik</div>
+    <h2>Fortschritt zieht nach innen</h2>
+    <p>
+      Dieses schwarze Loch erzeugt keinen Druck. Es sammelt Erfolg. Je näher ein Projekt am Ereignishorizont liegt,
+      desto reifer und abgeschlossener ist es. Vollendete Projekte erscheinen im Inneren als 4D-Erfolgsmonument.
+    </p>
+    <div class="legend">
+      <div class="legend-row"><span class="legend-dot c1"></span><span>weit außen</span><strong>frühe Ideen</strong></div>
+      <div class="legend-row"><span class="legend-dot c2"></span><span>mittlere Umlaufbahn</span><strong>aktive Projekte</strong></div>
+      <div class="legend-row"><span class="legend-dot c3"></span><span>nahe am Horizont</span><strong>fast fertig</strong></div>
+      <div class="legend-row"><span class="legend-dot c4"></span><span>hinter dem Horizont</span><strong>abgeschlossen</strong></div>
+    </div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-title">Steuerung</div>
+    <div class="controls">
+      <div class="control-row"><span>Nähe zum Horizont</span><output id="zoomValue">78%</output></div>
+      <input id="zoomRange" type="range" min="40" max="100" value="78" />
+      <div class="control-row"><span>Orbitaltempo</span><output id="speedValue">100%</output></div>
+      <input id="speedRange" type="range" min="40" max="180" value="100" />
+    </div>
+    <div class="button-row">
+      <button class="btn" id="focusNearest">Nächstes fast fertiges Projekt</button>
+      <button class="btn primary" id="enterSuccess">4D-Erfolgsraum</button>
+      <button class="btn full" id="toggleAuto">Auto-Rotation pausieren</button>
+    </div>
+  </div>
+</div>
+
+<div class="righttools">
+  <div class="hud-card">
+    <div class="hud-title">Warum 3D hier Sinn macht</div>
+    <div class="mini-list">
+      <div class="mini-item"><strong>Entfernung = Reifegrad</strong><small>Man liest keine Liste. Man sieht sofort, wie weit ein Projekt ist.</small></div>
+      <div class="mini-item"><strong>Ereignishorizont = Übergang</strong><small>Fertigstellung wird räumlich als belohnender Schritt erlebbar.</small></div>
+      <div class="mini-item"><strong>Innenraum = Würdigung</strong><small>Abgeschlossene Projekte verschwinden nicht. Sie werden als Vermögen bewahrt.</small></div>
+    </div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-title">Erfolgsmonumente im Inneren</div>
+    <div class="mini-list" id="completedList"></div>
+  </div>
+</div>
+
+<div class="scene-wrap">
+  <div class="scene" id="scene">
+    <div class="blackhole-wrap" id="blackholeWrap">
+      <div class="gravitational-halo"></div>
+      <div class="lens-streak"></div>
+      <div class="accretion"></div>
+      <div class="hole-shadow"></div>
+      <div class="singularity-core" id="singularityCore"></div>
+      <div class="event-horizon-text">Erfolgssingularität</div>
+      <div class="center-note">
+        Klicke auf einen Projektplaneten für Fokus. Klicke auf einen abgeschlossenen Planeten oder den 4D-Knopf,
+        um den Innenraum mit Erfolgsmonumenten zu betreten.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="projectPanel" aria-hidden="true">
+  <div class="panel-header">
+    <div>
+      <div class="panel-eyebrow" id="panelEyebrow">Projektstatus</div>
+      <h3 id="panelTitle">Projekt</h3>
+      <p id="panelDesc">Beschreibung</p>
+    </div>
+    <button class="close" id="closePanel">✕</button>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-top"><span>Reifegrad</span><strong id="panelPercent">0%</strong></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="tags" id="panelTags"></div>
+
+  <div class="facts">
+    <div class="fact"><strong>Ziel</strong><span id="panelGoal"></span></div>
+    <div class="fact"><strong>Nächster Schritt</strong><span id="panelStep"></span></div>
+    <div class="fact"><strong>Agenten</strong><span id="panelAgents"></span></div>
+    <div class="fact"><strong>Speicherort</strong><span id="panelFiles"></span></div>
+  </div>
+
+  <div class="button-row" style="margin-top:18px">
+    <button class="btn" id="simulateUpdate">Projekt aktualisieren</button>
+    <button class="btn primary" id="openSuccessFromPanel">Innenraum öffnen</button>
+  </div>
+</div>
+
+<div class="success-room" id="successRoom">
+  <div class="success-grid"></div>
+  <div class="success-content">
+    <div class="tesseract">
+      <div class="ghost g1" style="--dur:9s; --rot:18deg"></div>
+      <div class="ghost g2" style="--dur:11s; --rot:-16deg"></div>
+      <div class="ghost g3" style="--dur:10s; --rot:-10deg"></div>
+      <div class="ghost g4" style="--dur:12s; --rot:12deg"></div>
+      <div class="cube"></div>
+      <div class="success-card">
+        <div class="panel-eyebrow">Hinter dem Ereignishorizont</div>
+        <h4 id="successTitle">Erfolgsmonument</h4>
+        <p id="successText">
+          Abgeschlossene Projekte erscheinen hier als 4D-Artefakte. Sie sind kein toter Archivordner,
+          sondern ein würdig dargestellter Meilenstein mit Lerneffekt, Output und möglicher Wiederverwendung.
+        </p>
+        <div class="success-stats">
+          <div class="fact"><strong>Gelöstes Problem</strong><span id="successProblem">-</span></div>
+          <div class="fact"><strong>Wirkung</strong><span id="successImpact">-</span></div>
+          <div class="fact"><strong>Beteiligte Agenten</strong><span id="successAgents">-</span></div>
+          <div class="fact"><strong>Wiederverwendung</strong><span id="successReuse">-</span></div>
+        </div>
+        <div class="success-note" id="successLearning">Lerngewinn: -</div>
+        <div class="success-actions">
+          <button class="btn" id="cycleSuccess">Nächstes Monument</button>
+          <button class="btn" id="reactivateProject">Ableger starten</button>
+          <button class="btn primary" id="exitSuccess">Zurück ins Projektuniversum</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bottombar">
+  <div class="nav-item">Zuhause</div>
+  <div class="nav-item">Reisen</div>
+  <div class="nav-item">Wissen</div>
+  <div class="nav-item active">Projekte</div>
+  <div class="nav-item">Sog</div>
+  <div class="nav-item">Erinnern</div>
+  <div class="nav-item">Jarvis</div>
+</div>
+
+<script>
+const projects = [
+  {
+    name:'Hermes Agent OS', completion:92, color:'#7be8ff', size:74, period:42,
+    description:'Zentrales Betriebssystem für deine Räume, Agenten, Workflows und Freigaben.',
+    goal:'Ein sichtbares persönliches Agent-OS bauen',
+    next:'Projekt-Raum und Council noch stärker verbinden',
+    agents:'Hermes, Codex, Claude',
+    files:'Vault / 01 Hermes Agent OS',
+    tags:['fast fertig','zentral','Systemprojekt'],
+    problem:'Viele verstreute Tools und kein gemeinsamer visueller Kontext',
+    impact:'Klarerer Überblick, bessere Freigaben, sichtbare Agentenarbeit',
+    reuse:'Blueprint für weitere Projekträume',
+    learning:'Räumliche Logik funktioniert am stärksten, wenn sie Bedeutung und nicht nur Dekoration trägt.',
+    completed:false
+  },
+  {
+    name:'Company OS', completion:71, color:'#d6d4cf', size:88, period:58,
+    description:'Geschäftsraum für Angebote, Kunden, Prozesse, Delegation und Sichtbarkeit.',
+    goal:'Ein operatives Firmen-OS für Vertrieb und Delivery',
+    next:'Prozessgrafiken statt Textblöcke für Hauptworkflows bauen',
+    agents:'Hermes, Astra',
+    files:'Vault / Company OS',
+    tags:['aktiv','business','operation'],
+    problem:'Zu wenig operative Übersicht über Kunden, Aufgaben und Rollen',
+    impact:'Schnelleres Verstehen von Unternehmenszustand und Engpässen',
+    reuse:'Template für teamfähige Workspaces',
+    learning:'Geschäftsräume brauchen klare Prioritäten statt zu viele Panels.',
+    completed:false
+  },
+  {
+    name:'Arbeit & Karriere', completion:49, color:'#f1f2f4', size:68, period:67,
+    description:'Karrierebereich für Bewerbungen, Chancen, Stellensuche und Entwicklungsschritte.',
+    goal:'Berufliche Weichen strategisch und sichtbar planen',
+    next:'Bewerbungsworkflow als räumlichen Kanal visualisieren',
+    agents:'Hermes, Claude',
+    files:'Vault / Karriere',
+    tags:['aktiv','karriere','mittel'],
+    problem:'Viele Bewerbungsinfos ohne klare räumliche Orientierung',
+    impact:'Bessere Priorisierung offener Chancen',
+    reuse:'Automationskanal für Bewerbungsprozesse',
+    learning:'3D wirkt hier nur dann, wenn Status, Wartezeiten und Übergaben räumlich sichtbar werden.',
+    completed:false
+  },
+  {
+    name:'LifeOS & Produktivität', completion:34, color:'#ef8d8d', size:62, period:74,
+    description:'Raum für Tagessteuerung, Gewohnheiten, Fokus und persönliches LifeOS.',
+    goal:'Ein verständliches persönliches Betriebssystem für Alltag und Entwicklung',
+    next:'Morgenbriefing und Freigabestation zusammenführen',
+    agents:'Hermes',
+    files:'Vault / LifeOS',
+    tags:['früher','persönlich','grundlegend'],
+    problem:'Alltagssteuerung liegt über verschiedene Tools verteilt',
+    impact:'Klarere Prioritäten und weniger Suchaufwand',
+    reuse:'Persönlicher Standardraum für Tagesarbeit',
+    learning:'Der Raum darf beraten, aber nicht mit Mikrofeatures überfrachten.',
+    completed:false
+  },
+  {
+    name:'Experimente', completion:18, color:'#82f3b2', size:54, period:82,
+    description:'Freier Orbit für Tests, Prototypen und lose Ideen ohne Druck.',
+    goal:'Neue Konzepte schnell testen',
+    next:'Nur die besten Experimente in aktive Räume überführen',
+    agents:'Astra',
+    files:'Vault / Experimente',
+    tags:['roh','ideen','sandbox'],
+    problem:'Gute Ideen verschwinden oft zwischen anderen Themen',
+    impact:'Niedrige Hürde für kreatives Ausprobieren',
+    reuse:'Quelle für spätere Produktmodule',
+    learning:'Experimentierräume brauchen Freiheit und klare Exit-Wege.',
+    completed:false
+  },
+  {
+    name:'Memory Saturn', completion:100, color:'#ffd996', size:60, period:88,
+    description:'Erinnerungsorbit mit Lebensringen, Fotos und spielbarer Zeitreise.',
+    goal:'Lebensphasen als räumlichen Erinnerungsraum erlebbar machen',
+    next:'Ableger für Video- und Jahresringe starten',
+    agents:'Hermes, Claude',
+    files:'Vault / Memory',
+    tags:['abgeschlossen','erinnerung','stark'],
+    problem:'Erinnerungen waren vorher ohne starke räumliche Logik verteilt',
+    impact:'Emotionaler, sofort verständlicher Erinnerungsraum',
+    reuse:'Template für biografische Visualisierung',
+    learning:'Saturnringe funktionieren intuitiv, weil Zeit über Distanz und Orbit spürbar wird.',
+    completed:true
+  },
+  {
+    name:'Council Kernel', completion:100, color:'#f8a4d6', size:56, period:96,
+    description:'Kern für sichtbare Multi-Agent-Beratung und Ergebnisübergabe.',
+    goal:'Mehrere Agenten geordnet zusammenarbeiten lassen',
+    next:'Ableger mit echter Freigabe-Logik bauen',
+    agents:'Hermes, Claude, Codex, Gemini, Astra',
+    files:'Vault / Council',
+    tags:['abgeschlossen','agenten','kernel'],
+    problem:'Agentenarbeit war vorher unsichtbar und schwer nachvollziehbar',
+    impact:'Mehr Transparenz, bessere Zweitmeinungen und klare Synthesen',
+    reuse:'Council als universeller Beratungsraum',
+    learning:'Agenten wirken am stärksten, wenn man ihre Rollen, Differenzen und Übergaben sehen kann.',
+    completed:true
+  }
+];
+
+const scene = document.getElementById('scene');
+const blackholeWrap = document.getElementById('blackholeWrap');
+const projectPanel = document.getElementById('projectPanel');
+const closePanel = document.getElementById('closePanel');
+const successRoom = document.getElementById('successRoom');
+const timePill = document.getElementById('time-pill');
+const toast = document.getElementById('toast');
+const completedList = document.getElementById('completedList');
+const zoomRange = document.getElementById('zoomRange');
+const speedRange = document.getElementById('speedRange');
+const zoomValue = document.getElementById('zoomValue');
+const speedValue = document.getElementById('speedValue');
+const focusNearestBtn = document.getElementById('focusNearest');
+const enterSuccessBtn = document.getElementById('enterSuccess');
+const toggleAutoBtn = document.getElementById('toggleAuto');
+const openSuccessFromPanel = document.getElementById('openSuccessFromPanel');
+const exitSuccessBtn = document.getElementById('exitSuccess');
+const cycleSuccessBtn = document.getElementById('cycleSuccess');
+const reactivateProjectBtn = document.getElementById('reactivateProject');
+const simulateUpdateBtn = document.getElementById('simulateUpdate');
+
+let activeProject = null;
+let successIndex = 0;
+let autoRotate = true;
+let globalSpeed = 1;
+let zoomScale = .78;
+
+const completedProjects = projects.filter(p => p.completed);
+
+function showToast(text){
+  toast.textContent = text;
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function updateClock(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  timePill.textContent = `${hh}:${mm} Uhr`;
+}
+updateClock(); setInterval(updateClock, 1000);
+
+function radiusFromCompletion(completion){
+  const outer = Math.min(window.innerWidth, window.innerHeight) * 0.36;
+  const inner = Math.min(window.innerWidth, window.innerHeight) * 0.14;
+  return outer - ((completion / 100) * (outer - inner));
+}
+
+function renderCompletedList(){
+  completedList.innerHTML = '';
+  completedProjects.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'mini-item';
+    el.innerHTML = `<strong>${p.name}</strong><small>${p.impact}</small>`;
+    el.addEventListener('click', () => openSuccessRoom(i));
+    completedList.appendChild(el);
+  });
+}
+renderCompletedList();
+
+function createPlanets(){
+  document.querySelectorAll('.planet').forEach(n => n.remove());
+  projects.forEach((p, idx) => {
+    const el = document.createElement('button');
+    el.className = 'planet';
+    el.dataset.index = idx;
+    el.dataset.completion = p.completion;
+    const radius = radiusFromCompletion(p.completion) * zoomScale;
+    const angle = (idx / projects.length) * Math.PI * 2;
+    el.style.setProperty('--radius', `${radius}px`);
+    el.style.setProperty('--size', `${p.size}px`);
+    el.style.setProperty('--period', `${(p.period / globalSpeed)}s`);
+    el.style.setProperty('--pcolor', p.color);
+    el.style.setProperty('--angle', `${angle}rad`);
+    el.innerHTML = `
+      <div class="planet-inner"></div>
+      ${p.completion >= 70 ? '<div class="planet-ring"></div>' : ''}
+      <div class="planet-label">
+        <strong>${p.name}</strong>
+        <small>${p.completed ? 'abgeschlossen' : `${p.completion}% reif`}</small>
+      </div>
+    `;
+    el.addEventListener('click', () => {
+      if (p.completed) openSuccessRoom(completedProjects.findIndex(x => x.name === p.name));
+      else openProjectPanel(p);
+      burstAtPlanet(el, p.completed ? '#ffd78c' : '#6de8ff');
+    });
+    scene.appendChild(el);
+  });
+}
+createPlanets();
+
+function openProjectPanel(project){
+  activeProject = project;
+  projectPanel.classList.add('open');
+  projectPanel.setAttribute('aria-hidden','false');
+  document.getElementById('panelEyebrow').textContent = project.completion >= 85 ? 'Nahe am Ereignishorizont' : project.completion >= 45 ? 'Aktive Umlaufbahn' : 'Äußerer Ideenorbit';
+  document.getElementById('panelTitle').textContent = project.name;
+  document.getElementById('panelDesc').textContent = project.description;
+  document.getElementById('panelPercent').textContent = `${project.completion}%`;
+  document.getElementById('progressFill').style.width = `${project.completion}%`;
+  document.getElementById('panelGoal').textContent = project.goal;
+  document.getElementById('panelStep').textContent = project.next;
+  document.getElementById('panelAgents').textContent = project.agents;
+  document.getElementById('panelFiles').textContent = project.files;
+  const tags = document.getElementById('panelTags');
+  tags.innerHTML = '';
+  project.tags.forEach(t => {
+    const s = document.createElement('span'); s.className='tag'; s.textContent=t; tags.appendChild(s);
+  });
+}
+
+function closeProjectPanel(){
+  projectPanel.classList.remove('open');
+  projectPanel.setAttribute('aria-hidden','true');
+}
+closePanel.addEventListener('click', closeProjectPanel);
+
+function populateSuccess(project){
+  document.getElementById('successTitle').textContent = project.name;
+  document.getElementById('successText').textContent = project.description;
+  document.getElementById('successProblem').textContent = project.problem;
+  document.getElementById('successImpact').textContent = project.impact;
+  document.getElementById('successAgents').textContent = project.agents;
+  document.getElementById('successReuse').textContent = project.reuse;
+  document.getElementById('successLearning').textContent = `Lerngewinn: ${project.learning}`;
+}
+
+function openSuccessRoom(index = 0){
+  successIndex = (index + completedProjects.length) % completedProjects.length;
+  populateSuccess(completedProjects[successIndex]);
+  successRoom.classList.add('open');
+  closeProjectPanel();
+  document.body.style.overflow = 'hidden';
+  showToast('4D-Erfolgsraum betreten');
+}
+function closeSuccessRoom(){
+  successRoom.classList.remove('open');
+}
+
+enterSuccessBtn.addEventListener('click', () => openSuccessRoom(0));
+openSuccessFromPanel.addEventListener('click', () => {
+  if (activeProject && activeProject.completed) openSuccessRoom(completedProjects.findIndex(x => x.name === activeProject.name));
+  else openSuccessRoom(0);
+});
+exitSuccessBtn.addEventListener('click', closeSuccessRoom);
+cycleSuccessBtn.addEventListener('click', () => openSuccessRoom(successIndex + 1));
+reactivateProjectBtn.addEventListener('click', () => {
+  const p = completedProjects[successIndex];
+  showToast(`Ableger von ${p.name} kann gestartet werden`);
+});
+
+simulateUpdateBtn.addEventListener('click', () => {
+  if (!activeProject) return;
+  activeProject.completion = Math.min(100, activeProject.completion + 7);
+  if (activeProject.completion >= 100 && !activeProject.completed) {
+    activeProject.completed = true;
+    activeProject.tags = [...new Set([...activeProject.tags, 'abgeschlossen'])];
+    completedProjects.push(activeProject);
+    renderCompletedList();
+    showToast(`${activeProject.name} ist jetzt abgeschlossen`);
+  } else {
+    showToast(`${activeProject.name} wurde aktualisiert`);
+  }
+  createPlanets();
+  openProjectPanel(activeProject.completed ? activeProject : activeProject);
+});
+
+focusNearestBtn.addEventListener('click', () => {
+  const candidates = projects.filter(p => !p.completed).sort((a,b) => b.completion - a.completion);
+  if (!candidates.length) return;
+  const p = candidates[0];
+  openProjectPanel(p);
+  showToast(`${p.name} ist am nächsten am Horizont`);
+});
+
+zoomRange.addEventListener('input', () => {
+  zoomScale = zoomRange.value / 100;
+  zoomValue.textContent = `${zoomRange.value}%`;
+  createPlanets();
+});
+speedRange.addEventListener('input', () => {
+  globalSpeed = speedRange.value / 100;
+  speedValue.textContent = `${speedRange.value}%`;
+  createPlanets();
+});
+
+toggleAutoBtn.addEventListener('click', () => {
+  autoRotate = !autoRotate;
+  toggleAutoBtn.textContent = autoRotate ? 'Auto-Rotation pausieren' : 'Auto-Rotation aktivieren';
+  showToast(autoRotate ? 'Auto-Rotation aktiv' : 'Auto-Rotation pausiert');
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (successRoom.classList.contains('open')) closeSuccessRoom();
+    else closeProjectPanel();
+  }
+});
+
+let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
+window.addEventListener('pointermove', (e) => {
+  targetX = (e.clientX / window.innerWidth - .5) * 10;
+  targetY = (e.clientY / window.innerHeight - .5) * -8;
+});
+
+function animateScene(){
+  currentX += (targetX - currentX) * 0.04;
+  currentY += (targetY - currentY) * 0.04;
+  const spin = autoRotate ? Date.now() * 0.00002 : 0;
+  blackholeWrap.style.transform = `translate(-50%, -50%) rotateX(${currentY}deg) rotateY(${currentX + spin*40}deg)`;
+  requestAnimationFrame(animateScene);
+}
+animateScene();
+
+const starCanvas = document.getElementById('stars');
+const sctx = starCanvas.getContext('2d');
+let stars = [];
+function resizeStars(){
+  starCanvas.width = window.innerWidth * devicePixelRatio;
+  starCanvas.height = window.innerHeight * devicePixelRatio;
+  starCanvas.style.width = `${window.innerWidth}px`;
+  starCanvas.style.height = `${window.innerHeight}px`;
+  sctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  const count = Math.max(220, Math.floor(window.innerWidth * window.innerHeight / 5500));
+  stars = Array.from({length:count}, () => ({
+    x:Math.random()*window.innerWidth,
+    y:Math.random()*window.innerHeight,
+    z:Math.random()*1.2 + .2,
+    r:Math.random()*1.9 + .3,
+    a:Math.random()*0.8 + .15
+  }));
+  createPlanets();
+}
+resizeStars();
+window.addEventListener('resize', resizeStars);
+
+function renderStars(){
+  sctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  const t = Date.now() * 0.0002;
+  for(const st of stars){
+    const twinkle = 0.65 + Math.sin(t * (2 + st.z) + st.x * 0.01) * 0.35;
+    sctx.fillStyle = `rgba(220,235,255,${st.a * twinkle})`;
+    sctx.fillRect(st.x + Math.sin(t * st.z) * 4, st.y + Math.cos(t * st.z) * 3, st.r, st.r);
+  }
+  requestAnimationFrame(renderStars);
+}
+renderStars();
+
+const fxCanvas = document.getElementById('fx');
+const fctx = fxCanvas.getContext('2d');
+function resizeFx(){
+  fxCanvas.width = window.innerWidth * devicePixelRatio;
+  fxCanvas.height = window.innerHeight * devicePixelRatio;
+  fxCanvas.style.width = `${window.innerWidth}px`;
+  fxCanvas.style.height = `${window.innerHeight}px`;
+  fctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
+resizeFx(); window.addEventListener('resize', resizeFx);
+const bursts = [];
+function burstAtPlanet(el, color){
+  const r = el.getBoundingClientRect();
+  bursts.push({ x:r.left + r.width/2, y:r.top + r.height/2, life:1, color });
+}
+function renderFx(){
+  fctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  for(let i=bursts.length-1; i>=0; i--){
+    const b = bursts[i];
+    b.life -= 0.02;
+    if (b.life <= 0) { bursts.splice(i,1); continue; }
+    for(let j=0; j<11; j++){
+      const ang = (Math.PI*2/11)*j + (1-b.life)*2;
+      const dist = (1-b.life) * 80;
+      const x = b.x + Math.cos(ang)*dist;
+      const y = b.y + Math.sin(ang)*dist;
+      fctx.fillStyle = b.color.replace(')', `, ${b.life})`).replace('rgb', 'rgba');
+      if (!b.color.startsWith('rgb')) fctx.fillStyle = hexToRgba(b.color, b.life);
+      fctx.beginPath(); fctx.arc(x,y, 2 + b.life*3, 0, Math.PI*2); fctx.fill();
+    }
+  }
+  requestAnimationFrame(renderFx);
+}
+function hexToRgba(hex, a){
+  const h = hex.replace('#','');
+  const bigint = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h,16);
+  const r = (bigint>>16)&255, g=(bigint>>8)&255, b=bigint&255;
+  return `rgba(${r},${g},${b},${a})`;
+}
+renderFx();
+
+showToast('Neue Erfolgslogik geladen');
+</script>
+</body>
+</html>

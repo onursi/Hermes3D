@@ -413,7 +413,7 @@ export function V2Scene({
       <CameraDirector
         goal={goal}
         controlsRef={controlsRef}
-        speed={prefs.flightSpeed}
+        speed={world === "projects" || world === "memory" ? 1 : prefs.flightSpeed}
         reducedMotion={prefs.reducedMotion}
         onArrive={handleArrive}
         onSampleHome={sampleCamera}
@@ -427,19 +427,20 @@ export function V2Scene({
         <OrbitControls
           ref={controlsRef as never}
           target={HOME_VIEW.target.toArray()}
+          enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={false}
-          minDistance={3.2}
-          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : 30}
-          maxPolarAngle={Math.PI * 0.52}
+          minDistance={world === "projects" && !openProject ? 7.8 : 3.2}
+          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : 30}
+          maxPolarAngle={world === "projects" || world === "memory" ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
-          rotateSpeed={0.55 * Math.min(3, prefs.flightSpeed)}
-          zoomSpeed={0.85 * Math.min(3, prefs.flightSpeed)}
+          rotateSpeed={0.55}
+          zoomSpeed={0.85}
         />
       ) : null}
 
       <Suspense fallback={null}>
-        {world !== "library" && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
+        {world !== "library" && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>

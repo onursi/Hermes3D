@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hermes3D – Systemarchitektur</title>
+<style>
+:root{--bg:#03060c;--glass:rgba(8,15,28,.72);--line:rgba(255,255,255,.08);--text:#eef4ff;--muted:#98a9c4;--gold:#f3cf86;--cyan:#72ddff;--blue:#7b9cff;--violet:#b68cff;--white:#f7fbff}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#03060c;color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+body{background:radial-gradient(circle at 50% 42%,rgba(37,57,98,.18),transparent 30%),radial-gradient(circle at 18% 18%,rgba(182,140,255,.08),transparent 20%),#03060c}
+canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}.v{position:fixed;inset:0;background:radial-gradient(circle,transparent 54%,rgba(0,0,0,.65));z-index:1;pointer-events:none}
+.glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(18px);box-shadow:0 22px 70px rgba(0,0,0,.34)}
+.top{position:fixed;left:20px;right:20px;top:18px;z-index:30;display:flex;justify-content:space-between;gap:12px}.brand{padding:13px 16px;border-radius:18px}.brand h1{margin:0;font-size:16px;letter-spacing:.14em;text-transform:uppercase}.brand p{margin:5px 0 0;color:var(--muted);font-size:11px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:10px 12px;border-radius:999px;font-size:9.5px;color:var(--muted);text-transform:uppercase}.chip strong{color:#fff}
+#scene{position:absolute;inset:0;perspective:1500px;z-index:2}#world{position:absolute;left:50%;top:52%;width:min(1220px,96vw);height:min(790px,84vh);transform:translate(-50%,-50%) rotateX(6deg);transform-style:preserve-3d}
+.home{position:absolute;left:50%;top:50%;width:210px;height:210px;transform:translate(-50%,-50%) translateZ(70px);border-radius:50%;display:grid;place-items:center;text-align:center;z-index:10;background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.24),transparent 12%),radial-gradient(circle,rgba(243,207,134,.15),rgba(10,16,28,.92) 62%);border:1px solid rgba(243,207,134,.24);box-shadow:0 0 60px rgba(243,207,134,.11)}
+.home small{color:var(--gold);font-size:9px;text-transform:uppercase}.home h2{margin:6px 0 4px;font-size:22px}.home p{margin:0;color:var(--muted);font-size:10px;padding:0 22px}
+.room{position:absolute;width:220px;min-height:132px;padding:15px;border-radius:22px;z-index:8;cursor:pointer;background:rgba(8,15,28,.78);border:1px solid var(--line);backdrop-filter:blur(16px);transition:.22s}
+.room:hover{filter:brightness(1.12);transform:scale(1.03)}.room small{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}.room h3{margin:0;font-size:15px}.room p{margin:7px 0 0;color:#c8d3e7;font-size:10.2px;line-height:1.45}.rule{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.05);font-size:9px;color:var(--muted)}
+.goal{left:7%;top:12%}.project{right:7%;top:14%}.flow{right:2%;bottom:12%}.brain{left:3%;bottom:12%}.success{left:40%;bottom:-2%}
+.goal small{color:var(--gold)}.project small{color:var(--cyan)}.flow small{color:var(--blue)}.brain small{color:var(--violet)}.success small{color:var(--white)}
+.worm{position:absolute;width:76px;height:76px;border-radius:50%;z-index:12;cursor:pointer;display:grid;place-items:center;border:1px solid currentColor;background:conic-gradient(from 0deg,transparent,currentColor,transparent,currentColor,transparent);box-shadow:0 0 28px currentColor;animation:spin 9s linear infinite;opacity:.85}
+.worm:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#03060c;border:1px solid rgba(255,255,255,.12)}.worm:after{content:attr(data-label);position:absolute;top:82px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:8.5px;color:#dce6f7}
+.w1{left:31%;top:26%;color:var(--gold)}.w2{right:31%;top:27%;color:var(--cyan)}.w3{right:27%;bottom:26%;color:var(--blue)}.w4{left:27%;bottom:26%;color:var(--violet)}
+.side{position:fixed;right:20px;top:112px;z-index:34;width:min(360px,calc(100vw - 40px));padding:16px;border-radius:20px}.side h4,.jarvis h4{margin:0 0 9px;font-size:10px;text-transform:uppercase;letter-spacing:.12em}.side h4{color:var(--gold)}.side p,.jarvis p{margin:0;color:var(--muted);font-size:10.5px;line-height:1.5}.card{padding:10px 11px;border-radius:13px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.045);margin-top:8px}.card strong{display:block;font-size:11px}.card span{display:block;color:var(--muted);font-size:9.5px;margin-top:3px}
+.jarvis{position:fixed;left:20px;bottom:20px;z-index:34;width:min(390px,calc(100vw - 40px));padding:16px;border-radius:20px}.jarvis h4{color:var(--cyan)}.q,.a{margin-top:9px;padding:10px 11px;border-radius:12px;font-size:10px}.q{background:rgba(114,221,255,.055);border:1px solid rgba(114,221,255,.1);color:#dff7ff}.a{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.045);color:#d3deef;line-height:1.45}.jarvis button,.btn{margin-top:10px;padding:9px 11px;border-radius:12px;border:1px solid rgba(114,221,255,.15);background:rgba(114,221,255,.06);color:var(--text);cursor:pointer}
+.detail{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(14px);width:min(900px,calc(100vw - 40px));z-index:50;padding:18px;border-radius:24px;opacity:0;pointer-events:none;transition:.24s}.detail.open{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}.detail small{color:var(--gold);font-size:9px;text-transform:uppercase}.detail h2{margin:5px 0 8px;font-size:22px}.detail p{margin:0;color:#d1dcef;font-size:12px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.tile{padding:10px;border-radius:13px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)}.tile strong{display:block;font-size:9px;color:var(--muted);text-transform:uppercase}.tile span{display:block;margin-top:4px;font-size:11px}.close{position:absolute;right:16px;top:16px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:white;cursor:pointer}
+.toast{position:fixed;left:50%;top:105px;transform:translateX(-50%) translateY(-8px);z-index:60;padding:11px 14px;border-radius:13px;background:rgba(8,14,25,.95);border:1px solid rgba(243,207,134,.2);opacity:0;transition:.22s;font-size:11px}.toast.show{opacity:1;transform:translateX(-50%)}
+@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1000px){#world{transform:translate(-50%,-50%) scale(.78) rotateX(6deg)}.side{display:none}}@media(max-width:720px){#world{transform:translate(-50%,-50%) scale(.58) rotateX(6deg)}.chips{display:none}.jarvis{left:12px;right:12px;width:auto}.grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas><canvas id="links"></canvas><div class="v"></div>
+<div class="top">
+  <div class="brand glass"><h1>Hermes3D · Systemarchitektur</h1><p>Goal Horizon · Project Singularity · Flow Orbit · Second Brain · Success Singularity</p></div>
+  <div class="chips"><div class="chip glass"><strong>Wohin?</strong> Ziele</div><div class="chip glass"><strong>Woran?</strong> Projekte</div><div class="chip glass"><strong>Was läuft?</strong> Flows</div><div class="chip glass"><strong>Warum?</strong> Jarvis</div></div>
+</div>
+
+<div id="scene"><div id="world">
+  <div class="home"><div><small>Home</small><h2>Hermes Zuhause</h2><p>Council, Orientierung und Portale in die spezialisierten Räume.</p></div></div>
+  <section class="room goal" data-room="goal"><small>Portal</small><h3>Goal Horizon</h3><p>Ziele, Sternbilder, Meilensteine, Zeit und aktueller Standort auf dem Weg.</p><div class="rule">Wohin will ich?</div></section>
+  <section class="room project" data-room="project"><small>Portal</small><h3>Project Singularity</h3><p>Eigener Raum für Projekte. Fortschritt, Phasen und Übergang in den Erfolgsraum.</p><div class="rule">Woran arbeite ich?</div></section>
+  <section class="room flow" data-room="flow"><small>Portal</small><h3>Flow Orbit</h3><p>Automationsrouten, aktive Runs, Warteorbit, Fehler, Freigaben und Replay.</p><div class="rule">Was läuft gerade?</div></section>
+  <section class="room brain" data-room="brain"><small>Portal</small><h3>Second Brain</h3><p>Wissen, Quellen, Notizen und Jarvis Knowledge Scan.</p><div class="rule">Womit weiß ich es?</div></section>
+  <section class="room success" data-room="success"><small>Archivraum</small><h3>Success Singularity</h3><p>Erreichte Projekte, Ziele und Lebensmeilensteine als Erfolgsmonumente.</p><div class="rule">Was habe ich geschafft?</div></section>
+
+  <div class="worm w1" data-label="Ziel ↔ Projekt" data-link="goal-project"></div>
+  <div class="worm w2" data-label="Projekt ↔ Flow" data-link="project-flow"></div>
+  <div class="worm w3" data-label="Flow ↔ Projekt" data-link="flow-project"></div>
+  <div class="worm w4" data-label="Wissen ↔ Projekt" data-link="brain-project"></div>
+</div></div>
+
+<aside class="side glass"><h4>Wichtigste Regel</h4><p>Ein Objekt existiert nicht dreifach. Ziel, Projekt und Automation bleiben eigene Objekte in eigenen Räumen. Wurmlöcher sind Deep Links zwischen echten Beziehungen.</p>
+<div class="card"><strong>Ziel</strong><span>Mit KI Geld verdienen</span></div>
+<div class="card"><strong>Projekt</strong><span>KI-Pilotangebot für Mittelstand bauen</span></div>
+<div class="card"><strong>Automation</strong><span>Lead-Recherche → Analyse → Follow-up vorbereiten</span></div>
+<div class="card"><strong>Verbindung</strong><span>Projekt zahlt auf Ziel ein. Automation unterstützt Projekt.</span></div></aside>
+
+<aside class="jarvis glass"><h4>Jarvis Diagnose</h4><p>Jarvis prüft Ziel → Meilenstein → Projekt → Flow.</p><div class="q">„Warum komme ich bei diesem Ziel nicht weiter?“</div><div class="a" id="ans">Der nächste Meilenstein ist definiert, aber aktuell ist kein aktives Projekt damit verknüpft.</div><button id="next">Andere Diagnose</button></aside>
+
+<section class="detail glass" id="detail"><button class="close" id="close">×</button><small id="ey">Wurmloch</small><h2 id="title">Ziel ↔ Projekt</h2><p id="text"></p>
+<div class="grid"><div class="tile"><strong>Quelle</strong><span id="src"></span></div><div class="tile"><strong>Zielraum</strong><span id="tgt"></span></div><div class="tile"><strong>Bedeutung</strong><span id="meaning"></span></div><div class="tile"><strong>Navigation</strong><span>nur bei Bedarf sichtbar</span></div></div>
+<button class="btn" id="jump">Durch Wurmloch springen</button></section>
+<div class="toast" id="toast">Aktion ausgeführt</div>
+
+<script>
+const stars=document.getElementById('stars'),links=document.getElementById('links'),s=stars.getContext('2d'),l=links.getContext('2d'),world=document.getElementById('world');
+let W,H,D=1,pts=[],yaw=0,pitch=6,zoom=1,drag=false,lx=0,ly=0;
+const infos={
+goal:{ey:'Goal Horizon',title:'Wohin will ich?',text:'Eigener Raum für Ziele, Sternbilder, Meilensteine, Zeithorizont und Fortschritt. Projekte werden hier nicht verwaltet, sondern nur als verknüpfte Umsetzungspfade sichtbar.',src:'Zielstern',tgt:'Meilenstein / Projekt',meaning:'Richtung & Fortschritt'},
+project:{ey:'Project Singularity',title:'Woran arbeite ich?',text:'Eigener Raum für Projekte. Keine Ziel- oder Flow-Duplikate. Beziehungen werden nur bei Bedarf eingeblendet.',src:'Projekt',tgt:'Success Singularity',meaning:'Konkrete Umsetzung'},
+flow:{ey:'Flow Orbit',title:'Was läuft gerade?',text:'Automationen sind Routen, Runs sind bewegte Objekte. Aktiv, wartend, pausiert, fehlerhaft oder erfolgreich wird räumlich sichtbar.',src:'Automation Run',tgt:'Projekt / Warteorbit',meaning:'Operativer Zustand'},
+brain:{ey:'Second Brain',title:'Womit weiß ich es?',text:'Wissen bleibt im Wissensraum. Relevante Quellen können in Projekte oder Entscheidungen verlinkt werden.',src:'Notiz / Quelle',tgt:'Projekt / Entscheidung',meaning:'Wissensgrundlage'},
+success:{ey:'Success Singularity',title:'Was habe ich geschafft?',text:'Erreichte Projekte, Ziele und Lebensmeilensteine werden als unterschiedliche Erfolgsmonumente bewahrt.',src:'Abschluss',tgt:'Erfolgsmonument',meaning:'Biografie & Vermögen'}
+};
+const worm={
+'goal-project':{title:'Ziel ↔ Projekt',text:'Ein Ziel zeigt, wohin du willst. Ein Projekt ist der konkrete Umsetzungsweg. Das Wurmloch ist der Deep Link zwischen den Räumen.',src:'Goal Horizon',tgt:'Project Singularity',meaning:'Ziel → Umsetzung'},
+'project-flow':{title:'Projekt ↔ Flow',text:'Ein Projekt kann von Automationen unterstützt werden. Flow Orbit zeigt ihren operativen Zustand.',src:'Project Singularity',tgt:'Flow Orbit',meaning:'Projekt → Automation'},
+'flow-project':{title:'Flow ↔ Projekt',text:'Von einem Automation Run springst du zurück zum Projekt, das dieser Run unterstützt.',src:'Flow Orbit',tgt:'Project Singularity',meaning:'Automation → Kontext'},
+'brain-project':{title:'Wissen ↔ Projekt',text:'Relevantes Wissen wird direkt im Projektkontext geöffnet, bleibt aber kanonisch im Second Brain.',src:'Second Brain',tgt:'Project Singularity',meaning:'Wissen → Anwendung'}
+};
+const diag=[
+'Der nächste Meilenstein ist definiert, aber aktuell ist kein aktives Projekt damit verknüpft.',
+'Das Projekt existiert, aber seit mehreren Wochen gab es keine konkrete Aktivität auf den nächsten Meilenstein.',
+'Der Meilenstein fehlt. Das Ziel hat aktuell keine klare nächste Stufe.',
+'Das Projekt ist aktiv, aber kein Flow unterstützt gerade den entscheidenden nächsten Schritt.',
+'Das Ziel ist bewusst pausiert. Es gibt keinen Fehler, sondern eine Prioritätsentscheidung.'
+];let di=0;
+function resize(){D=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;for(const c of [stars,links]){c.width=W*D;c.height=H*D;c.style.width=W+'px';c.style.height=H+'px'}s.setTransform(D,0,0,D,0,0);l.setTransform(D,0,0,D,0,0);pts=Array.from({length:220},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.2,a:Math.random()*.75+.05,k:Math.random()*1.5+.2}))}addEventListener('resize',resize);resize();
+function center(el){const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}}
+function toastMsg(t){const q=document.getElementById('toast');q.textContent=t;q.classList.add('show');clearTimeout(toastMsg.t);toastMsg.t=setTimeout(()=>q.classList.remove('show'),1700)}
+function open(d,ey='Wurmloch / Deep Link'){document.getElementById('ey').textContent=ey;document.getElementById('title').textContent=d.title;document.getElementById('text').textContent=d.text;document.getElementById('src').textContent=d.src;document.getElementById('tgt').textContent=d.tgt;document.getElementById('meaning').textContent=d.meaning;document.getElementById('detail').classList.add('open')}
+document.querySelectorAll('.room').forEach(r=>r.onclick=()=>open(infos[r.dataset.room],infos[r.dataset.room].ey));
+document.querySelectorAll('.worm').forEach(w=>w.onclick=()=>open(worm[w.dataset.link]));
+document.getElementById('close').onclick=()=>document.getElementById('detail').classList.remove('open');
+document.getElementById('jump').onclick=()=>toastMsg('Konzept: direkter Sprung in den verknüpften Raum');
+document.getElementById('next').onclick=()=>{di=(di+1)%diag.length;document.getElementById('ans').textContent=diag[di]};
+world.onpointerdown=e=>{drag=true;lx=e.clientX;ly=e.clientY;world.setPointerCapture(e.pointerId)};world.onpointermove=e=>{if(!drag)return;let dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;yaw+=dx*.12;pitch=Math.max(-18,Math.min(24,pitch-dy*.09))};world.onpointerup=()=>drag=false;world.onpointercancel=()=>drag=false;addEventListener('wheel',e=>{zoom=Math.max(.7,Math.min(1.25,zoom-e.deltaY*.00035))},{passive:true});
+function anim(t){s.clearRect(0,0,W,H);for(const p of pts){let a=p.a*(.65+.3*Math.sin(t*.001*p.k+p.x*.01));s.fillStyle=`rgba(232,240,255,${Math.max(.035,a)})`;s.beginPath();s.arc(p.x,p.y,p.r,0,Math.PI*2);s.fill()}l.clearRect(0,0,W,H);const h=center(document.querySelector('.home'));document.querySelectorAll('.room').forEach((r,i)=>{const c=center(r);l.strokeStyle='rgba(255,255,255,.12)';l.lineWidth=1;l.beginPath();l.moveTo(h.x,h.y);l.lineTo(c.x,c.y);l.stroke();let u=(t*.00018+i*.19)%1;l.fillStyle='rgba(255,255,255,.5)';l.beginPath();l.arc(h.x+(c.x-h.x)*u,h.y+(c.y-h.y)*u,1.8,0,Math.PI*2);l.fill()});world.style.transform=`translate(-50%,-50%) rotateX(${pitch}deg) rotateY(${yaw}deg) scale(${zoom})`;requestAnimationFrame(anim)}requestAnimationFrame(anim);toastMsg('Hermes3D Systemarchitektur geladen');
+</script>
+</body>
+</html>

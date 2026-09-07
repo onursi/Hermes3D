@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes 3D // Räumliche Systemarchitektur & Goal Horizon Simulation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    :root {
+      --bg: #070913;
+      --surface: #0e1224;
+      --surface-glass: rgba(14, 18, 36, 0.78);
+      --surface-card: rgba(14, 22, 40, 0.85);
+      --border: rgba(188, 167, 239, 0.18);
+      --border-bright: rgba(0, 240, 255, 0.45);
+      --border-cyan: rgba(0, 240, 255, 0.35);
+      --lavender: #bca7ef;
+      --lavender-glow: rgba(188, 167, 239, 0.35);
+      --cyan: #00f0ff;
+      --cyan-bright: #00f0ff;
+      --cyan-glow: rgba(0, 240, 255, 0.35);
+      --cyan-v2: #38bdf8;
+      --amber-gold: #ffb84d;
+      --amber-bright: #fbbf24;
+      --emerald: #10e599;
+      --rose: #f43f5e;
+      --text-main: #f0f3ff;
+      --text-muted: #8c96ba;
+      --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.55;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(188, 167, 239, 0.15), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0, 240, 255, 0.09), transparent 60%),
+        linear-gradient(180deg, #070913 0%, #03050a 100%);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: rgba(188, 167, 239, 0.2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+    .container {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header */
+    header {
+      padding: 44px 0 28px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0, 240, 255, 0.04) 0%, transparent 100%);
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      background: rgba(188, 167, 239, 0.1);
+      border: 1px solid var(--border-bright);
+      color: var(--lavender);
+      margin-bottom: 16px;
+    }
+
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
+
+    h1 {
+      font-family: var(--font-main);
+      font-size: clamp(2.3rem, 4.2vw, 3.6rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #ffffff 30%, var(--lavender) 75%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      max-width: 860px;
+      margin: 0 auto;
+      font-size: 1.12rem;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    /* Simulation Canvas Stage */
+    .stage-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      margin-top: 32px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 32px rgba(0, 240, 255, 0.08);
+      position: relative;
+    }
+
+    .stage-toolbar {
+      padding: 14px 20px;
+      background: rgba(14, 18, 36, 0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      backdrop-filter: blur(16px);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(7, 9, 19, 0.6);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 7px 14px;
+      border-radius: 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(0, 240, 255, 0.08);
+    }
+
+    .tab-btn.active {
+      background: rgba(0, 240, 255, 0.16);
+      color: var(--cyan);
+      box-shadow: 0 0 14px var(--cyan-glow);
+      border-color: rgba(0, 240, 255, 0.4);
+    }
+
+    .canvas-container {
+      width: 100%;
+      height: 600px;
+      position: relative;
+      background: #070913;
+      cursor: grab;
+    }
+
+    .canvas-container:active {
+      cursor: grabbing;
+    }
+
+    #webglCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* HUD Overlays on Canvas */
+    .hud-top-left {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .hud-title-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      background: rgba(14, 18, 36, 0.9);
+      border: 1px solid var(--border-bright);
+      padding: 5px 12px;
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 14px var(--cyan-glow);
+      display: inline-block;
+    }
+
+    .hud-subtitle {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      background: rgba(7, 9, 19, 0.75);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+    }
+
+    .hud-top-right {
+      position: absolute;
+      top: 18px;
+      right: 20px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-hud-action {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: rgba(14, 18, 36, 0.88);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-hud-action:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 240, 255, 0.15);
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+
+    .hud-bottom-drawer {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: rgba(14, 18, 36, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 240, 255, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .inspector-info h4 {
+      font-family: var(--font-main);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .inspector-info p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .inspector-tags {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .tag-chip {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(188, 167, 239, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+    }
+
+    /* HUD Explainer Banner */
+    .hud-explainer-banner {
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-bright);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-top: 36px;
+      box-shadow: 0 8px 32px -8px rgba(0, 240, 255, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hud-explainer-banner::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--lavender), var(--cyan));
+    }
+
+    /* Grid Details */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-top: 28px;
+    }
+
+    @media (max-width: 960px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .info-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .info-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-bright);
+    }
+
+    .card-title {
+      font-family: var(--font-main);
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .card-title span.badge {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid var(--border-cyan);
+      color: var(--cyan);
+    }
+
+    /* Table */
+    .rules-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 14px;
+    }
+
+    .rules-table th {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rules-table td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(188, 167, 239, 0.08);
+      color: #cbd5e1;
+    }
+
+    .rules-table tr:hover td {
+      background: rgba(0, 240, 255, 0.03);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--cyan);
+    }
+
+    /* Interactive Wormhole Sog Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 9, 19, 0.88);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #0e1224;
+      border: 1px solid var(--border-bright);
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 580px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 240, 255, 0.1);
+      position: relative;
+    }
+
+    .modal-title {
+      font-family: var(--font-main);
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .modal-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .modal-question {
+      margin-bottom: 18px;
+    }
+
+    .modal-question label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+
+    .modal-question input, .modal-question textarea {
+      width: 100%;
+      background: rgba(7, 9, 19, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #fff;
+      font-family: var(--font-main);
+      font-size: 0.92rem;
+    }
+
+    .modal-question input:focus, .modal-question textarea:focus {
+      outline: none;
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 60px;
+      padding: 30px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <div class="badge-status">
+        <span class="badge-dot"></span>
+        Hermes 3D // Räumliche Gesamtarchitektur & Simulation
+      </div>
+      <h1>Goal Horizon & Die Welten des LifeOS</h1>
+      <p class="subtitle">
+        Interaktive 3D-Simulation der neuen Systemarchitektur: Sternbilder der Lebensbalance, Goal Path Slingshot, Project Singularity Erfolgsmagnet und Wurmloch-Sog.
+      </p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- 3D STAGE CARD -->
+    <div class="stage-card">
+      <div class="stage-toolbar">
+        <div class="nav-tabs">
+          <button class="tab-btn active" id="tabGoalHorizon" onclick="switchWorld('goalHorizon')">🌌 1. Goal Horizon</button>
+          <button class="tab-btn" id="tabGoalPath" onclick="switchWorld('goalPath')">⚡ 2. Goal Path</button>
+          <button class="tab-btn" id="tabSingularity" onclick="switchWorld('singularity')">🕳️ 3. Project Singularity</button>
+          <button class="tab-btn" id="tabFlowOrbit" onclick="switchWorld('flowOrbit')">🔄 4. Flow Orbit</button>
+          <button class="tab-btn" id="tabWormhole" onclick="switchWorld('wormhole')">🌀 5. Wurmloch-Sog</button>
+        </div>
+
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button class="btn-hud-action" onclick="scrollToHUDExplainer()" style="border-color: rgba(0, 240, 255, 0.45); color: var(--cyan); box-shadow: 0 0 10px var(--cyan-glow);">💡 Was ist das HUD?</button>
+          <button class="btn-hud-action" id="btnSoundToggle" onclick="toggleAudio()">🔊 Sound: AN</button>
+          <button class="btn-hud-action" onclick="resetCamera()">🔄 Reset Kamera</button>
+        </div>
+      </div>
+
+      <!-- Canvas Box -->
+      <div class="canvas-container" id="canvasBox">
+        <canvas id="webglCanvas"></canvas>
+
+        <div class="hud-top-left">
+          <span class="hud-title-badge" id="hudWorldTitle">GOAL HORIZON // DER HIMMEL DEINER ZIELE</span>
+          <span class="hud-subtitle" id="hudWorldSubtitle">Klicke auf einen Zielstern für den Slingshot-Flug zum Meilenstein-Pfad</span>
+        </div>
+
+        <div class="hud-top-right">
+          <button class="btn-hud-action" id="btnTopView" onclick="toggleTopView()">📐 Strategic Top View</button>
+        </div>
+
+        <!-- Inspector Drawer -->
+        <div class="hud-bottom-drawer" id="hudDrawer">
+          <div class="inspector-info">
+            <h4 id="inspectTitle">Hadsch 2027</h4>
+            <p id="inspectDesc">Spirituelles Lebensziel. Wartet auf Zusage/Slot. Nicht terminierbar über Wochenstunden.</p>
+          </div>
+          <div class="inspector-tags">
+            <span class="tag-chip" id="tagSternbild" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.4);">SPIRITUELL</span>
+            <span class="tag-chip" id="tagAmZug" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.4);">AM ZUG: ANDERE</span>
+            <span class="tag-chip" id="tagStufe" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">HELLIGKEIT: STUFE 4</span>
+            <button class="btn-hud-action" id="btnInspectAction" style="padding: 5px 12px; font-size: 9px;" onclick="triggerInspectAction()">Flug zum Pfad</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HERMES HUD EXPLAINER BANNER -->
+    <div class="hud-explainer-banner" id="hudExplainerSection">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan);"></span>
+            Konzept & Philosophie // Was bedeutet „Hermes HUD“?
+          </div>
+          <h2 style="font-family: var(--font-main); font-size: 1.75rem; font-weight: 800; color: #fff; letter-spacing: -0.02em;">
+            Das Heads-Up Display: Schwebende 2D-Glaskontrolle über dem 3D-Kosmos
+          </h2>
+        </div>
+        <span class="badge" style="background: rgba(0, 240, 255, 0.15); border: 1px solid var(--border-bright); color: var(--cyan); font-family: var(--font-mono); padding: 6px 14px; border-radius: 999px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;">
+          Cockpit-Ebene
+        </span>
+      </div>
+
+      <p style="font-size: 1.02rem; color: #cbd5e1; line-height: 1.6; max-width: 1100px; margin-bottom: 24px;">
+        In der Luftfahrt und im Gaming ist ein <strong>HUD (Heads-Up Display)</strong> die transparente Scheibe auf der Cockpitscheibe, auf der Piloten Fluglage, Radar und Waffenstatus sehen, ohne den Blick aus dem Fenster abzuwenden.<br>
+        In <strong>Hermes 3D</strong> ist das HUD die <strong style="color: var(--cyan);">taktische 2D-Glasschicht</strong>, die direkt über dem 3D-Raum schwebt. Sie löst das größte Dilemma von 3D-Interfaces:
+        <em>Im 3D-Raum erlebt man intuitive Orientierung, Distanzen und Lebensbalance – aber für schnelle, kompromisslose Entscheidungen braucht man lesbare 2D-Fakten ohne langes Herumsuchen.</em>
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px;">
+        <div style="background: rgba(14, 18, 36, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 18px;">
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 8px;">
+            1. Cockpit-Navigationsleiste (Oben)
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+            Sofortiger Umschalter zwischen den 5 fundamentalen Raumebenen (Goal Horizon, Goal Path, Singularity, Flow Orbit, Wurmloch) samt Audio-Synthesizer und Kamera-Reset.
+          </p>
+        </div>
+
+        <div style="background: rgba(14, 18, 36, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 18px;">
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--lavender); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 8px;">
+            2. Telemetrie & Top-View (Oben L/R)
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+            Zeigt stets den aktiven Systemkontext und erlaubt den Wechsel zur 2D-Draufsicht (<em>Strategic Top View</em>), wenn maximale kognitive Klarheit ohne Perspektivenverzerrung gefragt ist.
+          </p>
+        </div>
+
+        <div style="background: rgba(14, 18, 36, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 18px;">
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--amber-gold); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 8px;">
+            3. Inspector Drawer (Unten)
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+            Die taktile Faktenleiste. Jeder im 3D-Kosmos angetippte Stern blendet sofort Status, Helligkeit, Beschreibung und Verantwortlichkeit (<code>AM ZUG: ONUR</code> vs. <code>ANDERE</code>) ein.
+          </p>
+        </div>
+
+        <div style="background: rgba(14, 18, 36, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 18px;">
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--emerald); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 8px;">
+            4. Event Horizon Modal (Zentrum)
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+            Das rituelle Dialogfenster beim Projekt-Abschluss. Bevor ein Projekt in die Ewigkeit übergeht, beantwortet Onur die drei Reflexionsfragen und löst den Übergang aus.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARCHITECTURE DETAILS GRID -->
+    <div class="grid-2">
+      <!-- Card 1: Goal Horizon & Lebensbalance -->
+      <div class="info-card">
+        <div class="card-title">
+          <span>🌌</span> Die 5 Sternbilder & Lebensbalance
+          <span class="badge">Zukunft</span>
+        </div>
+        <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 14px;">
+          Das stärkste Argument für 3D: Wenn man herauszoomt, sieht man sofort, ob das Leben ausbalanciert ist.
+        </p>
+
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th>Sternbild</th>
+              <th>Art</th>
+              <th>Aktiver Zustand</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Beruflich</strong></td>
+              <td>Dauerhafte Lebensrichtung</td>
+              <td><span style="color: #34d399;">● Hell</span> (Beruflich in KI wechseln)</td>
+            </tr>
+            <tr>
+              <td><strong>Lernen</strong></td>
+              <td>Fähigkeiten & Wissen</td>
+              <td><span style="color: #34d399;">● Hell</span> (Hermes 3D Alltagstauglichkeit)</td>
+            </tr>
+            <tr>
+              <td><strong>Spirituell</strong></td>
+              <td>Glaube & Sinn</td>
+              <td><span style="color: #38bdf8;">● Glimmt</span> (Hadsch 2027)</td>
+            </tr>
+            <tr>
+              <td><strong>Familiär</strong></td>
+              <td>Schutz & Fürsorge</td>
+              <td><span style="color: #f43f5e;">○ Leer</span> (Kein Zielstern hinterlegt!)</td>
+            </tr>
+            <tr>
+              <td><strong>Persönlich / Gesundheit</strong></td>
+              <td>Körper & Geist</td>
+              <td><span style="color: #f43f5e;">○ Leer</span> (Kein Zielstern hinterlegt!)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 16px; padding: 12px 14px; background: rgba(244, 63, 94, 0.08); border-left: 3px solid #f43f5e; border-radius: 0 8px 8px 0; font-size: 0.85rem; color: #fca5a5;">
+          <strong>Ehrliche Diagnose des Systems:</strong> Familie und Gesundheit haben aktuell keinen leuchtenden Stern. Nicht als Vorwurf, sondern als ehrliche Frage: <em>Bekommt dieser Bereich gerade bewusst keine Energie?</em>
+        </div>
+      </div>
+
+      <!-- Card 2: Project Singularity -->
+      <div class="info-card">
+        <div class="card-title">
+          <span>🕳️</span> Project Singularity & Klick-Abschluss
+          <span class="badge">Gegenwart</span>
+        </div>
+        <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 14px;">
+          Das schwarze Loch ist ein <strong>Erfolgsmagnet</strong>: Nähe zur Mitte = Reifegrad. Auf der innersten Bahn kreist die Warteschleife der Fertigen.
+        </p>
+
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th>Bahn</th>
+              <th>Phase</th>
+              <th>Bedeutung</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>20 %</strong></td>
+              <td>1. Idee</td>
+              <td>Ein Satz, noch kein fester Weg</td>
+            </tr>
+            <tr>
+              <td><strong>40 %</strong></td>
+              <td>2. Entwurf</td>
+              <td>Ziel steht, Weg ist offen</td>
+            </tr>
+            <tr>
+              <td><strong>60 %</strong></td>
+              <td>3. In Arbeit</td>
+              <td>Es wird aktiv gebaut & getestet</td>
+            </tr>
+            <tr>
+              <td><strong>80 %</strong></td>
+              <td>4. Abnahme</td>
+              <td>Läuft stabil, wartet auf Onurs Urteil</td>
+            </tr>
+            <tr>
+              <td><strong>100 %</strong></td>
+              <td>5. Fertig (Warteschleife)</td>
+              <td>Bereit zum eigenhändigen Abschluss-Klick!</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 16px; padding: 12px 14px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; border-radius: 0 8px 8px 0; font-size: 0.85rem; color: #bae6fd;">
+          <strong>Der Abschluss gehört Onur:</strong> Klick auf den inneren Ring stellt genau 3 Fragen (Problem, Ergebnis, Learning) und befördert das Projekt mit Sub-Bass-Kollaps und Belohnungston in die Success Singularity.
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Wurmlöcher & Flow Orbit -->
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="card-title">
+          <span>🌀</span> Wurmlöcher (Beziehungen im Raum)
+          <span class="badge">Semantische Deep Links</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px;">
+          Wurmlöcher kopieren keine Daten. Sie verbinden getrennte Welten:
+        </p>
+        <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem;">
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; border-left: 3px solid #fbbf24;">
+            <strong>Goldener Trichter:</strong> Goal Horizon ↔ Project Singularity (<em>Welches Projekt zahlt auf welches Ziel ein?</em>)
+          </li>
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; border-left: 3px solid #38bdf8;">
+            <strong>Blauer Trichter:</strong> Project Singularity ↔ Flow Orbit (<em>Welche Automation unterstützt dieses Projekt?</em>)
+          </li>
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; border-left: 3px solid #c084fc;">
+            <strong>Violetter Trichter:</strong> Second Brain ↔ Project Singularity (<em>Welches Wissen wird hier angewendet?</em>)
+          </li>
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; border-left: 3px solid #fff;">
+            <strong>Weißer Trichter:</strong> Success Singularity ↔ Ursprung (<em>Aus welchem Ziel entstand das Monument?</em>)
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <div class="card-title">
+          <span>🔄</span> Flow Orbit (Automationen als Live-Verkehr)
+          <span class="badge">Echtes Geschehen</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px;">
+          Keine 2D-Flussdiagramme in 3D, sondern physischer Verkehr:
+        </p>
+        <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem;">
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px;">
+            <strong>Bewegung = Arbeit:</strong> Nur wenn ein Script real läuft, fliegt ein Komet auf der Umlaufbahn.
+          </li>
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px;">
+            <strong>Human Handoff Station:</strong> Wenn eine Entscheidung nötig ist (z. B. Bewerbung absenden), dockt der Komet an und pulsiert.
+          </li>
+          <li style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px;">
+            <strong>Automation Replay:</strong> Die Nacht in 20 Sekunden räumlich abspielen lassen – wo gab es Fehler, was wurde erledigt?
+          </li>
+        </ul>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- REWARD & HORIZON CROSSING MODAL -->
+  <div class="modal-overlay" id="rewardModal">
+    <div class="modal-box">
+      <div class="modal-title">🌟 Projekt-Vollendung // Horizont-Überquerung</div>
+      <p class="modal-desc">
+        Du beförderst dieses Projekt eigenhändig in die Singularität. Deine Antworten werden für immer als monumentales Wissen im 4D-Tesserakt aufbewahrt:
+      </p>
+
+      <div class="modal-question">
+        <label>1. Was war das ursprüngliche Problem?</label>
+        <input type="text" id="q1" value="Zersplitterte Stände zwischen Agenten und unübersichtliche Textwüsten">
+      </div>
+
+      <div class="modal-question">
+        <label>2. Was ist konkret herausgekommen?</label>
+        <input type="text" id="q2" value="Begehbare 3D-Gesamtarchitektur, Goal Horizon mit Lebensbalance und nativer 4D-Tesserakt">
+      </div>
+
+      <div class="modal-question">
+        <label>3. Was lernen wir für zukünftige Projekte?</label>
+        <textarea id="q3" rows="2">Räumliche Signale statt Schein-Animationen; Abschlussmomente gehören immer dem Menschen.</textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-hud-action" onclick="closeRewardModal()">Abbrechen</button>
+        <button class="btn-hud-action" style="border-color: var(--amber-gold); color: #fbbf24;" onclick="executeHorizonCrossing()">⚡ Jetzt in Singularität verewigen</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      HERMES 3D SPATIAL ARCHITECTURE SIMULATION // DESIGNED & SYNTHESIZED BY ANTIGRAVITY FOR ONUR
+    </div>
+  </footer>
+
+  <!-- THREE.JS INTERACTIVE SIMULATION ENGINE -->
+  <script>
+    let scene, camera, renderer;
+    let currentWorld = 'goalHorizon';
+    let worldGroup;
+    let soundEnabled = true;
+    let audioCtx = null;
+    let isTopView = false;
+
+    // Data Models
+    const goalsData = [
+      { id: 'hadsch', name: 'Hadsch 2027', sternbild: 'spirituell', amZug: 'andere', stufe: 3, pos: [-14, 10, -5], desc: 'Spirituelles Ereignisziel. Wartet auf Slot-Zusage. Helligkeit hängt am Meilenstein.' },
+      { id: 'hermes3d', name: 'Hermes 3D im Alltag', sternbild: 'beruflich & lernen', amZug: 'ich', stufe: 5, pos: [6, 14, -8], desc: 'Begehbares LifeOS. Liegt an der Kreuzung von Beruf und Lernen. Strahlender Stern mit Beugungskreuz.' },
+      { id: 'berufki', name: 'Beruflich in KI wechseln', sternbild: 'beruflich', amZug: 'ich', stufe: 4, pos: [16, 6, -6], desc: 'Strategisches Karriere-Ereignisziel bis 12/2027. Verbindliche Ausrichtung.' },
+      { id: 'rpa', name: 'RPA-Zertifikat (UiPath)', sternbild: 'beruflich & lernen', amZug: 'ich', stufe: 2, pos: [12, -4, -4], desc: 'Wegziel. Bewusst zurückgestellt zu Gunsten von Hermes 3D. Trägt einen gefrorenen Halo.' },
+      { id: 'namen', name: '99 Namen Allahs verstehen', sternbild: 'spirituell & lernen', amZug: 'ich', stufe: 1, pos: [-8, -8, -5], desc: 'Wegziel. Nachweisort noch unklar – daher als zarter Umriss dargestellt, nicht dunkel.' },
+      { id: 'geldki', name: 'Mit KI Geld verdienen', sternbild: 'beruflich', amZug: 'ich', stufe: 1, pos: [4, -12, -5], desc: 'Langfristiges Ertragsziel. Nachweisort offen, System behauptet keine falschen Zahlen.' }
+    ];
+
+    const milestonesHermes = [
+      { id: 1, name: 'Fundament & V2-Dock', status: 'done', q: 'Q3 2026' },
+      { id: 2, name: 'Dual-Track & Jarvis Companion', status: 'done', q: 'Q3 2026' },
+      { id: 3, name: 'Goal Horizon & Architektur', status: 'active', q: 'Q4 2026' },
+      { id: 4, name: 'Wurmloch-Schnittstellen', status: 'upcoming', q: 'Q1 2027' },
+      { id: 5, name: 'Vollbetrieb im Alltag', status: 'upcoming', q: 'Q2 2027' }
+    ];
+
+    const projectsData = [
+      { name: 'Company OS Pilot', phase: 'In Arbeit', orbit: 0.6, pos: 1.2, color: 0x38bdf8 },
+      { name: 'Hermes 3D V2', phase: 'Abnahme', orbit: 0.8, pos: 2.8, color: 0xf59e0b },
+      { name: 'Jarvis Companion Module', phase: 'Fertig', orbit: 1.0, pos: 4.5, color: 0x34d399, readyToCross: true },
+      { name: 'Faktenprofil-Crawler', phase: 'Entwurf', orbit: 0.4, pos: 0.3, color: 0x94a3b8 },
+      { name: 'Social Media Pipeline', phase: 'Idee', orbit: 0.2, pos: 5.6, color: 0x64748b }
+    ];
+
+    function scrollToHUDExplainer() {
+      const el = document.getElementById('hudExplainerSection');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+        el.style.borderColor = 'var(--cyan)';
+        el.style.boxShadow = '0 0 35px rgba(0, 240, 255, 0.4)';
+        setTimeout(() => {
+          el.style.borderColor = 'var(--border-bright)';
+          el.style.boxShadow = '0 8px 32px -8px rgba(0, 240, 255, 0.15)';
+        }, 2200);
+      }
+    }
+
+    function initWebGL() {
+      const container = document.getElementById('canvasBox');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x070913, 0.015);
+
+      camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 1000);
+      camera.position.set(0, 4, 38);
+
+      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('webglCanvas'), antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setClearColor(0x070913, 1);
+
+      worldGroup = new THREE.Group();
+      scene.add(worldGroup);
+
+      // Background Starfield (twinkling fast)
+      createBackgroundStars();
+
+      // Build Initial Scene
+      buildGoalHorizon();
+
+      // Events
+      window.addEventListener('resize', onResize);
+      setupCanvasInteraction();
+
+      animate();
+    }
+
+    function createBackgroundStars() {
+      const bgCount = 1200;
+      const bgGeom = new THREE.BufferGeometry();
+      const positions = new Float32Array(bgCount * 3);
+      for(let i = 0; i < bgCount * 3; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 250;
+        positions[i+1] = (Math.random() - 0.5) * 200;
+        positions[i+2] = -20 - Math.random() * 120;
+      }
+      bgGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const bgMat = new THREE.PointsMaterial({ size: 0.8, color: 0x556b8d, transparent: true, opacity: 0.45 });
+      const bgStars = new THREE.Points(bgGeom, bgMat);
+      scene.add(bgStars);
+    }
+
+    /* -------------------------------------------------------------
+       SCENE 1: GOAL HORIZON (Sternbilder & Lebensbalance)
+       ------------------------------------------------------------- */
+    function buildGoalHorizon() {
+      clearWorldGroup();
+      isTopView = false;
+      document.getElementById('btnTopView').style.display = 'inline-flex';
+
+      // Constellation Lines (zarte Linienzüge)
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xbca7ef, transparent: true, opacity: 0.25 });
+      
+      // Career & Learning Constellation Line
+      const points1 = [
+        new THREE.Vector3(16, 6, -6),
+        new THREE.Vector3(6, 14, -8),
+        new THREE.Vector3(12, -4, -4),
+        new THREE.Vector3(4, -12, -5)
+      ];
+      const geom1 = new THREE.BufferGeometry().setFromPoints(points1);
+      worldGroup.add(new THREE.Line(geom1, lineMat));
+
+      // Spiritual Constellation Line
+      const points2 = [
+        new THREE.Vector3(-14, 10, -5),
+        new THREE.Vector3(-8, -8, -5)
+      ];
+      const geom2 = new THREE.BufferGeometry().setFromPoints(points2);
+      worldGroup.add(new THREE.Line(geom2, lineMat));
+
+      // Constellation Label Badges (Firmament)
+      createWorldLabel('STERNBILD: BERUF & KARRIERE', 15, 12, -10, '#38bdf8');
+      createWorldLabel('STERNBILD: SPIRITUALITÄT', -15, 14, -10, '#c084fc');
+      createWorldLabel('STERNBILD: FAMILIE [LEER]', -18, -10, -8, '#f43f5e');
+      createWorldLabel('STERNBILD: GESUNDHEIT [LEER]', 0, -18, -8, '#f43f5e');
+
+      // Add Goal Stars
+      goalsData.forEach(goal => {
+        const starGroup = new THREE.Group();
+        starGroup.position.set(...goal.pos);
+        starGroup.userData = { isGoalStar: true, data: goal };
+
+        // Size & Color according to Stufe & Sternbild
+        const size = 0.5 + goal.stufe * 0.25;
+        const color = goal.sternbild.includes('spirituell') ? 0xc084fc : 0x38bdf8;
+
+        // Core Mesh
+        const coreGeom = new THREE.SphereGeometry(size, 16, 16);
+        const coreMat = new THREE.MeshBasicMaterial({ color: color });
+        const core = new THREE.Mesh(coreGeom, coreMat);
+        starGroup.add(core);
+
+        // Glow Aura
+        const glowGeom = new THREE.SphereGeometry(size * 1.8, 16, 16);
+        const glowMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.25 + goal.stufe * 0.08 });
+        const glow = new THREE.Mesh(glowGeom, glowMat);
+        starGroup.add(glow);
+
+        // Beugungskreuz für Stufe 5
+        if (goal.stufe >= 4) {
+          const crossMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+          const crossGeom = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-size * 3, 0, 0), new THREE.Vector3(size * 3, 0, 0),
+            new THREE.Vector3(0, -size * 3, 0), new THREE.Vector3(0, size * 3, 0)
+          ]);
+          starGroup.add(new THREE.LineSegments(crossGeom, crossMat));
+        }
+
+        // Frozen Halo for Paused
+        if (goal.id === 'rpa') {
+          const haloGeom = new THREE.RingGeometry(size * 2.2, size * 2.5, 32);
+          const haloMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+          const halo = new THREE.Mesh(haloGeom, haloMat);
+          starGroup.add(halo);
+        }
+
+        worldGroup.add(starGroup);
+      });
+    }
+
+    /* -------------------------------------------------------------
+       SCENE 2: GOAL PATH (Slingshot ins Detail)
+       ------------------------------------------------------------- */
+    function buildGoalPath() {
+      clearWorldGroup();
+      isTopView = false;
+      document.getElementById('btnTopView').style.display = 'none';
+
+      // Path Spine
+      const points = [];
+      milestonesHermes.forEach((m, idx) => {
+        points.push(new THREE.Vector3((idx - 2) * 8, Math.sin(idx * 0.8) * 2, -idx * 4));
+      });
+      const pathGeom = new THREE.BufferGeometry().setFromPoints(points);
+      const pathMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 });
+      worldGroup.add(new THREE.Line(pathGeom, pathMat));
+
+      // Milestones Nodes
+      milestonesHermes.forEach((m, idx) => {
+        const nodeGroup = new THREE.Group();
+        const pos = points[idx];
+        nodeGroup.position.copy(pos);
+
+        let color = m.status === 'done' ? 0x34d399 : (m.status === 'active' ? 0x00f0ff : 0x64748b);
+        const nodeMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(m.status === 'active' ? 1.2 : 0.8, 16, 16),
+          new THREE.MeshBasicMaterial({ color: color })
+        );
+        nodeGroup.add(nodeMesh);
+
+        // Transparent Time Plan Slices (Q4 2026)
+        const planeGeom = new THREE.PlaneGeometry(6, 10);
+        const planeMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+        const timePlane = new THREE.Mesh(planeGeom, planeMat);
+        timePlane.rotation.y = Math.PI / 6;
+        nodeGroup.add(timePlane);
+
+        // "DU BIST HIER" Beacon on Active
+        if (m.status === 'active') {
+          const beaconGeom = new THREE.CylinderGeometry(0.05, 0.5, 6, 8);
+          const beaconMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.8 });
+          const beacon = new THREE.Mesh(beaconGeom, beaconMat);
+          beacon.position.y = 4;
+          nodeGroup.add(beacon);
+          createWorldLabel('📍 DU BIST HIER', pos.x, pos.y + 7.5, pos.z, '#00f0ff');
+        }
+
+        createWorldLabel(`${m.q} // ${m.name}`, pos.x, pos.y - 2, pos.z, m.status === 'done' ? '#34d399' : '#fff');
+        worldGroup.add(nodeGroup);
+      });
+    }
+
+    /* -------------------------------------------------------------
+       SCENE 3: PROJECT SINGULARITY (Erfolgsmagnet)
+       ------------------------------------------------------------- */
+    function buildProjectSingularity() {
+      clearWorldGroup();
+      isTopView = false;
+      document.getElementById('btnTopView').style.display = 'none';
+
+      // 1. Black Hole Core (Event Horizon)
+      const blackHoleCore = new THREE.Mesh(
+        new THREE.SphereGeometry(3.2, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0x000000 })
+      );
+      worldGroup.add(blackHoleCore);
+
+      // Accretion Glow Ring
+      const accGeom = new THREE.RingGeometry(3.3, 4.2, 64);
+      const accMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+      const accRing = new THREE.Mesh(accGeom, accMat);
+      accRing.rotation.x = Math.PI / 2.2;
+      worldGroup.add(accRing);
+
+      // 5 Orbital Rings (20%, 40%, 60%, 80%, 100%)
+      const ringRadii = [24, 19, 14, 9.5, 5.5]; // von außen (Idee) nach innen (Fertig)
+      const ringLabels = ['20% IDEE', '40% ENTWURF', '60% IN ARBEIT', '80% ABNAHME', '100% FERTIG // WARTESCHLEIFE'];
+
+      ringRadii.forEach((r, idx) => {
+        const isInner100 = (idx === 4);
+        const rGeom = new THREE.RingGeometry(r - 0.08, r + 0.08, 64);
+        const rMat = new THREE.MeshBasicMaterial({
+          color: isInner100 ? 0x34d399 : 0x38bdf8,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: isInner100 ? 0.65 : 0.25
+        });
+        const orbitMesh = new THREE.Mesh(rGeom, rMat);
+        orbitMesh.rotation.x = Math.PI / 2;
+        worldGroup.add(orbitMesh);
+
+        createWorldLabel(ringLabels[idx], 0, 0.4, r, isInner100 ? '#34d399' : '#94a3b8');
+      });
+
+      // Project Planets
+      projectsData.forEach((p, i) => {
+        const pGroup = new THREE.Group();
+        const r = ringRadii[Math.floor((1 - p.orbit) * 4.99)];
+        const x = Math.cos(p.pos) * r;
+        const z = Math.sin(p.pos) * r;
+        pGroup.position.set(x, 0, z);
+        pGroup.userData = { isProject: true, data: p };
+
+        const pMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(p.readyToCross ? 1.3 : 0.9, 16, 16),
+          new THREE.MeshBasicMaterial({ color: p.color })
+        );
+        pGroup.add(pMesh);
+
+        if (p.readyToCross) {
+          // Pulsing aura on ready
+          const aura = new THREE.Mesh(
+            new THREE.SphereGeometry(2.2, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.35 })
+          );
+          pGroup.add(aura);
+          createWorldLabel('Klick: In Singularität schicken', x, 2.2, z, '#34d399');
+        }
+
+        worldGroup.add(pGroup);
+      });
+    }
+
+    /* -------------------------------------------------------------
+       SCENE 4: FLOW ORBIT (Automationen & Live-Verkehr)
+       ------------------------------------------------------------- */
+    function buildFlowOrbit() {
+      clearWorldGroup();
+      isTopView = false;
+      document.getElementById('btnTopView').style.display = 'none';
+
+      // Track Orbit
+      const trackGeom = new THREE.TorusGeometry(16, 0.15, 16, 64);
+      const trackMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3 });
+      const track = new THREE.Mesh(trackGeom, trackMat);
+      track.rotation.x = Math.PI / 2.3;
+      worldGroup.add(track);
+
+      // Human Approval Dock Station
+      const station = new THREE.Mesh(
+        new THREE.BoxGeometry(3, 1.5, 3),
+        new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+      );
+      station.position.set(16, 0, 0);
+      worldGroup.add(station);
+      createWorldLabel('HUMAN APPROVAL STATION // HALT', 16, 2.8, 0, '#fbbf24');
+
+      // Moving Runner Comet
+      const runner = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+      );
+      runner.userData = { isRunner: true, angle: 0 };
+      worldGroup.add(runner);
+
+      createWorldLabel('RUN: Cansu Bewerbungsworkflow', 0, 5, 0, '#38bdf8');
+    }
+
+    /* -------------------------------------------------------------
+       SCENE 5: WURMLOCH-SOG (Deep-Link Tunnel)
+       ------------------------------------------------------------- */
+    function buildWormhole() {
+      clearWorldGroup();
+      isTopView = false;
+      document.getElementById('btnTopView').style.display = 'none';
+
+      // Funnel Cylinder (Der Trichter)
+      const funnelGeom = new THREE.CylinderGeometry(14, 1.5, 38, 32, 16, true);
+      const funnelMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide
+      });
+      const funnel = new THREE.Mesh(funnelGeom, funnelMat);
+      funnel.rotation.x = -Math.PI / 2;
+      worldGroup.add(funnel);
+
+      // Destination Glow Core at the deep end
+      const destMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(2, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+      );
+      destMesh.position.z = -19;
+      worldGroup.add(destMesh);
+
+      createWorldLabel('WURMLOCH // GOAL HORIZON ➔ PROJECT SINGULARITY', 0, 10, 5, '#fbbf24');
+      createWorldLabel('Sogeffekt: Klicke für Durchflug', 0, -8, 5, '#00f0ff');
+    }
+
+    /* -------------------------------------------------------------
+       HELPERS & THREE.JS LABELS
+       ------------------------------------------------------------- */
+    function createWorldLabel(text, x, y, z, color = '#fff') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0)';
+      ctx.fillRect(0, 0, 512, 128);
+      ctx.font = 'bold 26px "JetBrains Mono", monospace';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText(text, 256, 70);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.position.set(x, y, z);
+      sprite.scale.set(10, 2.5, 1);
+      worldGroup.add(sprite);
+    }
+
+    function clearWorldGroup() {
+      while(worldGroup.children.length > 0) {
+        const obj = worldGroup.children[0];
+        worldGroup.remove(obj);
+      }
+    }
+
+    function onResize() {
+      const container = document.getElementById('canvasBox');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    /* -------------------------------------------------------------
+       INTERACTION & RAYCASTING
+       ------------------------------------------------------------- */
+    function setupCanvasInteraction() {
+      const canvas = document.getElementById('webglCanvas');
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(worldGroup.children, true);
+
+        if (intersects.length > 0) {
+          let target = intersects[0].object;
+          while (target.parent && target.parent !== worldGroup) {
+            target = target.parent;
+          }
+
+          if (target.userData.isGoalStar) {
+            const goal = target.userData.data;
+            showGoalInspector(goal);
+            playSound('chime');
+          } else if (target.userData.isProject) {
+            const p = target.userData.data;
+            if (p.readyToCross) {
+              openRewardModal();
+            }
+          } else if (currentWorld === 'wormhole') {
+            triggerWormholeTravel();
+          }
+        }
+      });
+    }
+
+    function showGoalInspector(goal) {
+      document.getElementById('inspectTitle').textContent = goal.name;
+      document.getElementById('inspectDesc').textContent = goal.desc;
+      document.getElementById('tagSternbild').textContent = goal.sternbild.toUpperCase();
+      document.getElementById('tagAmZug').textContent = 'AM ZUG: ' + goal.amZug.toUpperCase();
+      document.getElementById('tagStufe').textContent = 'HELLIGKEIT: STUFE ' + goal.stufe;
+    }
+
+    function triggerInspectAction() {
+      if (currentWorld === 'goalHorizon') {
+        // Slingshot flight to Goal Path
+        playSound('whoosh');
+        switchWorld('goalPath');
+      }
+    }
+
+    function switchWorld(world) {
+      currentWorld = world;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+      if (world === 'goalHorizon') {
+        document.getElementById('tabGoalHorizon').classList.add('active');
+        document.getElementById('hudWorldTitle').textContent = 'GOAL HORIZON // DER HIMMEL DEINER ZIELE';
+        document.getElementById('hudWorldSubtitle').textContent = '5 Sternbilder am Firmament. Klicke auf einen Zielstern für den Slingshot-Flug.';
+        camera.position.set(0, 4, 38);
+        camera.lookAt(0, 0, 0);
+        buildGoalHorizon();
+      } else if (world === 'goalPath') {
+        document.getElementById('tabGoalPath').classList.add('active');
+        document.getElementById('hudWorldTitle').textContent = 'GOAL PATH // DER MEILENSTEIN-PFAD';
+        document.getElementById('hudWorldSubtitle').textContent = 'DU BIST HIER // Q4 2026 // Lichtspur vergangener Meilensteine bleibt sichtbar.';
+        camera.position.set(0, 2, 28);
+        camera.lookAt(0, 0, 0);
+        buildGoalPath();
+      } else if (world === 'singularity') {
+        document.getElementById('tabSingularity').classList.add('active');
+        document.getElementById('hudWorldTitle').textContent = 'PROJECT SINGULARITY // ERFOLGSMAGNET';
+        document.getElementById('hudWorldSubtitle').textContent = '5 Bahnen (Idee bis Fertig). Klick auf den inneren Ring verewigt das Projekt.';
+        camera.position.set(0, 30, 25);
+        camera.lookAt(0, 0, 0);
+        buildProjectSingularity();
+      } else if (world === 'flowOrbit') {
+        document.getElementById('tabFlowOrbit').classList.add('active');
+        document.getElementById('hudWorldTitle').textContent = 'FLOW ORBIT // AUTOMATIONEN ALS LIVE-VERKEHR';
+        document.getElementById('hudWorldSubtitle').textContent = 'Bewegung = reale Arbeit. Komet dockt an der Human-Handoff-Station an.';
+        camera.position.set(0, 18, 30);
+        camera.lookAt(0, 0, 0);
+        buildFlowOrbit();
+      } else if (world === 'wormhole') {
+        document.getElementById('tabWormhole').classList.add('active');
+        document.getElementById('hudWorldTitle').textContent = 'WURMLOCH-TRICHTER // DEEP-LINK DURCHFLUG';
+        document.getElementById('hudWorldSubtitle').textContent = 'Klicke auf den Trichter, um mit radialem Sog nach Project Singularity gesaugt zu werden.';
+        camera.position.set(0, 0, 24);
+        camera.lookAt(0, 0, 0);
+        buildWormhole();
+      }
+      playSound('cminor9');
+    }
+
+    function toggleTopView() {
+      isTopView = !isTopView;
+      if (isTopView) {
+        camera.position.set(0, 48, 2);
+        camera.lookAt(0, 0, 0);
+      } else {
+        camera.position.set(0, 4, 38);
+        camera.lookAt(0, 0, 0);
+      }
+      playSound('whoosh');
+    }
+
+    function resetCamera() {
+      isTopView = false;
+      switchWorld(currentWorld);
+    }
+
+    function triggerWormholeTravel() {
+      playSound('sog');
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 0.05;
+        camera.position.z -= 1.8;
+        if (progress >= 1) {
+          clearInterval(interval);
+          switchWorld('singularity');
+          playSound('subbass');
+        }
+      }, 40);
+    }
+
+    function openRewardModal() {
+      playSound('chime');
+      document.getElementById('rewardModal').classList.add('open');
+    }
+
+    function closeRewardModal() {
+      document.getElementById('rewardModal').classList.remove('open');
+    }
+
+    function executeHorizonCrossing() {
+      closeRewardModal();
+      playSound('subbass');
+      playSound('supernova');
+      alert('🌟 Belohnungsmoment: Projekt erfolgreich in die Singularität überführt! Monument im 4D-Tesserakt verewigt.');
+    }
+
+    /* -------------------------------------------------------------
+       WEB AUDIO SYNTHESIZER (Hans-Zimmer, Whoosh, Sub-Bass)
+       ------------------------------------------------------------- */
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function toggleAudio() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('btnSoundToggle').textContent = soundEnabled ? '🔊 Sound: AN' : '🔇 Sound: AUS';
+    }
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      const ctx = getAudioContext();
+      const now = ctx.currentTime;
+
+      if (type === 'cminor9') {
+        [130.81, 155.56, 196.0, 233.08, 293.66].forEach((f, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = i % 2 === 0 ? 'sine' : 'triangle';
+          osc.frequency.setValueAtTime(f, now);
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.04, now + 0.5);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.5);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 3.5);
+        });
+      } else if (type === 'subbass') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(32.7, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 3.5);
+      } else if (type === 'sog') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(1400, now + 1.2);
+        gain.gain.setValueAtTime(0.01, now);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.6);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1.2);
+      } else if (type === 'whoosh') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.4);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else if (type === 'chime') {
+        [528, 639].forEach((f, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + i * 0.1);
+          gain.gain.setValueAtTime(0.08, now + i * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.1 + 1.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + i * 0.1);
+          osc.stop(now + i * 0.1 + 1.2);
+        });
+      } else if (type === 'supernova') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.linearRampToValueAtTime(880, now + 0.8);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 2.0);
+      }
+    }
+
+    /* -------------------------------------------------------------
+       ANIMATION TICK
+       ------------------------------------------------------------- */
+    let clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const time = clock.getElapsedTime();
+
+      if (currentWorld === 'goalHorizon') {
+        // Slow gentle breathing on goal stars
+        worldGroup.children.forEach(obj => {
+          if (obj.userData && obj.userData.isGoalStar) {
+            const scale = 1 + Math.sin(time * 1.5 + obj.position.x) * 0.06;
+            obj.scale.set(scale, scale, scale);
+          }
+        });
+      } else if (currentWorld === 'singularity') {
+        // Accretion disk spin
+        worldGroup.rotation.y += 0.002;
+      } else if (currentWorld === 'flowOrbit') {
+        // Move runner comet along orbit
+        worldGroup.children.forEach(obj => {
+          if (obj.userData && obj.userData.isRunner) {
+            obj.userData.angle += 0.015;
+            const a = obj.userData.angle;
+            obj.position.set(Math.cos(a) * 16, Math.sin(a) * 7, Math.sin(a) * 12);
+          }
+        });
+      } else if (currentWorld === 'wormhole') {
+        // Funnel wireframe spin
+        worldGroup.children.forEach(obj => {
+          if (obj.type === 'Mesh') {
+            obj.rotation.z += 0.005;
+          }
+        });
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('DOMContentLoaded', initWebGL);
+  </script>
+</body>
+</html>

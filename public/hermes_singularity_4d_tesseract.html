@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hermes3D – Singularity Interior</title>
+<style>
+:root{
+  --bg:#02040a;
+  --glass:rgba(8,14,26,.64);
+  --glass2:rgba(8,14,26,.88);
+  --line:rgba(255,255,255,.08);
+  --text:#eef4ff;
+  --muted:#9ba9c5;
+  --gold:#f2c477;
+  --cyan:#78d9ff;
+  --violet:#b692ff;
+  --green:#78e3ad;
+  --red:#ff7a8d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#02040a;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit;color:inherit}
+body{
+  background:
+    radial-gradient(circle at 50% 45%,rgba(83,60,125,.12),transparent 28%),
+    radial-gradient(circle at 20% 15%,rgba(40,88,140,.08),transparent 20%),
+    #02040a;
+}
+canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 48%,rgba(0,0,0,.7) 100%);z-index:1}
+.glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(20px);box-shadow:0 24px 70px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.025)}
+.topbar{position:fixed;top:18px;left:20px;right:20px;z-index:40;display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.brand{padding:13px 16px;border-radius:18px}
+.brand h1{margin:0;font-size:16px;letter-spacing:.14em;text-transform:uppercase}
+.brand p{margin:5px 0 0;color:var(--muted);font-size:11px}
+.modechips{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.modebtn{padding:10px 13px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(8,14,26,.55);cursor:pointer;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.modebtn.active{color:#fff;border-color:rgba(242,196,119,.35);background:rgba(242,196,119,.08)}
+#stage{position:absolute;inset:0;perspective:1600px;z-index:2;overflow:hidden}
+#world{position:absolute;left:50%;top:52%;width:min(1200px,96vw);height:min(800px,84vh);transform:translate(-50%,-50%) rotateX(4deg) rotateY(0deg) scale(1);transform-style:preserve-3d;transition:transform .12s linear}
+.blackhole-wrap{position:absolute;left:50%;top:50%;width:360px;height:360px;transform:translate(-50%,-50%) translateZ(80px);z-index:8;cursor:pointer}
+.blackhole{position:absolute;left:50%;top:50%;width:170px;height:170px;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:0 0 50px rgba(242,196,119,.16),0 0 120px rgba(182,146,255,.12)}
+.blackhole::before{content:"";position:absolute;inset:-28px;border-radius:50%;border:7px solid rgba(255,205,120,.72);filter:blur(8px);box-shadow:0 0 32px rgba(255,126,76,.24);animation:pulse 2.6s ease-in-out infinite}
+.blackhole::after{content:"";position:absolute;inset:-55px;border-radius:50%;border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 0 42px rgba(255,210,130,.08)}
+.disk{position:absolute;left:50%;top:50%;width:390px;height:100px;transform:translate(-50%,-50%) rotate(-11deg);border-radius:50%;background:conic-gradient(from 0deg,transparent 0 12%,rgba(255,82,49,.5) 26%,rgba(255,222,130,.92) 43%,rgba(182,92,255,.42) 58%,transparent 76%);filter:blur(8px);opacity:.76;animation:spin 10s linear infinite}
+.horizon-label{position:absolute;left:50%;top:calc(50% - 122px);transform:translateX(-50%);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#ffc88d;opacity:.8;white-space:nowrap}
+#contentLayer{position:absolute;inset:0;transform-style:preserve-3d}
+.node,.crystal,.monolith,.oracle-sphere{position:absolute;transform-style:preserve-3d;cursor:pointer;transition:.35s ease}
+.node{width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.12);box-shadow:0 0 24px currentColor}
+.node::after,.crystal::after,.oracle-sphere::after{content:attr(data-label);position:absolute;left:50%;top:calc(100% + 9px);transform:translateX(-50%);white-space:nowrap;font-size:9px;color:#dce6f8;letter-spacing:.03em}
+.crystal{width:46px;height:64px;clip-path:polygon(50% 0,92% 28%,75% 100%,25% 100%,8% 28%);border:1px solid rgba(255,255,255,.15);box-shadow:0 0 30px currentColor}
+.monolith{width:120px;height:220px;border-radius:10px;border:1px solid rgba(242,196,119,.28);background:linear-gradient(180deg,rgba(242,196,119,.12),rgba(15,10,8,.82));box-shadow:0 0 26px rgba(242,196,119,.08)}
+.monolith h4{margin:16px 14px 8px;font-size:13px;color:#f3cf91}
+.monolith p{margin:0 14px;color:#b9c6da;font-size:9px;line-height:1.5}
+.oracle-sphere{width:74px;height:74px;border-radius:50%;border:1px solid rgba(255,255,255,.15);box-shadow:0 0 30px currentColor}
+.thread{position:absolute;height:1px;transform-origin:left center;background:linear-gradient(90deg,transparent,rgba(242,196,119,.62),transparent);box-shadow:0 0 8px rgba(242,196,119,.3);opacity:.6}
+.panel{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(16px);width:min(860px,calc(100vw - 40px));z-index:50;border-radius:24px;padding:18px;opacity:0;pointer-events:none;transition:.25s ease}
+.panel.open{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+.panel small{display:block;color:var(--gold);font-size:9px;text-transform:uppercase;letter-spacing:.13em}
+.panel h2{margin:6px 0 8px;font-size:22px}
+.panel p{margin:0;color:#d2ddf1;font-size:12px;line-height:1.55}
+.panel .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.action{padding:9px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);cursor:pointer}
+.action:hover{background:rgba(242,196,119,.08)}
+.close{position:absolute;right:16px;top:16px;width:36px;height:36px;border-radius:11px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);cursor:pointer}
+.dive-text{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:25;text-align:center;opacity:0;pointer-events:none;transition:.35s ease}
+.dive-text.show{opacity:1}
+.dive-text h2{margin:0;font-size:28px;letter-spacing:.14em;text-transform:uppercase}
+.dive-text p{margin:8px 0 0;color:#c9d4e8;font-size:12px}
+.sideinfo{position:fixed;left:20px;bottom:20px;z-index:35;width:min(320px,calc(100vw - 40px));padding:14px;border-radius:18px;color:var(--muted);font-size:11px;line-height:1.5}
+.sideinfo strong{color:#fff}
+.toast{position:fixed;left:50%;top:106px;transform:translateX(-50%) translateY(-8px);z-index:60;padding:11px 14px;border-radius:13px;background:rgba(8,14,25,.94);border:1px solid rgba(242,196,119,.22);opacity:0;transition:.22s ease;font-size:11px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@keyframes spin{to{transform:translate(-50%,-50%) rotate(349deg)}}
+@keyframes pulse{0%,100%{opacity:.6;transform:scale(.98)}50%{opacity:1;transform:scale(1.05)}}
+@media(max-width:920px){#world{transform:translate(-50%,-50%) scale(.76) rotateX(4deg)}.sideinfo{display:none}}
+</style>
+</head>
+<body>
+<canvas id="space"></canvas>
+<div class="vignette"></div>
+
+<div class="topbar">
+  <div class="brand glass">
+    <h1>Hermes3D · Project Singularity Interior</h1>
+    <p>Vier mögliche Welten hinter dem Ereignishorizont</p>
+  </div>
+  <div class="modechips">
+    <button class="modebtn active" data-mode="causality">Kausalität</button>
+    <button class="modebtn" data-mode="phoenix">Phönix</button>
+    <button class="modebtn" data-mode="machine">Maschinenraum</button>
+    <button class="modebtn" data-mode="oracle">Orakel</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div id="world">
+    <div class="blackhole-wrap" id="blackhole">
+      <div class="disk"></div>
+      <div class="horizon-label">Ereignishorizont</div>
+      <div class="blackhole"></div>
+    </div>
+    <div id="contentLayer"></div>
+  </div>
+</div>
+
+<div class="dive-text" id="diveText">
+  <h2>Horizon Crossing</h2>
+  <p>Raum und Information falten sich. Klick erneut, um zurückzukehren.</p>
+</div>
+
+<section class="panel glass" id="panel">
+  <button class="close" id="closePanel">×</button>
+  <small id="pEyebrow">Projektknoten</small>
+  <h2 id="pTitle">Hermes Agent OS</h2>
+  <p id="pText">Beschreibung.</p>
+  <div class="actions" id="pActions"></div>
+</section>
+
+<aside class="sideinfo glass">
+  <strong>Steuerung</strong><br>
+  Ziehen: Raum drehen<br>
+  Mausrad: zoomen<br>
+  Schwarzes Loch: Dive starten<br>
+  Objekte anklicken: Bedeutung öffnen
+</aside>
+
+<div class="toast" id="toast">Aktion ausgeführt</div>
+
+<script>
+const canvas=document.getElementById('space'),ctx=canvas.getContext('2d');
+const world=document.getElementById('world'),layer=document.getElementById('contentLayer');
+const panel=document.getElementById('panel'),diveText=document.getElementById('diveText');
+const toast=document.getElementById('toast');
+let W=innerWidth,H=innerHeight,DPR=1,stars=[];
+let yaw=0,pitch=4,zoom=1,drag=false,lastX=0,lastY=0,targetDive=0,dive=0,mode='causality';
+
+const modeData={
+ causality:{
+  title:'Kausalitäts- & Zukunfts-Tesseract',
+  info:'Projekte werden als Knoten in einem Zeit- und Ursache-Netz gezeigt. Entscheidungen erzeugen sichtbare Pfade in andere Projekte und mögliche Zukünfte.',
+  items:[
+   {label:'Hermes Agent OS',x:74,y:26,z:40,c:'#78e3ad',text:'Entscheidungen in Hermes beeinflussen Workflow, Wissen und zukünftige Agentenarchitektur.'},
+   {label:'LifeOS',x:18,y:62,z:-20,c:'#ff8c8c',text:'LifeOS ist Fundament und Datenwahrheit. Änderungen hier wirken in viele andere Bereiche.'},
+   {label:'Company OS',x:76,y:72,z:0,c:'#bda98c',text:'Company OS übernimmt systemische Muster aus Hermes und skaliert sie in einen Unternehmenskontext.'},
+   {label:'Arbeit & Karriere',x:22,y:30,z:-10,c:'#d6d6d6',text:'Karriereentscheidungen beeinflussen Zeitbudget, Lernpfad und Projektprioritäten.'},
+   {label:'Experimente',x:86,y:50,z:15,c:'#78e3ad',text:'Experimente bleiben beweglich und erzeugen alternative Zukunftspfade.'}
+  ]
+ },
+ phoenix:{
+  title:'Phönix-Raum',
+  info:'Liegengebliebene Ideen werden nicht gelöscht. Sie werden verdichtet, kombiniert und können als neue Synthese wieder auftauchen.',
+  items:[
+   {label:'Alte App-Idee',x:18,y:40,z:-20,c:'#77baff',text:'Ein altes Konzept mit noch brauchbaren Bausteinen.'},
+   {label:'Agent Council',x:74,y:32,z:20,c:'#78e3ad',text:'Ein aktuelles Systemmuster aus dem Agent OS.'},
+   {label:'Mobile Vision',x:25,y:70,z:10,c:'#ffad7c',text:'Frühe mobile UX-Idee, die noch nicht umgesetzt wurde.'},
+   {label:'Workflow 2024',x:75,y:70,z:-5,c:'#b692ff',text:'Archivierter Workflow mit wertvollen Prozessmustern.'},
+   {label:'Synthese',x:52,y:52,z:60,c:'#f2c477',text:'Hier entsteht eine neue Idee aus mehreren komprimierten Quellen.'}
+  ]
+ },
+ machine:{
+  title:'Maschinenraum der Schöpfung',
+  info:'Hier liegt die System-DNA: Regeln, Prompts, Routing, Agentenrollen und technische Grundgesetze. Keine bunte Oberfläche, sondern der Kern des Systems.',
+  items:[
+   {label:'AGENTS.md',x:16,y:48,z:0,c:'#f2c477',text:'Zentrale Verhaltens- und Rollenregeln.'},
+   {label:'Prompts',x:34,y:26,z:-10,c:'#f2c477',text:'Systemprompts, Rollenprompts und wiederverwendbare Instruktionen.'},
+   {label:'Routing',x:66,y:28,z:10,c:'#f2c477',text:'Welche Aufgabe an welchen Agenten geht.'},
+   {label:'Flows',x:84,y:48,z:-10,c:'#f2c477',text:'Automations- und Agentenflüsse.'},
+   {label:'System DNA',x:52,y:66,z:50,c:'#78d9ff',text:'Verdichtete Architektur des gesamten Hermes Agent OS.'}
+  ]
+ },
+ oracle:{
+  title:'Orakel der Singularität',
+  info:'Ein Raum für fundamentale Fragen. Mehrere Agenten liefern Perspektiven, die nicht als Chatliste erscheinen, sondern als Resonanzmuster zu einer Richtung konvergieren.',
+  items:[
+   {label:'LifeOS',x:18,y:45,z:0,c:'#ff8c8c',text:'Perspektive: Klarheit, Ordnung, langfristige Lebensführung.'},
+   {label:'Arbeit & Karriere',x:30,y:72,z:10,c:'#d6d6d6',text:'Perspektive: beruflicher Hebel, Marktwert und nächste sinnvolle Entscheidung.'},
+   {label:'Experimente',x:30,y:24,z:-5,c:'#78e3ad',text:'Perspektive: Möglichkeiten, Exploration und asymmetrisches Potenzial.'},
+   {label:'Company OS',x:73,y:72,z:10,c:'#9bb8ff',text:'Perspektive: Skalierung, Systeme und unternehmerische Wirkung.'},
+   {label:'Hermes Agent OS',x:82,y:38,z:20,c:'#78e3ad',text:'Perspektive: Agentenintelligenz, Koordination und Umsetzung.'}
+  ]
+ }
+};
+
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  canvas.width=W*DPR;canvas.height=H*DPR;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  stars=Array.from({length:300},()=>({x:(Math.random()-.5)*W*1.6,y:(Math.random()-.5)*H*1.6,r:Math.random()*1.6+.2,a:Math.random()*.78+.06,z:Math.random()*1.4+.3}));
+}
+addEventListener('resize',resize);resize();
+
+function clearLayer(){layer.innerHTML=''}
+function el(tag,cls=''){const e=document.createElement(tag);e.className=cls;return e}
+
+function renderMode(){
+  clearLayer();
+  const data=modeData[mode];
+  if(mode==='machine') renderMachine(data); else if(mode==='phoenix') renderPhoenix(data); else if(mode==='oracle') renderOracle(data); else renderCausality(data);
+}
+function pctPos(e,item){
+  e.style.left=item.x+'%';e.style.top=item.y+'%';
+  e.style.transform=`translate(-50%,-50%) translateZ(${item.z}px)`;
+}
+function openItem(item){
+  document.getElementById('pEyebrow').textContent=modeData[mode].title;
+  document.getElementById('pTitle').textContent=item.label;
+  document.getElementById('pText').textContent=item.text;
+  const actions=document.getElementById('pActions');actions.innerHTML='';
+  if(mode==='causality'){
+    ['Pfad zeigen','Zukunft simulieren'].forEach(t=>{const b=el('button','action');b.textContent=t;b.onclick=()=>showToast(t);actions.appendChild(b)})
+  }else if(mode==='phoenix'){
+    ['Mit anderer Idee verbinden','Neue Synthese erzeugen'].forEach(t=>{const b=el('button','action');b.textContent=t;b.onclick=()=>showToast(t);actions.appendChild(b)})
+  }else if(mode==='machine'){
+    ['Details öffnen','Abhängigkeiten zeigen'].forEach(t=>{const b=el('button','action');b.textContent=t;b.onclick=()=>showToast(t);actions.appendChild(b)})
+  }else{
+    ['Perspektive einbeziehen','Resonanz verstärken'].forEach(t=>{const b=el('button','action');b.textContent=t;b.onclick=()=>showToast(t);actions.appendChild(b)})
+  }
+  panel.classList.add('open');
+}
+
+function renderCausality(data){
+  data.items.forEach((it,i)=>{
+    const n=el('div','node');n.dataset.label=it.label;n.style.color=it.c;
+    n.style.background=`radial-gradient(circle at 34% 28%,rgba(255,255,255,.45),transparent 12%),linear-gradient(135deg,${it.c}88,#101827 70%)`;
+    pctPos(n,it);n.onclick=()=>openItem(it);layer.appendChild(n);
+  });
+  const points=[...layer.querySelectorAll('.node')];
+  setTimeout(()=>{
+    points.forEach((a,i)=>points.slice(i+1).forEach((b,j)=>{
+      if((i+j)%2===0){
+        const ra=a.getBoundingClientRect(),rb=b.getBoundingClientRect(),wr=world.getBoundingClientRect();
+        const x1=ra.left+ra.width/2-wr.left,y1=ra.top+ra.height/2-wr.top;
+        const x2=rb.left+rb.width/2-wr.left,y2=rb.top+rb.height/2-wr.top;
+        const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy),ang=Math.atan2(dy,dx)*180/Math.PI;
+        const t=el('div','thread');t.style.left=x1+'px';t.style.top=y1+'px';t.style.width=len+'px';t.style.transform=`rotate(${ang}deg)`;layer.appendChild(t);
+      }
+    }));
+  },50);
+}
+
+function renderPhoenix(data){
+  data.items.forEach(it=>{
+    const c=el('div','crystal');c.dataset.label=it.label;c.style.color=it.c;
+    c.style.background=`linear-gradient(145deg,rgba(255,255,255,.35),${it.c}88 45%,#10131d)`;
+    pctPos(c,it);c.onclick=()=>openItem(it);layer.appendChild(c);
+  });
+}
+
+function renderMachine(data){
+  data.items.forEach((it,i)=>{
+    const m=el('div','monolith');m.innerHTML=`<h4>${it.label}</h4><p>${it.text}</p>`;
+    pctPos(m,it);m.onclick=()=>openItem(it);layer.appendChild(m);
+  });
+}
+
+function renderOracle(data){
+  data.items.forEach(it=>{
+    const s=el('div','oracle-sphere');s.dataset.label=it.label;s.style.color=it.c;
+    s.style.background=`radial-gradient(circle at 32% 26%,rgba(255,255,255,.52),transparent 12%),radial-gradient(circle at 55% 60%,${it.c}88,transparent 42%),#101827`;
+    pctPos(s,it);s.onclick=()=>openItem(it);layer.appendChild(s);
+  });
+}
+
+document.querySelectorAll('.modebtn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.modebtn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');mode=b.dataset.mode;panel.classList.remove('open');renderMode();showToast(modeData[mode].title);
+});
+
+document.getElementById('closePanel').onclick=()=>panel.classList.remove('open');
+
+document.getElementById('blackhole').onclick=()=>{
+  targetDive=targetDive?0:1;
+  diveText.classList.toggle('show',!!targetDive);
+  showToast(targetDive?'Singularity Dive gestartet':'Zurück im Tesseract');
+};
+
+world.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;world.setPointerCapture(e.pointerId)});
+world.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw+=dx*.16;pitch=Math.max(-28,Math.min(30,pitch-dy*.12))});
+world.addEventListener('pointerup',()=>drag=false);
+world.addEventListener('pointercancel',()=>drag=false);
+addEventListener('wheel',e=>{zoom=Math.max(.68,Math.min(1.5,zoom-e.deltaY*.00042))},{passive:true});
+
+function showToast(t){toast.textContent=t;toast.classList.add('show');clearTimeout(showToast.x);showToast.x=setTimeout(()=>toast.classList.remove('show'),1600)}
+
+function draw(t){
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2;
+  const warp=120+targetDive*620;
+  stars.forEach(s=>{
+    const x=cx+s.x*(.9+.1*s.z),y=cy+s.y*(.9+.1*s.z);
+    const dx=x-cx,dy=y-cy,dist=Math.max(30,Math.hypot(dx,dy));
+    const tx=-dy/dist,ty=dx/dist;
+    const bend=warp/dist;
+    const wx=x+tx*bend*17,wy=y+ty*bend*17;
+    ctx.strokeStyle=`rgba(230,238,255,${s.a*.2*(1+targetDive)})`;ctx.lineWidth=Math.max(.4,s.r);
+    ctx.beginPath();ctx.moveTo(wx,wy);ctx.lineTo(wx+tx*(2+targetDive*18),wy+ty*(2+targetDive*18));ctx.stroke();
+    ctx.fillStyle=`rgba(238,244,255,${Math.max(.04,s.a)})`;ctx.beginPath();ctx.arc(wx,wy,s.r,0,Math.PI*2);ctx.fill();
+  });
+  dive+=(targetDive-dive)*.06;
+  world.style.transform=`translate(-50%,-50%) rotateX(${pitch}deg) rotateY(${yaw}deg) scale(${zoom*(1+dive*1.5)})`;
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+renderMode();
+</script>
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jarvis Knowledge Scan Panel</title>
+  <style>
+    :root{
+      --bg:#030814;
+      --bg2:#071225;
+      --panel:rgba(7,17,34,.72);
+      --panel2:rgba(10,22,42,.88);
+      --line:rgba(114,199,255,.22);
+      --line-strong:rgba(123,219,255,.65);
+      --text:#e9f3ff;
+      --muted:#8ea4c7;
+      --cyan:#73d9ff;
+      --cyan2:#17b8ff;
+      --gold:#f0c070;
+      --green:#74ffa1;
+      --shadow:0 24px 80px rgba(0,0,0,.45);
+      --radius:24px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 20% 20%, rgba(27,89,175,.25), transparent 25%),
+        radial-gradient(circle at 80% 30%, rgba(96,39,138,.18), transparent 22%),
+        radial-gradient(circle at 50% 90%, rgba(21,98,125,.18), transparent 30%),
+        linear-gradient(180deg, #02050b, #060d1d 35%, #030814 100%);
+      overflow:hidden;
+    }
+
+    .stars,
+    .stars::before,
+    .stars::after{
+      position:fixed;inset:0;content:"";pointer-events:none;
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(255,255,255,.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 25% 65%, rgba(255,255,255,.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 56% 33%, rgba(255,255,255,.6) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 74% 18%, rgba(255,255,255,.85) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 85% 72%, rgba(255,255,255,.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 60% 85%, rgba(255,255,255,.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 17% 82%, rgba(255,255,255,.55) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 38% 12%, rgba(255,255,255,.45) 0 1px, transparent 1.5px);
+      opacity:.5;
+      animation: drift 70s linear infinite;
+    }
+    .stars::before{transform:scale(1.2);opacity:.35;animation-duration:100s}
+    .stars::after{transform:scale(.9);opacity:.25;animation-duration:55s}
+
+    @keyframes drift{
+      from{transform:translate3d(0,0,0)}
+      to{transform:translate3d(-2.5%,1.8%,0)}
+    }
+
+    .shell{
+      position:relative;
+      width:min(1240px, calc(100vw - 40px));
+      height:min(820px, calc(100vh - 40px));
+      margin:20px auto;
+      border:1px solid rgba(146,207,255,.12);
+      border-radius:30px;
+      background:linear-gradient(180deg, rgba(8,15,29,.72), rgba(3,8,20,.92));
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(16px);
+    }
+
+    .hud{
+      position:absolute;left:0;right:0;top:0;
+      display:flex;justify-content:space-between;align-items:center;
+      padding:18px 22px;z-index:20;
+      background:linear-gradient(180deg, rgba(3,8,20,.65), rgba(3,8,20,0));
+      pointer-events:none;
+    }
+    .chips{display:flex;gap:10px;flex-wrap:wrap}
+    .chip{
+      padding:10px 16px;border-radius:999px;
+      border:1px solid rgba(117,186,255,.16);
+      background:rgba(8,18,35,.45);
+      color:#d9ecff;font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+      pointer-events:auto;
+    }
+    .brand{font-size:14px;letter-spacing:.24em;text-transform:uppercase;font-weight:700}
+
+    .layout{
+      position:absolute;inset:72px 0 0 0;
+      display:grid;grid-template-columns:1.25fr .9fr;gap:0;
+      height:calc(100% - 72px);
+    }
+
+    .brain-zone{
+      position:relative;overflow:hidden;
+      border-right:1px solid rgba(132,201,255,.08);
+      background:
+        radial-gradient(circle at 50% 50%, rgba(31,129,225,.08), transparent 28%),
+        radial-gradient(circle at 50% 55%, rgba(126,60,211,.10), transparent 38%);
+    }
+
+    #brainCanvas{
+      position:absolute;inset:0;width:100%;height:100%;display:block;
+    }
+
+    .brain-label{
+      position:absolute;left:28px;top:24px;z-index:10;
+      padding:14px 18px;border-radius:20px;
+      border:1px solid rgba(131,211,255,.14);
+      background:rgba(8,18,35,.42);
+      backdrop-filter: blur(10px);
+      max-width:360px;
+    }
+    .brain-label .eyebrow,
+    .mini-eyebrow{
+      color:var(--gold);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    }
+    .brain-label h1{margin:10px 0 8px;font-size:34px;line-height:1.05;font-weight:650;letter-spacing:-.04em}
+    .brain-label p{margin:0;color:var(--muted);line-height:1.5;font-size:14px}
+
+    .jarvis-dock{
+      position:absolute;right:26px;bottom:26px;z-index:11;
+      display:flex;align-items:center;gap:10px;
+      padding:12px 16px;border-radius:24px;
+      background:rgba(8,18,35,.74);
+      border:1px solid rgba(122,201,255,.18);
+      box-shadow:0 20px 50px rgba(0,0,0,.3);
+    }
+    .jarvis-core{
+      width:48px;height:48px;border-radius:50%;position:relative;flex:none;
+      background:radial-gradient(circle at 35% 35%, #d3fdff 0 10%, #7ce6ff 26%, #1188c7 56%, rgba(8,18,35,.4) 72%, rgba(8,18,35,0) 73%);
+      box-shadow:0 0 0 1px rgba(114,214,255,.2), 0 0 28px rgba(81,208,255,.55);
+      overflow:visible;
+    }
+    .jarvis-core::before,
+    .jarvis-core::after{
+      content:"";position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(119,225,255,.25);
+      animation: pulse-ring 2.2s ease-out infinite;
+    }
+    .jarvis-core::after{animation-delay:1.1s}
+
+    @keyframes pulse-ring{
+      0%{transform:scale(.82);opacity:0}
+      20%{opacity:.6}
+      100%{transform:scale(1.3);opacity:0}
+    }
+
+    .jarvis-dock strong{display:block;font-size:13px;letter-spacing:.12em;text-transform:uppercase}
+    .jarvis-dock span{display:block;font-size:12px;color:var(--muted)}
+
+    .chat-zone{
+      position:relative;padding:24px;display:flex;flex-direction:column;gap:16px;
+      background:linear-gradient(180deg, rgba(4,10,22,.84), rgba(4,10,22,.96));
+    }
+
+    .chat-card{
+      position:relative;flex:1;min-height:0;
+      display:flex;flex-direction:column;
+      padding:20px;border-radius:26px;
+      border:1px solid rgba(135,209,255,.12);
+      background:linear-gradient(180deg, rgba(10,22,42,.85), rgba(7,17,34,.78));
+      overflow:hidden;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    .chat-head{
+      display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:14px;
+      border-bottom:1px solid rgba(131,208,255,.09);
+    }
+    .chat-head h2{margin:0;font-size:16px;font-weight:650}
+    .status-live{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 16px rgba(116,255,161,.8)}
+
+    .messages{
+      position:relative;flex:1;overflow:auto;padding:18px 4px 10px 0;display:flex;flex-direction:column;gap:14px;
+      scrollbar-width:thin;scrollbar-color:rgba(121,205,255,.35) transparent;
+    }
+    .messages::-webkit-scrollbar{width:8px}
+    .messages::-webkit-scrollbar-thumb{background:rgba(121,205,255,.24);border-radius:999px}
+
+    .msg{max-width:86%;padding:14px 16px;border-radius:18px;line-height:1.5;font-size:14px;position:relative}
+    .msg.user{align-self:flex-end;background:rgba(23,58,95,.58);border:1px solid rgba(121,205,255,.16)}
+    .msg.ai{align-self:flex-start;background:rgba(255,255,255,.03);border:1px solid rgba(121,205,255,.1)}
+    .msg.ai.scan{padding:16px 16px 18px;min-height:280px;overflow:hidden}
+
+    .scan-header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
+    .scan-title{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--text)}
+    .scan-state{font-size:12px;color:var(--gold)}
+
+    .scan-window{
+      position:relative;height:170px;border-radius:18px;overflow:hidden;
+      border:1px solid rgba(118,205,255,.14);
+      background:
+        radial-gradient(circle at 50% 50%, rgba(28,114,184,.12), transparent 38%),
+        linear-gradient(180deg, rgba(9,18,36,.9), rgba(5,10,20,.92));
+    }
+
+    .scan-grid,
+    .scan-noise,
+    .scan-overlay,
+    .scan-return,
+    .scan-particles,
+    .scan-brain,
+    .scan-jarvis{
+      position:absolute;inset:0;pointer-events:none;
+    }
+    .scan-grid{
+      background:
+        linear-gradient(rgba(110,195,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(110,195,255,.06) 1px, transparent 1px);
+      background-size:22px 22px;
+      mask-image: radial-gradient(circle at 50% 50%, black 42%, transparent 80%);
+      opacity:.75;
+    }
+    .scan-noise{
+      background-image: radial-gradient(circle at 20% 20%, rgba(255,255,255,.15) 0 1px, transparent 1.6px), radial-gradient(circle at 68% 58%, rgba(255,255,255,.12) 0 1px, transparent 1.6px), radial-gradient(circle at 30% 78%, rgba(255,255,255,.08) 0 1px, transparent 1.6px), radial-gradient(circle at 78% 26%, rgba(255,255,255,.11) 0 1px, transparent 1.6px);
+      opacity:.35;
+      animation: staticShift 18s linear infinite;
+    }
+    @keyframes staticShift{from{transform:translate(0,0)}to{transform:translate(-18px,12px)}}
+
+    .scan-jarvis{
+      width:62px;height:62px;left:14px;top:calc(50% - 31px);
+      border-radius:50%;
+      background:radial-gradient(circle at 38% 36%, #d3fdff 0 12%, #93efff 22%, #29a7dd 56%, #083156 72%, rgba(8,49,86,0) 73%);
+      box-shadow:0 0 0 1px rgba(118,228,255,.28), 0 0 28px rgba(64,198,255,.55);
+      animation: idleGlow 3s ease-in-out infinite;
+    }
+    .scan-jarvis::before,
+    .scan-jarvis::after{
+      content:"";position:absolute;inset:-7px;border-radius:50%;border:1px solid rgba(114,220,255,.2);
+      animation: ping 2.4s ease-out infinite;
+    }
+    .scan-jarvis::after{animation-delay:1.2s}
+
+    @keyframes idleGlow{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.04);filter:brightness(1.15)}}
+    @keyframes ping{0%{transform:scale(.9);opacity:0}20%{opacity:.5}100%{transform:scale(1.5);opacity:0}}
+
+    .scan-brain{
+      left:auto;right:14px;top:18px;bottom:18px;width:58%;
+      filter:drop-shadow(0 0 20px rgba(142,213,255,.15));
+    }
+
+    .scan-beam{
+      position:absolute;left:72px;right:42%;top:calc(50% - 1px);height:2px;border-radius:999px;
+      background:linear-gradient(90deg, rgba(83,204,255,0), rgba(83,204,255,.9), rgba(158,241,255,.95), rgba(240,192,112,.35), rgba(83,204,255,0));
+      transform-origin:left center;opacity:0;
+      box-shadow:0 0 12px rgba(110,218,255,.55), 0 0 30px rgba(110,218,255,.25);
+    }
+    .scan-beam.active{opacity:1;animation: beamPulse 1.6s ease-in-out infinite}
+    @keyframes beamPulse{
+      0%,100%{transform:scaleX(.65);filter:brightness(.9)}
+      50%{transform:scaleX(1);filter:brightness(1.25)}
+    }
+
+    .scan-sweep{
+      position:absolute;left:35%;right:8%;top:0;bottom:0;
+      background:linear-gradient(90deg, transparent 0%, rgba(112,219,255,.03) 40%, rgba(112,219,255,.18) 50%, rgba(112,219,255,.03) 60%, transparent 100%);
+      mix-blend-mode:screen;opacity:0;transform:translateX(-38%);
+    }
+    .scan-sweep.active{opacity:1;animation: sweep 2.6s linear infinite}
+    @keyframes sweep{from{transform:translateX(-48%)}to{transform:translateX(82%)}}
+
+    .particle{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--cyan);opacity:0;box-shadow:0 0 8px rgba(97,223,255,.75)}
+    .particle.fly{animation: flyParticle 1.9s linear forwards}
+    @keyframes flyParticle{
+      0%{opacity:0;transform:translate(var(--sx), var(--sy)) scale(.3)}
+      12%{opacity:1}
+      100%{opacity:0;transform:translate(var(--tx), var(--ty)) scale(1)}
+    }
+
+    .scan-readout{margin-top:14px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(122,201,255,.1)}
+    .scan-readout .mini-eyebrow{display:block;margin-bottom:6px}
+    .scan-result{min-height:45px;color:#d9e9ff}
+    .typing-cursor{display:inline-block;width:8px;height:1em;vertical-align:-2px;background:var(--cyan);margin-left:4px;animation: blink 1s step-end infinite}
+    @keyframes blink{50%{opacity:0}}
+
+    .composer{
+      display:flex;gap:12px;align-items:flex-end;padding-top:10px;border-top:1px solid rgba(131,208,255,.09);
+    }
+    .composer textarea{
+      flex:1;resize:none;height:78px;padding:16px 18px;border-radius:18px;border:1px solid rgba(132,201,255,.12);
+      background:rgba(255,255,255,.03);color:var(--text);outline:none;font:inherit;line-height:1.5;
+    }
+    .composer textarea::placeholder{color:#7e91b0}
+
+    .actions{display:flex;flex-direction:column;gap:10px;width:210px}
+    button{
+      border:0;cursor:pointer;border-radius:16px;padding:14px 16px;
+      background:linear-gradient(180deg, rgba(16,161,234,.24), rgba(10,107,170,.22));
+      color:#ecf7ff;font-weight:600;letter-spacing:.02em;border:1px solid rgba(104,209,255,.24);
+      transition:transform .2s ease, filter .2s ease, background .2s ease;
+    }
+    button:hover{transform:translateY(-1px);filter:brightness(1.08)}
+    button.secondary{background:rgba(255,255,255,.035)}
+    .help{font-size:12px;color:var(--muted);line-height:1.5;padding:4px 2px 0}
+
+    .legend{
+      display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+    }
+    .legend .cell{
+      padding:12px 14px;border-radius:16px;border:1px solid rgba(126,205,255,.1);
+      background:rgba(255,255,255,.025);
+    }
+    .legend .k{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+    .legend .v{margin-top:6px;font-size:15px}
+
+    .hint{
+      position:absolute;right:20px;bottom:20px;padding:12px 14px;border-radius:16px;
+      background:rgba(8,18,35,.64);border:1px solid rgba(122,201,255,.12);
+      color:var(--muted);font-size:12px;max-width:240px;line-height:1.45;
+    }
+
+    @media (max-width: 980px){
+      .layout{grid-template-columns:1fr;grid-template-rows:1fr 1.05fr}
+      .brain-zone{border-right:0;border-bottom:1px solid rgba(132,201,255,.08)}
+      .legend{grid-template-columns:repeat(2,1fr)}
+      .actions{width:180px}
+    }
+
+    @media (max-width: 720px){
+      .shell{width:100vw;height:100vh;margin:0;border-radius:0}
+      .hud{padding:14px}
+      .layout{inset:66px 0 0 0}
+      .brain-label{left:16px;top:16px;right:16px;max-width:none}
+      .brain-label h1{font-size:28px}
+      .chat-zone{padding:14px}
+      .chat-card{padding:16px;border-radius:22px}
+      .composer{flex-direction:column;align-items:stretch}
+      .actions{width:100%}
+      .legend{grid-template-columns:1fr 1fr}
+      .hint{display:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="shell">
+    <div class="hud">
+      <div class="chips">
+        <div class="chip brand">Hermes Knowledge Layer</div>
+        <div class="chip">5 Agenten</div>
+        <div class="chip">289 Notizen</div>
+      </div>
+      <div class="chips">
+        <div class="chip" id="clockChip">00:00:00</div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <section class="brain-zone">
+        <canvas id="brainCanvas"></canvas>
+        <div class="brain-label">
+          <div class="eyebrow">Wissenskosmos</div>
+          <h1>Second Brain<br>in räumlicher Form</h1>
+          <p>
+            Links siehst du eine abstrahierte Wissensstruktur. Rechts läuft Jarvis.
+            Die gewünschte Wirkung ist: Jarvis verbindet sich nur im Chatfenster sichtbar mit dem Gehirn,
+            scannt den Wissensstand, extrahiert Muster und antwortet dann.
+          </p>
+        </div>
+        <div class="jarvis-dock">
+          <div class="jarvis-core"></div>
+          <div>
+            <strong>Jarvis</strong>
+            <span>Manueller Zugriff auf dein Wissenssystem</span>
+          </div>
+        </div>
+        <div class="hint">
+          Gute Darstellungslogik für Claude: Verbindung aufbauen, Scan sichtbar machen, relevante Knoten aufleuchten lassen, Ergebnis zurück in Jarvis führen, erst dann Text anzeigen.
+        </div>
+      </section>
+
+      <section class="chat-zone">
+        <div class="legend">
+          <div class="cell"><div class="k">1</div><div class="v">Jarvis aktiviert</div></div>
+          <div class="cell"><div class="k">2</div><div class="v">Verbindung zum Wissen</div></div>
+          <div class="cell"><div class="k">3</div><div class="v">Scan und Verdichtung</div></div>
+          <div class="cell"><div class="k">4</div><div class="v">Antwort materialisiert</div></div>
+        </div>
+
+        <div class="chat-card">
+          <div class="chat-head">
+            <h2>Jarvis Dialogfenster</h2>
+            <div class="status-live"><span class="dot"></span> bereit für Wissensscan</div>
+          </div>
+
+          <div class="messages" id="messages">
+            <div class="msg user">
+              Jarvis, durchsuche mein Wissen zu Hermes3D und gib mir die wichtigsten Gedanken für den nächsten Produktsprung.
+            </div>
+
+            <div class="msg ai scan">
+              <div class="scan-header">
+                <div class="scan-title">Simulierter Wissenszugriff</div>
+                <div class="scan-state" id="scanState">Standby</div>
+              </div>
+
+              <div class="scan-window" id="scanWindow">
+                <div class="scan-grid"></div>
+                <div class="scan-noise"></div>
+                <div class="scan-jarvis"></div>
+                <div class="scan-beam" id="scanBeam"></div>
+                <div class="scan-sweep" id="scanSweep"></div>
+                <svg class="scan-brain" id="scanBrain" viewBox="0 0 460 210" preserveAspectRatio="xMidYMid meet"></svg>
+                <div class="scan-particles" id="scanParticles"></div>
+              </div>
+
+              <div class="scan-readout">
+                <span class="mini-eyebrow">Ergebnisfenster</span>
+                <div class="scan-result" id="scanResult">Noch kein aktiver Scan.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer">
+            <textarea id="promptInput" placeholder="Beispiel: Jarvis, analysiere mein Wissen zu Projekträumen, Agenten und Spatial UX.">Jarvis, analysiere mein Wissen zu Projekträumen, Agenten und Spatial UX.</textarea>
+            <div class="actions">
+              <button id="runBtn">Wissensscan starten</button>
+              <button class="secondary" id="resetBtn">Animation zurücksetzen</button>
+              <div class="help">
+                Nur das Chatfenster animiert. Genau das willst du Claude sagen: keine globale Effektschlacht, sondern eine lokale, lesbare Wissensscan-Sequenz im Jarvis-Panel.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const brainCanvas = document.getElementById('brainCanvas');
+    const brainCtx = brainCanvas.getContext('2d');
+    const scanBrain = document.getElementById('scanBrain');
+    const scanParticles = document.getElementById('scanParticles');
+    const scanBeam = document.getElementById('scanBeam');
+    const scanSweep = document.getElementById('scanSweep');
+    const scanState = document.getElementById('scanState');
+    const scanResult = document.getElementById('scanResult');
+    const runBtn = document.getElementById('runBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const promptInput = document.getElementById('promptInput');
+    const clockChip = document.getElementById('clockChip');
+
+    let width = 0, height = 0;
+    let brainNodes = [];
+    let brainEdges = [];
+    let pulseTime = 0;
+    let scanAnimating = false;
+    let scanNodeEls = [];
+    let scanEdgeEls = [];
+    let cleanupTimers = [];
+
+    function setClock(){
+      const d = new Date();
+      const t = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      clockChip.textContent = t;
+    }
+    setClock();
+    setInterval(setClock, 1000);
+
+    function resizeCanvas(){
+      const rect = brainCanvas.getBoundingClientRect();
+      width = brainCanvas.width = Math.floor(rect.width * devicePixelRatio);
+      height = brainCanvas.height = Math.floor(rect.height * devicePixelRatio);
+      brainCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      buildBrainNetwork(rect.width, rect.height);
+      drawScanBrain();
+    }
+
+    function buildBrainNetwork(w, h){
+      brainNodes = [];
+      brainEdges = [];
+      const cx = w * 0.54;
+      const cy = h * 0.53;
+      const rx = Math.min(w * 0.26, 230);
+      const ry = Math.min(h * 0.23, 170);
+      const count = 170;
+
+      for(let i = 0; i < count; i++){
+        const angle = Math.random() * Math.PI * 2;
+        const rr = Math.sqrt(Math.random());
+        const sideShift = Math.random() > .5 ? 1 : -1;
+        const x = cx + Math.cos(angle) * rx * rr + sideShift * 14 * Math.random();
+        const y = cy + Math.sin(angle) * ry * rr + (Math.random() - .5) * 14;
+        const cluster = i % 5;
+        brainNodes.push({
+          x, y, r: 1.8 + Math.random() * 2.4,
+          phase: Math.random() * Math.PI * 2,
+          glow: 0,
+          cluster
+        });
+      }
+
+      for(let i = 0; i < brainNodes.length; i++){
+        const a = brainNodes[i];
+        const neighbors = [];
+        for(let j = 0; j < brainNodes.length; j++){
+          if(i === j) continue;
+          const b = brainNodes[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.hypot(dx, dy);
+          neighbors.push({j, dist});
+        }
+        neighbors.sort((m,n) => m.dist - n.dist);
+        for(let k = 0; k < 3; k++){
+          const target = neighbors[k].j;
+          if(!brainEdges.some(e => (e[0] === i && e[1] === target) || (e[0] === target && e[1] === i))){
+            brainEdges.push([i, target]);
+          }
+        }
+      }
+    }
+
+    function animateBrain(){
+      const rect = brainCanvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      brainCtx.clearRect(0, 0, w, h);
+
+      const grad = brainCtx.createRadialGradient(w * .55, h * .52, 20, w * .55, h * .52, Math.min(w, h) * .42);
+      grad.addColorStop(0, 'rgba(84,180,255,0.10)');
+      grad.addColorStop(0.5, 'rgba(130,90,210,0.08)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      brainCtx.fillStyle = grad;
+      brainCtx.beginPath();
+      brainCtx.arc(w*.55, h*.52, Math.min(w,h)*.42, 0, Math.PI*2);
+      brainCtx.fill();
+
+      for(const [ia, ib] of brainEdges){
+        const a = brainNodes[ia], b = brainNodes[ib];
+        const alpha = 0.08 + 0.08 * Math.sin(pulseTime * 0.0017 + a.phase);
+        brainCtx.strokeStyle = `rgba(131, 196, 255, ${alpha})`;
+        brainCtx.lineWidth = 1;
+        brainCtx.beginPath();
+        brainCtx.moveTo(a.x, a.y);
+        brainCtx.lineTo(b.x, b.y);
+        brainCtx.stroke();
+      }
+
+      for(const n of brainNodes){
+        const glow = 0.25 + 0.18 * Math.sin(pulseTime * 0.0026 + n.phase);
+        brainCtx.beginPath();
+        brainCtx.fillStyle = `rgba(145, 226, 255, ${0.35 + glow * 0.35})`;
+        brainCtx.shadowColor = 'rgba(88, 205, 255, .85)';
+        brainCtx.shadowBlur = 10 + glow * 10;
+        brainCtx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        brainCtx.fill();
+      }
+      brainCtx.shadowBlur = 0;
+
+      brainCtx.save();
+      brainCtx.globalAlpha = 0.8;
+      brainCtx.strokeStyle = 'rgba(241,192,112,.18)';
+      brainCtx.lineWidth = 2;
+      brainCtx.beginPath();
+      brainCtx.ellipse(w * 0.55, h * 0.52, w * 0.23, h * 0.18, 0, 0, Math.PI * 2);
+      brainCtx.stroke();
+      brainCtx.restore();
+
+      pulseTime += 16;
+      requestAnimationFrame(animateBrain);
+    }
+
+    function drawScanBrain(){
+      scanBrain.innerHTML = '';
+      scanNodeEls = [];
+      scanEdgeEls = [];
+      const points = [];
+      const centerX = 245, centerY = 105, radiusX = 160, radiusY = 72;
+      const total = 58;
+      for(let i = 0; i < total; i++){
+        const angle = Math.random() * Math.PI * 2;
+        const rr = Math.sqrt(Math.random());
+        const x = centerX + Math.cos(angle) * radiusX * rr;
+        const y = centerY + Math.sin(angle) * radiusY * rr;
+        points.push({x, y});
+      }
+
+      const halo = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+      halo.setAttribute('cx', centerX);
+      halo.setAttribute('cy', centerY);
+      halo.setAttribute('rx', radiusX + 16);
+      halo.setAttribute('ry', radiusY + 10);
+      halo.setAttribute('fill', 'url(#brainHalo)');
+      scanBrain.appendChild(halo);
+
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      defs.innerHTML = `
+        <radialGradient id="brainHalo">
+          <stop offset="0%" stop-color="rgba(104,185,255,0.26)" />
+          <stop offset="55%" stop-color="rgba(71,127,255,0.08)" />
+          <stop offset="100%" stop-color="rgba(0,0,0,0)" />
+        </radialGradient>
+      `;
+      scanBrain.appendChild(defs);
+
+      const findNearest = (idx) => {
+        const base = points[idx];
+        return points
+          .map((p, j) => ({j, d: Math.hypot(base.x - p.x, base.y - p.y)}))
+          .filter(o => o.j !== idx)
+          .sort((a,b) => a.d - b.d)
+          .slice(0, 2)
+          .map(o => o.j);
+      };
+
+      const existing = new Set();
+      points.forEach((p, i) => {
+        for(const j of findNearest(i)){
+          const key = [Math.min(i,j), Math.max(i,j)].join('-');
+          if(existing.has(key)) continue;
+          existing.add(key);
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', p.x);
+          line.setAttribute('y1', p.y);
+          line.setAttribute('x2', points[j].x);
+          line.setAttribute('y2', points[j].y);
+          line.setAttribute('stroke', 'rgba(120,196,255,0.18)');
+          line.setAttribute('stroke-width', '1');
+          line.classList.add('brain-edge');
+          scanBrain.appendChild(line);
+          scanEdgeEls.push(line);
+        }
+      });
+
+      points.forEach((p) => {
+        const node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        node.setAttribute('cx', p.x);
+        node.setAttribute('cy', p.y);
+        node.setAttribute('r', 3);
+        node.setAttribute('fill', 'rgba(175,233,255,.82)');
+        node.classList.add('brain-node');
+        scanBrain.appendChild(node);
+        scanNodeEls.push(node);
+      });
+    }
+
+    function resetScan(){
+      cleanupTimers.forEach(t => clearTimeout(t));
+      cleanupTimers = [];
+      scanAnimating = false;
+      scanBeam.classList.remove('active');
+      scanSweep.classList.remove('active');
+      scanState.textContent = 'Standby';
+      scanResult.textContent = 'Noch kein aktiver Scan.';
+      scanParticles.innerHTML = '';
+      drawScanBrain();
+    }
+
+    function setState(text){
+      scanState.textContent = text;
+    }
+
+    function typeResult(text){
+      scanResult.innerHTML = '';
+      const span = document.createElement('span');
+      const cursor = document.createElement('span');
+      cursor.className = 'typing-cursor';
+      scanResult.appendChild(span);
+      scanResult.appendChild(cursor);
+      let i = 0;
+      const step = () => {
+        span.textContent = text.slice(0, i);
+        i++;
+        if(i <= text.length){
+          cleanupTimers.push(setTimeout(step, 18));
+        } else {
+          cursor.remove();
+        }
+      };
+      step();
+    }
+
+    function launchParticles(count = 18){
+      scanParticles.innerHTML = '';
+      const rect = scanParticles.getBoundingClientRect();
+      for(let i = 0; i < count; i++){
+        const p = document.createElement('div');
+        p.className = 'particle fly';
+        const sx = 62 + Math.random() * 26;
+        const sy = rect.height/2 + (Math.random() - .5) * 24;
+        const tx = rect.width * (.48 + Math.random() * .35);
+        const ty = rect.height * (.18 + Math.random() * .64);
+        p.style.setProperty('--sx', `${sx}px`);
+        p.style.setProperty('--sy', `${sy}px`);
+        p.style.setProperty('--tx', `${tx}px`);
+        p.style.setProperty('--ty', `${ty}px`);
+        p.style.left = '0px';
+        p.style.top = '0px';
+        scanParticles.appendChild(p);
+      }
+    }
+
+    function pulseNodes(indices, color = 'rgba(240,192,112,.95)'){
+      indices.forEach((idx, pos) => {
+        const t = setTimeout(() => {
+          const node = scanNodeEls[idx];
+          if(!node) return;
+          node.setAttribute('fill', color);
+          node.setAttribute('r', '4.8');
+          node.style.filter = 'drop-shadow(0 0 8px rgba(240,192,112,.9))';
+        }, pos * 70);
+        cleanupTimers.push(t);
+      });
+    }
+
+    function pulseEdges(count = 24){
+      scanEdgeEls.slice(0, count).forEach((edge, idx) => {
+        const t = setTimeout(() => {
+          edge.setAttribute('stroke', 'rgba(123,219,255,.7)');
+          edge.setAttribute('stroke-width', '1.6');
+        }, idx * 35);
+        cleanupTimers.push(t);
+      });
+    }
+
+    function runScan(){
+      if(scanAnimating) return;
+      scanAnimating = true;
+      scanParticles.innerHTML = '';
+      drawScanBrain();
+      const prompt = promptInput.value.trim() || 'Jarvis, analysiere mein Wissen.';
+      const shortPrompt = prompt.length > 90 ? prompt.slice(0, 90) + '…' : prompt;
+
+      setState('Verbindung wird aufgebaut');
+      scanResult.textContent = 'Jarvis initialisiert die Verbindung zum Wissenssystem …';
+
+      cleanupTimers.push(setTimeout(() => {
+        scanBeam.classList.add('active');
+        launchParticles(20);
+      }, 220));
+
+      cleanupTimers.push(setTimeout(() => {
+        setState('Wissensgraph wird abgetastet');
+        scanSweep.classList.add('active');
+        pulseEdges(30);
+        pulseNodes([2,5,9,12,17,19,24,31,37,41,46,52]);
+        scanResult.textContent = `Aktive Anfrage erkannt: „${shortPrompt}“`;
+      }, 1200));
+
+      cleanupTimers.push(setTimeout(() => {
+        setState('Muster werden verdichtet');
+        pulseNodes([6,11,14,21,28,33,39,44,50,54], 'rgba(116,255,161,.95)');
+        launchParticles(14);
+        scanResult.textContent = 'Relevante Knoten wurden gefunden. Jarvis bündelt Zusammenhänge und bereitet die Antwort auf …';
+      }, 3100));
+
+      cleanupTimers.push(setTimeout(() => {
+        setState('Antwort materialisiert');
+        scanSweep.classList.remove('active');
+        scanBeam.classList.remove('active');
+        typeResult('Kernerkenntnis: Fokus auf räumliche Orientierung, klare Projektorte, sichtbare Agentenaktivität und eine reduzierte Oberfläche. Jarvis zeigt nur die entscheidenden Wissensmuster und übersetzt sie in eine verständliche Handlungsempfehlung.');
+      }, 5050));
+
+      cleanupTimers.push(setTimeout(() => {
+        setState('Abgeschlossen');
+        scanAnimating = false;
+      }, 7600));
+    }
+
+    runBtn.addEventListener('click', runScan);
+    resetBtn.addEventListener('click', resetScan);
+
+    window.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runScan();
+      if(e.key === 'Escape') resetScan();
+    });
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    requestAnimationFrame(animateBrain);
+    resetScan();
+  </script>
+</body>
+</html>

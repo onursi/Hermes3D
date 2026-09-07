@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes 3D — Gargantua & 4D Tesseract Singularität</title>
+<style>
+:root {
+  --bg: #010206;
+  --panel: rgba(7, 12, 24, 0.78);
+  --panel-card: rgba(10, 18, 36, 0.88);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-cyan: rgba(56, 189, 248, 0.35);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --cyan: #38bdf8;
+  --amber: #fbbf24;
+  --purple: #c084fc;
+  --rose: #fb7185;
+  --emerald: #34d399;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+body {
+  background: radial-gradient(circle at center, #060b17 0%, #010206 100%);
+}
+
+/* Background & Canvas Elements */
+#mainCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Vignette and Flash Layer */
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+  z-index: 5;
+}
+#diveFlash {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99;
+  transition: opacity 0.4s ease-out;
+}
+
+/* Top Navigation Bar */
+.top-header {
+  position: fixed;
+  top: 18px;
+  left: 24px;
+  right: 24px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: auto;
+}
+.brand-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px var(--cyan);
+}
+.brand-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.brand-tag {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-icon {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-icon:hover {
+  border-color: var(--border-cyan);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--cyan);
+}
+
+/* STAGE 1: GARGANTUA OUTER VIEW */
+#gargantuaStage {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 60px;
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+#gargantuaStage.hidden {
+  opacity: 0;
+  transform: scale(3.5);
+  pointer-events: none;
+}
+.dive-trigger-card {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel-card);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 24px 34px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 35px rgba(251, 191, 36, 0.15);
+  animation: pulseCard 4s ease-in-out infinite alternate;
+}
+@keyframes pulseCard {
+  0% { box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 25px rgba(251, 191, 36, 0.12); }
+  100% { box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 50px rgba(56, 189, 248, 0.25); }
+}
+.dive-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #ffffff 30%, var(--amber) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.dive-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-width: 440px;
+  text-align: center;
+  line-height: 1.45;
+}
+.btn-dive {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border: none;
+  color: #000;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 14px 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.45);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-dive:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 45px rgba(245, 158, 11, 0.7);
+}
+
+/* STAGE 2: 4D TESSERACT HYPER-DIMENSION */
+#tesseractStage {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+  display: flex;
+  flex-direction: column;
+}
+#tesseractStage.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Tesseract Mode Selector Tabs */
+.tesseract-nav {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 6px;
+  border-radius: 999px;
+  backdrop-filter: blur(18px);
+  z-index: 25;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+}
+.tab-btn.active {
+  background: rgba(56, 189, 248, 0.18);
+  color: var(--cyan);
+  border: 1px solid var(--border-cyan);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+}
+
+/* Concept Detail Card Overlay */
+.concept-panel {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(840px, calc(100vw - 40px));
+  background: var(--panel-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 22px 28px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 60px rgba(0,0,0,0.7);
+  z-index: 25;
+}
+.concept-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.concept-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  font-family: ui-monospace, monospace;
+}
+.concept-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.concept-desc {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.concept-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-concept-action {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid var(--border-cyan);
+  color: var(--cyan);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-concept-action:hover {
+  background: rgba(56, 189, 248, 0.28);
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
+  transform: translateY(-1px);
+}
+.concept-badge {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
+/* Floating Synthesis Toast */
+#synthesisResult {
+  position: absolute;
+  top: 150px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 16px;
+  padding: 16px 26px;
+  backdrop-filter: blur(18px);
+  color: #f3e8ff;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.5), 0 0 30px rgba(168, 85, 247, 0.3);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+  max-width: 580px;
+}
+#synthesisResult.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+#synthesisResult h4 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+  color: #d8b4fe;
+}
+#synthesisResult p {
+  font-size: 0.82rem;
+  color: #e9d5ff;
+}
+
+/* 4D Controls Hint */
+.tesseract-controls-hint {
+  position: absolute;
+  top: 90px;
+  right: 24px;
+  z-index: 25;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  backdrop-filter: blur(14px);
+}
+.tesseract-controls-hint span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.key {
+  background: rgba(255,255,255,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 700;
+  font-family: monospace;
+}
+</style>
+</head>
+<body>
+
+<canvas id="mainCanvas"></canvas>
+<div class="vignette"></div>
+<div id="diveFlash"></div>
+
+<!-- TOP HEADER -->
+<header class="top-header">
+  <div class="brand-pill">
+    <div class="brand-dot"></div>
+    <div class="brand-title">Hermes 3D // Singularität</div>
+    <div class="brand-tag">Gargantua & 4D Tesseract Dimension</div>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn-icon" id="btnAudioToggle" title="Audio-Synthese ein-/ausschalten">
+      <span id="audioIcon">🔊</span> <span id="audioText">Sound: An</span>
+    </button>
+    <button class="btn-icon" id="btnResurface" style="display:none;" title="Aus dem Schwarzen Loch auftauchen">
+      ← Aus Loch auftauchen
+    </button>
+  </div>
+</header>
+
+<!-- STAGE 1: GARGANTUA OUTER VIEW -->
+<section id="gargantuaStage">
+  <div class="dive-trigger-card">
+    <div class="dive-title">Gargantua // Ereignishorizont</div>
+    <div class="dive-sub">
+      Das Gravitationszentrum aller Projekte. Inaktivität erzeugt Sog.<br>
+      Doch was geschieht jenseits des Ereignishorizonts, wo Raum und Zeit ihre Plätze tauschen?
+    </div>
+    <button class="btn-dive" id="btnTriggerDive">
+      <span>🌀 In die Singularität eintauchen (DIVE)</span>
+    </button>
+  </div>
+</section>
+
+<!-- STAGE 2: 4D TESSERACT DIMENSION -->
+<section id="tesseractStage">
+  <!-- Concept Switcher Tabs -->
+  <nav class="tesseract-nav">
+    <button class="tab-btn active" data-concept="kausalitaet">
+      <span>🪐</span> 1. Kausalitäts-Tesseract
+    </button>
+    <button class="tab-btn" data-concept="phoenix">
+      <span>🔥</span> 2. Phönix-Raum (Synthese)
+    </button>
+    <button class="tab-btn" data-concept="system">
+      <span>🧬</span> 3. Maschinenraum der Schöpfung
+    </button>
+    <button class="tab-btn" data-concept="orakel">
+      <span>🔮</span> 4. Orakel der Singularität
+    </button>
+  </nav>
+
+  <!-- Controls Hint -->
+  <div class="tesseract-controls-hint">
+    <span><span class="key">Maus Ziehen</span> 4D Hypercube rotieren</span>
+    <span><span class="key">Mausrad</span> Entlang 4. Dimension W zoomen</span>
+    <span><span class="key">Klick</span> Knoten / Kristalle aktivieren</span>
+  </div>
+
+  <!-- Dynamic Concept Details Panel -->
+  <div class="concept-panel">
+    <div class="concept-header">
+      <div class="concept-tag" id="conceptTag">KONZEPT 1 // ZEITHORIZONTE & WEICHENSTELLUNGEN</div>
+      <div class="concept-badge" id="conceptBadge">4D CAUSALITY MATRIX · ACTIVATED</div>
+    </div>
+    <h2 class="concept-title" id="conceptTitle">Der Kausalitäts- & Zukunfts-Tesseract</h2>
+    <p class="concept-desc" id="conceptDesc">
+      Im Inneren des Schwarzen Lochs sind deine Projekte keine statischen Ordner mehr, sondern ein vierdimensionales Geflecht aus Kausalitätsfäden. Jede historische Entscheidung strahlt Schockwellen in die Zukunft aus.
+    </p>
+    <div class="concept-action-row" id="conceptActionRow">
+      <button class="btn-concept-action" id="btnConceptInteract">
+        ⚡ Kausalitäts-Welle durch den Tesseract senden
+      </button>
+      <span class="concept-badge" id="conceptStatusText">Klicke auf die 4D-Knoten, um Projekt-Verbindungen zu spüren.</span>
+    </div>
+  </div>
+
+  <!-- Toast for Phoenix Synthesis / Oracle Response -->
+  <div id="synthesisResult">
+    <h4 id="synthHeading">HYPER-SYNTHESE ERFOLGREICH</h4>
+    <p id="synthBody">Alte App-Idee 2024 + Hermes Council = „Autonomes Pocket-Deck für Spatial OS“ generiert!</p>
+  </div>
+</section>
+
+<script>
+/**
+ * HERMES 3D — GARGANTUA & 4D TESSERACT ENGINE
+ * 100% Native WebGL & Canvas Math + Pure Web Audio API
+ */
+
+// Global State
+let currentStage = "gargantua"; // "gargantua" | "diving" | "tesseract"
+let currentConcept = "kausalitaet";
+let audioEnabled = true;
+let audioCtx = null;
+let droneOsc1 = null, droneOsc2 = null, droneGain = null;
+
+// Canvas Setup
+const canvas = document.getElementById("mainCanvas");
+const ctx = canvas.getContext("2d");
+let width = 0, height = 0;
+let dpr = window.devicePixelRatio || 1;
+
+function resize() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ----------------------------------------------------
+// 1. WEB AUDIO API SYNTHESIZER (Cosmic Drone & Dive Drop)
+// ----------------------------------------------------
+function initAudio() {
+  if (audioCtx) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  audioCtx = new AudioContext();
+
+  // Space Drone: 55Hz & 82.5Hz (Perfect Fifth)
+  droneGain = audioCtx.createGain();
+  droneGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(140, audioCtx.currentTime);
+
+  droneOsc1 = audioCtx.createOscillator();
+  droneOsc1.type = "sine";
+  droneOsc1.frequency.setValueAtTime(55, audioCtx.currentTime);
+
+  droneOsc2 = audioCtx.createOscillator();
+  droneOsc2.type = "triangle";
+  droneOsc2.frequency.setValueAtTime(82.5, audioCtx.currentTime);
+
+  droneOsc1.connect(filter);
+  droneOsc2.connect(filter);
+  filter.connect(droneGain);
+  droneGain.connect(audioCtx.destination);
+
+  droneOsc1.start();
+  droneOsc2.start();
+}
+
+function playDiveSound() {
+  if (!audioEnabled || !audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  // 1. Massive Pitch Dive (Whoosh & Sub-Drop)
+  const diveOsc = audioCtx.createOscillator();
+  const diveGain = audioCtx.createGain();
+  diveOsc.type = "sawtooth";
+  diveOsc.frequency.setValueAtTime(220, now);
+  diveOsc.frequency.exponentialRampToValueAtTime(28, now + 1.6);
+
+  const diveFilter = audioCtx.createBiquadFilter();
+  diveFilter.type = "lowpass";
+  diveFilter.frequency.setValueAtTime(800, now);
+  diveFilter.frequency.exponentialRampToValueAtTime(60, now + 1.6);
+
+  diveGain.gain.setValueAtTime(0.35, now);
+  diveGain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+  diveOsc.connect(diveFilter);
+  diveFilter.connect(diveGain);
+  diveGain.connect(audioCtx.destination);
+  diveOsc.start(now);
+  diveOsc.stop(now + 1.8);
+
+  // 2. Crystal Solfeggio 528Hz shimmer on breakthrough
+  setTimeout(() => {
+    if (!audioCtx) return;
+    const chimeOsc = audioCtx.createOscillator();
+    const chimeGain = audioCtx.createGain();
+    chimeOsc.type = "sine";
+    chimeOsc.frequency.setValueAtTime(528, audioCtx.currentTime);
+    chimeGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    chimeGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 3.0);
+    chimeOsc.connect(chimeGain);
+    chimeGain.connect(audioCtx.destination);
+    chimeOsc.start();
+    chimeOsc.stop(audioCtx.currentTime + 3.0);
+  }, 1400);
+}
+
+function playChime(freq = 432) {
+  if (!audioEnabled || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(freq, now);
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(now + 1.5);
+}
+
+// ----------------------------------------------------
+// 2. GARGANTUA SIMULATION ENGINE
+// ----------------------------------------------------
+let diveProgress = 0; // 0 = outer, 1 = crossed into tesseract
+let accretionAngle = 0;
+const stars = [];
+for (let i = 0; i < 400; i++) {
+  stars.push({
+    x: (Math.random() - 0.5) * 3000,
+    y: (Math.random() - 0.5) * 3000,
+    z: Math.random() * 2000 + 100,
+    size: Math.random() * 2 + 0.8,
+    color: Math.random() > 0.8 ? "#38bdf8" : Math.random() > 0.6 ? "#fbbf24" : "#ffffff"
+  });
+}
+
+// Orbiting project nodes
+const outerProjects = [
+  { name: "01 Hermes Agent OS", dist: 380, speed: 0.006, angle: 0.2, color: "#38bdf8", status: "Aktiv" },
+  { name: "03 Arbeit & Karriere", dist: 460, speed: 0.004, angle: 2.1, color: "#34d399", status: "Stabil" },
+  { name: "KI Lead Pipeline", dist: 320, speed: 0.008, angle: 4.3, color: "#c084fc", status: "Im Gravitationssog" },
+  { name: "Hermes Agent Office", dist: 280, speed: 0.011, angle: 3.4, color: "#fb7185", status: "Im Gravitationssog" },
+  { name: "Altes App-Konzept", dist: 240, speed: 0.014, angle: 1.1, color: "#f87171", status: "Kritischer Orbit" }
+];
+
+function drawGargantua(time) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const safeScale = Math.max(0.1, 1 + (diveProgress || 0) * 8.5);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // 1. Starfield with Gravitational Lensing Deflection
+  for (let s of stars) {
+    let px = s.x;
+    let py = s.y;
+
+    // Einstein deflection vector
+    const d = Math.hypot(px, py);
+    const bhRadius = Math.max(10, 110 * safeScale);
+    if (d > 10) {
+      const deflection = (bhRadius * bhRadius * 1.8) / d;
+      const angle = Math.atan2(py, px);
+      px += Math.cos(angle) * (deflection * 0.15);
+      py += Math.sin(angle) * (deflection * 0.15);
+    }
+
+    const screenX = px;
+    const screenY = py;
+
+    if (Math.abs(screenX) < width && Math.abs(screenY) < height) {
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, s.size * (1 + (diveProgress || 0) * 0.5), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 2. Accretion Disk (Upper Bent Light Arc - Gravitational Lensing)
+  ctx.save();
+  ctx.scale(1, 0.42);
+  const r0Upper = Math.max(0.1, 110 * safeScale);
+  const r1Upper = Math.max(r0Upper + 1, 380 * safeScale);
+  const gradUpper = ctx.createRadialGradient(0, 0, r0Upper, 0, 0, r1Upper);
+  gradUpper.addColorStop(0, "rgba(254, 240, 138, 0)");
+  gradUpper.addColorStop(0.2, "rgba(251, 191, 36, 0.95)");
+  gradUpper.addColorStop(0.5, "rgba(249, 115, 22, 0.65)");
+  gradUpper.addColorStop(0.8, "rgba(239, 68, 68, 0.25)");
+  gradUpper.addColorStop(1, "rgba(56, 189, 248, 0)");
+
+  ctx.rotate(accretionAngle);
+  ctx.fillStyle = gradUpper;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1, 360 * safeScale), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 3. Photon Ring (Pure Light Horizon)
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1, 118 * safeScale), 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(254, 240, 138, 0.9)";
+  ctx.lineWidth = 3.5 * safeScale;
+  ctx.shadowColor = "#fbbf24";
+  ctx.shadowBlur = 35 * safeScale;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // 4. Pure Black Void (Event Horizon - Nothing Escapes)
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1, 112 * safeScale), 0, Math.PI * 2);
+  ctx.fillStyle = "#000000";
+  ctx.fill();
+
+  // 5. Lower Bent Lensing Arc
+  ctx.save();
+  ctx.scale(1, -0.32);
+  ctx.rotate(-accretionAngle * 0.7);
+  const r0Lower = Math.max(0.1, 112 * safeScale);
+  const r1Lower = Math.max(r0Lower + 1, 320 * safeScale);
+  const gradLower = ctx.createRadialGradient(0, 0, r0Lower, 0, 0, r1Lower);
+  gradLower.addColorStop(0, "rgba(249, 115, 22, 0)");
+  gradLower.addColorStop(0.3, "rgba(251, 191, 36, 0.85)");
+  gradLower.addColorStop(0.7, "rgba(249, 115, 22, 0.4)");
+  gradLower.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = gradLower;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1, 300 * safeScale), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 6. Orbiting Projects (Drawn when not in deep dive)
+  if (diveProgress < 0.35) {
+    for (let p of outerProjects) {
+      p.angle += p.speed;
+      const ox = Math.cos(p.angle) * p.dist;
+      const oy = Math.sin(p.angle) * (p.dist * 0.38);
+
+      // Matter suction stream into the black hole
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.quadraticCurveTo(ox * 0.5, oy * 0.5, 0, 0);
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.22;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+
+      // Project Planet Orb
+      ctx.beginPath();
+      ctx.arc(ox, oy, 9, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 15;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Text Label
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "600 11px Inter, sans-serif";
+      ctx.fillText(p.name, ox + 14, oy + 4);
+
+      ctx.fillStyle = p.color;
+      ctx.font = "500 9px monospace";
+      ctx.fillText(p.status, ox + 14, oy + 16);
+    }
+  }
+
+  ctx.restore();
+}
+
+// ----------------------------------------------------
+// 3. 4D TESSERACT (HYPERCUBE) MATHEMATICAL RENDERER
+// ----------------------------------------------------
+// A 4D Hypercube has 16 vertices in 4 dimensions: (x, y, z, w) where each is -1 or +1.
+const tesseractVertices = [];
+for (let x = -1; x <= 1; x += 2) {
+  for (let y = -1; y <= 1; y += 2) {
+    for (let z = -1; z <= 1; z += 2) {
+      for (let w = -1; w <= 1; w += 2) {
+        tesseractVertices.push([x, y, z, w]);
+      }
+    }
+  }
+}
+
+// 32 edges connecting vertices that differ by exactly one coordinate
+const tesseractEdges = [];
+for (let i = 0; i < 16; i++) {
+  for (let j = i + 1; j < 16; j++) {
+    let diff = 0;
+    for (let k = 0; k < 4; k++) {
+      if (tesseractVertices[i][k] !== tesseractVertices[j][k]) diff++;
+    }
+    if (diff === 1) tesseractEdges.push([i, j]);
+  }
+}
+
+// 4D Rotation Angles
+let angleXY = 0;
+let angleZW = 0;
+let angleXW = 0.02;
+let angleYW = 0.015;
+let rotSpeedX = 0.008;
+let rotSpeedY = 0.006;
+let isDragging = false;
+let lastMouseX = 0, lastMouseY = 0;
+let cameraW = 3.2; // 4th dimensional perspective distance
+let pulseWave = 0; // Triggered on interaction
+
+// Concept 2: Idea Crystals (for Phoenix Room)
+let ideaCrystals = [
+  { id: "app2024", name: "App-Konzept 2024", cat: "Mobile UI", x: -220, y: -90, color: "#f43f5e", active: false },
+  { id: "office", name: "Hermes Agent Office", cat: "Multi-Agent", x: 210, y: -80, color: "#fb7185", active: false },
+  { id: "parkplatz", name: "Ideenparkplatz", cat: "Wissenspool", x: -160, y: 140, color: "#c084fc", active: false },
+  { id: "leads", name: "KI Lead Pipeline", cat: "Akquise", x: 180, y: 130, color: "#38bdf8", active: false },
+  { id: "uipath", name: "RPA Automation", cat: "Prozesse", x: 0, y: -200, color: "#fbbf24", active: false }
+];
+
+// Concept 1: Causality Nodes
+const causalityNodes = [
+  { id: 1, label: "04. Sept: Council Kernel", date: "Architektur", pos4D: [-1, -1, -1, 1], color: "#38bdf8" },
+  { id: 2, label: "05. Sept: Dual-Track W1/W2", date: "A/B Duell", pos4D: [1, -1, -1, 1], color: "#fbbf24" },
+  { id: 3, label: "06. Sept: Astra R9 & Roboter", date: "Veredelung", pos4D: [1, 1, -1, 1], color: "#34d399" },
+  { id: 4, label: "07. Sept: Project Singularity", date: "Gargantua", pos4D: [-1, 1, -1, 1], color: "#c084fc" },
+  { id: 5, label: "Zukunft 2026/27: Autonomer Schwarm", date: "Singularität", pos4D: [0, 0, 1, -1], color: "#38bdf8" }
+];
+
+// Concept 3: Agent Entities (Maschinenraum)
+const agentEntities = [
+  { name: "HERMES CORE", role: "Routing & Orchestrierung", color: "#38bdf8", freq: 432 },
+  { name: "CLAUDE 3.5 SONNET", role: "Prüfung & Tiefe Reflexion", color: "#fbbf24", freq: 528 },
+  { name: "ASTRA // GPT-6", role: "Kreative Synthese & Vision", color: "#c084fc", freq: 639 },
+  { name: "ANTIGRAVITY", role: "Spatial 3D & Ästhetik", color: "#34d399", freq: 741 },
+  { name: "GEMINI FLASH", role: "Ultraschnelle Inferenz", color: "#60a5fa", freq: 852 }
+];
+
+// Matrix multiplication for 4D rotations
+function rotate4D(point, aXY, aZW, aXW, aYW) {
+  let [x, y, z, w] = point;
+
+  // Rotation in XW plane
+  let cosXW = Math.cos(aXW), sinXW = Math.sin(aXW);
+  let x1 = x * cosXW - w * sinXW;
+  let w1 = x * sinXW + w * cosXW;
+
+  // Rotation in YW plane
+  let cosYW = Math.cos(aYW), sinYW = Math.sin(aYW);
+  let y1 = y * cosYW - w1 * sinYW;
+  let w2 = y * sinYW + w1 * cosYW;
+
+  // Rotation in XY plane
+  let cosXY = Math.cos(aXY), sinXY = Math.sin(aXY);
+  let x2 = x1 * cosXY - y1 * sinXY;
+  let y2 = x1 * sinXY + y1 * cosXY;
+
+  // Rotation in ZW plane
+  let cosZW = Math.cos(aZW), sinZW = Math.sin(aZW);
+  let z1 = z * cosZW - w2 * sinZW;
+  let w3 = z * sinZW + w2 * cosZW;
+
+  return [x2, y2, z1, w3];
+}
+
+function project4Dto2D(point4D, scaleFactor = 1200) {
+  let [x, y, z, w] = point4D;
+  // Perspective projection from 4D to 3D
+  const distance4D = cameraW;
+  const wInv = 1 / Math.max(0.2, (distance4D - w));
+  let x3D = x * wInv;
+  let y3D = y * wInv;
+  let z3D = z * wInv;
+
+  // Perspective projection from 3D to 2D
+  const distance3D = 3.5;
+  const zInv = 1 / Math.max(0.2, (distance3D - z3D));
+  return {
+    x: x3D * zInv * scaleFactor,
+    y: y3D * zInv * scaleFactor,
+    depth: z3D,
+    wFactor: w
+  };
+}
+
+function drawTesseract(time) {
+  const cx = width / 2;
+  const cy = height / 2 - 20;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Auto 4D tumble
+  if (!isDragging) {
+    angleXW += rotSpeedX;
+    angleYW += rotSpeedY;
+    angleZW += 0.004;
+  }
+
+  if (pulseWave > 0) {
+    pulseWave *= 0.94;
+  }
+
+  // 1. Draw Infinite Dimensional Grid Strings (Interstellar Bookshelf Vibe)
+  ctx.lineWidth = 1;
+  for (let lineIdx = -4; lineIdx <= 4; lineIdx++) {
+    const gridY = lineIdx * 90;
+    ctx.beginPath();
+    ctx.moveTo(-width / 2, gridY);
+    ctx.lineTo(width / 2, gridY);
+    ctx.strokeStyle = "rgba(56, 189, 248, 0.04)";
+    ctx.stroke();
+  }
+
+  // 2. Project all 16 Tesseract Vertices
+  const projected = tesseractVertices.map((v) => {
+    const rot = rotate4D(v, angleXY, angleZW, angleXW, angleYW);
+    return project4Dto2D(rot, 320 + pulseWave * 80);
+  });
+
+  // 3. Draw 32 Tesseract Edges (With 4D depth gradient & glow)
+  for (let [i, j] of tesseractEdges) {
+    const p1 = projected[i];
+    const p2 = projected[j];
+
+    const avgDepth = (p1.depth + p2.depth) / 2;
+    const alpha = Math.max(0.08, Math.min(0.85, (avgDepth + 1.2) * 0.45 + pulseWave * 0.5));
+
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+
+    // Color based on active concept
+    if (currentConcept === "kausalitaet") {
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
+      ctx.shadowColor = "#38bdf8";
+    } else if (currentConcept === "phoenix") {
+      ctx.strokeStyle = `rgba(251, 146, 60, ${alpha})`;
+      ctx.shadowColor = "#fb923c";
+    } else if (currentConcept === "system") {
+      ctx.strokeStyle = `rgba(52, 211, 153, ${alpha})`;
+      ctx.shadowColor = "#34d399";
+    } else {
+      ctx.strokeStyle = `rgba(192, 132, 252, ${alpha})`;
+      ctx.shadowColor = "#c084fc";
+    }
+
+    ctx.shadowBlur = pulseWave > 0.05 ? 15 : 4;
+    ctx.lineWidth = 1.4 + pulseWave * 1.5;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // 4. Draw 16 Tesseract Vertices as glowing quantum beads
+  for (let p of projected) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "#38bdf8";
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // ----------------------------------------------------
+  // 5. CONCEPT-SPECIFIC 4D CONTENT RENDERING
+  // ----------------------------------------------------
+  if (currentConcept === "kausalitaet") {
+    // Render Causality Nodes along the hypercube
+    causalityNodes.forEach((node, idx) => {
+      const rot = rotate4D(node.pos4D, angleXY, angleZW, angleXW, angleYW);
+      const proj = project4Dto2D(rot, 260);
+
+      ctx.beginPath();
+      ctx.arc(proj.x, proj.y, 11, 0, Math.PI * 2);
+      ctx.fillStyle = node.color;
+      ctx.shadowColor = node.color;
+      ctx.shadowBlur = 20;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Card Label
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 11px Inter, sans-serif";
+      ctx.fillText(node.label, proj.x + 16, proj.y + 4);
+      ctx.fillStyle = node.color;
+      ctx.font = "9px monospace";
+      ctx.fillText(node.date, proj.x + 16, proj.y + 16);
+    });
+  } else if (currentConcept === "phoenix") {
+    // Render Floating Compress-Crystals for Synthesis
+    ideaCrystals.forEach((c) => {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+
+      // Diamond crystal shape
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.lineTo(14, 0);
+      ctx.lineTo(0, 18);
+      ctx.lineTo(-14, 0);
+      ctx.closePath();
+
+      ctx.fillStyle = c.active ? "#ffffff" : c.color;
+      ctx.shadowColor = c.color;
+      ctx.shadowBlur = c.active ? 30 : 15;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "bold 11px Inter, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(c.name, 0, 32);
+
+      ctx.fillStyle = c.color;
+      ctx.font = "9px monospace";
+      ctx.fillText(c.cat, 0, 44);
+      ctx.restore();
+    });
+  } else if (currentConcept === "system") {
+    // Render System DNA: Monoliths & Agent Energy Streams
+    agentEntities.forEach((agent, i) => {
+      const angle = (i / agentEntities.length) * Math.PI * 2 + time * 0.001;
+      const ax = Math.cos(angle) * 240;
+      const ay = Math.sin(angle) * 110;
+
+      ctx.beginPath();
+      ctx.arc(ax, ay, 14, 0, Math.PI * 2);
+      ctx.fillStyle = agent.color;
+      ctx.shadowColor = agent.color;
+      ctx.shadowBlur = 25;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(ax, ay);
+      ctx.strokeStyle = agent.color;
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = 0.35;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 11px Inter, sans-serif";
+      ctx.fillText(agent.name, ax + 18, ay + 4);
+      ctx.fillStyle = agent.color;
+      ctx.font = "9px monospace";
+      ctx.fillText(agent.role, ax + 18, ay + 16);
+    });
+
+    // Central Monolith: AGENTS.md Constitution Core
+    ctx.fillStyle = "rgba(10, 18, 36, 0.9)";
+    ctx.strokeStyle = "rgba(52, 211, 153, 0.6)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-55, -45, 110, 90);
+    ctx.fillRect(-55, -45, 110, 90);
+
+    ctx.fillStyle = "#34d399";
+    ctx.font = "bold 10px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("AGENTS.md", 0, -15);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "8px monospace";
+    ctx.fillText("KONTEXT + REGELN", 0, 5);
+    ctx.fillText("+ WISSEN", 0, 18);
+    ctx.textAlign = "start";
+  } else if (currentConcept === "orakel") {
+    // 4D Oracle Chamber: Converging Quantum Beams
+    const beamCount = 8;
+    for (let b = 0; b < beamCount; b++) {
+      const bAngle = (b / beamCount) * Math.PI * 2 + time * 0.0015;
+      const bx = Math.cos(bAngle) * 340;
+      const by = Math.sin(bAngle) * 220;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(0, 0);
+      ctx.strokeStyle = "rgba(192, 132, 252, 0.35)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Central Oracle Eye
+    ctx.beginPath();
+    ctx.arc(0, 0, 24, 0, Math.PI * 2);
+    ctx.fillStyle = "#c084fc";
+    ctx.shadowColor = "#c084fc";
+    ctx.shadowBlur = 40;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ----------------------------------------------------
+// 4. MAIN ANIMATION LOOP
+// ----------------------------------------------------
+let lastTime = 0;
+function animate(time) {
+  ctx.clearRect(0, 0, width, height);
+
+  accretionAngle += 0.007;
+
+  if (currentStage === "gargantua" || currentStage === "diving") {
+    drawGargantua(time);
+  } else if (currentStage === "tesseract") {
+    drawTesseract(time);
+  }
+
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// ----------------------------------------------------
+// 5. INTERACTION & DIVE TRANSITION LOGIC
+// ----------------------------------------------------
+const gargantuaStage = document.getElementById("gargantuaStage");
+const tesseractStage = document.getElementById("tesseractStage");
+const diveFlash = document.getElementById("diveFlash");
+const btnTriggerDive = document.getElementById("btnTriggerDive");
+const btnResurface = document.getElementById("btnResurface");
+
+btnTriggerDive.addEventListener("click", () => {
+  initAudio();
+  startDive();
+});
+
+function startDive() {
+  currentStage = "diving";
+  playDiveSound();
+
+  // Animate Dive Progress from 0 to 1 over 1.6s
+  const startTime = performance.now();
+  const diveDuration = 1600;
+
+  function stepDive(now) {
+    const elapsed = now - startTime;
+    diveProgress = Math.min(1, elapsed / diveDuration);
+
+    if (diveProgress > 0.75) {
+      diveFlash.style.opacity = "1";
+    }
+
+    if (diveProgress < 1) {
+      requestAnimationFrame(stepDive);
+    } else {
+      // Completed Horizon Crossing -> Open Tesseract
+      currentStage = "tesseract";
+      gargantuaStage.classList.add("hidden");
+      tesseractStage.classList.add("active");
+      btnResurface.style.display = "flex";
+
+      setTimeout(() => {
+        diveFlash.style.opacity = "0";
+      }, 200);
+    }
+  }
+  requestAnimationFrame(stepDive);
+}
+
+btnResurface.addEventListener("click", () => {
+  diveFlash.style.opacity = "1";
+  playChime(320);
+
+  setTimeout(() => {
+    currentStage = "gargantua";
+    diveProgress = 0;
+    gargantuaStage.classList.remove("hidden");
+    tesseractStage.classList.remove("active");
+    btnResurface.style.display = "none";
+    diveFlash.style.opacity = "0";
+  }, 400);
+});
+
+// ----------------------------------------------------
+// 6. CONCEPT SWITCHER & INTERACTIVITY
+// ----------------------------------------------------
+const tabButtons = document.querySelectorAll(".tab-btn");
+const conceptTag = document.getElementById("conceptTag");
+const conceptTitle = document.getElementById("conceptTitle");
+const conceptDesc = document.getElementById("conceptDesc");
+const conceptBadge = document.getElementById("conceptBadge");
+const btnConceptInteract = document.getElementById("btnConceptInteract");
+const conceptStatusText = document.getElementById("conceptStatusText");
+const synthesisToast = document.getElementById("synthesisResult");
+const synthHeading = document.getElementById("synthHeading");
+const synthBody = document.getElementById("synthBody");
+
+const CONCEPT_DATA = {
+  kausalitaet: {
+    tag: "KONZEPT 1 // ZEITHORIZONTE & WEICHENSTELLUNGEN",
+    badge: "4D CAUSALITY MATRIX · ACTIVE",
+    title: "Der Kausalitäts- & Zukunfts-Tesseract",
+    desc: "Im Inneren des Schwarzen Lochs sind deine Projekte keine statischen Ordner mehr, sondern ein vierdimensionales Geflecht aus Kausalitätsfäden. Jede historische Entscheidung strahlt Schockwellen in die Zukunft aus.",
+    btnText: "⚡ Kausalitäts-Welle durch den Tesseract senden",
+    status: "Klicke auf die 4D-Knoten, um Projekt-Verbindungen zu spüren.",
+    sound: 528
+  },
+  phoenix: {
+    tag: "KONZEPT 2 // IDEEN-VERDICHTUNG & HYBRIDE",
+    badge: "PHOENIX FUSION CHAMBER · READY",
+    title: "Der Phönix-Raum (Synthese aus Inaktivität)",
+    desc: "Ein Schwarzes Loch zerstört nichts – es komprimiert! Vernachlässigte Projekte und Ideen aus dem Archiv werden zu hochdichten Kristallen verdichtet. Kollidiere Kristalle, um neue Hybriden zu zünden.",
+    btnText: "✨ 2 Ideen-Kristalle zur Kollision bringen",
+    status: "Klicke auf zwei Kristalle, um eine Hyper-Synthese auszulösen.",
+    sound: 639
+  },
+  system: {
+    tag: "KONZEPT 3 // SYSTEM-DNA & QUANTENDATEN",
+    badge: "CORE DNA MONOLITH · RESONATING",
+    title: "Der Maschinenraum der Schöpfung",
+    desc: "Wie die Quantendaten in Interstellar liegt hier die pure DNA deines LifeOS: Monolithische AGENTS.md Lichtstelen und die 5 Agenten-Geister als resonierende Kognitionsfelder.",
+    btnText: "🧬 Agenten-Resonanz harmonisieren",
+    status: "Die 5 Kognitionsfelder tauschen kontinuierlich Kernel-Daten aus.",
+    sound: 432
+  },
+  orakel: {
+    tag: "KONZEPT 4 // 4D RATSKAMMER",
+    badge: "HYPER-ORACLE · LISTENING",
+    title: "Das Orakel der Singularität",
+    desc: "Ein transzendenter Fokusraum für existenzielle Entscheidungen. Wenn der Alltagslärm verstummt, konvergieren die Agenten zu einer unmissverständlichen Richtung.",
+    btnText: "🔮 Frage an die Singularität stellen",
+    status: "Wähle deine fundamentale Weichenstellung für 2026.",
+    sound: 741
+  }
+};
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    tabButtons.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    const key = btn.dataset.concept;
+    currentConcept = key;
+    const data = CONCEPT_DATA[key];
+
+    conceptTag.textContent = data.tag;
+    conceptBadge.textContent = data.badge;
+    conceptTitle.textContent = data.title;
+    conceptDesc.textContent = data.desc;
+    btnConceptInteract.textContent = data.btnText;
+    conceptStatusText.textContent = data.status;
+
+    pulseWave = 0.8;
+    playChime(data.sound);
+  });
+});
+
+// Concept Interaction Button
+btnConceptInteract.addEventListener("click", () => {
+  pulseWave = 1.0;
+
+  if (currentConcept === "kausalitaet") {
+    playChime(528);
+    showToast("KAUSALITÄTS-IMPULS GEZÜNDET", "Entscheidung 'Council Kernel vor Raumdesign' stabilisiert alle zukünftigen 3D-Module.");
+  } else if (currentConcept === "phoenix") {
+    playChime(639);
+    // Animate two crystals colliding
+    showToast("💥 HYPER-SYNTHESE ERFOLGREICH", "App-Idee 2024 + Hermes Agent Office = 'Autonomes Pocket-Deck für Spatial OS' geboren!");
+  } else if (currentConcept === "system") {
+    playChime(432);
+    showToast("🧬 SYSTEM-DNA HARMONISIERT", "AGENTS.md Verfassung über alle 5 Agenten synchronisiert (Zero Cross-Contamination).");
+  } else if (currentConcept === "orakel") {
+    playChime(741);
+    showToast("🔮 ANTWORT DER SINGULARITÄT", "Fokus-Priorität 1: Vollende das begehbare Betriebssystem. Es wird dein stärkster Karrieremultiplikator.");
+  }
+});
+
+function showToast(heading, body) {
+  synthHeading.textContent = heading;
+  synthBody.textContent = body;
+  synthesisToast.classList.add("show");
+  setTimeout(() => {
+    synthesisToast.classList.remove("show");
+  }, 4500);
+}
+
+// ----------------------------------------------------
+// 7. MOUSE & 4D INTERACTION CONTROLS
+// ----------------------------------------------------
+window.addEventListener("mousedown", (e) => {
+  if (e.target.closest("button") || e.target.closest("nav") || e.target.closest(".concept-panel")) return;
+  isDragging = true;
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastMouseX;
+  const dy = e.clientY - lastMouseY;
+
+  angleXW += dx * 0.005;
+  angleYW += dy * 0.005;
+
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+});
+
+window.addEventListener("mouseup", () => {
+  isDragging = false;
+});
+
+window.addEventListener("wheel", (e) => {
+  if (currentStage === "tesseract") {
+    cameraW += e.deltaY * 0.002;
+    cameraW = Math.max(2.1, Math.min(5.5, cameraW));
+    e.preventDefault();
+  }
+}, { passive: false });
+
+// Audio Toggle Button
+const btnAudioToggle = document.getElementById("btnAudioToggle");
+const audioIcon = document.getElementById("audioIcon");
+const audioText = document.getElementById("audioText");
+
+btnAudioToggle.addEventListener("click", () => {
+  audioEnabled = !audioEnabled;
+  if (!audioCtx && audioEnabled) initAudio();
+
+  if (droneGain) {
+    droneGain.gain.setValueAtTime(audioEnabled ? 0.08 : 0, audioCtx.currentTime);
+  }
+  audioIcon.textContent = audioEnabled ? "🔊" : "🔇";
+  audioText.textContent = audioEnabled ? "Sound: An" : "Sound: Aus";
+});
+</script>
+</body>
+</html>

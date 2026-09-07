@@ -1,0 +1,818 @@
+<title>Was der Raum nicht zeigt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+:root {
+  --ground:   #14120e;
+  --surface:  #1d1a15;
+  --surface2: #262119;
+  --line:     #3a332a;
+  --ink:      #f0eae0;
+  --muted:    #9d9384;
+  --gold:     #e0a93f;
+  --gold-dim: #8a6f34;
+  --rust:     #c8603c;
+  --cool:     #5f93ad;
+  --shadow:   0 1px 0 rgba(255,255,255,0.04), 0 18px 40px -24px rgba(0,0,0,0.8);
+}
+:root[data-theme="light"] {
+  --ground:   #f7f3ea;
+  --surface:  #fffdf8;
+  --surface2: #f1ebdd;
+  --line:     #ded4c0;
+  --ink:      #1b1710;
+  --muted:    #6d6555;
+  --gold:     #a97613;
+  --gold-dim: #cbb583;
+  --rust:     #a8462a;
+  --cool:     #3d6a83;
+  --shadow:   0 1px 0 rgba(255,255,255,0.7), 0 18px 40px -28px rgba(60,45,20,0.35);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground:   #f7f3ea;
+    --surface:  #fffdf8;
+    --surface2: #f1ebdd;
+    --line:     #ded4c0;
+    --ink:      #1b1710;
+    --muted:    #6d6555;
+    --gold:     #a97613;
+    --gold-dim: #cbb583;
+    --rust:     #a8462a;
+    --cool:     #3d6a83;
+    --shadow:   0 1px 0 rgba(255,255,255,0.7), 0 18px 40px -28px rgba(60,45,20,0.35);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Newsreader", Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  line-height: 1.62;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px 120px; }
+.spine { max-width: 640px; }
+.spine.center { margin: 0 auto; }
+
+/* ---------- Kopf ---------- */
+
+header {
+  border-bottom: 1px solid var(--line);
+  padding: 64px 0 40px;
+  margin-bottom: 56px;
+  display: grid;
+  gap: 22px;
+}
+.kicker {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.kicker b { color: var(--gold); font-weight: 600; }
+h1 {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(46px, 8vw, 86px);
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+  max-width: 14ch;
+}
+h1 em { font-style: italic; color: var(--gold); }
+.standfirst {
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 56ch;
+  margin: 0;
+}
+.standfirst + .standfirst { color: var(--muted); font-size: 18px; }
+
+/* ---------- Fließtext ---------- */
+
+h2 {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+h3 {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+p { margin: 0 0 18px; }
+p:last-child { margin-bottom: 0; }
+strong { font-weight: 600; color: var(--ink); }
+em.q { font-style: italic; color: var(--gold); }
+
+section.befund { padding: 60px 0; border-top: 1px solid var(--line); }
+section.befund:first-of-type { border-top: none; padding-top: 0; }
+
+.nr {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 15px;
+  color: var(--gold);
+  letter-spacing: 0.2em;
+  display: block;
+  margin-bottom: 14px;
+}
+
+.lede { font-size: 20px; line-height: 1.5; margin-bottom: 26px; }
+
+/* ---------- Bausteine ---------- */
+
+.figure {
+  margin: 34px 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.figure .body { padding: 22px 24px 24px; }
+figcaption {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface2);
+}
+figcaption b { color: var(--ink); font-weight: 600; }
+
+.pull {
+  border-left: 2px solid var(--gold);
+  padding: 4px 0 4px 22px;
+  margin: 30px 0;
+  font-size: 22px;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--ink);
+  max-width: 46ch;
+}
+
+.vorschlag {
+  border: 1px solid var(--gold-dim);
+  border-radius: 3px;
+  padding: 22px 24px;
+  margin: 30px 0 0;
+  background: color-mix(in srgb, var(--gold) 7%, var(--surface));
+}
+.vorschlag h3 { color: var(--gold); }
+.vorschlag p:last-child { margin-bottom: 0; }
+
+.zahl {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ---------- Himmel ---------- */
+
+#sky-shell { position: relative; }
+#sky { display: block; width: 100%; height: auto; }
+
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  padding: 16px 24px 4px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.legende span { display: inline-flex; align-items: center; gap: 8px; }
+.dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.dot.hell   { background: var(--gold); box-shadow: 0 0 9px color-mix(in srgb, var(--gold) 70%, transparent); }
+.dot.matt   { background: var(--gold-dim); }
+.dot.umriss { background: transparent; border: 1.5px solid var(--muted); }
+.dot.warte  { background: transparent; border: 1.5px solid var(--cool); box-shadow: 0 0 7px color-mix(in srgb, var(--cool) 55%, transparent); }
+.dot.leer   { background: transparent; border: 1.5px dashed var(--rust); }
+
+/* ---------- Jahresstreifen ---------- */
+
+.jahre { display: grid; grid-template-columns: repeat(31, 1fr); gap: 3px; align-items: end; }
+.jahre i {
+  display: block;
+  height: 42px;
+  border-radius: 1px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+}
+.jahre i.voll {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+.jahre-achse {
+  display: flex;
+  justify-content: space-between;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 8px;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Drei Bahnen ---------- */
+
+.bahnen { display: grid; gap: 14px; }
+.bahn { display: grid; grid-template-columns: 122px 1fr; gap: 16px; align-items: center; }
+.bahn > span {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: right;
+}
+.spur {
+  position: relative;
+  height: 30px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.spur .balken {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  background: color-mix(in srgb, var(--gold) 26%, transparent);
+  border-left: 1.5px solid var(--gold);
+  border-right: 1.5px solid var(--gold);
+  border-radius: 1px;
+}
+.spur .marke {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--rust);
+}
+.spur .marke::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rust);
+}
+.bahnen-achse {
+  display: grid;
+  grid-template-columns: 122px 1fr;
+  gap: 16px;
+  margin-top: 4px;
+}
+.bahnen-achse div:last-child {
+  display: flex;
+  justify-content: space-between;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* ---------- Strahlvergleich ---------- */
+
+.strahlen { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.strahlen figure { margin: 0; }
+.strahlen svg { display: block; width: 100%; height: auto; background: var(--surface2); border: 1px solid var(--line); border-radius: 2px; }
+.strahlen p {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+.strahlen b { display: block; color: var(--ink); font-weight: 600; margin-bottom: 3px; }
+
+/* ---------- Tabelle ---------- */
+
+.tabelle-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 520px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom-color: var(--muted);
+}
+td.mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+
+/* ---------- Fuß ---------- */
+
+footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 40px; }
+footer ul { margin: 0; padding-left: 20px; }
+footer li {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--muted);
+}
+footer li b { color: var(--ink); font-weight: 600; }
+
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+.theme-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  body { font-size: 17px; }
+  .wrap { padding: 0 20px 80px; }
+  .strahlen { grid-template-columns: 1fr; }
+  .bahn { grid-template-columns: 86px 1fr; }
+  .bahnen-achse { grid-template-columns: 86px 1fr; }
+  .jahre i { height: 32px; }
+}
+</style>
+
+<button class="theme-toggle" id="tt" type="button">Ansicht wechseln</button>
+
+<div class="wrap">
+
+<header>
+  <div class="kicker">
+    <span>Hermes 3D · Vorentwurf</span>
+    <span>2026-09-07</span>
+    <span><b>Claude</b> · eigene Sicht</span>
+  </div>
+  <h1>Was der Raum <em>nicht</em> zeigt</h1>
+  <p class="standfirst">Vier Befunde zu Goal Horizon, Memory Orbit und der Singularität — alle aus deinem Vault gemessen, keiner geschätzt.</p>
+  <p class="standfirst">Die bisherigen Entwürfe bauen Räume, die zeigen, <em>was da ist</em>. Beim Nachrechnen fällt auf: Die interessanteste Information in deinem Vault ist durchweg das, was <em>fehlt</em> — und dafür gibt es bisher kein Bild.</p>
+</header>
+
+<div class="spine center">
+
+<!-- ============ BEFUND 1 ============ -->
+<section class="befund">
+  <span class="nr">BEFUND EINS</span>
+  <h2>Abwesenheit hat kein Bild</h2>
+  <p class="lede">Von deinen fünf Lebensrichtungen haben <span class="zahl">zwei</span> kein einziges Ziel. Am Firmament ist das ein leeres Stück Himmel — und leerer Himmel liest sich wie „hier gibt es nichts zu sehen".</p>
+
+  <p>Dabei ist es das Gegenteil. <strong>Familiär</strong> und <strong>Gesundheit</strong> stehen ausdrücklich in deinen langfristigen Zielen, aber kein konkretes Ziel zahlt darauf ein. Das ist die lauteste Information auf dem ganzen Bildschirm, und sie würde als Nichts gerendert.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div id="sky-shell">
+    <canvas id="sky" width="1120" height="620" role="img"
+      aria-label="Onurs Zielhimmel: sechs Ziele, drei Sternbilder mit Zielen, zwei Sternbilder ohne."></canvas>
+  </div>
+  <div class="legende">
+    <span><i class="dot hell"></i> aktiv</span>
+    <span><i class="dot matt"></i> zurückgestellt</span>
+    <span><i class="dot umriss"></i> unklar — Nachweisort fehlt</span>
+    <span><i class="dot warte"></i> berechtigtes Warten (am Zug: andere)</span>
+    <span><i class="dot leer"></i> Sternbild ohne Ziel</span>
+  </div>
+  <figcaption>
+    Gezeichnet aus <b>03🪪 Identität/Ziele/</b>, Stand 2026-09-07. Sechs Zielnotizen, fünf Sternbilder.
+    Die Linien sind keine Deko: <b>drei der sechs Ziele gehören zwei Sternbildern gleichzeitig</b> —
+    dein Himmel ist kein Satz getrennter Bilder, sondern ein Netz.
+  </figcaption>
+</figure>
+
+<div class="spine center">
+<section class="befund" style="border-top:none;padding-top:34px">
+  <p>Das Netz ist der eigentliche Fund. Du wolltest <em class="q">„auf einen Blick sehen, was meine Persönlichkeit so ausmacht"</em>. Genau das steht schon in den Daten: <strong>Hermes 3D</strong> und <strong>RPA</strong> verbinden Beruf mit Lernen, <strong>99 Namen</strong> verbindet Spiritualität mit Lernen. Deine Lebensrichtungen hängen bereits über konkrete Ziele zusammen — kein Entwurf zeichnet diese Brücken bisher.</p>
+
+  <p>Dieselbe Blindstelle trifft den Memory Orbit von der anderen Seite:</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="jahre" id="jahre" aria-hidden="true"></div>
+    <div class="jahre-achse"><span>1997</span><span>2012</span><span>2027</span></div>
+  </div>
+  <figcaption>
+    Gemessen über <b>/api/vault/timeline</b> gegen <b>04📖 Lebensprofil</b>: <b>33 datierte Stationen</b>,
+    verteilt auf nur <b>12 von 31 Jahren</b>. Neunzehn Jahre haben keine einzige Station.
+  </figcaption>
+</figure>
+
+<div class="spine center">
+<section class="befund" style="border-top:none;padding-top:34px">
+  <p>Ein Orbit, der die Höhe aus dem Jahr ableitet, macht daraus neunzehn Jahre Leere. Und Leere im Raum heißt für den Betrachter: <em>da war nichts.</em> Tatsächlich heißt sie: <em>da steht nichts geschrieben.</em> Das ist ein gewaltiger Unterschied, wenn der Raum deine Biografie erzählen soll.</p>
+
+  <div class="pull">Ein Raum, der nur Anwesenheit darstellen kann, behauptet über alles Fehlende, es sei nicht vorhanden.</div>
+
+  <div class="vorschlag">
+    <h3>Vorschlag</h3>
+    <p><strong>Die Leerstelle wird ein eigenes Objekt</strong>, kein weggelassenes. Ein Sternbild ohne Ziel bekommt seinen Umriss, gestrichelt, mit einer Zahl <span class="zahl">0</span> und einer Frage statt eines Namens: <em class="q">„Bekommt dieser Bereich gerade absichtlich keine Energie?"</em> Ein undokumentiertes Jahr im Orbit bekommt eine schwache Bahnmarkierung mit dem Satz <em class="q">„nichts erfasst"</em> — nicht mit Nichts.</p>
+    <p>Das kostet fast keine Technik und ist der einzige Unterschied zwischen einem Raum, der dich informiert, und einem, der dich beruhigt.</p>
+  </div>
+</section>
+
+<!-- ============ BEFUND 2 ============ -->
+<section class="befund">
+  <span class="nr">BEFUND ZWEI</span>
+  <h2>Drei Räume, drei Zeiten, ein Leben</h2>
+  <p class="lede">Goal Horizon blickt nach vorn, Memory Orbit nach hinten, Project Singularity misst Reife. Drei Zeitmodelle, die sich nirgends berühren — obwohl dieselben Ereignisse in allen drei vorkommen.</p>
+
+  <p>Die Hadsch ist der Beweis. Sie steht als <strong>Erinnerung</strong> im Zeitstrahl (Anmeldung 2026), als <strong>Ziel</strong> mit Frist 2027 am Firmament, und die Anzahlung von 16.000 € am 04.09.2026 ist ein <strong>Meilenstein</strong>. Ein Ereignis, drei Räume, keine Verbindung.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="bahnen">
+      <div class="bahn">
+        <span>Memory Orbit</span>
+        <div class="spur"><div class="balken" style="left:0%;right:16.1%"></div><div class="marke" style="left:93.5%" title="Hadsch: Anmeldung 2026"></div></div>
+      </div>
+      <div class="bahn">
+        <span>Goal Horizon</span>
+        <div class="spur"><div class="balken" style="left:93.5%;right:0%"></div><div class="marke" style="left:96.8%" title="Hadsch: Frist 2027"></div></div>
+      </div>
+      <div class="bahn">
+        <span>Singularität</span>
+        <div class="spur"><div class="balken" style="left:90.3%;right:9.7%"></div><div class="marke" style="left:93.5%" title="Anzahlung 04.09.2026"></div></div>
+      </div>
+    </div>
+    <div class="bahnen-achse"><div></div><div><span>1997</span><span>2012</span><span>2028</span></div></div>
+  </div>
+  <figcaption>
+    Die drei Räume auf einer gemeinsamen Achse. Sie überlappen sich in einem schmalen Streifen um <b>heute</b> —
+    und die roten Marken sind <b>dreimal dasselbe Ereignis</b>: die Hadsch, in drei Räumen, ohne Verbindung.
+  </figcaption>
+</figure>
+
+<div class="spine center">
+<section class="befund" style="border-top:none;padding-top:34px">
+  <p>Hier liegt aus meiner Sicht der unterschätzte Teil deiner eigenen Idee. Das <strong>Wurmloch</strong> wird bisher als Navigationstrick behandelt: man springt an einen anderen Ort. Aber du hast es selbst anders beschrieben — <em class="q">„um bei verknüpften Sachen an den richtigen Ort auf der anderen Seite rauszukommen"</em>.</p>
+
+  <p>Der richtige Ort auf der anderen Seite ist nicht ein anderer Ordner. Es ist <strong>dasselbe Ding zu einer anderen Zeit.</strong> Ein Wurmloch, das dich von der Hadsch-Erinnerung zum Hadsch-Ziel und zum Anzahlungs-Meilenstein trägt, verbindet drei Räume zu einer Biografie. Das ist der Unterschied zwischen einem Möbelstück und einem Argument.</p>
+
+  <div class="vorschlag">
+    <h3>Vorschlag</h3>
+    <p><strong>Ein Wurmloch braucht keinen neuen Datentyp, nur eine gemeinsame Kennung.</strong> Wo Erinnerung, Ziel und Meilenstein denselben Vorgang meinen, tragen sie dieselbe ID. Der Raum kann dann von jedem der drei Punkte aus einen Trichter öffnen, und der Sog führt an genau die andere Stelle desselben Vorgangs.</p>
+    <p>Für den ersten Bau reicht <em>ein</em> solcher Vorgang. Die Hadsch ist der beste Kandidat, weil sie in allen drei Räumen bereits belegt ist.</p>
+  </div>
+</section>
+
+<!-- ============ BEFUND 3 ============ -->
+<section class="befund">
+  <span class="nr">BEFUND DREI</span>
+  <h2>Helligkeit bestraft Geduld</h2>
+  <p class="lede">Die Regel lautet: wer sich bemüht, dessen Stern leuchtet — wer nichts tut, dessen Stern wird dunkel. Sie kollidiert mit einer zweiten Regel, die du am selben Tag aufgestellt hast.</p>
+
+  <p>Gemessen an deinen sechs Zielen: bei <span class="zahl">fünf</span> bist <strong>du</strong> am Zug. Bei genau <span class="zahl">einem</span> sind es <strong>andere</strong> — die Hadsch. Dort sind 16.000 € überwiesen, das Visum liegt bei den Behörden, und Nichtstun ist die einzig richtige Handlung.</p>
+
+  <p>Unter der Helligkeitsregel würde ausgerechnet dieser Stern verblassen. Der Raum würde dir Vorwürfe für etwas machen, das du korrekt erledigt hast. Ich sage das ausdrücklich als Widerspruch in dem Regelwerk, das ich heute selbst geschrieben habe.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body tabelle-scroll">
+    <table>
+      <thead><tr><th>Was gemessen wird</th><th>Kanal</th><th>Bedeutet</th></tr></thead>
+      <tbody>
+        <tr><td>Eigener Einsatz in der letzten Woche</td><td class="mono">Helligkeit 0–5</td><td>Wie viel Energie <em>ich</em> hineingebe</td></tr>
+        <tr><td>Warten auf andere, korrekt</td><td class="mono">ruhiger Ring</td><td>Es läuft — nur nicht bei mir</td></tr>
+        <tr><td>Kein Nachweisort hinterlegt</td><td class="mono">Umriss ohne Füllung</td><td>Das System <em>weiß</em> nichts (2 von 6 Zielen)</td></tr>
+        <tr><td>Frist verstrichen, nichts passiert</td><td class="mono">Flackern</td><td>Hier ist etwas kaputt, nicht nur ruhig</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <figcaption>
+    Vier Zustände, die im heutigen Entwurf alle auf denselben Kanal fallen — <b>dunkel</b>.
+    Ein Stern, der wartet, ein Stern, der nicht gemessen werden kann, und ein Stern, der vergessen wurde,
+    sehen identisch aus. Damit sagt der Helligkeitswert nichts mehr aus.
+  </figcaption>
+</figure>
+
+<div class="spine center">
+<section class="befund" style="border-top:none;padding-top:34px">
+  <div class="vorschlag">
+    <h3>Vorschlag</h3>
+    <p><strong>Helligkeit misst dich, nicht die Welt.</strong> Sie fällt nur, wenn <em>du</em> am Zug bist und nichts tust. Steht <code style="font-family:'JetBrains Mono',monospace;font-size:.85em">am_zug: andere</code>, friert die Helligkeit ein und ein zweiter, ruhiger Kanal übernimmt — ein gleichmäßiger Ring, der sagt: <em class="q">läuft, nur nicht bei dir.</em></p>
+    <p>Sonst baust du dir ein Laufband. Ein System, das dich für Warten bestraft, erzieht dich dazu, Beschäftigung zu erzeugen statt Fortschritt — und das ist das Gegenteil von dem, wofür du das Ding baust.</p>
+  </div>
+</section>
+
+<!-- ============ BEFUND 4 ============ -->
+<section class="befund">
+  <span class="nr">BEFUND VIER</span>
+  <h2>Der Raum überzeugt, bevor er stimmt</h2>
+  <p class="lede">Zwei Fälle, heute gemessen, beide unabhängig voneinander entstanden, beide mit demselben Muster: die Animation sieht richtig aus und ist es nicht.</p>
+
+  <p><strong>Der Sog</strong> auf dem Prototyp ordnet Projekte nach dem Alter der Datei und sieht dabei exakt so aus, als ordne er nach Reifegrad. <strong>Der Neural Beam</strong> im anderen Track hat Start und Ziel fest im Code — er zielt immer auf die Bildschirmmitte und trifft das Gehirn nur, solange es zufällig dort liegt.</p>
+
+  <p>Beide Fehler haben dieselbe Ursache: eine überzeugende Bewegung wird als Aussage gelesen. Und beide waren mit bloßem Auge nicht zu erkennen — genau das macht sie gefährlich in einem System, dem du morgens glauben sollst.</p>
+</section>
+</div>
+
+<figure class="figure">
+  <div class="body">
+    <div class="strahlen">
+      <figure>
+        <svg viewBox="0 0 340 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fest verdrahteter Strahl trifft die Bildschirmmitte statt des Ziels">
+          <rect x="0.5" y="0.5" width="339" height="189" fill="none" stroke="var(--line)"/>
+          <circle cx="120" cy="72" r="26" fill="none" stroke="var(--muted)" stroke-dasharray="3 4"/>
+          <circle cx="238" cy="118" r="7" fill="var(--rust)"/>
+          <text x="238" y="145" fill="var(--rust)" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">echte Notiz</text>
+          <line x1="318" y1="172" x2="146" y2="88" stroke="var(--gold)" stroke-width="2.5"/>
+          <circle cx="146" cy="88" r="4.5" fill="var(--gold)"/>
+          <text x="120" y="76" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">50% / 46%</text>
+          <circle cx="318" cy="172" r="5" fill="var(--ink)"/>
+        </svg>
+        <p><b>Fest verdrahtet</b>Der Strahl endet immer bei 50 % / 46 %. Was er trifft, ist Zufall.</p>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 340 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gemessener Strahl trifft die tatsächlich gelesene Notiz">
+          <rect x="0.5" y="0.5" width="339" height="189" fill="none" stroke="var(--line)"/>
+          <circle cx="238" cy="118" r="7" fill="var(--gold)"/>
+          <circle cx="238" cy="118" r="15" fill="none" stroke="var(--gold)" stroke-width="1.2" opacity="0.55"/>
+          <circle cx="238" cy="118" r="24" fill="none" stroke="var(--gold)" stroke-width="0.8" opacity="0.28"/>
+          <text x="238" y="152" fill="var(--gold)" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">gemessener Punkt</text>
+          <line x1="318" y1="172" x2="245" y2="125" stroke="var(--gold)" stroke-width="2.5"/>
+          <circle cx="318" cy="172" r="5" fill="var(--ink)"/>
+          <text x="150" y="40" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="10">vector.project(camera)</text>
+        </svg>
+        <p><b>Gemessen</b>Kopf und Ziel melden jeden Frame ihre Bildschirmlage. Der Strahl trifft, was gelesen wird.</p>
+      </figure>
+    </div>
+  </div>
+  <figcaption>
+    Der Unterschied kostet rund <b>30 Zeilen</b>: Start und Ziel als Eingabewerte statt als Konstanten.
+    Die Optik des rechten Bildes ist dieselbe wie links — nur die Zahlen kommen aus der Messung.
+  </figcaption>
+</figure>
+
+<div class="spine center">
+<section class="befund" style="border-top:none;padding-top:34px">
+  <div class="vorschlag">
+    <h3>Vorschlag — eine Regel, die alles betrifft</h3>
+    <p><strong>Nichts bewegt sich auf einen Punkt zu, der nicht gemessen wurde.</strong> Gibt es keine Messung, wird nichts gezeichnet. Ein fehlender Strahl ist ehrlich; ein Strahl ins Leere ist eine Behauptung.</p>
+    <p>Dazu ein Schalter, der die gemessenen Punkte sichtbar macht. Wenn drei Agenten parallel an denselben Räumen bauen, ist das der einzige Weg, einen hübschen Fehler von einer richtigen Anzeige zu unterscheiden — mit bloßem Auge geht es nachweislich nicht.</p>
+  </div>
+</section>
+
+<!-- ============ SCHLUSS ============ -->
+<section class="befund">
+  <span class="nr">WAS ICH ZUERST BAUEN WÜRDE</span>
+  <h2>Vier Schritte, in dieser Reihenfolge</h2>
+
+  <p><strong>Erstens die Leerstelle.</strong> Sie ist fast umsonst und verändert sofort, was der Raum über dich sagt. Ohne sie zeigt Goal Horizon zwei Drittel deines Lebens und schweigt über den Rest.</p>
+
+  <p><strong>Zweitens die Messregel.</strong> Bevor drei Zweige parallel Welten bauen, muss feststehen, dass nichts gezeichnet wird, was nicht gemessen ist. Sonst sammelst du überzeugende Fehler schneller ein, als du sie prüfen kannst.</p>
+
+  <p><strong>Drittens die Helligkeit an <code style="font-family:'JetBrains Mono',monospace;font-size:.85em">am_zug</code> koppeln.</strong> Das ist eine kleine Änderung in einer Notiz, die verhindert, dass der Raum dir für die Hadsch einen Vorwurf macht.</p>
+
+  <p><strong>Viertens ein einziges Wurmloch</strong>, an der Hadsch, quer durch alle drei Räume. Ein funktionierender Fall ist mehr wert als fünf angedeutete — und wenn dieser eine Sprung sitzt, ist das Muster für alle anderen bewiesen.</p>
+
+  <div class="pull">Zwei Sterne können nicht leuchten, weil niemand weiß, wo ihr Nachweis liegt. Das ist keine Designfrage — das ist die Frage, ob du dem Himmel glauben kannst.</div>
+
+  <p>Das Letzte kann ich nicht für dich lösen: bei <strong>99 Namen</strong> fehlt der Speicherort der App, bei <strong>Mit KI den Lebensunterhalt verdienen</strong> fehlt die Vorgabe, woran du es überhaupt merken würdest. Solange das offen ist, stehen beide zu Recht auf <em>unklar</em> — als Umriss, nicht als Behauptung.</p>
+</section>
+</div>
+
+<footer>
+  <div class="spine center">
+    <h3>Woher die Zahlen kommen</h3>
+    <ul>
+      <li><b>6 Ziele, 5 Sternbilder, 3 Doppelzugehörigkeiten</b> — Frontmatter in <code>03🪪 Identität/Ziele/</code>, gelesen 2026-09-07</li>
+      <li><b>2 Sternbilder ohne Ziel</b> — Abgleich mit <code>03🪪 Identität/04 Langfristige Ziele</code></li>
+      <li><b>33 Stationen, 12 von 31 Jahren</b> — <code>/api/vault/timeline</code> gegen <code>04📖 Lebensprofil</code></li>
+      <li><b>5 von 6 Zielen „am Zug: ich"</b> — Feld <code>am_zug</code> in den Zielnotizen</li>
+      <li><b>Anzahlung 16.000 € am 04.09.2026</b> — <code>03🪪 Identität/Ziele/Hadsch 2027</code>, Meilenstein 4</li>
+      <li><b>Sog nach Dateialter</b> — <code>SingularityWorld.tsx</code>, Prototyp-Zweig</li>
+      <li><b>Strahl fest verdrahtet</b> — <code>JarvisNeuralBeam.tsx</code>, Zeilen 89–110, Zweig <code>work/v2-antigravity</code></li>
+      <li>Regelwerke: <code>05 🚀 Projekte/00 Übersicht/Projektphasen</code> · <code>03🪪 Identität/20 Zielsystem</code></li>
+    </ul>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);margin-top:26px;line-height:1.75">
+      Vorentwurf, nicht verbindlich. Diese Seite ist eine Sicht, keine Anweisung —
+      sie ersetzt keine der bestehenden Konzeptseiten, sondern nennt, was in ihnen noch fehlt.
+    </p>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Ansicht ---------- */
+  var root = document.documentElement;
+  document.getElementById("tt").addEventListener("click", function () {
+    var dark = getComputedStyle(root).getPropertyValue("--ground").trim().indexOf("#14") === 0;
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+    drawSky();
+  });
+
+  /* ---------- Jahresstreifen ---------- */
+  var JAHRE_MIT = [1997, 2007, 2008, 2014, 2017, 2020, 2021, 2023, 2024, 2025, 2026, 2027];
+  var streifen = document.getElementById("jahre");
+  for (var y = 1997; y <= 2027; y++) {
+    var i = document.createElement("i");
+    if (JAHRE_MIT.indexOf(y) !== -1) i.className = "voll";
+    i.title = y + (JAHRE_MIT.indexOf(y) !== -1 ? "" : " — nichts erfasst");
+    streifen.appendChild(i);
+  }
+
+  /* ---------- Der Himmel ---------- */
+
+  // Sternbilder: Ankerpunkte, normalisiert
+  var BILDER = [
+    { id: "beruflich",  name: "BERUFLICH",   x: 0.20, y: 0.30, leer: false },
+    { id: "lernen",     name: "LERNEN",      x: 0.50, y: 0.16, leer: false },
+    { id: "spirituell", name: "SPIRITUELL",  x: 0.83, y: 0.26, leer: false },
+    { id: "familiaer",  name: "FAMILIÄR",    x: 0.33, y: 0.80, leer: true  },
+    { id: "gesundheit", name: "GESUNDHEIT",  x: 0.68, y: 0.83, leer: true  }
+  ];
+
+  // Ziele: echte Daten aus 03 Identität/Ziele/
+  var ZIELE = [
+    { t: "Beruflich in KI wechseln",  x: 0.11, y: 0.50, zu: ["beruflich"],              art: "hell",   frist: "12/2026" },
+    { t: "Mit KI Lebensunterhalt",    x: 0.22, y: 0.60, zu: ["beruflich"],              art: "umriss", frist: "06/2027" },
+    { t: "RPA-Zertifikat",            x: 0.36, y: 0.34, zu: ["beruflich", "lernen"],    art: "matt",   frist: "03/2027" },
+    { t: "Hermes 3D im Alltag",       x: 0.40, y: 0.52, zu: ["beruflich", "lernen"],    art: "hell",   frist: "06/2027" },
+    { t: "99 Namen Allahs",           x: 0.68, y: 0.12, zu: ["lernen", "spirituell"],   art: "umriss", frist: "12/2028" },
+    { t: "Hadsch 2027",               x: 0.93, y: 0.47, zu: ["spirituell"],             art: "warte",  frist: "2027" }
+  ];
+
+  var cv = document.getElementById("sky");
+  var ctx = cv.getContext("2d");
+
+  function farbe(n) { return getComputedStyle(root).getPropertyValue(n).trim(); }
+
+  function drawSky() {
+    var W = cv.width, H = cv.height;
+    var gold = farbe("--gold"), goldDim = farbe("--gold-dim"), muted = farbe("--muted"),
+        rust = farbe("--rust"), cool = farbe("--cool"), ink = farbe("--ink"),
+        line = farbe("--line"), surface = farbe("--surface");
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = surface;
+    ctx.fillRect(0, 0, W, H);
+
+    // Stiller Hintergrundstaub — deterministisch, damit das Bild stabil bleibt
+    var seed = 7;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    ctx.fillStyle = muted;
+    ctx.globalAlpha = 0.18;
+    for (var s = 0; s < 150; s++) {
+      var sx = rnd() * W, sy = rnd() * H, sr = rnd() * 1.1 + 0.25;
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    var px = function (b) { return b.x * W; };
+    var py = function (b) { return b.y * H; };
+    var byId = {};
+    BILDER.forEach(function (b) { byId[b.id] = b; });
+
+    // Verbindungslinien: Ziel -> jedes seiner Sternbilder
+    ZIELE.forEach(function (z) {
+      z.zu.forEach(function (id) {
+        var b = byId[id];
+        ctx.beginPath();
+        ctx.moveTo(z.x * W, z.y * H);
+        ctx.lineTo(px(b), py(b));
+        ctx.strokeStyle = z.zu.length > 1 ? gold : line;
+        ctx.globalAlpha = z.zu.length > 1 ? 0.42 : 0.75;
+        ctx.lineWidth = z.zu.length > 1 ? 1.6 : 1;
+        ctx.stroke();
+      });
+    });
+    ctx.globalAlpha = 1;
+
+    // Sternbild-Anker
+    BILDER.forEach(function (b) {
+      var x = px(b), y = py(b);
+      if (b.leer) {
+        ctx.beginPath();
+        ctx.arc(x, y, 30, 0, 6.2832);
+        ctx.setLineDash([5, 6]);
+        ctx.strokeStyle = rust;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = rust;
+        ctx.font = "600 26px 'Instrument Serif', Georgia, serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("0", x, y + 1);
+
+        ctx.font = "600 12px 'JetBrains Mono', monospace";
+        ctx.fillText(b.name, x, y + 48);
+        ctx.fillStyle = muted;
+        ctx.font = "11px 'JetBrains Mono', monospace";
+        ctx.fillText("kein Ziel", x, y + 66);
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, 6.2832);
+        ctx.fillStyle = muted;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 13, 0, 6.2832);
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = muted;
+        ctx.font = "600 12px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(b.name, x, y - 30);
+      }
+    });
+
+    // Zielsterne
+    ZIELE.forEach(function (z) {
+      var x = z.x * W, y = z.y * H;
+
+      if (z.art === "hell") {
+        var g = ctx.createRadialGradient(x, y, 0, x, y, 34);
+        g.addColorStop(0, gold);
+        g.addColorStop(0.18, gold);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = 0.30;
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, 34, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(x, y, 7.5, 0, 6.2832);
+        ctx.fillStyle = gold; ctx.fill();
+      } else if (z.art === "matt") {
+        ctx.beginPath(); ctx.arc(x, y, 6, 0, 6.2832);
+        ctx.fillStyle = goldDim; ctx.fill();
+      } else if (z.art === "umriss") {
+        ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832);
+        ctx.strokeStyle = muted; ctx.lineWidth = 1.6; ctx.stroke();
+      } else if (z.art === "warte") {
+        ctx.beginPath(); ctx.arc(x, y, 6, 0, 6.2832);
+        ctx.strokeStyle = cool; ctx.lineWidth = 1.8; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 15, 0, 6.2832);
+        ctx.strokeStyle = cool; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      // Beschriftung, weg von der Bildkante
+      var rechts = x < W * 0.62;
+      ctx.textAlign = rechts ? "left" : "right";
+      ctx.textBaseline = "middle";
+      var off = rechts ? 20 : -20;
+
+      ctx.fillStyle = ink;
+      ctx.font = "16px 'Newsreader', Georgia, serif";
+      ctx.fillText(z.t, x + off, y - 7);
+
+      ctx.fillStyle = muted;
+      ctx.font = "11px 'JetBrains Mono', monospace";
+      ctx.fillText(z.frist + (z.art === "umriss" ? "  ·  kein Nachweisort" : z.art === "warte" ? "  ·  andere am Zug" : ""), x + off, y + 11);
+    });
+  }
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(drawSky);
+  }
+  drawSky();
+})();
+</script>

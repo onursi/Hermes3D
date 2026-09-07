@@ -131,7 +131,7 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
   const update = () => {
     const now = audio.currentTime;
     const audible = document.visibilityState === "visible" && document.hasFocus();
-    const isHyper = Boolean(flightAudio.hyperdrive);
+    const isHyper = travelling && Boolean(flightAudio.hyperdrive);
 
     // Master Volume: Codex 0.6 im Normalmodus, Antigravity 0.92 bei Hyperantrieb
     master.gain.setTargetAtTime(audible ? volume * (isHyper ? 0.92 : 0.6) : 0, now, 0.12);
@@ -175,8 +175,8 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
     }
 
     // --- Codex Original Normal-Modus Klangmodulation ---
-    const depth = spatialSignal.depth;
-    const memoryFlow = spatialSignal.memorySpeed;
+    const depth = gravity ? spatialSignal.depth : 0;
+    const memoryFlow = memory ? spatialSignal.memorySpeed : 0;
     const power = travelling ? Math.min(1, Math.log1p(flightAudio.speed / 26) / Math.log(101)) : 0;
     engine.oscillator.frequency.setTargetAtTime(gravity ? 32 + depth * 43 + Math.sin(tick * 0.12) * 3 : 48 + power * 180, now, 0.12);
     engine.gain.gain.setTargetAtTime(gravity ? 0.025 + depth * 0.14 : power * 0.19, now, 0.1);

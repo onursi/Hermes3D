@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Goal Horizon — Konzept</title>
+<style>
+  :root{
+    --bg:#02040a;
+    --panel:rgba(8,16,30,.82);
+    --panel-solid:rgba(10,19,35,.96);
+    --line:rgba(140,190,255,.14);
+    --line-strong:rgba(150,205,255,.34);
+    --text:#e9f2ff;
+    --muted:#8ba0c0;
+    --dim:#5d6f8c;
+    --cyan:#5cc8ff;
+    --violet:#b18bff;
+    --gold:#f0c070;
+    --emerald:#5fd8a4;
+    --rose:#ff7a92;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  canvas{position:fixed;inset:0;display:block}
+
+  /* ---------- Kopfzeile ---------- */
+  .top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;
+    align-items:flex-start;padding:16px 20px;z-index:20;pointer-events:none;gap:16px}
+  .brand{pointer-events:auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:11px 16px;backdrop-filter:blur(18px)}
+  .brand h1{margin:0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;font-weight:650}
+  .brand p{margin:5px 0 0;font-size:11px;color:var(--muted);letter-spacing:.02em}
+
+  .views{pointer-events:auto;display:flex;gap:6px;background:var(--panel);
+    border:1px solid var(--line);border-radius:999px;padding:5px;backdrop-filter:blur(18px)}
+  .views button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;
+    letter-spacing:.06em;padding:8px 15px;border-radius:999px;cursor:pointer;transition:.18s;white-space:nowrap}
+  .views button:hover{color:var(--text)}
+  .views button[aria-pressed="true"]{background:rgba(92,200,255,.14);color:#dcf1ff}
+
+  /* ---------- Erklärstreifen ---------- */
+  .rules{position:fixed;left:20px;bottom:20px;z-index:20;max-width:330px;
+    background:var(--panel);border:1px solid var(--line);border-radius:18px;
+    padding:14px 16px;backdrop-filter:blur(18px)}
+  .rules h2{margin:0 0 10px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+  .rules dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:11.5px;line-height:1.45}
+  .rules dt{color:var(--text);font-weight:600;white-space:nowrap}
+  .rules dd{margin:0;color:var(--muted)}
+  .rules .note{margin:11px 0 0;font-size:10.5px;line-height:1.5;color:var(--dim);
+    border-top:1px solid var(--line);padding-top:9px}
+
+  /* ---------- Detailtafel ---------- */
+  .sheet{position:fixed;top:78px;right:20px;width:352px;max-height:calc(100vh - 130px);
+    overflow:auto;z-index:22;background:var(--panel-solid);border:1px solid var(--line);
+    border-radius:20px;backdrop-filter:blur(22px);box-shadow:0 26px 70px rgba(0,0,0,.55);
+    opacity:0;transform:translateX(14px);pointer-events:none;transition:.24s ease}
+  .sheet.on{opacity:1;transform:none;pointer-events:auto}
+  .sheet header{padding:16px 18px 12px;border-bottom:1px solid var(--line);position:relative}
+  .eyebrow{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+  .sheet h3{margin:8px 0 0;font-size:18px;line-height:1.2;font-weight:640;letter-spacing:-.015em}
+  .sheet .close{position:absolute;top:14px;right:14px;border:0;background:transparent;
+    color:var(--dim);font-size:17px;cursor:pointer;line-height:1;padding:4px}
+  .sheet .close:hover{color:var(--text)}
+  .sheet .body{padding:14px 18px 18px}
+
+  .kv{display:grid;grid-template-columns:96px 1fr;gap:7px 12px;font-size:12px;line-height:1.5;margin:0}
+  .kv dt{color:var(--dim)}
+  .kv dd{margin:0;color:var(--text)}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--line);
+    color:var(--muted);white-space:nowrap}
+  .badge.real{border-color:rgba(95,216,164,.34);color:#a8e9cb}
+  .badge.draft{border-color:rgba(240,192,112,.32);color:#f3d59a}
+
+  .steps{margin:14px 0 0;padding:0;list-style:none;border-top:1px solid var(--line);padding-top:12px}
+  .steps li{display:grid;grid-template-columns:20px 1fr;gap:10px;padding:7px 0;font-size:12.5px;line-height:1.45}
+  .steps .mark{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--dim);margin-top:2px}
+  .steps li.done .mark{background:var(--emerald);border-color:var(--emerald)}
+  .steps li.here .mark{border-color:var(--cyan);box-shadow:0 0 0 4px rgba(92,200,255,.16)}
+  .steps li.late .mark{border-color:var(--gold)}
+  .steps .when{display:block;font-size:10.5px;color:var(--dim);margin-top:2px}
+  .steps li.late .when{color:var(--gold)}
+  .steps li.here .label{color:#cfeaff;font-weight:600}
+
+  .reason{margin-top:6px;padding:9px 11px;border-radius:11px;font-size:11px;line-height:1.5;
+    background:rgba(240,192,112,.07);border:1px solid rgba(240,192,112,.22);color:#f2dcb0}
+  .reason strong{color:var(--gold);font-weight:600}
+
+  .paths{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+  .paths h4{margin:0 0 8px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .chiprow{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:11px;padding:5px 10px;border-radius:9px;background:rgba(255,255,255,.04);
+    border:1px solid var(--line);color:#c8d8ee}
+  .chip.none{border-style:dashed;color:var(--gold);background:rgba(240,192,112,.06)}
+
+  .curve{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .curve h4{margin:0 0 8px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .curve svg{width:100%;height:52px;display:block}
+
+  /* ---------- Zustandslegende ---------- */
+  .states{position:fixed;right:20px;bottom:20px;z-index:20;display:flex;flex-direction:column;gap:7px;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px 14px;
+    backdrop-filter:blur(18px);font-size:11px}
+  .states div{display:flex;align-items:center;gap:9px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+
+  .hint{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:19;
+    font-size:11px;color:var(--dim);letter-spacing:.04em;pointer-events:none;
+    background:rgba(4,9,18,.6);padding:7px 14px;border-radius:999px;border:1px solid var(--line)}
+
+  @media (max-width:1100px){
+    .rules{display:none}
+    .sheet{width:min(352px,calc(100vw - 40px))}
+  }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+
+<div class="top">
+  <div class="brand">
+    <h1>Goal Horizon</h1>
+    <p>Wohin zeigt mein Leben — und was zahlt darauf ein?</p>
+  </div>
+  <div class="views" role="group" aria-label="Ansicht">
+    <button id="v-horizon" aria-pressed="true">Horizont</button>
+    <button id="v-path" aria-pressed="false">Zielweg</button>
+    <button id="v-top" aria-pressed="false">Draufsicht</button>
+  </div>
+</div>
+
+<div class="rules">
+  <h2>Was die Darstellung bedeutet</h2>
+  <dl>
+    <dt>Sternbild</dt><dd>eine Lebensrichtung — wird nie erreicht, geht nie aus</dd>
+    <dt>Stern</dt><dd>ein konkretes Ziel mit Frist</dd>
+    <dt>Größe</dt><dd>Bedeutung des Ziels</dd>
+    <dt>Entfernung</dt><dd>Zeithorizont</dd>
+    <dt>Helligkeit</dt><dd>wie viel Handlung dieses Ziel gerade bekommt</dd>
+    <dt>Linien</dt><dd>Projekte, die darauf einzahlen</dd>
+  </dl>
+  <p class="note">Helligkeit misst nicht, wie gut du bist — sondern wohin deine Aufmerksamkeit fließt.
+  Ein Ziel ohne Nachweisort bleibt Umriss: dann weiß das System nichts, statt etwas zu behaupten.</p>
+</div>
+
+<div class="states">
+  <div><span class="dot" style="background:#5cc8ff;box-shadow:0 0 10px #5cc8ff"></span>aktiv — atmet ruhig</div>
+  <div><span class="dot" style="background:#3a5a7d"></span>unterversorgt — Puls schwächer</div>
+  <div><span class="dot" style="background:#f0c070;box-shadow:0 0 0 3px rgba(240,192,112,.2)"></span>bewusst zurückgestellt — Halo</div>
+  <div><span class="dot" style="background:transparent;border:1.5px solid #6d7f9c"></span>unklar — kein Nachweis</div>
+  <div><span class="dot" style="background:#cfd8e6"></span>verworfen — weißer Zwerg</div>
+</div>
+
+<div class="hint" id="hint">Stern anklicken · Ziehen zum Umsehen · Mausrad zoomt</div>
+
+<aside class="sheet" id="sheet" aria-live="polite">
+  <header>
+    <button class="close" id="sheetClose" aria-label="Schließen">✕</button>
+    <span class="eyebrow" id="sheetEyebrow">Ziel</span>
+    <h3 id="sheetTitle">—</h3>
+  </header>
+  <div class="body" id="sheetBody"></div>
+</aside>
+
+<script>
+/* ==========================================================================
+   Goal Horizon — Konzeptfassung
+   --------------------------------------------------------------------------
+   Eine eigene kleine 3D-Projektion statt einer Bibliothek: die Datei soll
+   ohne Netz aus dem Vault heraus funktionieren. Alles, was hier räumlich ist,
+   traegt Bedeutung — Richtung, Entfernung und Helligkeit sind Daten, keine
+   Dekoration.
+
+   HERKUNFT DER INHALTE — bewusst sichtbar gemacht:
+   Jedes Ziel traegt eine Marke. "aus dem Vault" heisst: steht wirklich in
+   Onurs Notizen. "Vorschlag" heisst: von mir zur Veranschaulichung ergaenzt
+   und noch nicht entschieden. Ein Konzept, das erfundene Zahlen als echte
+   ausgibt, ist genau der Fehler, den wir heute abgeraeumt haben.
+   ========================================================================== */
+
+const SKY = document.getElementById('sky');
+const ctx = SKY.getContext('2d');
+
+/* ---------- Sternbilder: Onurs Lebensrichtungen ---------------------------
+   Wortlaut aus 03 Identitaet / 04 Langfristige Ziele. Diese Richtungen sind
+   nicht terminierbar und duerfen deshalb nie dunkel werden.               */
+const CONSTELLATIONS = {
+  beruflich:  { label:'Beruflich',  colour:'#5cc8ff', dir:[ 0.62, 0.30,-0.72], quote:'Experte für Künstliche Intelligenz und intelligente Wissenssysteme werden' },
+  lernen:     { label:'Lernen',     colour:'#b18bff', dir:[-0.55, 0.42,-0.72], quote:'Lebenslang lernen und mein Wissen stetig erweitern' },
+  spirituell: { label:'Spirituell', colour:'#f0c070', dir:[ 0.06, 0.78,-0.62], quote:'Allah näher kommen, meinen Glauben vertiefen' },
+  familiaer:  { label:'Familiär',   colour:'#5fd8a4', dir:[-0.10,-0.16,-0.98], quote:'Meiner Familie langfristig Sicherheit geben' },
+};
+
+/* ---------- Die Ziele ----------------------------------------------------
+   distance : Zeithorizont in Jahren -> Entfernung im Raum
+   size     : Bedeutung
+   level    : Helligkeitsstufe 0..5 (Wochen in Folge mit Nachweis)
+   state    : aktiv | unterversorgt | zurueckgestellt | unklar | verworfen
+   steps    : Meilensteine, vorab definiert. done/late/plan
+   feeds    : Projekte, die einzahlen (leer = Ziel ohne Weg)              */
+const GOALS = [
+  {
+    id:'hermes',
+    title:'Hermes 3D benutzbar im Alltag',
+    inn:['beruflich','lernen'], distance:0.9, size:1.35, level:5, state:'aktiv',
+    source:'real', horizon:'Q1 2027',
+    picture:'Ich öffne morgens Hermes statt Obsidian — und finde schneller, was ich brauche.',
+    proof:'Tagesrückblicke · Commits im Projektordner',
+    quota:'täglich, solange die Entscheidungsphase läuft',
+    steps:[
+      { label:'Räumliche Grundstruktur steht',    when:'08/2026', done:true },
+      { label:'Echter Vault statt Beispieldaten', when:'09/2026', done:true },
+      { label:'Jarvis liest und antwortet',       when:'09/2026', done:true },
+      { label:'Projekt- und Zielräume verbunden', when:'10/2026', here:true },
+      { label:'Eine Variante entschieden',        when:'11/2026' },
+      { label:'Zwei Wochen täglich benutzt',      when:'01/2027' },
+    ],
+    feeds:['Hermes Agent OS','Konzil','Second Brain'],
+  },
+  {
+    id:'ki-geld',
+    title:'Mit KI meinen Lebensunterhalt verdienen',
+    inn:['beruflich'], distance:3.4, size:1.9, level:2, state:'aktiv',
+    source:'real', horizon:'2029',
+    picture:'Ein wiederholbares KI-Angebot, das regelmäßig bezahlt wird.',
+    proof:'noch nicht festgelegt',
+    quota:'noch nicht festgelegt',
+    steps:[
+      { label:'KI-Kompetenz nachweisbar aufgebaut', when:'2026', done:true },
+      { label:'Erstes KI-Angebot formuliert',       when:'Q1 2027', here:true },
+      { label:'Ersten Pilotkunden gewonnen',        when:'Q2 2027' },
+      { label:'Erstes bezahltes KI-Projekt',        when:'Q4 2027' },
+      { label:'Angebot wiederholbar',               when:'2028' },
+      { label:'Regelmäßiger Umsatz',                when:'2029' },
+    ],
+    feeds:['Company OS','KI-Pilotkunden aus dem Ströer-Stamm'],
+  },
+  {
+    id:'wechsel',
+    title:'Beruflich in KI / Strategie wechseln',
+    inn:['beruflich'], distance:1.8, size:1.5, level:3, state:'aktiv',
+    source:'real', horizon:'2027',
+    picture:'Eine Stelle, in der KI-Systeme mein Arbeitsinhalt sind, nicht mein Hobby.',
+    proof:'Bewerbungen im Hermes-Workflow',
+    quota:'zwei ernsthafte Bewerbungen pro Monat',
+    steps:[
+      { label:'Profil geschärft',                when:'08/2026', done:true },
+      { label:'Bewerbungsworkflow steht',        when:'09/2026', done:true },
+      { label:'Erste Gespräche geführt',         when:'11/2026', here:true },
+      { label:'Zusage in passender Rolle',       when:'2027' },
+    ],
+    feeds:['Hermes-Bewerbungsworkflow'],
+  },
+  {
+    id:'rpa',
+    title:'RPA-Zertifikat (UiPath) bestehen',
+    inn:['beruflich','lernen'], distance:1.3, size:0.95, level:1, state:'zurueckgestellt',
+    source:'real', horizon:'Q1 2027',
+    picture:'Das Zertifikat liegt vor und steht in den Bewerbungen.',
+    proof:'Todoist-Label #rpa',
+    quota:'3 Stunden pro Woche',
+    paused:{ since:'30.08.2026', why:'Fokus liegt auf Hermes 3D' },
+    steps:[
+      { label:'Kurs begonnen, Programme installiert', when:'08/2026', done:true },
+      { label:'Ersten Prozess automatisiert',         when:'08/2026', done:true },
+      { label:'Übungsprojekte abgeschlossen',         when:'10/2026', late:'Fokus lag auf Hermes 3D — bewusste Priorität, neu terminiert auf 12/2026', here:true },
+      { label:'Prüfung abgelegt',                     when:'Q1 2027' },
+    ],
+    feeds:['RPA & AI Automation'],
+    curve:[0,1,2,3,4,4,3,2,1,1],
+  },
+  {
+    id:'hadsch',
+    title:'Hadsch antreten',
+    inn:['spirituell'], distance:2.6, size:1.45, level:0, state:'unklar',
+    source:'real', horizon:'offen',
+    picture:'Die Hadsch durchgeführt — bereits angemeldet, bisher nicht zustande gekommen.',
+    proof:'kein Nachweisort hinterlegt',
+    quota:'keine',
+    steps:[
+      { label:'Angemeldet', when:'—', done:true },
+      { label:'Zuteilung erhalten', when:'offen' },
+      { label:'Reise durchgeführt', when:'offen' },
+    ],
+    feeds:[],
+  },
+  {
+    id:'namen',
+    title:'Die 99 Namen Allahs verstehen und leben',
+    inn:['spirituell','lernen'], distance:1.6, size:1.1, level:0, state:'unklar',
+    source:'real', horizon:'offen',
+    picture:'Nicht auswendig aufsagen — verstehen und im Handeln wiederfinden.',
+    proof:'kein Nachweisort hinterlegt',
+    quota:'keine',
+    steps:[{ label:'Eigene App gebaut', when:'2026', done:true }, { label:'Bedeutungen durchgearbeitet', when:'offen' }],
+    feeds:['99-Namen-App (abgeschlossen)'],
+  },
+  {
+    id:'youtube',
+    title:'YouTube-Kanal aufbauen',
+    inn:[], distance:2.1, size:0.85, level:0, state:'unklar',
+    source:'draft', horizon:'keine Frist',
+    picture:'Steht als Idee im Vault — aber auf welche Lebensrichtung zahlt er ein?',
+    proof:'kein Nachweisort hinterlegt',
+    quota:'keine',
+    steps:[],
+    feeds:[],
+    orphan:true,
+  },
+  {
+    id:'beispiel-verworfen',
+    title:'Beispiel: ein bewusst verworfenes Ziel',
+    inn:['lernen'], distance:1.1, size:0.7, level:0, state:'verworfen',
+    source:'draft', horizon:'—',
+    picture:'Zeigt nur den Zustand. Kein echtes Ziel von Onur.',
+    proof:'—', quota:'—',
+    dropped:{ at:'—', why:'Beispielzustand für die Darstellung', peak:'Stufe 4' },
+    steps:[],
+    feeds:[],
+    curve:[0,1,2,3,4,4,3,1,0,0],
+  },
+];
+
+/* ========================================================================== */
+/*  Kleine 3D-Projektion                                                       */
+/* ========================================================================== */
+
+const UNIT = 150;            // Bildeinheiten je Jahr Zeithorizont
+const cam = {
+  // Kugelkoordinaten um den Blickpunkt; alles wird weich angeglichen.
+  yaw:0, pitch:0.05, dist:520, target:[0,30,-300],
+  tYaw:0, tPitch:0.05, tDist:520, tTarget:[0,30,-300],
+};
+let view = 'horizon';
+let selected = null;
+let hovered = null;
+let W=0, H=0, DPR=1;
+let t0 = performance.now();
+
+function resize(){
+  DPR = Math.min(devicePixelRatio||1, 2);
+  W = innerWidth; H = innerHeight;
+  SKY.width = W*DPR; SKY.height = H*DPR;
+  SKY.style.width = W+'px'; SKY.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize', resize); resize();
+
+/** Weltposition eines Ziels: Richtung des Sternbilds mal Zeithorizont. */
+function goalPos(g){
+  if (g._pos) return g._pos;
+  let d = [0,0,-1];
+  if (g.inn.length){
+    d = [0,0,0];
+    for (const key of g.inn){
+      const c = CONSTELLATIONS[key];
+      d[0]+=c.dir[0]; d[1]+=c.dir[1]; d[2]+=c.dir[2];
+    }
+    const n = Math.hypot(d[0],d[1],d[2])||1;
+    d = [d[0]/n, d[1]/n, d[2]/n];
+  }
+  // Ein wenig Streuung, damit zwei Ziele derselben Richtung nicht decken.
+  const seed = [...g.id].reduce((a,c)=>a+c.charCodeAt(0),0);
+  const jx = Math.sin(seed*1.7)*0.22, jy = Math.sin(seed*3.1)*0.17;
+  const r = g.distance * UNIT;
+  g._pos = [ (d[0]+jx)*r, (d[1]+jy)*r, d[2]*r ];
+  return g._pos;
+}
+
+function project(p){
+  // Kamera schaut vom Ursprung (DU) in die Szene; yaw/pitch drehen den Blick.
+  const [tx,ty,tz] = cam.target;
+  let x = p[0]-tx, y = p[1]-ty, z = p[2]-tz;
+  const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+  let x1 =  x*cy - z*sy, z1 = x*sy + z*cy;
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  let y1 = y*cp - z1*sp, z2 = y*sp + z1*cp;
+  // Die Ziele liegen in Blickrichtung (negatives z), die Kamera steht dahinter.
+  // Mit '+' lagen sie rechnerisch hinter dem Auge und wurden alle verworfen —
+  // sichtbar war nur der Hintergrundstaub.
+  const depth = cam.dist - z2;
+  if (depth <= 1) return null;
+  const f = (H*0.9) / depth;
+  return { x: W/2 + x1*f, y: H/2 - y1*f, s:f, depth };
+}
+
+/* ---------- Hintergrundsterne: flackern, tragen nie Text ---------------- */
+const DUST = Array.from({length:420}, (_,i)=>{
+  const a = Math.random()*Math.PI*2, b = (Math.random()-0.5)*Math.PI;
+  const r = 900 + Math.random()*1400;
+  return { p:[Math.cos(b)*Math.cos(a)*r, Math.sin(b)*r, Math.cos(b)*Math.sin(a)*r],
+           r: Math.random()*1.1+0.25, ph: Math.random()*7, sp: 2+Math.random()*5 };
+});
+
+/* ========================================================================== */
+/*  Zeichnen                                                                   */
+/* ========================================================================== */
+
+function levelAlpha(level){ return [0.10,0.24,0.40,0.58,0.78,1.0][Math.max(0,Math.min(5,level))]; }
+
+function draw(now){
+  const t = (now - t0)/1000;
+
+  // Kamera weich nachziehen
+  cam.yaw   += (cam.tYaw   - cam.yaw)   * 0.08;
+  cam.pitch += (cam.tPitch - cam.pitch) * 0.08;
+  cam.dist  += (cam.tDist  - cam.dist)  * 0.07;
+  for (let i=0;i<3;i++) cam.target[i] += (cam.tTarget[i]-cam.target[i])*0.08;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grundschein
+  const g0 = ctx.createRadialGradient(W/2,H*0.55,0,W/2,H*0.55,Math.max(W,H)*0.75);
+  g0.addColorStop(0,'rgba(24,44,86,.20)');
+  g0.addColorStop(1,'rgba(2,4,10,0)');
+  ctx.fillStyle=g0; ctx.fillRect(0,0,W,H);
+
+  // Hintergrundstaub — schnelles Funkeln, klar unterscheidbar von Zielen
+  for (const d of DUST){
+    const q = project(d.p); if(!q) continue;
+    const tw = 0.45 + 0.55*Math.abs(Math.sin(t*d.sp + d.ph));
+    ctx.globalAlpha = 0.55*tw;
+    ctx.fillStyle = '#cfe2ff';
+    ctx.beginPath(); ctx.arc(q.x,q.y, Math.max(0.4,d.r*q.s*8), 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  drawConstellationLines();
+
+  if (view === 'path' && selected) drawGoalPath(selected, t);
+  if (view === 'top') drawAllPaths(t);
+
+  // Ziele: von hinten nach vorne, damit nahe Sterne oben liegen
+  labelBoxes.length = 0;
+  const drawn = [];
+  for (const g of GOALS){
+    const q = project(goalPos(g)); if(!q) continue;
+    drawn.push({g,q});
+  }
+  drawn.sort((a,b)=> b.q.depth - a.q.depth);
+  for (const {g,q} of drawn) drawGoal(g,q,t);
+
+  drawYou(t);
+  requestAnimationFrame(draw);
+}
+
+function drawConstellationLines(){
+  // Linien innerhalb eines Sternbilds. Ein Ziel ohne Richtung bekommt keine.
+  for (const key of Object.keys(CONSTELLATIONS)){
+    const members = GOALS.filter(g=>g.inn.includes(key));
+    if (members.length < 2) continue;
+    const c = CONSTELLATIONS[key];
+    const pts = members.map(g=>project(goalPos(g))).filter(Boolean);
+    if (pts.length < 2) continue;
+    ctx.strokeStyle = c.colour+'22';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    pts.forEach((p,i)=> i? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+    ctx.stroke();
+
+    // Beschriftung am Schwerpunkt
+    const mx = pts.reduce((a,p)=>a+p.x,0)/pts.length;
+    const my = pts.reduce((a,p)=>a+p.y,0)/pts.length;
+    ctx.fillStyle = c.colour+'66';
+    ctx.font = '600 10px Inter, system-ui, sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(c.label.toUpperCase(), mx, my);
+  }
+}
+
+function drawGoal(g, q, t){
+  const c = g.inn.length ? CONSTELLATIONS[g.inn[0]].colour : '#93a6c2';
+  const base = Math.max(2.2, Math.min(44, g.size * q.s * 15));
+  const isSel = selected === g, isHov = hovered === g;
+  // Ziele ATMEN — langsam. Der Hintergrund funkelt schnell. Das trennt sie.
+  const breath = 0.86 + 0.14*Math.sin(t*(g.state==='aktiv'?1.5:0.8) + g.distance*3);
+  const a = levelAlpha(g.level);
+
+  if (g.state === 'verworfen'){
+    // Weißer Zwerg: klein, kühl, still da.
+    ctx.fillStyle = 'rgba(210,220,235,.85)';
+    ctx.beginPath(); ctx.arc(q.x,q.y, base*0.34, 0, 7); ctx.fill();
+    ctx.strokeStyle='rgba(210,220,235,.22)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(q.x,q.y, base*0.75, 0, 7); ctx.stroke();
+  } else if (g.state === 'unklar'){
+    // Kein Nachweis -> nur Kontur. Das System weiß nichts und tut nicht so.
+    ctx.strokeStyle = 'rgba(150,170,200,.55)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.arc(q.x,q.y, base*0.52, 0, 7); ctx.stroke();
+  } else {
+    const halo = ctx.createRadialGradient(q.x,q.y,0,q.x,q.y, base*2.6*breath);
+    halo.addColorStop(0, hexa(c, 0.85*a));
+    halo.addColorStop(0.35, hexa(c, 0.22*a));
+    halo.addColorStop(1, hexa(c, 0));
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(q.x,q.y, base*2.6*breath, 0, 7); ctx.fill();
+    ctx.fillStyle = hexa('#ffffff', 0.55+0.45*a);
+    ctx.beginPath(); ctx.arc(q.x,q.y, base*0.42*breath, 0, 7); ctx.fill();
+
+    // Beugungskreuz ab Stufe 4 — das haben Hintergrundsterne nie.
+    if (g.level >= 4){
+      ctx.strokeStyle = hexa(c, 0.5*a);
+      ctx.lineWidth = 1;
+      const L = base*3.1*breath;
+      ctx.beginPath();
+      ctx.moveTo(q.x-L,q.y); ctx.lineTo(q.x+L,q.y);
+      ctx.moveTo(q.x,q.y-L); ctx.lineTo(q.x,q.y+L);
+      ctx.stroke();
+    }
+  }
+
+  // Bewusst zurückgestellt: ruhiger Halo-Ring statt Verfall
+  if (g.state === 'zurueckgestellt'){
+    ctx.strokeStyle = 'rgba(240,192,112,.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(q.x,q.y, base*1.9, base*0.62, -0.35, 0, 7); ctx.stroke();
+  }
+
+  // Verwaister Stern: keine Linie, dafür eine sichtbare Frage
+  if (g.orphan){
+    ctx.strokeStyle = 'rgba(240,192,112,.45)';
+    ctx.setLineDash([3,4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(q.x,q.y, base*1.4, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Name — nur Ziele tragen Schrift
+  const near = q.depth < 900;
+  if (near || isSel || isHov){
+    ctx.font = (isSel||isHov ? '600 ' : '500 ') + Math.max(10, Math.min(14, q.s*13)) + 'px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = isSel||isHov ? '#ffffff' : hexa('#dbe8fb', 0.45+0.5*a);
+    const lift = Math.min(base*1.7, 40) + 9;
+    const wide = ctx.measureText(g.title).width;
+    // Ein ausgewählter Stern setzt sich durch; sonst weicht die Beschriftung
+    // aus, statt eine fremde zu überschreiben.
+    if (isSel || isHov || labelFits(q.x, q.y - lift, wide + 14, 20)){
+      ctx.fillText(g.title, q.x, q.y - lift);
+    if (isSel||isHov){
+      ctx.font = '500 10px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(160,185,215,.85)';
+      const done = g.steps.filter(s=>s.done).length;
+      ctx.fillText(g.steps.length ? `${done} von ${g.steps.length} Meilensteinen · ${g.horizon}` : g.horizon,
+                   q.x, q.y - lift + 14);
+    }
+    }
+  }
+  g._screen = q; g._radius = Math.max(14, base*1.6);
+}
+
+function drawGoalPath(g, t){
+  const p = goalPos(g);
+  const steps = g.steps;
+  if (!steps.length) return;
+
+  // Der Weg: vom Ursprung (DU) zum Stern. Meilensteine liegen darauf.
+  const a = project([0,0,0]), b = project(p);
+  if (!a || !b) return;
+
+  ctx.strokeStyle = 'rgba(150,190,240,.20)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+
+  const hereIdx = Math.max(0, steps.findIndex(s=>s.here));
+  // Zurückgelegte Strecke bleibt sichtbar — das ist der psychologische Kern.
+  const hp = project(lerp3([0,0,0], p, (hereIdx)/(steps.length)));
+  if (hp){
+    const grad = ctx.createLinearGradient(a.x,a.y,hp.x,hp.y);
+    grad.addColorStop(0,'rgba(95,216,164,.10)');
+    grad.addColorStop(1,'rgba(95,216,164,.70)');
+    ctx.strokeStyle = grad; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(hp.x,hp.y); ctx.stroke();
+  }
+
+  steps.forEach((s,i)=>{
+    const q = project(lerp3([0,0,0], p, (i+1)/(steps.length+0.001)));
+    if (!q) return;
+    const r = Math.max(3, q.s*7);
+    if (s.done){
+      ctx.fillStyle = '#5fd8a4';
+      ctx.beginPath(); ctx.arc(q.x,q.y,r,0,7); ctx.fill();
+    } else if (s.late){
+      ctx.strokeStyle = '#f0c070'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(q.x,q.y,r,0,7); ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(150,175,210,.6)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.arc(q.x,q.y,r,0,7); ctx.stroke();
+    }
+    if (s.here){
+      const pulse = 1 + 0.22*Math.sin(t*3);
+      ctx.strokeStyle = 'rgba(92,200,255,.85)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(q.x,q.y,r*2.4*pulse,0,7); ctx.stroke();
+      ctx.font='600 11px Inter, system-ui, sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='#bfe6ff';
+      ctx.fillText('DU BIST HIER', q.x, q.y + r*4.2);
+    }
+    /* Die Namen der Meilensteine stehen in der Tafel rechts, nicht hier.
+       Im Raum lagen sechs Beschriftungen auf 350 Bildpunkten übereinander —
+       lesbar war keine. Text gehört ins DOM, der Raum zeigt die Lage. */
+  });
+
+  // Zeit als durchquerbare Ebenen statt Balken
+  drawTimePlanes(p);
+}
+
+function drawTimePlanes(p){
+  const marks = [
+    { at:0.28, label:'Q4 2026' },
+    { at:0.52, label:'H1 2027' },
+    { at:0.78, label:'H2 2027' },
+  ];
+  for (const m of marks){
+    const c = lerp3([0,0,0], p, m.at);
+    const q = project(c); if(!q) continue;
+    const w = 240*q.s, h = 150*q.s;
+    ctx.strokeStyle='rgba(130,165,215,.16)'; ctx.lineWidth=1;
+    ctx.strokeRect(q.x-w/2, q.y-h/2, w, h);
+    ctx.fillStyle='rgba(130,165,215,.05)';
+    ctx.fillRect(q.x-w/2, q.y-h/2, w, h);
+    ctx.font='500 9.5px Inter, system-ui, sans-serif'; ctx.textAlign='left';
+    ctx.fillStyle='rgba(140,170,215,.65)';
+    ctx.fillText(m.label, q.x-w/2+6, q.y-h/2+14);
+  }
+}
+
+function drawAllPaths(t){
+  // Draufsicht: von DU gehen die Wege weg, jeder mit seinem Standort.
+  for (const g of GOALS){
+    if (!g.steps.length) continue;
+    const a = project([0,0,0]), b = project(goalPos(g));
+    if (!a||!b) continue;
+    const c = g.inn.length ? CONSTELLATIONS[g.inn[0]].colour : '#93a6c2';
+    ctx.strokeStyle = hexa(c,.18); ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+
+    const done = g.steps.filter(s=>s.done).length;
+    const hp = project(lerp3([0,0,0], goalPos(g), done/g.steps.length));
+    if (hp){
+      const grad = ctx.createLinearGradient(a.x,a.y,hp.x,hp.y);
+      grad.addColorStop(0, hexa(c,.06)); grad.addColorStop(1, hexa(c,.6));
+      ctx.strokeStyle=grad; ctx.lineWidth=2.6;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(hp.x,hp.y); ctx.stroke();
+      ctx.fillStyle = '#eaf4ff';
+      ctx.beginPath(); ctx.arc(hp.x,hp.y, 3.6, 0, 7); ctx.fill();
+      ctx.font='600 10px Inter, system-ui, sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='rgba(190,215,245,.9)';
+      ctx.fillText(`${done}/${g.steps.length}`, hp.x, hp.y-9);
+    }
+  }
+}
+
+function drawYou(t){
+  const q = project([0,0,0]); if(!q) return;
+  const pulse = 1 + 0.10*Math.sin(t*1.6);
+  const halo = ctx.createRadialGradient(q.x,q.y,0,q.x,q.y,26*pulse);
+  halo.addColorStop(0,'rgba(255,255,255,.65)');
+  halo.addColorStop(0.4,'rgba(120,200,255,.30)');
+  halo.addColorStop(1,'rgba(120,200,255,0)');
+  ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(q.x,q.y,26*pulse,0,7); ctx.fill();
+  ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(q.x,q.y,3.2,0,7); ctx.fill();
+  ctx.font='600 9.5px Inter, system-ui, sans-serif'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(200,225,255,.8)';
+  ctx.fillText('DU', q.x, q.y+20);
+}
+
+/** Bereits belegte Textflächen dieses Bildes. */
+const labelBoxes = [];
+function labelFits(x,y,w,h){
+  for (const b of labelBoxes){
+    if (Math.abs(b.x-x) < (b.w+w)/2 && Math.abs(b.y-y) < (b.h+h)/2) return false;
+  }
+  labelBoxes.push({x,y,w,h});
+  return true;
+}
+
+const lerp3=(a,b,u)=>[a[0]+(b[0]-a[0])*u, a[1]+(b[1]-a[1])*u, a[2]+(b[2]-a[2])*u];
+function hexa(hex,alpha){
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${Math.max(0,Math.min(1,alpha)).toFixed(3)})`;
+}
+
+/* ========================================================================== */
+/*  Ansichten und Bedienung                                                    */
+/* ========================================================================== */
+
+const VIEW_BTN = { horizon:document.getElementById('v-horizon'),
+                   path:document.getElementById('v-path'),
+                   top:document.getElementById('v-top') };
+const HINT = document.getElementById('hint');
+
+function setView(next){
+  view = next;
+  for (const k of Object.keys(VIEW_BTN)) VIEW_BTN[k].setAttribute('aria-pressed', String(k===next));
+  if (next === 'horizon'){
+    cam.tYaw=0; cam.tPitch=0.05; cam.tDist=520; cam.tTarget=[0,30,-300];
+    HINT.textContent='Stern anklicken · Ziehen zum Umsehen · Mausrad zoomt';
+  }
+  if (next === 'path'){
+    if (!selected) selected = GOALS[0];
+    const p = goalPos(selected);
+    cam.tTarget = lerp3([0,0,0], p, 0.5);
+    cam.tYaw = Math.atan2(p[0],-p[2]) + Math.PI/2.35;
+    cam.tPitch = 0.16;
+    cam.tDist = Math.max(320, Math.hypot(...p)*1.25);
+    HINT.textContent='Der Weg zum Ziel · grün = geschafft · gelb = Datum verstrichen';
+    openSheet(selected);
+  }
+  if (next === 'top'){
+    cam.tYaw=0; cam.tPitch=1.28; cam.tDist=Math.max(760, UNIT*5.2); cam.tTarget=[0,0,-UNIT*1.7];
+    HINT.textContent='Draufsicht · wo stehe ich auf jedem Weg?';
+    closeSheet();
+  }
+}
+for (const k of Object.keys(VIEW_BTN)) VIEW_BTN[k].addEventListener('click', ()=>setView(k));
+
+/* ---------- Maus ---------- */
+let drag=null;
+SKY.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY,yaw:cam.tYaw,pitch:cam.tPitch,moved:false}; });
+addEventListener('pointerup', e=>{
+  if (drag && !drag.moved) pick(e.clientX, e.clientY);
+  drag=null;
+});
+addEventListener('pointermove', e=>{
+  if (drag){
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+    if (Math.abs(dx)+Math.abs(dy) > 4) drag.moved=true;
+    cam.tYaw   = drag.yaw   - dx*0.004;
+    cam.tPitch = Math.max(-0.5, Math.min(1.45, drag.pitch + dy*0.004));
+  } else {
+    hovered = hit(e.clientX, e.clientY);
+    SKY.style.cursor = hovered ? 'pointer' : 'grab';
+  }
+});
+SKY.addEventListener('wheel', e=>{
+  e.preventDefault();
+  cam.tDist = Math.max(70, Math.min(1400, cam.tDist * (1 + Math.sign(e.deltaY)*0.12)));
+}, {passive:false});
+
+function hit(mx,my){
+  let best=null, bd=1e9;
+  for (const g of GOALS){
+    const q=g._screen; if(!q) continue;
+    const d=Math.hypot(q.x-mx,q.y-my);
+    if (d < (g._radius||18) && d < bd){ bd=d; best=g; }
+  }
+  return best;
+}
+function pick(mx,my){
+  const g = hit(mx,my);
+  if (!g){ closeSheet(); return; }
+  selected = g;
+  setView('path');
+}
+
+/* ---------- Detailtafel ---------- */
+const sheet=document.getElementById('sheet');
+const sheetTitle=document.getElementById('sheetTitle');
+const sheetBody=document.getElementById('sheetBody');
+const sheetEyebrow=document.getElementById('sheetEyebrow');
+document.getElementById('sheetClose').addEventListener('click', closeSheet);
+addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeSheet(); setView('horizon'); } });
+
+function closeSheet(){ sheet.classList.remove('on'); }
+
+function openSheet(g){
+  const inn = g.inn.map(k=>CONSTELLATIONS[k].label).join(' · ') || 'keinem Sternbild zugeordnet';
+  sheetEyebrow.textContent = inn;
+  sheetTitle.textContent = g.title;
+
+  const done = g.steps.filter(s=>s.done).length;
+  const badge = g.source==='real'
+    ? '<span class="badge real">aus dem Vault</span>'
+    : '<span class="badge draft">Vorschlag</span>';
+
+  let html = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${badge}` +
+    (g.state==='zurueckgestellt' ? '<span class="badge draft">bewusst zurückgestellt</span>' : '') +
+    (g.state==='unklar' ? '<span class="badge">kein Nachweis</span>' : '') +
+    (g.orphan ? '<span class="badge draft">ohne Sternbild</span>' : '') + `</div>`;
+
+  html += `<dl class="kv">
+    <dt>Zielbild</dt><dd>${g.picture}</dd>
+    <dt>Zeithorizont</dt><dd>${g.horizon}</dd>
+    <dt>Nachweis</dt><dd>${g.proof}</dd>
+    <dt>Vorgabe</dt><dd>${g.quota}</dd>
+    <dt>Stand</dt><dd>${g.steps.length ? `${done} von ${g.steps.length} Meilensteinen` : '—'}</dd>
+  </dl>`;
+
+  if (g.paused){
+    html += `<div class="reason"><strong>Zurückgestellt seit ${g.paused.since}.</strong> ${g.paused.why}.
+      Die Helligkeit friert ein, statt zu verfallen — eine Entscheidung ist kein Versäumnis.</div>`;
+  }
+  if (g.dropped){
+    html += `<div class="reason"><strong>Verworfen.</strong> ${g.dropped.why}. Höchster Stand: ${g.dropped.peak}.</div>`;
+  }
+
+  if (g.steps.length){
+    html += `<ul class="steps">` + g.steps.map(s=>{
+      const cls = s.done?'done':(s.here?'here':'') + (s.late?' late':'');
+      return `<li class="${cls}"><span class="mark"></span><span>
+        <span class="label">${s.label}</span>
+        <span class="when">${s.when||''}</span>
+        ${s.late?`<div class="reason"><strong>Datum verstrichen.</strong> ${s.late}</div>`:''}
+      </span></li>`;
+    }).join('') + `</ul>`;
+  }
+
+  html += `<div class="paths"><h4>Was zahlt darauf ein</h4><div class="chiprow">` +
+    (g.feeds.length
+      ? g.feeds.map(f=>`<span class="chip">${f}</span>`).join('')
+      : `<span class="chip none">kein aktives Projekt — hierher führt gerade kein Weg</span>`) +
+    `</div></div>`;
+
+  if (g.curve){
+    const pts = g.curve.map((v,i)=>`${(i/(g.curve.length-1))*100},${52-(v/5)*44-4}`).join(' ');
+    html += `<div class="curve"><h4>Lichtkurve — wie hell war dieses Ziel</h4>
+      <svg viewBox="0 0 100 52" preserveAspectRatio="none">
+        <polyline points="${pts}" fill="none" stroke="#f0c070" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+      </svg></div>`;
+  }
+
+  sheetBody.innerHTML = html;
+  sheet.classList.add('on');
+}
+
+setView('horizon');
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

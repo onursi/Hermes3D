@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hermes3D - Agent Project Room</title>
+<style>
+:root{
+  --bg:#05070d;
+  --glass:rgba(10,16,29,.58);
+  --glass2:rgba(10,17,32,.82);
+  --line:rgba(255,255,255,.09);
+  --text:#edf3ff;
+  --muted:#98a7c7;
+  --blue:#7fc6ff;
+  --violet:#b88cff;
+  --green:#6be1ad;
+  --amber:#ffd071;
+  --red:#ff6f88;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#04060b;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,textarea{font:inherit}
+button{color:inherit}
+#stars,#links{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+body{
+  background:
+    radial-gradient(circle at 50% 45%,rgba(30,53,92,.18),transparent 28%),
+    radial-gradient(circle at 22% 18%,rgba(184,140,255,.08),transparent 21%),
+    radial-gradient(circle at 80% 20%,rgba(107,225,173,.06),transparent 18%),
+    #04060b;
+}
+.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 50%,rgba(0,0,0,.62) 100%);z-index:1}
+.topbar{position:fixed;top:18px;left:20px;right:20px;z-index:30;display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.glass{
+  background:var(--glass);
+  border:1px solid var(--line);
+  backdrop-filter:blur(20px);
+  box-shadow:0 22px 70px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.03);
+}
+.brand{padding:13px 16px;border-radius:18px}
+.brand h1{margin:0;font-size:16px;letter-spacing:.14em;text-transform:uppercase}
+.brand p{margin:5px 0 0;color:var(--muted);font-size:11px}
+.statusbar{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.chip{padding:10px 13px;border-radius:999px;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.chip strong{color:#fff}
+#viewport{position:absolute;inset:0;perspective:1500px;z-index:2;overflow:hidden}
+#world{
+  position:absolute;left:50%;top:51%;
+  width:min(1180px,94vw);height:min(760px,79vh);
+  transform:translate(-50%,-50%) rotateX(3deg) rotateY(0deg) scale(1);
+  transform-style:preserve-3d;
+  transition:transform .12s linear;
+}
+.floor{
+  position:absolute;left:50%;top:67%;width:920px;height:520px;
+  transform:translate(-50%,-50%) rotateX(78deg) translateZ(-180px);
+  background:
+    linear-gradient(to right,rgba(255,255,255,.035) 1px,transparent 1px) 0 0/58px 58px,
+    linear-gradient(to bottom,rgba(255,255,255,.035) 1px,transparent 1px) 0 0/58px 58px;
+  mask-image:radial-gradient(circle at 50% 50%,black 20%,transparent 72%);
+  opacity:.6;
+}
+.project-core{
+  position:absolute;left:50%;top:50%;
+  width:430px;min-height:230px;
+  transform:translate(-50%,-50%) translateZ(40px);
+  border-radius:28px;padding:22px 23px;
+  z-index:7;
+  transition:transform .5s ease,box-shadow .5s ease,border-color .5s ease;
+}
+.project-core::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:
+    radial-gradient(circle at 20% 0%,rgba(127,198,255,.13),transparent 26%),
+    radial-gradient(circle at 83% 4%,rgba(184,140,255,.11),transparent 26%);
+  pointer-events:none;
+}
+.project-core h2{position:relative;margin:0;font-size:24px}
+.project-core .eyebrow{position:relative;color:var(--blue);font-size:10px;text-transform:uppercase;letter-spacing:.14em;margin-bottom:7px}
+.goal{position:relative;color:#d7e2f8;font-size:14px;line-height:1.52;margin:12px 0 16px}
+.progress{position:relative;height:5px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+.progress i{display:block;height:100%;width:42%;border-radius:inherit;background:linear-gradient(90deg,var(--blue),var(--violet));box-shadow:0 0 16px rgba(127,198,255,.4)}
+.project-meta{position:relative;display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.meta-pill{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.meta-pill strong{color:#fff}
+
+.agent{
+  position:absolute;width:260px;min-height:176px;padding:16px;border-radius:22px;z-index:8;
+  transform-style:preserve-3d;cursor:pointer;
+  transition:transform .55s cubic-bezier(.2,.8,.2,1),filter .25s ease,border-color .25s ease,box-shadow .25s ease;
+}
+.agent:hover{filter:brightness(1.12);border-color:rgba(127,198,255,.25)}
+.agent .head{display:flex;gap:12px;align-items:center}
+.avatar{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;position:relative;background:linear-gradient(135deg,rgba(127,198,255,.18),rgba(184,140,255,.14));border:1px solid rgba(255,255,255,.09)}
+.avatar::after{content:"";position:absolute;inset:7px;border:1px solid rgba(255,255,255,.12);border-radius:12px;animation:spin 8s linear infinite}
+.avatar span{font-size:16px;font-weight:800;z-index:2}
+.agent h3{margin:0;font-size:15px}
+.agent small{display:block;margin-top:3px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:9px}
+.live{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:9px;color:var(--green);text-transform:uppercase}
+.live i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor;animation:pulseDot 1.5s ease-in-out infinite}
+.task{margin-top:14px;color:#cbd7ef;font-size:12px;line-height:1.45}
+.minirow{margin-top:13px;display:flex;gap:8px}
+.mini{flex:1;padding:8px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.055);font-size:9px;color:var(--muted);text-transform:uppercase}
+.mini strong{display:block;color:#fff;font-size:12px;margin-top:2px;text-transform:none}
+.a1{left:3%;top:10%;transform:translateZ(-20px) rotateY(12deg)}
+.a2{right:3%;top:10%;transform:translateZ(-25px) rotateY(-12deg)}
+.a3{left:2%;bottom:8%;transform:translateZ(-10px) rotateY(10deg)}
+.a4{right:2%;bottom:8%;transform:translateZ(-10px) rotateY(-10deg)}
+.world-planning .a1{transform:translate3d(110px,65px,60px) rotateY(6deg)}
+.world-planning .a2{transform:translate3d(-110px,65px,60px) rotateY(-6deg)}
+.world-planning .a3{transform:translate3d(130px,-80px,45px) rotateY(5deg)}
+.world-planning .a4{transform:translate3d(-130px,-80px,45px) rotateY(-5deg)}
+.world-planning .project-core{transform:translate(-50%,-50%) translateZ(85px) scale(1.04);border-color:rgba(127,198,255,.24);box-shadow:0 28px 90px rgba(0,0,0,.36),0 0 50px rgba(127,198,255,.11)}
+
+.chatdock{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:min(940px,calc(100vw - 36px));z-index:40;border-radius:24px;padding:14px;
+}
+.chatlog{max-height:150px;overflow:auto;padding:2px 3px 10px;display:grid;gap:8px}
+.msg{padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.055);font-size:12px;line-height:1.45;color:#d6e2f8}
+.msg.me{margin-left:14%;background:rgba(127,198,255,.07)}
+.msg.agent{margin-right:14%}
+.msg strong{color:#fff}
+.composer{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center}
+.toolrow{display:flex;gap:7px}
+.iconbtn,.sendbtn{
+  width:42px;height:42px;border-radius:13px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);cursor:pointer
+}
+.iconbtn:hover,.sendbtn:hover{background:rgba(127,198,255,.08)}
+.iconbtn.active{border-color:rgba(255,111,136,.5);box-shadow:0 0 18px rgba(255,111,136,.12)}
+#chatInput{width:100%;height:42px;border:none;outline:none;border-radius:13px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);color:#fff;padding:0 13px}
+.filestrip{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.filechip{padding:7px 9px;border-radius:10px;background:rgba(184,140,255,.06);border:1px solid rgba(184,140,255,.15);font-size:10px;color:#d9d0ff}
+
+.sidepanel{
+  position:fixed;right:20px;top:112px;z-index:25;width:min(290px,calc(100vw - 40px));padding:15px;border-radius:20px;
+}
+.sidepanel h4{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.12em}
+.action{width:100%;text-align:left;padding:11px 12px;margin-top:8px;border-radius:13px;border:1px solid rgba(255,255,255,.065);background:rgba(255,255,255,.035);cursor:pointer}
+.action strong{display:block;font-size:12px}
+.action span{display:block;margin-top:3px;color:var(--muted);font-size:10px}
+.fileinput{display:none}
+.toast{position:fixed;left:50%;top:105px;transform:translateX(-50%) translateY(-8px);z-index:60;padding:11px 14px;border-radius:13px;background:rgba(8,14,25,.94);border:1px solid rgba(127,198,255,.22);opacity:0;pointer-events:none;transition:.22s ease;font-size:12px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.72)}}
+@media(max-width:1080px){
+  .sidepanel{display:none}
+  #world{transform:translate(-50%,-50%) scale(.82)}
+  .chatdock{bottom:10px}
+}
+@media(max-width:760px){
+  #world{transform:translate(-50%,-50%) scale(.64)}
+  .brand p,.statusbar{display:none}
+  .composer{grid-template-columns:1fr auto}
+  .toolrow{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<canvas id="links"></canvas>
+<div class="vignette"></div>
+
+<div class="topbar">
+  <div class="brand glass">
+    <h1>Hermes3D - Projektplanung</h1>
+    <p>Agenten als räumliche Mitarbeiter, Arbeitsflächen als Obsidian-Glas</p>
+  </div>
+  <div class="statusbar">
+    <div class="chip glass"><strong id="clock">--:--:--</strong> Zeit</div>
+    <div class="chip glass"><strong id="agentCount">4</strong> Agenten</div>
+    <div class="chip glass"><strong id="roomStatus">Bereit</strong> Raumstatus</div>
+  </div>
+</div>
+
+<div id="viewport">
+  <div id="world">
+    <div class="floor"></div>
+
+    <section class="project-core glass" id="projectCore">
+      <div class="eyebrow">Aktives Projekt</div>
+      <h2>Hermes3D Spatial Life OS</h2>
+      <p class="goal">Ziel: Aus deinem LifeOS eine sichtbare, räumliche Arbeitswelt machen, in der Wissen, Projekte und Agenten zusammenarbeiten.</p>
+      <div class="progress"><i id="projectProgress"></i></div>
+      <div class="project-meta">
+        <div class="meta-pill">Phase <strong>Konzeption</strong></div>
+        <div class="meta-pill">Agenten <strong>4</strong></div>
+        <div class="meta-pill">Freigaben <strong id="approvalCount">2</strong></div>
+      </div>
+    </section>
+
+    <article class="agent a1 glass" data-name="Astra">
+      <div class="head">
+        <div class="avatar"><span>A</span></div>
+        <div><h3>Astra</h3><small>Vision und Spatial UX</small></div>
+        <div class="live"><i></i>aktiv</div>
+      </div>
+      <div class="task">Entwickelt den nächsten räumlichen Produktsprung und prüft, wo 3D echten Nutzen erzeugt.</div>
+      <div class="minirow"><div class="mini">Fokus<strong>High</strong></div><div class="mini">Queue<strong>03</strong></div></div>
+    </article>
+
+    <article class="agent a2 glass" data-name="Claude">
+      <div class="head">
+        <div class="avatar"><span>C</span></div>
+        <div><h3>Claude</h3><small>Review und Council</small></div>
+        <div class="live"><i></i>denkt</div>
+      </div>
+      <div class="task">Hinterfragt Annahmen, sucht Brüche und hält die Projektlogik konsistent.</div>
+      <div class="minirow"><div class="mini">Risiko<strong>Low</strong></div><div class="mini">Threads<strong>06</strong></div></div>
+    </article>
+
+    <article class="agent a3 glass" data-name="Codex">
+      <div class="head">
+        <div class="avatar"><span>X</span></div>
+        <div><h3>Codex</h3><small>Build und System</small></div>
+        <div class="live"><i></i>bereit</div>
+      </div>
+      <div class="task">Übersetzt Entscheidungen in Module, UI-Zustände, Animationen und technische Umsetzung.</div>
+      <div class="minirow"><div class="mini">Build<strong>94%</strong></div><div class="mini">Jobs<strong>02</strong></div></div>
+    </article>
+
+    <article class="agent a4 glass" data-name="Gemini">
+      <div class="head">
+        <div class="avatar"><span>G</span></div>
+        <div><h3>Gemini</h3><small>Recherche und Alternative</small></div>
+        <div class="live"><i></i>bereit</div>
+      </div>
+      <div class="task">Bringt zweite Perspektiven ein, sammelt Referenzen und prüft visuelle Alternativen.</div>
+      <div class="minirow"><div class="mini">Quellen<strong>12</strong></div><div class="mini">Fokus<strong>Med</strong></div></div>
+    </article>
+  </div>
+</div>
+
+<aside class="sidepanel glass">
+  <h4>Projektwerkzeuge</h4>
+  <button class="action" id="startPlanning"><strong>Projektplanung starten</strong><span>Agenten rücken zusammen und beginnen gemeinsam.</span></button>
+  <button class="action" id="council"><strong>Council einberufen</strong><span>Alle Agenten bündeln ihre Perspektiven.</span></button>
+  <button class="action" id="uploadBtn"><strong>PDF / MD / Datei anhängen</strong><span>Dokumente in den aktuellen Kontext holen.</span></button>
+  <button class="action" id="obsidianExport"><strong>Als Obsidian-MD exportieren</strong><span>Projektstand als Markdown-Datei vorbereiten.</span></button>
+  <input class="fileinput" id="fileInput" type="file" multiple accept=".pdf,.md,.txt,.html,.png,.jpg,.jpeg">
+</aside>
+
+<div class="chatdock glass">
+  <div class="chatlog" id="chatlog">
+    <div class="msg agent"><strong>Hermes:</strong> Projektraum bereit. Du kannst sprechen, schreiben, Dateien anhängen oder den Council starten.</div>
+  </div>
+  <div class="composer">
+    <div class="toolrow">
+      <button class="iconbtn" id="micBtn" title="Spracheingabe">🎙</button>
+      <button class="iconbtn" id="attachBtn" title="Datei anhängen">＋</button>
+      <button class="iconbtn" id="obsidianBtn" title="Obsidian-Export">◫</button>
+    </div>
+    <input id="chatInput" placeholder="Sprich oder schreibe mit deinem Projektraum...">
+    <button class="sendbtn" id="sendBtn">↑</button>
+  </div>
+  <div class="filestrip" id="filestrip"></div>
+</div>
+
+<div class="toast" id="toast">Aktion ausgeführt</div>
+
+<script>
+const stars=document.getElementById('stars'),links=document.getElementById('links');
+const sctx=stars.getContext('2d'),lctx=links.getContext('2d');
+const world=document.getElementById('world');
+const chatlog=document.getElementById('chatlog');
+const chatInput=document.getElementById('chatInput');
+const fileInput=document.getElementById('fileInput');
+const filestrip=document.getElementById('filestrip');
+const toast=document.getElementById('toast');
+const micBtn=document.getElementById('micBtn');
+let starsData=[],files=[],planning=false,zoom=1,targetRX=3,targetRY=0,currentRX=3,currentRY=0;
+
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  for(const c of [stars,links]){
+    c.width=innerWidth*dpr;c.height=innerHeight*dpr;c.style.width=innerWidth+'px';c.style.height=innerHeight+'px';
+  }
+  sctx.setTransform(dpr,0,0,dpr,0,0);lctx.setTransform(dpr,0,0,dpr,0,0);
+  starsData=Array.from({length:180},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.5+.2,a:Math.random()*.75+.08,s:Math.random()*1.6+.2}));
+}
+addEventListener('resize',resize);resize();
+
+function showToast(t){toast.textContent=t;toast.classList.add('show');clearTimeout(showToast.t);showToast.t=setTimeout(()=>toast.classList.remove('show'),1600)}
+function addMsg(author,text,me=false){
+  const d=document.createElement('div');d.className='msg '+(me?'me':'agent');d.innerHTML=`<strong>${author}:</strong> ${text}`;chatlog.appendChild(d);chatlog.scrollTop=chatlog.scrollHeight;
+}
+function draw(t){
+  sctx.clearRect(0,0,innerWidth,innerHeight);
+  for(const s of starsData){
+    const tw=.6+.35*Math.sin(t*.001*s.s+s.x*.01);
+    sctx.fillStyle=`rgba(230,239,255,${Math.max(.04,s.a*tw)})`;
+    sctx.beginPath();sctx.arc(s.x,s.y,s.r,0,Math.PI*2);sctx.fill();
+  }
+  currentRX+=(targetRX-currentRX)*.06; currentRY+=(targetRY-currentRY)*.06;
+  world.style.transform=`translate(-50%,-50%) rotateX(${currentRX}deg) rotateY(${currentRY}deg) scale(${zoom})`;
+  drawConnections(t);
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+function centerOf(el){
+  const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}
+}
+function drawConnections(t){
+  lctx.clearRect(0,0,innerWidth,innerHeight);
+  if(!planning)return;
+  const core=centerOf(document.getElementById('projectCore'));
+  document.querySelectorAll('.agent').forEach((a,i)=>{
+    const p=centerOf(a),pulse=.45+.25*Math.sin(t*.002+i);
+    const g=lctx.createLinearGradient(p.x,p.y,core.x,core.y);
+    g.addColorStop(0,`rgba(127,198,255,${pulse})`);
+    g.addColorStop(1,`rgba(184,140,255,.08)`);
+    lctx.strokeStyle=g;lctx.lineWidth=1.5;
+    lctx.beginPath();lctx.moveTo(p.x,p.y);
+    const mx=(p.x+core.x)/2, my=(p.y+core.y)/2-40;
+    lctx.quadraticCurveTo(mx,my,core.x,core.y);lctx.stroke();
+  });
+}
+
+document.addEventListener('pointermove',e=>{
+  const x=e.clientX/innerWidth-.5,y=e.clientY/innerHeight-.5;
+  targetRY=x*7;targetRX=3-y*5;
+});
+document.addEventListener('wheel',e=>{zoom=Math.max(.72,Math.min(1.25,zoom-e.deltaY*.0004));},{passive:true});
+
+document.getElementById('startPlanning').onclick=()=>{
+  planning=!planning;world.classList.toggle('world-planning',planning);
+  document.getElementById('roomStatus').textContent=planning?'Planung läuft':'Bereit';
+  addMsg('Hermes',planning?'Projektplanung gestartet. Astra, Claude, Codex und Gemini arbeiten jetzt am gemeinsamen Projektkern.':'Projektplanung pausiert.');
+  showToast(planning?'Planung gestartet':'Planung pausiert');
+};
+document.getElementById('council').onclick=()=>{
+  planning=true;world.classList.add('world-planning');document.getElementById('roomStatus').textContent='Council';
+  addMsg('Hermes','Council gestartet. Jeder Agent liefert jetzt eine eigene Perspektive, danach wird eine gemeinsame Empfehlung verdichtet.');
+  setTimeout(()=>addMsg('Astra','Ich priorisiere räumliche Bedienlogik und Produktgefühl.'),500);
+  setTimeout(()=>addMsg('Claude','Ich suche Widersprüche und unnötige Komplexität.'),900);
+  setTimeout(()=>addMsg('Codex','Ich prüfe Umsetzbarkeit und technische Reihenfolge.'),1300);
+  showToast('Council aktiv');
+};
+
+function triggerFile(){fileInput.click()}
+document.getElementById('uploadBtn').onclick=triggerFile;
+document.getElementById('attachBtn').onclick=triggerFile;
+fileInput.onchange=()=>{
+  [...fileInput.files].forEach(f=>files.push(f));
+  renderFiles();
+  addMsg('Hermes',`${fileInput.files.length} Datei(en) wurden an den Projektraum angehängt.`);
+};
+function renderFiles(){
+  filestrip.innerHTML=files.map(f=>`<span class="filechip">${f.name}</span>`).join('');
+}
+
+function send(){
+  const t=chatInput.value.trim();if(!t)return;addMsg('Du',t,true);chatInput.value='';
+  const responses=[
+    'Ich habe das an alle Agenten im Raum verteilt.',
+    'Ich habe den Punkt dem Projektkern hinzugefügt und als offene Entscheidung markiert.',
+    'Astra übernimmt die Vision, Claude prüft kritisch und Codex bewertet die Umsetzung.',
+    'Ich habe den Kontext übernommen. Du kannst jetzt Dateien anhängen oder den Council starten.'
+  ];
+  setTimeout(()=>addMsg('Hermes',responses[Math.floor(Math.random()*responses.length)]),450);
+}
+document.getElementById('sendBtn').onclick=send;
+chatInput.addEventListener('keydown',e=>{if(e.key==='Enter')send()});
+
+function exportMD(){
+  const msgs=[...document.querySelectorAll('.msg')].map(x=>x.textContent.trim()).join('\n\n');
+  const md=`# Hermes3D Projektplanung\n\n## Ziel\nAus dem LifeOS eine räumliche Arbeitswelt machen.\n\n## Agenten\n- Astra: Vision und Spatial UX\n- Claude: Review und Council\n- Codex: Build und System\n- Gemini: Recherche und Alternative\n\n## Gespräch\n${msgs}\n\n## Anhänge\n${files.map(f=>'- '+f.name).join('\n') || '- Keine'}\n`;
+  const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='Hermes3D-Projektplanung.md';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  showToast('Markdown exportiert');
+}
+document.getElementById('obsidianExport').onclick=exportMD;
+document.getElementById('obsidianBtn').onclick=exportMD;
+
+let recognition=null;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(SR){
+  recognition=new SR();recognition.lang='de-DE';recognition.interimResults=false;
+  recognition.onresult=e=>{chatInput.value=e.results[0][0].transcript;micBtn.classList.remove('active');send()};
+  recognition.onend=()=>micBtn.classList.remove('active');
+}
+micBtn.onclick=()=>{
+  if(recognition){micBtn.classList.add('active');recognition.start();showToast('Spracheingabe aktiv')}
+  else{micBtn.classList.toggle('active');showToast('Browser unterstützt SpeechRecognition hier nicht')}
+};
+
+setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleTimeString('de-DE',{hour12:false}),1000);
+document.getElementById('clock').textContent=new Date().toLocaleTimeString('de-DE',{hour12:false});
+</script>
+</body>
+</html>

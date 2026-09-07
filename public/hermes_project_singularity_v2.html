@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hermes3D - Project Singularity</title>
+<style>
+:root{
+  --bg:#020308;
+  --glass:rgba(8,13,24,.66);
+  --glass2:rgba(9,15,29,.88);
+  --line:rgba(255,255,255,.085);
+  --text:#eef3ff;
+  --muted:#9aa9c8;
+  --blue:#7dc5ff;
+  --violet:#b585ff;
+  --amber:#ffbf6f;
+  --red:#ff657e;
+  --green:#6be0aa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#020308;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;color:inherit}
+body{
+  background:
+    radial-gradient(circle at 50% 50%,rgba(38,32,64,.16),transparent 27%),
+    radial-gradient(circle at 25% 12%,rgba(82,129,255,.07),transparent 19%),
+    #020308;
+}
+#spaceCanvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 48%,rgba(0,0,0,.68) 100%);z-index:2}
+.topbar{position:fixed;top:18px;left:20px;right:20px;display:flex;justify-content:space-between;gap:14px;z-index:30}
+.glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.025)}
+.brand{padding:13px 16px;border-radius:18px}
+.brand h1{margin:0;font-size:16px;letter-spacing:.14em;text-transform:uppercase}
+.brand p{margin:5px 0 0;color:var(--muted);font-size:11px}
+.mode{padding:11px 14px;border-radius:999px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.mode strong{color:#fff}
+
+#universe{position:absolute;inset:0;perspective:1500px;z-index:3;overflow:hidden}
+#system{
+  position:absolute;left:50%;top:51%;width:min(1120px,94vw);height:min(800px,82vh);
+  transform:translate(-50%,-50%) rotateX(7deg) rotateY(0deg) scale(1);
+  transform-style:preserve-3d;transition:transform .12s linear;
+}
+.blackhole-wrap{
+  position:absolute;left:50%;top:50%;width:330px;height:330px;transform:translate(-50%,-50%) translateZ(45px);
+  z-index:8;cursor:pointer;
+}
+.blackhole{
+  position:absolute;left:50%;top:50%;width:165px;height:165px;transform:translate(-50%,-50%);border-radius:50%;
+  background:#000;
+  box-shadow:
+    0 0 18px 6px rgba(255,156,78,.08),
+    0 0 65px 18px rgba(179,91,255,.12),
+    0 0 140px 36px rgba(81,132,255,.08);
+}
+.blackhole::before{
+  content:"";position:absolute;inset:-25px;border-radius:50%;
+  border:7px solid rgba(255,171,84,.55);filter:blur(7px);
+  box-shadow:0 0 30px rgba(255,98,75,.28);animation:horizonPulse 3s ease-in-out infinite;
+}
+.blackhole::after{
+  content:"";position:absolute;inset:-48px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 0 35px rgba(255,145,71,.12);
+}
+.accretion{
+  position:absolute;left:50%;top:50%;width:360px;height:92px;transform:translate(-50%,-50%) rotate(-12deg);border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0 12%,rgba(255,82,47,.58) 24%,rgba(255,213,117,.92) 42%,rgba(180,88,255,.45) 57%,transparent 75%);
+  filter:blur(8px);opacity:.72;animation:diskSpin 9s linear infinite;
+}
+.lensing-ring{
+  position:absolute;left:50%;top:50%;width:255px;height:255px;transform:translate(-50%,-50%);border-radius:50%;
+  border:1px solid rgba(255,255,255,.09);box-shadow:0 0 32px rgba(255,255,255,.04),inset 0 0 38px rgba(130,173,255,.06);
+}
+.event-label{
+  position:absolute;left:50%;top:calc(50% - 118px);transform:translateX(-50%);
+  color:#ff9aac;font-size:9px;text-transform:uppercase;letter-spacing:.15em;white-space:nowrap;opacity:.78
+}
+#spag{
+  position:absolute;left:50%;top:50%;width:460px;height:460px;transform:translate(-50%,-50%);pointer-events:none;opacity:.44
+}
+.spag-line{
+  position:absolute;left:50%;top:50%;width:220px;height:1px;transform-origin:left center;
+  background:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,178,102,.25),rgba(255,255,255,0));
+  filter:blur(.3px);
+}
+.project{
+  position:absolute;left:50%;top:50%;border-radius:50%;cursor:pointer;z-index:10;
+  transform:translate(-50%,-50%);transition:filter .25s ease,box-shadow .25s ease,left .6s cubic-bezier(.2,.8,.2,1),top .6s cubic-bezier(.2,.8,.2,1),transform .35s ease;
+  border:1px solid rgba(255,255,255,.12);
+}
+.project:hover{filter:brightness(1.3);box-shadow:0 0 30px currentColor}
+.project::before{
+  content:"";position:absolute;inset:10%;border-radius:50%;
+  background:radial-gradient(circle at 33% 28%,rgba(255,255,255,.35),transparent 14%),radial-gradient(circle at 64% 68%,rgba(255,255,255,.09),transparent 20%);
+}
+.project::after{
+  content:attr(data-name);position:absolute;left:50%;top:calc(100% + 11px);transform:translateX(-50%);font-size:9px;color:#dbe6fa;white-space:nowrap;letter-spacing:.05em
+}
+
+#summaryPanel{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(18px);
+  width:min(780px,calc(100vw - 40px));z-index:40;border-radius:24px;padding:18px 19px;
+  opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;
+}
+#summaryPanel.open{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+.summary-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.summary-head small{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:5px}
+.summary-head h2{margin:0;font-size:22px}
+.goal{margin:10px 0 12px;color:#d5e0f5;line-height:1.5;font-size:13px;max-width:620px}
+.summary-actions{display:flex;gap:8px;flex-wrap:wrap}
+.action{padding:10px 12px;border-radius:13px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);cursor:pointer}
+.action:hover{background:rgba(125,197,255,.08)}
+.mds{display:none;margin-top:12px;gap:8px;flex-wrap:wrap}
+.mds.show{display:flex}
+.mdchip{padding:8px 10px;border-radius:10px;border:1px solid rgba(181,133,255,.16);background:rgba(181,133,255,.05);font-size:10px;color:#d9d1ff}
+.close{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);cursor:pointer}
+
+.diveUI{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:50;text-align:center;pointer-events:none;
+  opacity:0;transition:opacity .35s ease;
+}
+.diveUI.show{opacity:1}
+.diveUI h2{margin:0;font-size:28px;letter-spacing:.16em;text-transform:uppercase}
+.diveUI p{margin:8px 0 0;color:#d7def1;font-size:12px}
+.controls{
+  position:fixed;right:20px;bottom:20px;z-index:30;width:min(300px,calc(100vw - 40px));padding:14px 15px;border-radius:18px;color:var(--muted);font-size:11px;line-height:1.5
+}
+.controls strong{color:#fff}
+.toast{position:fixed;left:50%;top:106px;transform:translateX(-50%) translateY(-8px);z-index:60;padding:11px 14px;border-radius:13px;background:rgba(8,14,25,.94);border:1px solid rgba(125,197,255,.22);opacity:0;transition:.22s ease;font-size:12px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@keyframes diskSpin{to{transform:translate(-50%,-50%) rotate(348deg)}}
+@keyframes horizonPulse{0%,100%{opacity:.55;transform:scale(.98)}50%{opacity:1;transform:scale(1.05)}}
+@media(max-width:900px){
+  #system{transform:translate(-50%,-50%) scale(.76) rotateX(7deg)}
+  .controls{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="spaceCanvas"></canvas>
+<div class="vignette"></div>
+
+<div class="topbar">
+  <div class="brand glass">
+    <h1>Hermes3D - Project Singularity</h1>
+    <p>Je länger ein Projekt ruht, desto näher driftet es an den Ereignishorizont</p>
+  </div>
+  <div class="mode glass">Modus: <strong id="modeText">Projektuniversum</strong></div>
+</div>
+
+<div id="universe">
+  <div id="system">
+    <div id="spag"></div>
+    <div class="blackhole-wrap" id="blackholeWrap">
+      <div class="accretion"></div>
+      <div class="lensing-ring"></div>
+      <div class="event-label">Ereignishorizont</div>
+      <div class="blackhole"></div>
+    </div>
+  </div>
+</div>
+
+<section id="summaryPanel" class="glass">
+  <div class="summary-head">
+    <div>
+      <small id="sumStatus">Aktiv</small>
+      <h2 id="sumTitle">Hermes3D</h2>
+      <p class="goal" id="sumGoal">Ziel des Projekts.</p>
+    </div>
+    <button class="close" id="closePanel">×</button>
+  </div>
+  <div class="summary-actions">
+    <button class="action" id="updateBtn">Projekt aktualisieren</button>
+    <button class="action" id="mdBtn">MD-Dateien anzeigen</button>
+  </div>
+  <div class="mds" id="mds"></div>
+</section>
+
+<div class="diveUI" id="diveUI">
+  <h2>Singularity Dive</h2>
+  <p>Raumkrümmung und Spaghettisierung werden stärker. Klick erneut, um zurückzukehren.</p>
+</div>
+
+<div class="controls glass">
+  <strong>Steuerung</strong><br>
+  Ziehen: System drehen<br>
+  Mausrad: rein- und rauszoomen<br>
+  Planet anklicken: Projektziel öffnen<br>
+  Schwarzes Loch anklicken: Singularity Dive
+</div>
+
+<div class="toast" id="toast">Projekt aktualisiert</div>
+
+<script>
+const canvas=document.getElementById('spaceCanvas'),ctx=canvas.getContext('2d');
+const system=document.getElementById('system');
+const bh=document.getElementById('blackholeWrap');
+const panel=document.getElementById('summaryPanel');
+const mds=document.getElementById('mds');
+const diveUI=document.getElementById('diveUI');
+const toast=document.getElementById('toast');
+let W=innerWidth,H=innerHeight,DPR=1,stars=[];
+let yaw=0,pitch=7,zoom=1,dive=0,targetDive=0,drag=false,lastX=0,lastY=0;
+let selected=null;
+
+const projects=[
+ {name:'Hermes3D',importance:10,days:1,angle:210,incl:0.18,goal:'Ein Spatial Life OS bauen, in dem Wissen, Projekte und Agenten als eine zusammenhängende Welt funktionieren.',md:['Spatial Life OS - Vision.md','Hermes 3D V2 - Architektur.md','Aktueller Stand.md'],color:'#7dc5ff'},
+ {name:'Bewerbungsagent',importance:7,days:18,angle:320,incl:-0.14,goal:'Passende Stellen finden, bewerten und Bewerbungen strukturiert vorbereiten.',md:['Bewerbungs-Agent.md','Kriterien.md','Dashboard.md'],color:'#6be0aa'},
+ {name:'RPA Lernpfad',importance:5,days:38,angle:60,incl:0.23,goal:'UiPath und Automatisierung so lernen, dass daraus beruflich nutzbare Praxis entsteht.',md:['RPA-Lernplan.md','UiPath.md'],color:'#ffd071'},
+ {name:'KI Lead Pipeline',importance:6,days:65,angle:135,incl:-0.22,goal:'Unternehmen mit Potenzial für spätere KI-Pilotprojekte sammeln und priorisieren.',md:['KI-Leads.md','Use-Cases.md'],color:'#b585ff'},
+ {name:'Agent Office',importance:8,days:93,angle:258,incl:0.12,goal:'Mehrere KI-Agenten sichtbar koordinieren, Aufgaben verteilen und Ergebnisse zusammenführen.',md:['Hermes Agent Office.md','Council.md','Routing.md'],color:'#ff8cb0'},
+ {name:'Altes App-Konzept',importance:3,days:160,angle:25,incl:-0.17,goal:'Frühes App-Konzept bewerten: wiederbeleben, archivieren oder bewusst loslassen.',md:['Idee-alt.md'],color:'#ff657e'},
+ {name:'Experiment',importance:2,days:220,angle:95,incl:0.2,goal:'Experiment prüfen und entscheiden, ob daraus noch ein echtes Projekt werden soll.',md:['Experiment.md'],color:'#ff9767'}
+];
+
+function radiusFor(p){
+  const min=155,max=445;
+  const d=Math.min(p.days,240);
+  return Math.max(min,max-d*1.18);
+}
+function sizeFor(p){return 22+p.importance*4.5}
+function statusFor(p){
+  if(p.days<14)return 'Aktiv';
+  if(p.days<60)return 'Drift';
+  if(p.days<120)return 'Gefährdet';
+  return 'Ereignishorizont nah';
+}
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  canvas.width=W*DPR;canvas.height=H*DPR;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);
+  stars=Array.from({length:260},()=>({x:(Math.random()-.5)*W*1.5,y:(Math.random()-.5)*H*1.5,z:Math.random()*1.4+.25,r:Math.random()*1.6+.2,a:Math.random()*.75+.08}));
+}
+addEventListener('resize',resize);resize();
+
+function makeSpag(){
+  const box=document.getElementById('spag');
+  for(let i=0;i<34;i++){
+    const l=document.createElement('i');l.className='spag-line';
+    l.style.transform=`rotate(${i*(360/34)}deg) translateX(${70+Math.random()*65}px)`;
+    l.style.opacity=(.12+Math.random()*.25);
+    box.appendChild(l);
+  }
+}
+makeSpag();
+
+function createPlanets(){
+  projects.forEach((p,i)=>{
+    const el=document.createElement('div');el.className='project';el.dataset.name=p.name;el.style.color=p.color;
+    const s=sizeFor(p);el.style.width=s+'px';el.style.height=s+'px';
+    el.style.background=`radial-gradient(circle at 30% 24%,rgba(255,255,255,.45),transparent 12%),radial-gradient(circle at 60% 68%,${p.color}55,transparent 34%),linear-gradient(135deg,${p.color}55,#111827 64%,#03050b)`;
+    el.addEventListener('click',e=>{e.stopPropagation();openProject(p)});
+    system.appendChild(el);p.el=el;
+  });
+}
+createPlanets();
+
+function projectPosition(p,t){
+  const r=radiusFor(p);
+  const a=(p.angle+t*(p.days>100?.0018:.0008))*Math.PI/180;
+  let x=Math.cos(a)*r;
+  let z=Math.sin(a)*r;
+  let y=Math.sin(a*1.6+p.incl*4)*r*p.incl;
+  const cy=Math.cos(yaw*Math.PI/180),sy=Math.sin(yaw*Math.PI/180);
+  let x2=x*cy+z*sy, z2=-x*sy+z*cy;
+  const cp=Math.cos(pitch*Math.PI/180),sp=Math.sin(pitch*Math.PI/180);
+  let y2=y*cp-z2*sp, z3=y*sp+z2*cp;
+  return{x:x2,y:y2,z:z3,r};
+}
+function placePlanets(t){
+  projects.forEach(p=>{
+    const q=projectPosition(p,t);
+    const perspective=1+q.z/1200;
+    const x=W/2+q.x*perspective*zoom;
+    const y=H/2+q.y*perspective*zoom;
+    p.el.style.left=x+'px';p.el.style.top=y+'px';
+    p.el.style.zIndex=Math.round(20+q.z/20);
+    p.el.style.transform=`translate(-50%,-50%) scale(${Math.max(.66,perspective*zoom*(1+dive*.12))})`;
+    const danger=Math.max(0,(180-q.r)/60);
+    if(danger>0)p.el.style.boxShadow=`0 0 ${20+danger*30}px ${p.color}`;
+  });
+}
+function drawSpace(t){
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2;
+  const warp=140+targetDive*650;
+  for(const s of stars){
+    let x=cx+s.x*(.9+.1*s.z), y=cy+s.y*(.9+.1*s.z);
+    const dx=x-cx,dy=y-cy,dist=Math.max(28,Math.hypot(dx,dy));
+    const bend=warp/(dist*.85);
+    const tx=-dy/dist,ty=dx/dist;
+    const radial=(warp*.42)/(dist);
+    const wx=x+tx*bend*16+(dx/dist)*radial*8;
+    const wy=y+ty*bend*16+(dy/dist)*radial*8;
+    const a=s.a*(.55+.35*Math.sin(t*.001*s.z+s.x*.01));
+    ctx.strokeStyle=`rgba(225,235,255,${Math.max(.03,a*.28*(1+targetDive))})`;
+    ctx.lineWidth=Math.max(.4,s.r);
+    ctx.beginPath();ctx.moveTo(wx,wy);
+    ctx.lineTo(wx+tx*(2+targetDive*16)*s.z,wy+ty*(2+targetDive*16)*s.z);ctx.stroke();
+    ctx.fillStyle=`rgba(235,242,255,${Math.max(.04,a)})`;ctx.beginPath();ctx.arc(wx,wy,s.r,0,Math.PI*2);ctx.fill();
+  }
+  drawSuction(t);
+}
+function drawSuction(t){
+  const cx=W/2,cy=H/2;
+  projects.forEach((p,i)=>{
+    const q=projectPosition(p,t);
+    const x=W/2+q.x*zoom,y=H/2+q.y*zoom;
+    const steps=28;
+    ctx.strokeStyle=`${p.color}33`;ctx.lineWidth=1;
+    ctx.beginPath();
+    for(let k=0;k<steps;k++){
+      const f=k/(steps-1);
+      const rr=(1-f)*Math.hypot(x-cx,y-cy);
+      const ang=Math.atan2(y-cy,x-cx)+f*(1.2+targetDive*.9);
+      const px=cx+Math.cos(ang)*rr,py=cy+Math.sin(ang)*rr*.92;
+      if(k===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+  });
+}
+function animate(t){
+  dive+=(targetDive-dive)*.055;
+  system.style.transform=`translate(-50%,-50%) rotateX(${pitch}deg) rotateY(${yaw}deg) scale(${zoom*(1+dive*1.65)})`;
+  document.getElementById('spag').style.opacity=.38+dive*.5;
+  document.getElementById('spag').style.transform=`translate(-50%,-50%) scale(${1+dive*.9}) rotate(${t*.01*dive}deg)`;
+  placePlanets(t);
+  drawSpace(t);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+function openProject(p){
+  selected=p;
+  document.getElementById('sumStatus').textContent=`${statusFor(p)} · ${p.days} Tage ohne Update`;
+  document.getElementById('sumTitle').textContent=p.name;
+  document.getElementById('sumGoal').textContent=p.goal;
+  mds.innerHTML=p.md.map(x=>`<span class="mdchip">${x}</span>`).join('');
+  mds.classList.remove('show');
+  panel.classList.add('open');
+}
+document.getElementById('closePanel').onclick=()=>panel.classList.remove('open');
+document.getElementById('mdBtn').onclick=()=>mds.classList.toggle('show');
+document.getElementById('updateBtn').onclick=()=>{
+  if(!selected)return;
+  selected.days=0;
+  document.getElementById('sumStatus').textContent='Aktualisiert · gerade eben';
+  showToast('Projekt wurde aktualisiert und driftet wieder nach außen');
+};
+function showToast(t){toast.textContent=t;toast.classList.add('show');clearTimeout(showToast.x);showToast.x=setTimeout(()=>toast.classList.remove('show'),1800)}
+
+bh.addEventListener('click',()=>{
+  targetDive=targetDive?0:1;
+  panel.classList.remove('open');
+  diveUI.classList.toggle('show',!!targetDive);
+  document.getElementById('modeText').textContent=targetDive?'Singularity Dive':'Projektuniversum';
+});
+
+system.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;system.setPointerCapture(e.pointerId)});
+system.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
+  yaw+=dx*.22;pitch=Math.max(-35,Math.min(38,pitch-dy*.16));
+});
+system.addEventListener('pointerup',()=>drag=false);
+system.addEventListener('pointercancel',()=>drag=false);
+addEventListener('wheel',e=>{zoom=Math.max(.65,Math.min(1.55,zoom-e.deltaY*.00045));},{passive:true});
+</script>
+</body>
+</html>

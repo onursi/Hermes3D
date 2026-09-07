@@ -811,7 +811,7 @@ export function V2Screen() {
           woran es hängt. In 3D ist die zweite Frage nicht beantwortbar —
           zwei Punkte überdecken sich oder verstecken sich hintereinander. */}
       <Neighbourhood
-        node={graphNode}
+        node={world === "cosmos" ? graphNode : null}
         links={vault.links}
         byId={vault.byId}
         onSelect={selectSourceId}
@@ -824,40 +824,6 @@ export function V2Screen() {
           <Cockpit places={places} markers={cockpitMarkers} reachableId={reachable?.id ?? null} />
           <TravelBar reachable={reachable} onEnter={enterPlace} />
         </>
-      ) : null}
-
-      {world === "saturn" ? (
-        <div className="absolute inset-0 z-20 bg-[#03050b]">
-          <div className="pointer-events-auto absolute top-16 right-6 z-40 flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a1018]/90 p-1.5 backdrop-blur-md">
-            <button
-              type="button"
-              onClick={() => setSaturnSubView("saturn")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
-                saturnSubView === "saturn"
-                  ? "bg-cyan-500/25 text-cyan-200 border border-cyan-500/30 font-semibold"
-                  : "text-white/60 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              🪐 Memory Saturn
-            </button>
-            <button
-              type="button"
-              onClick={() => setSaturnSubView("orbit")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
-                saturnSubView === "orbit"
-                  ? "bg-purple-500/25 text-purple-200 border border-purple-500/30 font-semibold"
-                  : "text-white/60 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              💫 Erinnerungsorbit
-            </button>
-          </div>
-          <iframe
-            src={saturnSubView === "saturn" ? "/memory_saturn.html" : "/erinnerungsorbit.html"}
-            className="h-full w-full border-0 pb-16"
-            title="Memory Space"
-          />
-        </div>
       ) : null}
 
       <Dock showLibrary={labMode} />
