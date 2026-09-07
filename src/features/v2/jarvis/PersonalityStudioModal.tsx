@@ -156,13 +156,13 @@ export function PersonalityStudioModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-      <div className="relative flex h-[min(680px,calc(100vh-2rem))] w-[min(920px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-cyan-500/40 bg-[#070d14]/95 shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_40px_rgba(0,240,255,0.2)]">
+      <div className="relative flex h-[min(680px,calc(100vh-2rem))] w-[min(920px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_25px_70px_rgba(0,0,0,0.9),0_0_35px_rgba(56,189,248,0.15)] backdrop-blur-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-cyan-500/25 bg-cyan-950/20 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-b from-cyan-950/25 via-[#0a1018]/80 to-transparent px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="h-2.5 w-2.5 animate-ping rounded-full bg-cyan-400" />
             <div>
-              <h2 className="font-sans text-sm font-bold tracking-wide text-white uppercase">
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] font-semibold text-white">
                 Jarvis // Persönlichkeits- & Avatar-Studio
               </h2>
               <p className="font-sans text-xs text-white/50">
@@ -174,23 +174,23 @@ export function PersonalityStudioModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-500/30 text-white/70 transition hover:bg-cyan-500/20 hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-white/70 transition hover:bg-white/5 hover:text-white"
             title="Studio schließen"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
         {/* Content: 2 Columns */}
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-12">
           {/* Links: Persönlichkeitsauswahl */}
-          <div className="flex flex-col overflow-y-auto border-b border-cyan-500/20 p-5 md:col-span-7 md:border-r md:border-b-0">
+          <div className="flex flex-col overflow-y-auto border-b border-white/10 p-5 md:col-span-7 md:border-r md:border-b-0">
             <div className="mb-3 flex items-center justify-between">
-              <span className="font-sans text-xs font-semibold text-cyan-300 uppercase tracking-wider">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-300">
                 Verfügbare Persönlichkeiten
               </span>
-              <span className="font-sans text-[11px] text-white/40">
-                Hochauflösende Neural-Stimmen
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/40">
+                HD Neural-Stimmen
               </span>
             </div>
 
@@ -205,23 +205,23 @@ export function PersonalityStudioModal({
                     onClick={() => handleChoose(persona)}
                     className={`group relative flex flex-col rounded-xl border p-3.5 transition-all cursor-pointer ${
                       isSelected
-                        ? "border-cyan-400 bg-cyan-950/40 shadow-[0_0_20px_rgba(0,240,255,0.15)]"
-                        : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]"
+                        ? "border-cyan-400/50 bg-cyan-950/30 shadow-[0_0_20px_rgba(56,189,248,0.15)]"
+                        : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-sans text-sm font-bold text-white">
+                        <span className="font-mono text-xs uppercase tracking-[0.12em] font-bold text-white">
                           {persona.name}
                         </span>
-                        <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 font-sans text-[10px] font-medium text-cyan-200">
+                        <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-cyan-200">
                           {persona.badge}
                         </span>
                       </div>
 
                       {isSelected ? (
-                        <span className="flex items-center gap-1 font-sans text-xs font-semibold text-cyan-300">
-                          <Check size={14} />
+                        <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.12em] font-semibold text-cyan-300">
+                          <Check size={13} />
                           Aktiv
                         </span>
                       ) : null}
@@ -232,7 +232,7 @@ export function PersonalityStudioModal({
                     </p>
 
                     <div className="mt-3 flex items-center justify-between border-t border-white/[0.07] pt-2.5">
-                      <span className="font-sans text-[11px] text-white/45">
+                      <span className="font-mono text-[10px] text-white/50">
                         🎙️ {persona.voiceLabel}
                       </span>
 
@@ -242,21 +242,21 @@ export function PersonalityStudioModal({
                           e.stopPropagation();
                           handlePlaySample(persona);
                         }}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-sans text-xs font-medium transition ${
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] transition ${
                           isPlaying
-                            ? "border-cyan-400 bg-cyan-400/20 text-cyan-100"
-                            : "border-white/15 bg-white/[0.05] text-white/75 hover:border-cyan-400/50 hover:text-white"
+                            ? "border-cyan-400/50 bg-cyan-400/20 text-cyan-100"
+                            : "border-white/15 bg-[#0c1420]/80 text-cyan-200 hover:border-cyan-400/50 hover:text-white"
                         }`}
                         title="Hörprobe der Neuralstimme abspielen"
                       >
                         {isPlaying ? (
                           <>
-                            <Square size={11} className="text-cyan-300 fill-current" />
+                            <Square size={10} className="text-cyan-300 fill-current" />
                             <span>Stopp</span>
                           </>
                         ) : (
                           <>
-                            <Play size={11} className="text-cyan-300 fill-current" />
+                            <Play size={10} className="text-cyan-300 fill-current" />
                             <span>Hörprobe</span>
                           </>
                         )}
@@ -269,9 +269,9 @@ export function PersonalityStudioModal({
           </div>
 
           {/* Rechts: Interaktives 3D-Modell & Live-Vorschau */}
-          <div className="relative flex flex-col items-center justify-between bg-gradient-to-b from-[#050a10] to-[#0a121d] p-5 md:col-span-5">
+          <div className="relative flex flex-col items-center justify-between bg-gradient-to-b from-[#060a10] via-[#0a1018] to-[#0c1420] p-5 md:col-span-5">
             <div className="w-full text-center">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-950/40 px-3 py-1 font-sans text-[11px] font-medium text-cyan-200">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-cyan-950/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-cyan-200">
                 <Sparkles size={12} className="text-cyan-400" />
                 <span>Interaktive 3D-Blickverfolgung</span>
               </div>
@@ -281,7 +281,7 @@ export function PersonalityStudioModal({
             </div>
 
             {/* 3D Hologram Face Canvas */}
-            <div className="relative my-2 flex h-64 w-64 items-center justify-center rounded-2xl border border-cyan-500/20 bg-[#020509]/80 shadow-[inset_0_0_30px_rgba(0,240,255,0.15)]">
+            <div className="relative my-2 flex h-64 w-64 items-center justify-center rounded-2xl border border-white/10 bg-[#060a10]/90 shadow-[inset_0_0_30px_rgba(56,189,248,0.12)]">
               <Interactive3DFace
                 speaking={Boolean(playingId)}
                 themeColor={activePersona.accentColor}
@@ -289,8 +289,8 @@ export function PersonalityStudioModal({
             </div>
 
             {/* Aktive Persona Info Card */}
-            <div className="w-full rounded-xl border border-cyan-500/30 bg-cyan-950/30 p-3 text-center">
-              <span className="font-sans text-xs font-bold text-cyan-300">
+            <div className="w-full rounded-xl border border-white/10 bg-[#0a1018]/90 p-3 text-center">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-300">
                 Gewählt: {activePersona.name} ({activePersona.title})
               </span>
               <p className="mt-1 font-sans text-[11px] text-white/50">
@@ -305,14 +305,14 @@ export function PersonalityStudioModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-cyan-500/25 bg-black/40 px-6 py-3">
+        <div className="flex items-center justify-between border-t border-white/10 bg-black/40 px-6 py-3">
           <span className="font-sans text-xs text-white/45">
             Änderungen werden sofort für alle Antworten & Vorlesefunktionen übernommen.
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-cyan-400 bg-cyan-500/20 px-4 py-1.5 font-sans text-xs font-bold text-cyan-100 transition hover:bg-cyan-500/40 active:scale-95"
+            className="rounded-xl border border-cyan-400/40 bg-cyan-400/15 px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-100 transition hover:bg-cyan-400/25 active:scale-95"
           >
             Übernehmen & Schließen
           </button>
