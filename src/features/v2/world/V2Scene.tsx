@@ -381,6 +381,32 @@ export function V2Scene({
     return points;
   }, [citedSourceIds, vault.byId, world]);
 
+  /**
+   * Die Tastflaeche fuer den Scandurchlauf: echte Notizen, gleichmaessig ueber
+   * den Vault verteilt.
+   *
+   * Gedeckelt, weil pro Bild jede davon projiziert wird — bei dreihundert
+   * Notizen waere das dreihundert Matrixmultiplikationen fuer einen Effekt.
+   * Jede n-te statt der ersten n: sonst tastet der Scan nur einen Ordner ab,
+   * weil der Graph nach Ordnern sortiert liegt.
+   */
+  const sweepPoints = useMemo<BeamProbePoint[]>(() => {
+    if (beamPoints.length === 0) return [];
+    const alle = vault.nodes;
+    const ziel = 70;
+    const schritt = Math.max(1, Math.floor(alle.length / ziel));
+    const points: BeamProbePoint[] = [];
+    for (let i = 0; i < alle.length && points.length < ziel; i += schritt) {
+      const node = alle[i];
+      points.push({
+        id: node.id,
+        label: node.name,
+        position: world === "home" ? node.skyPosition : node.position,
+      });
+    }
+    return points;
+  }, [beamPoints.length, vault.nodes, world]);
+
   return (
     <Canvas
       dpr={[1, 1.35]}
@@ -446,7 +472,7 @@ export function V2Scene({
         Im Zuhause liegen dieselben Notizen als Himmelssterne weit draussen,
         deshalb je nach Welt die andere Position derselben Notiz.
       */}
-      <BeamProbe active={beamPoints.length > 0} points={beamPoints} />
+      <BeamProbe active={beamPoints.length > 0} points={beamPoints} sweepPoints={sweepPoints} />
 
       <CameraDirector
         goal={goal}

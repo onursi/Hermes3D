@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
 
-import { reportBeamTargets, type BeamTarget } from "./beamAnchors";
+import { reportBeamTargets, reportSweepPoints, type BeamPoint, type BeamTarget } from "./beamAnchors";
 
 export type BeamProbePoint = {
   id: string;
@@ -30,7 +30,16 @@ export type BeamProbePoint = {
  * Nicht jedes Bild: Der Punkt wandert langsamer, als das Auge es merkt, und
  * jede Messung kostet eine Matrixmultiplikation pro Notiz.
  */
-export function BeamProbe({ points, active }: { points: BeamProbePoint[]; active: boolean }) {
+export function BeamProbe({
+  points,
+  sweepPoints = [],
+  active,
+}: {
+  points: BeamProbePoint[];
+  /** Weitere echte Notizen im Raum — die Tastflaeche fuer den Scandurchlauf. */
+  sweepPoints?: BeamProbePoint[];
+  active: boolean;
+}) {
   const { camera, size } = useThree();
 
   /**
@@ -45,6 +54,7 @@ export function BeamProbe({ points, active }: { points: BeamProbePoint[]; active
     void frame;
     if (!active || points.length === 0) {
       reportBeamTargets([]);
+      reportSweepPoints([]);
       return;
     }
 
@@ -75,6 +85,26 @@ export function BeamProbe({ points, active }: { points: BeamProbePoint[]; active
     }
 
     reportBeamTargets(out);
+
+    /**
+     * Die Tastflaeche.
+     *
+     * Nur Punkte im Bild, und nur die Koordinate — Titel braucht der Scan
+     * nicht, er streicht darueber, er zitiert sie nicht. Wer beschriftet wird,
+     * ist eine Quelle der Antwort; alles andere bleibt namenlos, damit im Bild
+     * nicht so aussieht, als haette Jarvis achtzig Notizen gelesen.
+     */
+    const gestreift: BeamPoint[] = [];
+    for (const point of sweepPoints) {
+      scratch.copy(point.position).project(camera);
+      if (scratch.z >= 1) continue;
+      if (scratch.x < -1 || scratch.x > 1 || scratch.y < -1 || scratch.y > 1) continue;
+      gestreift.push({
+        x: (scratch.x * 0.5 + 0.5) * size.width,
+        y: (-scratch.y * 0.5 + 0.5) * size.height,
+      });
+    }
+    reportSweepPoints(gestreift);
   });
 
   return null;

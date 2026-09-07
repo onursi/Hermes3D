@@ -107,6 +107,16 @@ export function JarvisCompanion({
    */
   const kopfOffenRef = useRef<HTMLButtonElement>(null);
   const kopfKugelRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Die stehende Verbindung — getrennt vom kurzen Scan.
+   *
+   * `isScanning` beschreibt den Vorgang und endet mit ihm: Ton aus, Status
+   * zurueck auf bereit. Der Strahl soll aber bleiben, bis Onur ihn wegklickt.
+   * Zwei Sachen, zwei Zustaende — vorher haette das Ausschalten des Tons auch
+   * das Bild geloescht.
+   */
+  const [beamLive, setBeamLive] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
   const [phase, setPhase] = useState<JarvisPhase>("idle");
   const [savedAs, setSavedAs] = useState<string | null>(null);
@@ -249,6 +259,7 @@ export function JarvisCompanion({
 
       // Visueller & auditiver Laser-Scan ins Gehirn
       setIsScanning(true);
+      setBeamLive(true);
       jarvisAudio.playScanSweep();
       jarvisAudio.startBeamSound();
 
@@ -541,7 +552,7 @@ export function JarvisCompanion({
    * zeichnet dann nichts, statt auf einen alten Punkt zu zeigen.
    */
   useEffect(() => {
-    if (!isScanning) {
+    if (!isScanning && !beamLive) {
       reportJarvisHead(null);
       return;
     }
@@ -566,15 +577,15 @@ export function JarvisCompanion({
       cancelAnimationFrame(raf);
       reportJarvisHead(null);
     };
-  }, [isScanning]);
+  }, [isScanning, beamLive]);
 
   return (
     <>
       {/* Visueller Mehrsektoren-Laser- & Scanstrahl ins 3D-Gehirn */}
       <JarvisNeuralBeam
-        active={isScanning}
-        targetLabel={currentWorld === "cosmos" ? "INDEX: SECOND BRAIN [0, 0, 0]" : "NEURAL CORE DOCK"}
-        onComplete={() => setIsScanning(false)}
+        active={beamLive}
+        targetLabel={currentWorld === "cosmos" ? "KEINE QUELLE IM BILD" : "KEINE QUELLE IN DIESER WELT"}
+        onDismiss={() => setBeamLive(false)}
       />
 
       {/* 3D Hologram & Personality Studio Modal */}

@@ -45,6 +45,8 @@ type AnchorState = {
   headAt: number;
   targets: BeamTarget[];
   targetsAt: number;
+  sweep: BeamPoint[];
+  sweepAt: number;
 };
 
 /**
@@ -57,12 +59,25 @@ type AnchorState = {
  */
 const GILT_MS = 400;
 
-const state: AnchorState = { head: null, headAt: 0, targets: [], targetsAt: 0 };
+const state: AnchorState = { head: null, headAt: 0, targets: [], targetsAt: 0, sweep: [], sweepAt: 0 };
 
 /** Der Companion meldet, wo sein Kopf steht. */
 export function reportJarvisHead(point: BeamPoint | null): void {
   state.head = point;
   state.headAt = point ? Date.now() : 0;
+}
+
+/**
+ * Die Szene meldet, welche **anderen** Notizen gerade im Bild liegen.
+ *
+ * Das ist die Tastfläche für den Scandurchlauf. Wichtig: Es sind echte
+ * Notizen an ihren echten Stellen, keine gewürfelten Punkte. Ein Scan, der
+ * über erfundene Orte streicht, ist wieder genau die Sorte Bild, die
+ * überzeugt, bevor sie stimmt — nur eben in Bewegung.
+ */
+export function reportSweepPoints(points: BeamPoint[]): void {
+  state.sweep = points;
+  state.sweepAt = points.length > 0 ? Date.now() : 0;
 }
 
 /** Die Szene meldet, wo die zitierten Notizen auf dem Bildschirm liegen. */
@@ -77,10 +92,11 @@ export function reportBeamTargets(targets: BeamTarget[]): void {
  * Gibt nur zurück, was frisch gemeldet wurde. `head === null` oder eine leere
  * Zielliste heißt: nicht zeichnen.
  */
-export function readBeamAnchors(): { head: BeamPoint | null; targets: BeamTarget[] } {
+export function readBeamAnchors(): { head: BeamPoint | null; targets: BeamTarget[]; sweep: BeamPoint[] } {
   const now = Date.now();
   return {
     head: state.head && now - state.headAt < GILT_MS ? state.head : null,
     targets: now - state.targetsAt < GILT_MS ? state.targets.filter((t) => t.onScreen) : [],
+    sweep: now - state.sweepAt < GILT_MS ? state.sweep : [],
   };
 }
