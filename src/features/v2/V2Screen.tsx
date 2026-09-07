@@ -30,6 +30,7 @@ import { playArrive, playSelect } from "@/features/v2/sound";
 import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
+import { JarvisCompanion } from "@/features/v2/jarvis";
 
 /**
  * V2, assembled.
@@ -738,6 +739,17 @@ export function V2Screen() {
             error: projects.error,
           },
         ]}
+      />
+
+      {/* Globaler, ausblendbarer Jarvis Companion unten rechts (Hologramm-Gesicht & Arc Reactor Core) */}
+      <JarvisCompanion
+        currentWorld={world}
+        onFlyToNote={(id) => {
+          flyToSource(id);
+          const node = vault.byId.get(id);
+          if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+        }}
+        onNavigateWorld={(w) => goTo(w)}
       />
     </main>
   );
