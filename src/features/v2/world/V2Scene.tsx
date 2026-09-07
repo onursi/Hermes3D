@@ -23,6 +23,7 @@ import { MemoryWorld, type MemoryMode } from "../spatial/MemoryWorld";
 import type { MemoryEntry, ProjectMeta } from "../spatial/model";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { TesseractDimensionWorld } from "@/features/v2/world/tesseract/TesseractDimensionWorld";
+import { IdeenatelierWorld } from "@/features/v2/world/IdeenatelierWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
@@ -430,8 +431,8 @@ export function V2Scene({
           enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={false}
           minDistance={world === "projects" && !openProject ? 7.8 : 3.2}
-          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : 30}
-          maxPolarAngle={world === "projects" || world === "memory" ? Math.PI * 0.94 : Math.PI * 0.52}
+          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : world === "atelier" ? 50 : 30}
+          maxPolarAngle={world === "projects" || world === "memory" || world === "atelier" ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
           rotateSpeed={0.55}
@@ -550,6 +551,8 @@ export function V2Scene({
           )
         ) : world === "tesseract" ? (
           <TesseractDimensionWorld onExit={() => goTo("home")} />
+        ) : world === "atelier" ? (
+          <IdeenatelierWorld />
         ) : (
           <LibraryWorld
             items={libraryItems}

@@ -19,8 +19,8 @@ const securityHeaders = [
       // evaluation, and without it the whole chunk fails and the agent
       // roster never renders (observed 2026-08-27, local patch).
       ...(process.env.NODE_ENV !== "production"
-        ? ["script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:"]
-        : ["script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:"]),
+        ? ["script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:"]
+        : ["script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https:"]),
       // connect-src is intentionally broad: gateway URLs are user-configured
       // at runtime and cannot be enumerated at build time.
       // Restrict further when a fixed deployment target is known.

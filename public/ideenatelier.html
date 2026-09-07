@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes 3D • Das Ideenatelier (Simulation & Prototyp)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #0a0d14;
+      --card: rgba(14, 18, 28, 0.92);
+      --border: rgba(255, 255, 255, 0.12);
+      --gold: #e0a93f;
+      --gold-glow: rgba(224, 169, 63, 0.4);
+      --amber: #f59e0b;
+      --cyan: #00f0ff;
+      --cyan-glow: rgba(0, 240, 255, 0.35);
+      --text: #f0eae0;
+      --muted: #9d9384;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* Top HUD */
+    .top-bar {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      right: 24px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+    .badge-hub {
+      pointer-events: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 10px 18px;
+      border-radius: 12px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .badge-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .badge-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .nav-actions {
+      pointer-events: auto;
+      display: flex;
+      gap: 10px;
+    }
+    .hud-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 9px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hud-btn:hover {
+      background: rgba(224, 169, 63, 0.15);
+      border-color: var(--gold);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .hud-btn.active {
+      background: var(--gold);
+      color: #000;
+      font-weight: 700;
+      border-color: var(--gold);
+    }
+
+    /* Left Control Desk */
+    .left-panel {
+      position: absolute;
+      top: 88px;
+      left: 24px;
+      bottom: 24px;
+      width: 440px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      pointer-events: none;
+    }
+    .glass-card {
+      pointer-events: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .card-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--gold);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .idea-select-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 170px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .idea-item-btn {
+      text-align: left;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.18s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .idea-item-btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .idea-item-btn.selected {
+      background: rgba(224, 169, 63, 0.16);
+      border-color: var(--gold);
+      color: #fff;
+      font-weight: 600;
+    }
+    .reife-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(0,0,0,0.4);
+      color: var(--gold);
+    }
+
+    /* Slider Container */
+    .slider-box {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .phase-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .reife-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .custom-range {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 4px;
+      background: #2a3142;
+      outline: none;
+    }
+    .custom-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--gold);
+      cursor: pointer;
+      box-shadow: 0 0 12px var(--gold);
+      transition: transform 0.1s;
+    }
+    .custom-range::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    .phase-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+    }
+
+    /* 6 Exits Grid */
+    .exits-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .exit-btn {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      color: #fff;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    .exit-btn:hover {
+      background: rgba(255,255,255,0.1);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    }
+    .exit-btn.singularity:hover { border-color: #38bdf8; box-shadow: 0 0 16px rgba(56,189,248,0.4); }
+    .exit-btn.discard:hover { border-color: #f59e0b; box-shadow: 0 0 16px rgba(245,158,11,0.4); }
+    .exit-icon { font-size: 20px; }
+    .exit-text { display: flex; flex-direction: column; }
+    .exit-name { font-size: 11px; font-weight: 700; line-height: 1.2; }
+    .exit-sub { font-size: 9px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+    /* Right Ground Sandbox */
+    .right-panel {
+      position: absolute;
+      top: 88px;
+      right: 24px;
+      width: 360px;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .ground-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ground-card {
+      pointer-events: auto;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .ground-card.active {
+      background: rgba(224, 169, 63, 0.15);
+      border-color: var(--gold);
+      box-shadow: 0 0 20px var(--gold-glow);
+    }
+    .ground-card.quran.active { border-color: #e0a93f; }
+    .ground-card.hadith.active { border-color: #d97706; }
+    .ground-card.interpretation.active { border-color: #00f0ff; box-shadow: 0 0 20px var(--cyan-glow); }
+    .ground-title {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .ground-desc {
+      font-size: 11px;
+      color: #bbb;
+      line-height: 1.4;
+    }
+
+    /* Toast Notification */
+    .toast-overlay {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      background: rgba(14, 24, 38, 0.95);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 0 30px var(--cyan-glow);
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: translate(-50%, 20px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Top Navigation Bar -->
+  <div class="top-bar">
+    <div class="badge-hub">
+      <span class="badge-tag">Hermes 3D • Modul</span>
+      <span class="badge-title">Das Ideenatelier (3D-Werkstatt)</span>
+    </div>
+    <div class="nav-actions">
+      <button class="hud-btn" id="btn-sound" onclick="toggleSound()">🔊 Sound: An</button>
+      <button class="hud-btn" onclick="resetCamera()">🎥 Kamera Reset</button>
+      <a href="http://localhost:3420/v2" class="hud-btn" style="text-decoration:none;">🚀 V2 Live App</a>
+      <a href="http://localhost:3420/hub.html" class="hud-btn" style="text-decoration:none;">📚 Dokumenten-Hub</a>
+    </div>
+  </div>
+
+  <!-- Left Control Panel -->
+  <div class="left-panel">
+    <div class="glass-card">
+      <div class="card-label">
+        <span>Vault-Ideen (15 Ingestiert)</span>
+        <span class="reife-pill" id="stats-badge">12 Offen • 0 Verworfen</span>
+      </div>
+
+      <div class="idea-select-list" id="ideas-container">
+        <!-- Dynamically rendered -->
+      </div>
+
+      <!-- Reifegrad Slider -->
+      <div class="slider-box">
+        <div class="slider-header">
+          <span class="phase-badge" id="phase-label">Phase 3 • Silhouette</span>
+          <span class="reife-value" id="reife-text">38%</span>
+        </div>
+        <input type="range" class="custom-range" id="reife-slider" min="0.05" max="1.0" step="0.01" value="0.38" oninput="onSliderMove(this.value)" />
+        <div class="phase-ticks">
+          <span>Funke</span>
+          <span>Wolke</span>
+          <span>Silhouette</span>
+          <span>Formung</span>
+          <span>Check</span>
+          <span>Proto</span>
+          <span>Reife</span>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; font-size: 12px; line-height: 1.5; color: #ddd; max-height: 110px; overflow-y: auto;" id="idea-desc">
+        Wird geladen...
+      </div>
+    </div>
+
+    <!-- The 6 Exits -->
+    <div class="glass-card">
+      <div class="card-label">
+        <span>Die 6 Verbindlichen Ausgänge</span>
+        <span style="color: var(--muted); font-size: 9px;">Anti-Backlog-Mechanik</span>
+      </div>
+
+      <div class="exits-grid">
+        <button class="exit-btn singularity" onclick="triggerExit('singularity', '🚀 In Singularität starten!')">
+          <span class="exit-icon">🚀</span>
+          <div class="exit-text">
+            <span class="exit-name">In Singularität</span>
+            <span class="exit-sub">Wird echtes Vorhaben</span>
+          </div>
+        </button>
+
+        <button class="exit-btn" onclick="triggerExit('moon', '🪐 Als Mond an Projekt angedockt!')">
+          <span class="exit-icon">🪐</span>
+          <div class="exit-text">
+            <span class="exit-name">Als Mond</span>
+            <span class="exit-sub">Teilziel eines Planeten</span>
+          </div>
+        </button>
+
+        <button class="exit-btn" onclick="triggerExit('wissen', '📚 Ins Wissensnetz archiviert!')">
+          <span class="exit-icon">📚</span>
+          <div class="exit-text">
+            <span class="exit-name">Wissensnetz</span>
+            <span class="exit-sub">Transfer nach 07🧠Wissen</span>
+          </div>
+        </button>
+
+        <button class="exit-btn discard" onclick="triggerExit('discard', '💎 Erkenntnis-Bucht: Mit Learning verewigt!')">
+          <span class="exit-icon">💎</span>
+          <div class="exit-text">
+            <span class="exit-name">Erkenntnis-Bucht</span>
+            <span class="exit-sub">Verwerfen mit Gewinn</span>
+          </div>
+        </button>
+
+        <button class="exit-btn" onclick="triggerExit('park', '⏳ Entscheidungsfrist fest verankert!')">
+          <span class="exit-icon">⏳</span>
+          <div class="exit-text">
+            <span class="exit-name">Entscheidungsfrist</span>
+            <span class="exit-sub">Prüfung in 14 Tagen</span>
+          </div>
+        </button>
+
+        <button class="exit-btn" onclick="triggerExit('delegate', '🤝 Menschliche Übergabe gestartet!')">
+          <span class="exit-icon">🤝</span>
+          <div class="exit-text">
+            <span class="exit-name">Übergabe</span>
+            <span class="exit-sub">Partner / Team</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Ground Sandbox Panel -->
+  <div class="right-panel">
+    <div class="glass-card">
+      <div class="card-label">
+        <span>Quellenboden-Sandbox</span>
+        <span style="color: var(--cyan); font-size: 9px;">YouTube 3D-Räume</span>
+      </div>
+      <p style="font-size: 11px; color: #aaa; line-height: 1.4;">
+        Testumgebung für religiöse 3D-Konzepte: Der Betrachter erkennt am Material des Bodens, worauf er steht.
+      </p>
+
+      <div class="ground-tabs">
+        <div class="ground-card quran active" id="ground-card-quran" onclick="selectGround('quran')">
+          <div class="ground-title" style="color: #e0a93f;">
+            <span>1. KORAN-FUNDAMENT</span>
+            <span>MASSIV</span>
+          </div>
+          <div class="ground-desc">
+            Schwarzer polierter Granit mit Gold-Schrift. Fester Grund, unerschütterlich belegt, klares warmes Licht.
+          </div>
+        </div>
+
+        <div class="ground-card hadith" id="ground-card-hadith" onclick="selectGround('hadith')">
+          <div class="ground-title" style="color: #f59e0b;">
+            <span>2. AUTHENTISCHER HADITH</span>
+            <span>STRUKTURIERT</span>
+          </div>
+          <div class="ground-desc">
+            Strukturierter Basalt mit Überlieferungsketten-Prismen. Solider Boden, Quelle und Kette jederzeit prüfbar.
+          </div>
+        </div>
+
+        <div class="ground-card interpretation" id="ground-card-interpretation" onclick="selectGround('interpretation')">
+          <div class="ground-title" style="color: #00f0ff;">
+            <span>3. KÜNSTLERISCHE DEUTUNG</span>
+            <span>GLAS / ÄTHER</span>
+          </div>
+          <div class="ground-desc">
+            Durchscheinendes Milchglas mit sanftem Cyan-Schimmer. Signalisiert: Hier beginnt Interpretation und Metapher.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast-overlay" id="toast">Aktion ausgeführt</div>
+
+  <script>
+    // --- Data Model: 15 Real Vault Ideas ---
+    const VAULT_IDEAS = [
+      {
+        id: "youtube-3d-hadith-welten",
+        title: "YouTube: Begehbare 3D-Räume nach Hadithen",
+        category: "inbox",
+        reife: 0.38,
+        date: "2026-09-07",
+        deadline: "2026-09-21",
+        summary: "3D-Räume zu religiösen Szenen (Sirat-Brücke, Leben im Grab, Tag des Gerichts) nach Koran & authentischen Hadithen. Kreative Kunst & Dramaturgie, um Visualisierungen aus dem Kopf in Realität sichtbar zu machen."
+      },
+      {
+        id: "ki-kontingent-sparen",
+        title: "KI-Kontingent (Claude/GPT) schonen",
+        category: "open",
+        reife: 0.15,
+        date: "2026-08-29",
+        deadline: "2026-09-18",
+        summary: "Triage-Workflow zur Entlastung des Hauptkontingents: Mechanische/repetitive Aufgaben an kostenlose Open-Code-Modelle auslagern, anspruchsvolle Systemarchitektur im Kern belassen."
+      },
+      {
+        id: "journal-anwendung-mizan",
+        title: "Journal-Anwendung statt Goodnotes",
+        category: "open",
+        reife: 0.68,
+        date: "2026-08-29",
+        deadline: "2026-09-25",
+        summary: "MIZAN Daily Journal: 20-Tage Reflexionsjournal (Dankbarkeit, Fokus, 99 Namen, Qur'an-Vers) als fehlerfreie Web-App oder Goodnotes-PDF direkt mit Obsidian LifeOS synchronisiert."
+      },
+      {
+        id: "kanban-workflow-optimieren",
+        title: "Kanban-Workflow optimieren",
+        category: "open",
+        reife: 0.52,
+        date: "2026-08-29",
+        deadline: "2026-09-30",
+        summary: "Trennung von geschäftlichen und privaten Boards. KI-priorisierte To-do-Vorschläge und nahtlose Verknüpfung mit Projektordnern."
+      },
+      {
+        id: "tiktok-kanal-automation",
+        title: "TikTok-Kanal für Automation & Content",
+        category: "open",
+        reife: 0.12,
+        date: "2026-08-29",
+        deadline: "2026-10-05",
+        summary: "Erfolgreiche Automatisierungs-Workflows (Bewerbungsprozesse, Agenten) als kurzen, lehrreichen Video-Content für Reichweite und Vertrauen aufbereiten."
+      },
+      {
+        id: "warmwind-reselling",
+        title: "KI-Reselling: Warmwind & 3D-Webseiten",
+        category: "open",
+        reife: 0.28,
+        date: "2026-08-29",
+        deadline: "2026-10-15",
+        summary: "Prüfung von Private-Label-Reselling für Desktop-KI und Verkauf von KI-generierten 3D-Webseiten an Geschäftskunden."
+      },
+      {
+        id: "ehefrau-unterstuetzung",
+        title: "Ehefrau als Unterstützung bei Projekten",
+        category: "open",
+        reife: 0.44,
+        date: "2026-08-29",
+        deadline: "2026-09-28",
+        summary: "Strukturierte Aufgabenübergabe und Rollenverteilung in Projekten, wenn Onur beruflich eingebunden ist."
+      },
+      {
+        id: "werkzeuge-fuer-vault",
+        title: "Werkzeuge für den Vault (Dataview, QMD)",
+        category: "open",
+        reife: 0.88,
+        date: "2026-08-17",
+        deadline: "2026-09-15",
+        summary: "Dataview Tabellen und lokale semantische QMD-Suche sind erfolgreich umgesetzt; Linter bewusst zurückgestellt zum Schutz von RAW."
+      },
+      {
+        id: "tagesliste-obsidian",
+        title: "Grafische Tagesliste in Obsidian",
+        category: "open",
+        reife: 0.58,
+        date: "2026-08-21",
+        deadline: "2026-09-30",
+        summary: "Apple-Notizen inspirierte Tagesliste mit CSS-Snippet. Klärung des Zusammenspiels mit Kanban vor Aktivierung."
+      },
+      {
+        id: "verschluesselter-container",
+        title: "Verschlüsselter VeraCrypt Container",
+        category: "open",
+        reife: 0.62,
+        date: "2026-08-19",
+        deadline: "2026-10-01",
+        summary: "Sichere verschlüsselte Ablage sensibler Dokumentenscans (Reisepass, Heiratsurkunde, Genetik) außerhalb des synchronisierten Vaults."
+      },
+      {
+        id: "multi-agent-werkzeuge",
+        title: "Multi-Agent Werkzeuge (Buzz, T3 Code)",
+        category: "open",
+        reife: 0.35,
+        date: "2026-08-18",
+        deadline: "2026-10-10",
+        summary: "Evaluierung von Buzz und T3 Code als Steuerzentralen für Multi-Agent-Orchestrierung. Vorläufige Nutzung eigener Prompts."
+      },
+      {
+        id: "paperclip-api-verbindung",
+        title: "Hermes ↔ Paperclip API-Verbindung",
+        category: "open",
+        reife: 0.22,
+        date: "2026-08-25",
+        deadline: "2026-10-15",
+        summary: "Anbindung von Paperclips REST-API an Onurs Hermes-Installation, zurückgestellt bis Kern-Pilot stabil läuft."
+      }
+    ];
+
+    let currentIdea = VAULT_IDEAS[0];
+    let currentReife = currentIdea.reife;
+    let activeGround = "quran";
+    let soundEnabled = true;
+
+    // --- Web Audio Synthesizer ---
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx && AudioContextClass) {
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, duration = 0.25, type = 'sine', vol = 0.2) {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+      } catch (e) {}
+    }
+
+    function playErkenntnisGong() {
+      if (!soundEnabled) return;
+      [349.23, 698.46, 1046.5].forEach((f, idx) => {
+        playTone(f, 1.8, 'sine', 0.22 / (idx + 1));
+      });
+    }
+
+    function playLaunchWhoosh() {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.exponentialRampToValueAtTime(360, now + 0.5);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.75);
+      } catch(e) {}
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('btn-sound').innerText = soundEnabled ? '🔊 Sound: An' : '🔇 Sound: Aus';
+      if (soundEnabled) playTone(523.25, 0.2);
+    }
+
+    // --- Three.js Scene Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0d14);
+    scene.fog = new THREE.FogExp2(0x0a0d14, 0.025);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 6.2, 13.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxDistance = 50;
+    controls.minDistance = 3.5;
+    controls.maxPolarAngle = Math.PI * 0.94;
+    controls.target.set(0, 1.2, 0);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.45);
+    scene.add(ambientLight);
+
+    const forgeSpot = new THREE.SpotLight(0xffecd1, 2.5, 30, Math.PI * 0.28, 0.4);
+    forgeSpot.position.set(0, 12, 0);
+    scene.add(forgeSpot);
+
+    const amberLight = new THREE.PointLight(0xe0a93f, 2.0, 15);
+    amberLight.position.set(0, 3.5, 0);
+    scene.add(amberLight);
+
+    const rimLight = new THREE.PointLight(0x00f0ff, 1.2, 18);
+    rimLight.position.set(0, -1.5, 0);
+    scene.add(rimLight);
+
+    // Workbench (Hexagonal floating glass platform)
+    const workbenchGroup = new THREE.Group();
+    const slabGeo = new THREE.CylinderGeometry(5.2, 5.6, 0.4, 6);
+    const slabMat = new THREE.MeshStandardMaterial({ color: 0x14120e, roughness: 0.25, metalness: 0.85 });
+    const slabMesh = new THREE.Mesh(slabGeo, slabMat);
+    slabMesh.position.y = -0.2;
+    workbenchGroup.add(slabMesh);
+
+    const rimGeo = new THREE.CylinderGeometry(5.25, 5.25, 0.04, 6);
+    const rimMat = new THREE.MeshBasicMaterial({ color: 0xe0a93f, wireframe: true, transparent: true, opacity: 0.65 });
+    rimMat.position = 0.02;
+    workbenchGroup.add(new THREE.Mesh(rimGeo, rimMat));
+
+    // Central inspection pedestal
+    const pedGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.7, 32);
+    const pedMat = new THREE.MeshStandardMaterial({ color: 0x1d1a15, metalness: 0.9, roughness: 0.2 });
+    const pedMesh = new THREE.Mesh(pedGeo, pedMat);
+    pedMesh.position.y = 0.35;
+    workbenchGroup.add(pedMesh);
+
+    const pedTrimGeo = new THREE.CylinderGeometry(1.22, 1.22, 0.02, 32);
+    const pedTrimMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.8 });
+    pedTrimMat.position = 0.71;
+    workbenchGroup.add(new THREE.Mesh(pedTrimGeo, pedTrimMat));
+    scene.add(workbenchGroup);
+
+    // --- Floating Particle Field (Sparks / Forge motes) ---
+    const sparkCount = 400;
+    const sparkGeo = new THREE.BufferGeometry();
+    const sparkPos = new Float32Array(sparkCount * 3);
+    for (let i = 0; i < sparkCount * 3; i += 3) {
+      sparkPos[i] = (Math.random() - 0.5) * 25;
+      sparkPos[i + 1] = Math.random() * 12 - 2;
+      sparkPos[i + 2] = (Math.random() - 0.5) * 25;
+    }
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+    const sparkMat = new THREE.PointsMaterial({ color: 0xe0a93f, size: 0.08, transparent: true, opacity: 0.55 });
+    const sparks = new THREE.Points(sparkGeo, sparkMat);
+    scene.add(sparks);
+
+    // --- Morphing Central Idea Mesh ---
+    const ideaGroup = new THREE.Group();
+    ideaGroup.position.set(0, 2.1, 0);
+    scene.add(ideaGroup);
+
+    // Morphing Geometries
+    let currentMesh = null;
+    let ringMesh1 = null;
+    let ringMesh2 = null;
+
+    function buildIdeaMesh(reife) {
+      // Clear previous
+      while (ideaGroup.children.length > 0) {
+        ideaGroup.remove(ideaGroup.children[0]);
+      }
+
+      const colorHex = reife < 0.3 ? 0xe0a93f : reife < 0.65 ? 0xf59e0b : reife < 0.85 ? 0x00f0ff : 0x38bdf8;
+
+      if (reife < 0.35) {
+        // Phase 1 & 2: Spark cloud / wire sphere
+        const geo = new THREE.SphereGeometry(0.35 + reife * 0.4, 16, 16);
+        const mat = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          emissive: colorHex,
+          emissiveIntensity: 0.8,
+          wireframe: reife < 0.2,
+          transparent: true,
+          opacity: 0.7
+        });
+        currentMesh = new THREE.Mesh(geo, mat);
+        ideaGroup.add(currentMesh);
+      } else if (reife < 0.65) {
+        // Phase 3 & 4: Faceted icosahedron with inner glow
+        const geo = new THREE.IcosahedronGeometry(0.58, 0);
+        const mat = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          emissive: colorHex,
+          emissiveIntensity: 0.6,
+          metalness: 0.85,
+          roughness: 0.2,
+          flatShading: true
+        });
+        currentMesh = new THREE.Mesh(geo, mat);
+        ideaGroup.add(currentMesh);
+
+        const wireGeo = new THREE.IcosahedronGeometry(0.64, 0);
+        const wireMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.3 });
+        ideaGroup.add(new THREE.Mesh(wireGeo, wireMat));
+      } else if (reife < 0.9) {
+        // Phase 5 & 6: Octahedral Core with 2 rotating evaluation rings
+        const geo = new THREE.OctahedronGeometry(0.62, 0);
+        const mat = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          emissive: colorHex,
+          emissiveIntensity: 0.9,
+          metalness: 0.95,
+          roughness: 0.1
+        });
+        currentMesh = new THREE.Mesh(geo, mat);
+        ideaGroup.add(currentMesh);
+
+        const r1Geo = new THREE.TorusGeometry(0.9, 0.02, 16, 40);
+        const r1Mat = new THREE.MeshBasicMaterial({ color: 0xe0a93f, transparent: true, opacity: 0.8 });
+        ringMesh1 = new THREE.Mesh(r1Geo, r1Mat);
+        ideaGroup.add(ringMesh1);
+
+        const r2Geo = new THREE.TorusGeometry(1.1, 0.018, 16, 40);
+        const r2Mat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.75 });
+        ringMesh2 = new THREE.Mesh(r2Geo, r2Mat);
+        ideaGroup.add(ringMesh2);
+      } else {
+        // Phase 7: Radiant Mini-Planet / Mature Idea
+        const geo = new THREE.SphereGeometry(0.72, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x38bdf8,
+          emissive: 0x0284c7,
+          emissiveIntensity: 1.3,
+          metalness: 0.7,
+          roughness: 0.2
+        });
+        currentMesh = new THREE.Mesh(geo, mat);
+        ideaGroup.add(currentMesh);
+
+        const atmoGeo = new THREE.SphereGeometry(0.85, 32, 32);
+        const atmoMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.25 });
+        ideaGroup.add(new THREE.Mesh(atmoGeo, atmoMat));
+      }
+    }
+
+    buildIdeaMesh(currentReife);
+
+    // --- The 6 Exit Portals in the Background ---
+    const exitsGroup = new THREE.Group();
+    exitsGroup.position.set(0, 0, -6.8);
+    const exitColors = [0x38bdf8, 0xa855f7, 0x34d399, 0xf59e0b, 0xfbbf24, 0xec4899];
+
+    for (let i = 0; i < 6; i++) {
+      const x = (i - 2.5) * 2.1;
+      const portalMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.7, 2.6, 0.2),
+        new THREE.MeshStandardMaterial({ color: 0x0d131f, roughness: 0.3, metalness: 0.85 })
+      );
+      portalMesh.position.set(x, 1.4, 0);
+
+      const frameMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.76, 2.66, 0.04),
+        new THREE.MeshBasicMaterial({ color: exitColors[i], wireframe: true, transparent: true, opacity: 0.8 })
+      );
+      frameMesh.position.set(x, 1.4, 0.12);
+
+      const coreMesh = new THREE.Mesh(
+        new THREE.CircleGeometry(0.52, 32),
+        new THREE.MeshBasicMaterial({ color: exitColors[i], transparent: true, opacity: 0.35 })
+      );
+      coreMesh.position.set(x, 1.4, 0.05);
+
+      exitsGroup.add(portalMesh);
+      exitsGroup.add(frameMesh);
+      exitsGroup.add(coreMesh);
+    }
+    scene.add(exitsGroup);
+
+    // --- The 3-Level Quellenboden (Rechts) ---
+    const groundGroup = new THREE.Group();
+    groundGroup.position.set(7.5, 0, 0);
+
+    const baseGeo = new THREE.BoxGeometry(4.2, 0.3, 7.2);
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x1a1815, roughness: 0.6 });
+    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    baseMesh.position.y = -0.2;
+    groundGroup.add(baseMesh);
+
+    // Slab 1: Koran (Granit, Gold)
+    const quranGeo = new THREE.BoxGeometry(3.8, 0.2, 2.1);
+    const quranMat = new THREE.MeshStandardMaterial({ color: 0x0e0d0b, metalness: 0.9, roughness: 0.2, emissive: 0xe0a93f, emissiveIntensity: 0.3 });
+    const quranSlab = new THREE.Mesh(quranGeo, quranMat);
+    quranSlab.position.set(0, 0.08, -2.2);
+    groundGroup.add(quranSlab);
+
+    // Slab 2: Hadith (Basalt)
+    const hadithGeo = new THREE.BoxGeometry(3.8, 0.2, 2.1);
+    const hadithMat = new THREE.MeshStandardMaterial({ color: 0x1c1712, metalness: 0.6, roughness: 0.4 });
+    const hadithSlab = new THREE.Mesh(hadithGeo, hadithMat);
+    hadithSlab.position.set(0, 0.08, 0);
+    groundGroup.add(hadithSlab);
+
+    // Slab 3: Deutung (Glas)
+    const deutungGeo = new THREE.BoxGeometry(3.8, 0.2, 2.1);
+    const deutungMat = new THREE.MeshStandardMaterial({ color: 0x0d2133, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.7, emissive: 0x00f0ff, emissiveIntensity: 0.15 });
+    const deutungSlab = new THREE.Mesh(deutungGeo, deutungMat);
+    deutungSlab.position.set(0, 0.08, 2.2);
+    groundGroup.add(deutungSlab);
+
+    scene.add(groundGroup);
+
+    // --- Animation Loop ---
+    let clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+
+      // Rotate idea mesh
+      if (ideaGroup) {
+        ideaGroup.rotation.y += delta * (0.35 + currentReife * 0.75);
+        ideaGroup.position.y = 2.0 + Math.sin(elapsed * 1.4) * 0.12;
+      }
+      if (ringMesh1) ringMesh1.rotation.x += delta * 1.4;
+      if (ringMesh2) ringMesh2.rotation.y += delta * 1.8;
+
+      // Slow drift of sparks
+      const pos = sparks.geometry.attributes.position.array;
+      for (let i = 1; i < sparkCount * 3; i += 3) {
+        pos[i] += delta * 0.4;
+        if (pos[i] > 10) pos[i] = -2;
+      }
+      sparks.geometry.attributes.position.needsUpdate = true;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- UI Interactions ---
+    function renderIdeaList() {
+      const container = document.getElementById('ideas-container');
+      container.innerHTML = '';
+      VAULT_IDEAS.forEach((idea) => {
+        const btn = document.createElement('div');
+        btn.className = 'idea-item-btn' + (idea.id === currentIdea.id ? ' selected' : '');
+        btn.onclick = () => selectIdea(idea);
+        btn.innerHTML = `
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${idea.title}</span>
+          <span class="reife-pill">${Math.round(idea.reife * 100)}%</span>
+        `;
+        container.appendChild(btn);
+      });
+      document.getElementById('idea-desc').innerText = currentIdea.summary;
+    }
+
+    function selectIdea(idea) {
+      currentIdea = idea;
+      currentReife = idea.reife;
+      document.getElementById('reife-slider').value = currentReife;
+      updatePhaseLabels(currentReife);
+      buildIdeaMesh(currentReife);
+      renderIdeaList();
+      playTone(220 + currentReife * 500, 0.25);
+    }
+
+    function onSliderMove(val) {
+      currentReife = parseFloat(val);
+      currentIdea.reife = currentReife;
+      updatePhaseLabels(currentReife);
+      buildIdeaMesh(currentReife);
+      playTone(220 + currentReife * 500, 0.12);
+      renderIdeaList();
+    }
+
+    function updatePhaseLabels(reife) {
+      const phases = ["1. Funke", "2. Gedankenwolke", "3. Silhouette", "4. Formung", "5. Reality Check", "6. Prototype Gate", "7. Reife Idee"];
+      const pIdx = Math.min(6, Math.floor(reife * 7));
+      document.getElementById('phase-label').innerText = phases[pIdx];
+      document.getElementById('reife-text').innerText = Math.round(reife * 100) + '%';
+    }
+
+    function triggerExit(exitId, message) {
+      const toast = document.getElementById('toast');
+      toast.innerText = message;
+      toast.style.display = 'flex';
+      setTimeout(() => { toast.style.display = 'none'; }, 3600);
+
+      if (exitId === 'singularity') {
+        playLaunchWhoosh();
+      } else if (exitId === 'discard') {
+        playErkenntnisGong();
+      } else {
+        playTone(523.25, 0.35, 'triangle');
+      }
+    }
+
+    function selectGround(type) {
+      activeGround = type;
+      document.querySelectorAll('.ground-card').forEach(c => c.classList.remove('active'));
+      document.getElementById('ground-card-' + type).classList.add('active');
+
+      if (type === 'quran') {
+        quranMat.emissiveIntensity = 0.5;
+        hadithMat.emissiveIntensity = 0;
+        deutungMat.emissiveIntensity = 0;
+        playTone(90, 0.35, 'sine', 0.4);
+      } else if (type === 'hadith') {
+        quranMat.emissiveIntensity = 0;
+        hadithMat.emissive = new THREE.Color(0xf59e0b);
+        hadithMat.emissiveIntensity = 0.4;
+        deutungMat.emissiveIntensity = 0;
+        playTone(180, 0.3, 'triangle', 0.3);
+      } else {
+        quranMat.emissiveIntensity = 0;
+        hadithMat.emissiveIntensity = 0;
+        deutungMat.emissiveIntensity = 0.6;
+        playTone(880, 0.4, 'sine', 0.2);
+      }
+    }
+
+    function resetCamera() {
+      camera.position.set(0, 6.2, 13.8);
+      controls.target.set(0, 1.2, 0);
+      playTone(440, 0.15);
+    }
+
+    // Try fetching live from API if on server
+    fetch('/api/vault/ideas')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.ideas && data.ideas.length > 0) {
+          // Replace with live vault data
+          VAULT_IDEAS.length = 0;
+          data.ideas.forEach(i => VAULT_IDEAS.push(i));
+          currentIdea = VAULT_IDEAS[0];
+          currentReife = currentIdea.reife;
+          document.getElementById('reife-slider').value = currentReife;
+          document.getElementById('stats-badge').innerText = `${data.stats.totalOpen} Offen • ${data.stats.totalDiscarded} Verworfen`;
+          renderIdeaList();
+          updatePhaseLabels(currentReife);
+          buildIdeaMesh(currentReife);
+        }
+      })
+      .catch(() => {});
+
+    // Initial render
+    renderIdeaList();
+    updatePhaseLabels(currentReife);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

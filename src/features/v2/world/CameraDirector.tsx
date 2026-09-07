@@ -98,6 +98,11 @@ export const TESSERACT_VIEW = {
   target: new THREE.Vector3(0, 3.0, 0),
 };
 
+export const ATELIER_VIEW = {
+  position: new THREE.Vector3(0, 6.2, 13.8),
+  target: new THREE.Vector3(0, 1.2, 0),
+};
+
 export function viewFor(world: V2World): CameraGoal {
   if (world === "memory") return { position: new THREE.Vector3(0, 17, 34), target: new THREE.Vector3(0, 0, 0), duration: 1.2 };
   if (world === "universe") return { ...cloneView(UNIVERSE_VIEW), duration: 1.15 };
@@ -110,6 +115,7 @@ export function viewFor(world: V2World): CameraGoal {
   if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
   if (world === "library") return { ...cloneView(LIBRARY_VIEW), duration: 1.15 };
   if (world === "tesseract") return { ...cloneView(TESSERACT_VIEW), duration: 1.15 };
+  if (world === "atelier") return { ...cloneView(ATELIER_VIEW), duration: 1.15 };
   return { ...cloneView(HOME_VIEW), duration: 1.15 };
 }
 
