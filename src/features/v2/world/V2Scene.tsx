@@ -19,6 +19,7 @@ import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { ProjectsWorld } from "@/features/v2/world/ProjectsWorld";
+import { TesseractDimensionWorld } from "@/features/v2/world/tesseract/TesseractDimensionWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
@@ -461,6 +462,8 @@ export function V2Scene({
             selectedFolder={selectedProjectFolder}
             onSelect={onSelectProject}
           />
+        ) : world === "tesseract" ? (
+          <TesseractDimensionWorld onExit={() => goTo("home")} />
         ) : world === "saturn" ? null : (
           <LibraryWorld
             items={libraryItems}

@@ -89,7 +89,6 @@ export function ProjectSingularityView({
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [stabilizedOverrides, setStabilizedOverrides] = useState<Record<string, number>>({});
   const [showMdList, setShowMdList] = useState(false);
-  const [isDiving, setIsDiving] = useState(false);
 
   // Compile planet data combining real vault projects and cosmic domains
   const planets = useMemo<ProjectPlanetData[]>(() => {
@@ -167,12 +166,35 @@ export function ProjectSingularityView({
     }));
   };
 
+  const handleDive = () => {
+    // Play Web Audio whoosh + 28Hz sub-bass dive sound
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(140, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 1.2);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.3);
+    } catch {}
+
+    onSwitchMode("tesseract");
+  };
+
   return (
     <group>
       {/* ================= 1. GARGANTUA BLACK HOLE (CENTER) ================= */}
       <GargantuaBlackHole
         position={[0, 2.5, 0]}
-        onDive={() => setIsDiving(true)}
+        onDive={handleDive}
       />
 
       {/* ================= 2. ALL PROJECT PLANETS IN GRAVITATIONAL ORBIT ================= */}
@@ -267,105 +289,40 @@ export function ProjectSingularityView({
               🪐 Erinnerungsorbit
             </Text>
           </group>
+
+          {/* Direct 3D Dive into 4D Tesseract */}
+          <group
+            position={[6.6, 0, 0]}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDive();
+            }}
+            onPointerOver={() => {
+              if (typeof document !== "undefined") document.body.style.cursor = "pointer";
+            }}
+            onPointerOut={() => {
+              if (typeof document !== "undefined") document.body.style.cursor = "auto";
+            }}
+          >
+            <mesh>
+              <planeGeometry args={[3.2, 0.65]} />
+              <meshBasicMaterial color="#ec4899" transparent opacity={0.9} />
+            </mesh>
+            <Text
+              fontSize={0.16}
+              color="#ffffff"
+              anchorX="center"
+              anchorY="middle"
+              position={[0, 0, 0.02]}
+            >
+              🌀 4D-Tesserakt Dive
+            </Text>
+          </group>
         </group>
       </Billboard>
 
-      {/* ================= 4. SINGULARITY DIVE OVERLAY (IF ACTIVE) ================= */}
-      {isDiving && (
-        <Html fullscreen zIndexRange={[100, 100]}>
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              background:
-                "radial-gradient(circle, rgba(0,0,0,0.95) 20%, rgba(2,6,23,0.88) 100%)",
-              backdropFilter: "blur(20px)",
-              color: "#fff",
-              padding: "2rem",
-              zIndex: 9999,
-            }}
-          >
-            <div style={{ textAlign: "center", maxWidth: "600px" }}>
-              <div
-                style={{
-                  fontSize: "3.5rem",
-                  marginBottom: "1rem",
-                  animation: "pulse 2s infinite",
-                }}
-              >
-                🌌
-              </div>
-              <h2
-                style={{
-                  fontSize: "2rem",
-                  fontWeight: 800,
-                  marginBottom: "0.5rem",
-                  background: "linear-gradient(135deg, #38bdf8, #f59e0b)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                Singularity Dive
-              </h2>
-              <p
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "1.05rem",
-                  lineHeight: "1.6",
-                  marginBottom: "2rem",
-                }}
-              >
-                Du bist am Ereignishorizont eingetaucht. Die Zeitkrümmung der
-                Projektvernachlässigung wird hier maximal spürbar. Alle
-                Projekte, die im Sog verschwinden, verlangen eine bewusste
-                Entscheidung: Reaktivieren oder Loslassen.
-              </p>
-              <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-                <button
-                  onClick={() => setIsDiving(false)}
-                  style={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.25)",
-                    padding: "0.75rem 1.75rem",
-                    borderRadius: "0.75rem",
-                    fontSize: "0.95rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  ↩️ Dive verlassen
-                </button>
-                <button
-                  onClick={() => {
-                    setIsDiving(false);
-                    onOpenEndziel();
-                  }}
-                  style={{
-                    background: "#0284c7",
-                    color: "#fff",
-                    border: "1px solid #38bdf8",
-                    padding: "0.75rem 1.75rem",
-                    borderRadius: "0.75rem",
-                    fontSize: "0.95rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  💎 Zum Endziel-Blueprint
-                </button>
-              </div>
-            </div>
-          </div>
-        </Html>
-      )}
-
       {/* ================= 5. REDUCED 2D GLASS PANEL (BRIEFING SEC 5.4) ================= */}
-      {selectedPlanet && !isDiving && (
+      {selectedPlanet && (
         <Html fullscreen zIndexRange={[50, 60]}>
           <div
             style={{

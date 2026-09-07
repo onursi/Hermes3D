@@ -10,6 +10,7 @@ const WORLD_NAMES: Record<V2World, string> = {
   projects: "Ergebniswerft",
   library: "Bibliothek",
   saturn: "Memory Saturn",
+  tesseract: "4D-Tesserakt",
 };
 
 /**

@@ -13,7 +13,7 @@ import {
   type TimelineMilestone,
 } from "@/features/v2/world/projectData";
 import { ProjectWorkspaceModal } from "@/features/v2/world/ProjectWorkspaceModal";
-import { TesseractMemoryWorld } from "@/features/v2/world/TesseractMemoryWorld";
+import { TesseractDimensionWorld } from "@/features/v2/world/tesseract/TesseractDimensionWorld";
 import { ProjectSingularityView } from "@/features/v2/world/singularity/ProjectSingularityView";
 
 export function ProjectsWorld({
@@ -87,33 +87,7 @@ export function ProjectsWorld({
         />
       ) : worldMode === "tesseract" ? (
         /* ================= 2. 4D INTERSTELLAR TESSERACT MODE ================= */
-        <group>
-          <TesseractMemoryWorld onClose={() => setWorldMode("singularity")} />
-
-          {/* 3D Floating Return Button */}
-          <Billboard position={[0, 1.2, 5]}>
-            <group
-              onClick={(e) => {
-                e.stopPropagation();
-                setWorldMode("singularity");
-              }}
-              onPointerOver={() => {
-                if (typeof document !== "undefined") document.body.style.cursor = "pointer";
-              }}
-              onPointerOut={() => {
-                if (typeof document !== "undefined") document.body.style.cursor = "auto";
-              }}
-            >
-              <mesh>
-                <planeGeometry args={[3.8, 0.7]} />
-                <meshBasicMaterial color="#0284c7" transparent opacity={0.9} />
-              </mesh>
-              <Text fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.02]}>
-                [ 🌌 Zurück zur Singularity ]
-              </Text>
-            </group>
-          </Billboard>
-        </group>
+        <TesseractDimensionWorld onExit={() => setWorldMode("singularity")} />
       ) : (
         /* ================= 3. SHIPYARD & MONUMENT MODE ================= */
         <group>
