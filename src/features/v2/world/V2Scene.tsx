@@ -501,8 +501,8 @@ export function V2Scene({
           target={HOME_VIEW.target.toArray()}
           enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={false}
-          minDistance={world === "projects" && !openProject ? 2 : 3.2}
-          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
+          minDistance={world === "horizon" ? 2 : world === "projects" && !openProject ? 2 : 3.2}
+          maxDistance={world === "horizon" ? 350 : world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
           maxPolarAngle={world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
@@ -616,7 +616,7 @@ export function V2Scene({
             <WorldsScene onDive={onDive} onFocus={handleWorldFocus} controlsRef={controlsRef} cameraBusy={goal!==null}/>
           )
         ) : ROOM_WORLDS.includes(world) ? (
-          <WorldsScene/>
+          <WorldsScene onFocus={handleWorldFocus} controlsRef={controlsRef} cameraBusy={goal!==null}/>
         ) : world === "tesseract" ? (
           <TesseractDimensionWorld onExit={() => goTo("home")} />
         ) : (

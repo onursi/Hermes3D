@@ -1,5 +1,5 @@
 "use client";
-import {Billboard,Text,Line} from "@react-three/drei";
+import {Billboard,Text} from "@react-three/drei";
 import {useFrame} from "@react-three/fiber";
 import {useEffect,useMemo,useRef} from "react";
 import * as THREE from "three";
@@ -8,6 +8,7 @@ import {useWorlds} from "./WorldsProvider";
 import {projectRadius,type WorldObject} from "./model";
 import {ProjectSystem} from "./ProjectSystem";
 import {BlackHole} from "../spatial/BlackHole";
+import {GoalHorizonScene} from "./GoalHorizonScene";
 const PALETTE=['#ead1a0','#a6bde7','#d9afc9','#98cfb8','#beaff0'];
 export const ROOM_WORLDS=['horizon','flow','atelier','sanctuary','success'];
 export function objectPosition(o:WorldObject,i:number,n:number,world:string):[number,number,number]{
@@ -50,20 +51,18 @@ function Artifact({object,position,color,moon=false}:{object:WorldObject;positio
  </group>;
 }
 export function WorldsScene({onDive,onFocus,controlsRef,cameraBusy=false}:{onDive?:()=>void;onFocus?:(position:[number,number,number],target:[number,number,number],duration?:number)=>void;controlsRef?:React.MutableRefObject<{target:THREE.Vector3;update:()=>void;enabled:boolean}|null>;cameraBusy?:boolean}){
- const {world,prefs}=useV2();const {objects,selected,choose,jobs}=useWorlds();
+ const {world,prefs}=useV2();const {objects,choose,jobs}=useWorlds();
  const kind=world==='horizon'?'goal':world==='atelier'?'idea':'project';
  const visible=objects.filter(o=>o.kind===kind&&(world!=='success'||o.state==='abgeschlossen')&&(world!=='projects'||o.state!=='abgeschlossen'));
  const roots=visible.filter(o=>!o.parent);const positions=new Map(roots.map((o,i)=>[o.id,objectPosition(o,i,roots.length,world)]));
- const active=objects.find(o=>o.id===selected);
+
  return <>
   <ambientLight intensity={.55}/><pointLight position={[8,20,12]} intensity={160} color={world==='success'?'#ffe2b6':'#b5cbf6'} distance={140}/>
-  {world==='projects'?<BlackHole reducedMotion={prefs.reducedMotion} onDive={onDive??(()=>{})}/>:<Dust warm={world==='success'||world==='sanctuary'}/>}
+  {world==='projects'?<BlackHole reducedMotion={prefs.reducedMotion} onDive={onDive??(()=>{})}/>:world!=='horizon'?<Dust warm={world==='success'||world==='sanctuary'}/>:null}
   {world==='success'&&<HyperArchive/>}
+  {world==='horizon'&&onFocus&&<GoalHorizonScene onFocus={onFocus}/>}
   {world==='projects'&&onFocus&&controlsRef&&<ProjectSystem onFocus={onFocus} controlsRef={controlsRef} cameraBusy={cameraBusy}/>}
-  {['horizon','success','atelier'].includes(world)&&roots.map((o,i)=><Artifact key={o.id} object={o} position={positions.get(o.id)!} color={PALETTE[i%5]}/>)}
-  {world==='horizon'&&['Beruf','Lernen','Familie','Gesundheit','Spiritualität'].map((name,i)=>{const a=i/5*Math.PI*2;return <Billboard key={name} position={[Math.cos(a)*22,11,Math.sin(a)*15]}><Text fontSize={.62} color={PALETTE[i]} letterSpacing={.12}>{name}</Text></Billboard>;})}
-  {world==='horizon'&&active?.kind==='goal'&&active.groups.map(group=>{const index=['beruflich','lernen','familiär','gesundheit','spirituell'].indexOf(group);const position=positions.get(active.id);if(index<0||!position)return null;const a=index/5*Math.PI*2;return <Line key={group} points={[position,[Math.cos(a)*22,11,Math.sin(a)*15]]} color={PALETTE[index]} transparent opacity={.55} lineWidth={1}/>;})}
-  {world==='horizon'&&active?.kind==='goal'&&active.milestones.map((m,i)=><group key={i} position={[-10+i*4,-3,9]}><mesh><sphereGeometry args={[.23,12,8]}/><meshBasicMaterial color={m.done?'#e9c681':'#78869e'}/></mesh><Billboard position={[0,-1.1,0]}><Text fontSize={.3} maxWidth={3.6} textAlign="center" color="#c4cad7">{m.title}</Text></Billboard></group>)}
+  {['success','atelier'].includes(world)&&roots.map((o,i)=><Artifact key={o.id} object={o} position={positions.get(o.id)!} color={PALETTE[i%5]}/>)}
   {world==='flow'&&<><mesh rotation={[-Math.PI/2,0,0]} raycast={()=>null}><torusGeometry args={[13,.06,8,160]}/><meshBasicMaterial color="#719fbe" transparent opacity={.4}/></mesh>{['Eingang','Verarbeitung','Deine Freigabe','Ergebnis'].map((label,i)=><group key={label} position={[Math.cos(i*Math.PI/2)*13,0,Math.sin(i*Math.PI/2)*13]}><mesh><octahedronGeometry args={[.8,0]}/><meshStandardMaterial color={PALETTE[i]} emissive={PALETTE[i]} emissiveIntensity={.4}/></mesh><Billboard position={[0,2,0]}><Text fontSize={.5} color="#b9cadb">{label}</Text></Billboard></group>)}{jobs.map((job,i)=><FlowRun key={job.id} index={i} running={!!job.state?.runningAtMs&&job.enabled} title={job.name} onClick={()=>choose('run:'+job.id)}/>)}</>}
   {world==='sanctuary'&&<><mesh position={[0,-4,0]} rotation={[-Math.PI/2,0,0]}><circleGeometry args={[26,80]}/><meshStandardMaterial color="#162a26" roughness={.9}/></mesh>{Array.from({length:7},(_,i)=><group key={i} rotation={[0,i*Math.PI/7,0]}><mesh position={[0,6,-18]}><torusGeometry args={[9+i*.3,.045,8,96,Math.PI]}/><meshStandardMaterial color="#e9c488" emissive="#e9c488" emissiveIntensity={.6}/></mesh></group>)}<mesh position={[0,5,-22]}><sphereGeometry args={[4,32,24]}/><meshBasicMaterial color="#f2d6a0"/></mesh><pointLight position={[0,7,-15]} color="#ffe0a4" intensity={200}/></>}
  </>;

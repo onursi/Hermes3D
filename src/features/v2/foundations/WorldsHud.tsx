@@ -6,6 +6,7 @@ import {useV2,type V2World} from "../state";
 import {useWorlds} from "./WorldsProvider";
 import {ROOM_WORLDS} from "./WorldsScene";
 import {roomSound} from "./roomSound";
+import {GoalHorizonHud} from "./GoalHorizonHud";
 const ROOMS:{id:V2World;title:string;description:string}[]=[{id:'horizon',title:'Goal Horizon',description:'Richtung finden'},{id:'projects',title:'Project Singularity',description:'Vorhaben vollenden'},{id:'flow',title:'Flow Orbit',description:'Was gerade läuft'},{id:'cosmos',title:'Second Brain',description:'Wissen verbinden'},{id:'atelier',title:'Ideenatelier',description:'Aus Gedanken wird ein nächster Schritt'},{id:'sanctuary',title:'Vision Sanctuary',description:'Raum für das Warum'},{id:'success',title:'Jenseits des Horizonts',description:'Erreichtes wiederfinden'},{id:'memory',title:'Memory Orbit',description:'Zurückblicken'}];
 export function WorldsHud({onRead,onDive}:{onRead:(id:string)=>void;onDive:()=>void}){
  const {world,goTo,prefs}=useV2();const {objects,selected,choose,loading,issues,jobs,flowStatus,phase,setPhase,travel,origin,trip}=useWorlds();
@@ -31,8 +32,9 @@ Status: Entwurf, noch nicht im LifeOS übernommen.
   <button className="worlds-switch" onClick={()=>setMenu(!menu)} aria-expanded={menu}>◈ Räume</button>
   {world==='home'&&<button className="home-portal-overview" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis ansehen</button>}
   {menu&&<nav className="worlds-menu" aria-label="Alle Räume">{ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}</nav>}
-  {(ROOM_WORLDS.includes(world)||world==='projects')&&<PanelWindow key={world} title={room?.title??"Raum"}><aside className="worlds-panel" aria-label="Raumübersicht" style={{visibility:trip?"hidden":undefined}}>
-   <span className="worlds-eyebrow">{world==='success'?'DAS BLEIBT':world==='horizon'?'DEINE RICHTUNG':world==='atelier'?'FORMRAUM':world==='flow'?'BETRIEB':'DEIN UNIVERSUM'}</span>
+  {world==='horizon'&&<GoalHorizonHud onRead={onRead}/>}
+  {world!=='horizon'&&(ROOM_WORLDS.includes(world)||world==='projects')&&<PanelWindow key={world} title={room?.title??"Raum"}><aside className="worlds-panel" aria-label="Raumübersicht" style={{visibility:trip?"hidden":undefined}}>
+   <span className="worlds-eyebrow">{world==='success'?'DAS BLEIBT':world==='atelier'?'FORMRAUM':world==='flow'?'BETRIEB':'DEIN UNIVERSUM'}</span>
    <h1>{room?.title}</h1><p>{room?.description}</p>
    {loading&&<p role="status">LifeOS wird gelesen …</p>}{issues.length>0&&<p role="status">{issues.join(' · ')}</p>}
    {world==='projects'&&<><p>Die Bahn zeigt die erfasste Projektphase. Monde erscheinen bei Auswahl ihres Projekts.</p><button className="worlds-primary" onClick={onDive}>Durch den Ereignishorizont →</button></>}
