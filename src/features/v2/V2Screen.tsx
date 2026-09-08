@@ -33,7 +33,9 @@ import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 import { JarvisCompanion } from "@/features/v2/jarvis";
 import "./spatial/spatial.css";
-import { ProjectGlass } from "./spatial/ProjectGlass";
+import {WorldsProvider} from "./foundations/WorldsProvider";
+import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
+import "./foundations/worlds.css";
 import { MemoryHud, MemoryCard } from "./spatial/SpatialHud";
 import type { MemoryEntry, ProjectMeta } from "./spatial/model";
 import type { MemoryMode } from "./spatial/MemoryWorld";
@@ -132,6 +134,8 @@ export function V2Screen() {
   const [openNotePath, setOpenNotePath] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<Record<string, ProjectMeta>>({});
   const [dive, setDive] = useState(0);
+  const [crossing,setCrossing]=useState(false);
+  if(crossing && world!=="projects")setCrossing(false);
   const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
   const [memoryMode, setMemoryMode] = useState<MemoryMode>("saturn");
   const [memoryPhase, setMemoryPhase] = useState("Gegenwart");
@@ -575,7 +579,7 @@ export function V2Screen() {
   }, [goTo, clearSelection]);
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[#05080d]">
+    <WorldsProvider><main className="relative h-screen w-screen overflow-hidden bg-[#05080d]">
       {/* Only the canvas is inside the boundary. Everything below it — status
           bar, dock, inspector — stays mounted when a world dies, so the way
           home is still where it always is. */}
@@ -594,7 +598,7 @@ export function V2Screen() {
       <V2Scene
         metadata={metadata}
         dive={dive}
-        onDive={() => setDive((v) => (v > 0.5 ? 0 : 1))}
+        onDive={() => {setDive(1);setCrossing(true);}}
         memoryEntries={memoryEntries}
         memoryMode={memoryMode}
         memoryPhase={memoryPhase}
@@ -628,70 +632,6 @@ export function V2Screen() {
       />
       </WorldBoundary>
 
-      {world === "projects" && !openProject && (
-        <>
-          <div className="r10-title">
-            <span className="r10-eyebrow">Projektuniversum / 01</span>
-            <h1>Project Singularity</h1>
-            <p>Was deine Aufmerksamkeit braucht, kommt näher. Bewusste Pausen dürfen ruhig bleiben.</p>
-          </div>
-          <div className="r10-project-list" aria-label="Projektplaneten">
-            {projects.projects.map((p) => (
-              <button key={p.folder} onClick={() => selectProject(p)}>
-                {p.name}
-              </button>
-            ))}
-            {projects.projects.length === 0 && <p>Keine Projekte verfügbar.</p>}
-          </div>
-          <div className="r10-flight">
-            <button onClick={() => setDive((v) => (v > 0.5 ? 0 : 1))}>
-              {dive > 0.5 ? "Dive verlassen" : "Singularity Dive"}
-            </button>
-            <label>
-              Nähe zum Horizont
-              <input
-                aria-label="Nähe zum Ereignishorizont"
-                type="range"
-                min="0"
-                max="1"
-                step="0.025"
-                value={dive}
-                onChange={(e) => setDive(+e.target.value)}
-              />
-            </label>
-            <button
-              onClick={() => {
-                setDive(0);
-                clearSelection();
-                goTo("projects");
-              }}
-            >
-              Gesamtansicht
-            </button>
-          </div>
-          {selection.kind === "project" &&
-            (() => {
-              const p = projects.projects.find((p) => p.folder === selection.folder);
-              return p ? (
-                <ProjectGlass
-                  key={p.folder}
-                  project={p}
-                  meta={metadata[p.folder]}
-                  onClose={clearSelection}
-                  onEnter={() => {
-                    setDive(0);
-                    setOpenProjectFolder(p.folder);
-                  }}
-                  onOpen={openProjectNote}
-                  onSaved={(m) => {
-                    setMetadata((v) => ({ ...v, [p.folder]: m }));
-                    projects.reload();
-                  }}
-                />
-              ) : null;
-            })()}
-        </>
-      )}
       {world === "projects" && openProject && (
         <aside className="r10-glass r10-room-bar">
           <span className="r10-eyebrow">Dein Projektraum</span>
@@ -775,7 +715,7 @@ export function V2Screen() {
           Der Inspektor schrumpft zuerst (`shrink` und `min-h-0`), weil die
           Arealliste ihre Höhe selbst kennt; so bleibt die Spalte auch auf
           niedrigen Fenstern innerhalb ihrer Grenzen. */}
-      {world !== "projects" && world !== "memory" ? (
+      {["home","cosmos","library","universe"].includes(world) ? (
       <div className="pointer-events-none absolute right-4 top-16 bottom-20 z-30 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
         {approvalsOpen ? (
           <Approvals
@@ -923,13 +863,12 @@ export function V2Screen() {
         }}
         onSourcesChange={(ids) => {
           setCitedSourceIds(ids);
-          const first = ids[0];
-          if (!first) return;
-          const node = vault.byId.get(first);
-          if (node) select({ kind: "source", id: node.id, title: node.name, folder: node.folder });
+
         }}
         onNavigateWorld={(w) => goTo(w)}
       />
-    </main>
+      <WorldsHud onRead={id=>setReaderId(id)} onDive={()=>{setDive(1);setCrossing(true);}}/>
+      {crossing&&world==='projects'&&<HorizonCrossing onComplete={()=>{setCrossing(false);setDive(0);goTo('success');}}/>}
+    </main></WorldsProvider>
   );
 }

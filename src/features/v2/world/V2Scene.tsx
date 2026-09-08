@@ -19,7 +19,7 @@ import { HomeWorld } from "@/features/v2/world/HomeWorld";
 import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld";
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
-import { SingularityWorld } from "../spatial/SingularityWorld";
+import { WorldsScene, ROOM_WORLDS } from "../foundations/WorldsScene";
 import { MemoryWorld, type MemoryMode } from "../spatial/MemoryWorld";
 import type { MemoryEntry, ProjectMeta } from "../spatial/model";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
@@ -493,8 +493,8 @@ export function V2Scene({
           enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={false}
           minDistance={world === "projects" && !openProject ? 7.8 : 3.2}
-          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : 30}
-          maxPolarAngle={world === "projects" || world === "memory" ? Math.PI * 0.94 : Math.PI * 0.52}
+          maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
+          maxPolarAngle={world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
           rotateSpeed={0.55}
@@ -503,7 +503,7 @@ export function V2Scene({
       ) : null}
 
       <Suspense fallback={null}>
-        {world !== "library" && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
+        {world !== "library" && !ROOM_WORLDS.includes(world) && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
           <>
@@ -603,15 +603,10 @@ export function V2Scene({
               onOpenNote={onOpenProjectNote ?? (() => {})}
             />
           ) : (
-            <SingularityWorld
-              projects={projects}
-              metadata={metadata}
-              selected={selectedProjectFolder}
-              onSelect={onSelectProject}
-              onDive={onDive ?? (() => {})}
-              reducedMotion={prefs.reducedMotion}
-            />
+            <WorldsScene onDive={onDive}/>
           )
+        ) : ROOM_WORLDS.includes(world) ? (
+          <WorldsScene/>
         ) : world === "tesseract" ? (
           <TesseractDimensionWorld onExit={() => goTo("home")} />
         ) : (

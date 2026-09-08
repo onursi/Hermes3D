@@ -33,7 +33,7 @@ export function runAtmosphere(world: string, volume: number): (() => void) | nul
   const gravity = world === "projects";
   const memory = world === "memory";
   const travelling = world === "universe";
-  const isTesseract = world === "tesseract";
+  const isTesseract = world === "tesseract" || world === "success";
 
   function voice(hz: number, level: number, type: OscillatorType = "sine") {
     const oscillator = audio!.createOscillator();

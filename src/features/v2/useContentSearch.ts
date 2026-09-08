@@ -71,13 +71,14 @@ export function useContentSearch(query: string, limit = 20): ContentSearchState 
     let cancelled = false;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setState((previous) => ({ ...previous, loading: true, forQuery: needle }));
+      setState({ ...EMPTY, loading: true, forQuery: needle });
       fetch(`/api/jarvis/search?q=${encodeURIComponent(needle)}&limit=${limit}`, {
         signal: controller.signal,
       })
         .then((response) => (response.ok ? response.json() : null))
         .then((payload) => {
-          if (cancelled || !payload?.ok) return;
+          if (cancelled) return;
+          if(!payload?.ok) throw new Error("Search unavailable");
           const hits: ContentHit[] = payload.results ?? [];
           setState({
             hits,
@@ -102,5 +103,5 @@ export function useContentSearch(query: string, limit = 20): ContentSearchState 
     };
   }, [query, limit]);
 
-  return state;
+  return query.trim().length<2 || state.forQuery!==query.trim() ? EMPTY : state;
 }

@@ -47,9 +47,11 @@ export function BeamProbe({
    * genau der Müll, den die Speicherbereinigung später als Ruckler zurückgibt.
    */
   const scratch = useMemo(() => new THREE.Vector3(), []);
+  const measured = useMemo(()=>({at:0}),[]);
 
   useFrame((_, __, frame) => {
     void frame;
+    const now=performance.now();if(now-measured.at<33)return;measured.at=now;
     /**
      * Gemessen wird, sobald der Strahl lebt — nicht erst, wenn Quellen da sind.
      *

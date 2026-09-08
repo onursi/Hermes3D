@@ -90,16 +90,14 @@ function stripFrontmatter(content: string) {
 }
 
 /** The sentence around the strongest hit, so the evidence is readable. */
-function excerptAround(body: string, terms: string[], length = 320) {
-  const lower = body.toLowerCase();
-  let best = -1;
-  for (const term of terms) {
-    const at = lower.indexOf(term);
-    if (at !== -1 && (best === -1 || at < best)) best = at;
-  }
-  if (best === -1) return body.trim().slice(0, length);
-  const start = Math.max(0, best - Math.floor(length / 3));
-  return (start > 0 ? "… " : "") + body.slice(start, start + length).trim() + " …";
+export function excerptAround(body: string, terms: string[], length = 720) {
+  const lower=body.toLowerCase();const unique=[...new Set(terms)];
+  const candidates=new Set<number>();
+  for(const term of unique){let at=lower.indexOf(term),count=0;while(at>=0&&count++<64){candidates.add(Math.max(0,at-Math.floor(length/3)));at=lower.indexOf(term,at+term.length);}}
+  if(!candidates.size)return body.trim().slice(0,length);
+  let best=0,bestScore=-1;
+  for(const start of candidates){const window=lower.slice(start,start+length);const coverage=unique.reduce((n,term)=>n+(window.includes(term)?1:0),0);const density=unique.reduce((n,term)=>n+Math.min(3,window.split(term).length-1),0);const score=coverage*10+density;if(score>bestScore){bestScore=score;best=start;}}
+  return (best>0?'… ':'')+body.slice(best,best+length).trim()+(best+length<body.length?' …':'');
 }
 
 export type RetrievalHit = {

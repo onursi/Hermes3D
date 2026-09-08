@@ -48,7 +48,7 @@ export type JarvisSource = {
   excerpt: string;
 };
 
-const KNOWLEDGE_PULSE_EVENT = "hermes:knowledge-pulse";
+const KNOWLEDGE_PULSE_EVENT = "hermes_knowledge_pulse";
 
 export interface JarvisCompanionProps {
   /** Wie viele Notizen der Vault enthält */
@@ -117,6 +117,7 @@ export function JarvisCompanion({
    * das Bild geloescht.
    */
   const [beamLive, setBeamLive] = useState(false);
+  const [beamSession,setBeamSession]=useState(0);
   const [reason, setReason] = useState<string | null>(null);
   const [phase, setPhase] = useState<JarvisPhase>("idle");
   const [savedAs, setSavedAs] = useState<string | null>(null);
@@ -260,6 +261,8 @@ export function JarvisCompanion({
       // Visueller & auditiver Laser-Scan ins Gehirn
       setIsScanning(true);
       setBeamLive(true);
+      setBeamSession(n=>n+1);
+      onNavigateWorld?.("cosmos");
       jarvisAudio.playScanSweep();
       jarvisAudio.startBeamSound();
 
@@ -325,7 +328,7 @@ export function JarvisCompanion({
         source.close();
       });
     },
-    [question, phase, voiceReply, speakText]
+    [question, phase, voiceReply, speakText, onNavigateWorld]
   );
 
   // Spracherkennung ("Hey Hermes")
@@ -612,7 +615,10 @@ export function JarvisCompanion({
     <>
       {/* Visueller Mehrsektoren-Laser- & Scanstrahl ins 3D-Gehirn */}
       <JarvisNeuralBeam
-        active={beamLive}
+        active={beamLive && currentWorld === "cosmos"}
+        searching={isScanning}
+        session={beamSession}
+        onSelect={id=>{onFlyToSource?.(id);setIsMinimized(true);}}
         targetLabel={currentWorld === "cosmos" ? "KEINE QUELLE IM BILD" : "KEINE QUELLE IN DIESER WELT"}
         onDismiss={() => setBeamLive(false)}
       />
@@ -631,7 +637,7 @@ export function JarvisCompanion({
 
       {/* Haupt-Container unten rechts verankert */}
       <aside
-        aria-label="Jarvis Unified Interface"
+        aria-label="Jarvis Unified Interface" data-jarvis-interface
         className="pointer-events-auto fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3 select-none"
       >
         {/* ============================================================ */}
@@ -1097,7 +1103,7 @@ export function JarvisCompanion({
               {sources.length > 0 ? (
                 <div className="mt-4 border-t border-white/10 pt-2.5">
                   <p className="pb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-300">
-                    Zitierte Vault-Quellen (Klicken für 3D-Kameraflug):
+                    Gefundene Vault-Quellen (anklicken zum Erkunden):
                   </p>
                   <ol className="space-y-1">
                     {sources.map((source, index) => (

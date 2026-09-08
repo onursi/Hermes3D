@@ -99,6 +99,7 @@ export const TESSERACT_VIEW = {
 };
 
 export function viewFor(world: V2World): CameraGoal {
+  if (["horizon","flow","atelier","sanctuary","success"].includes(world)) return {position:new THREE.Vector3(0,world==='success'?6:17,world==='success'?42:45),target:new THREE.Vector3(0,world==='success'?5:0,world==='success'?-15:0),duration:1.4};
   if (world === "memory") return { position: new THREE.Vector3(0, 17, 34), target: new THREE.Vector3(0, 0, 0), duration: 1.2 };
   if (world === "universe") return { ...cloneView(UNIVERSE_VIEW), duration: 1.15 };
   if (world === "cosmos") {
