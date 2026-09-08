@@ -13,3 +13,4 @@
 @media(max-width:700px){.hermes-dock{left:16px;transform:none;max-width:calc(100vw - 125px);gap:2px}.hermes-dock>button{padding:0 11px}.hermes-dock>button>span{display:none}}
 
 .r10-memory-controls{left:24px;right:auto;overflow:auto;max-height:calc(100vh - 310px)}.r10-memory-controls>.panel-window-tools{position:sticky;top:0;z-index:3}@media(max-width:850px){.photo-album{top:112px;bottom:305px}.r10-memory-controls{left:16px;right:16px;width:auto;max-width:none;bottom:100px;max-height:190px!important}.photo-album nav{gap:8px}.photo-album nav button{padding:8px 12px}}
+@media(max-width:700px){.hermes-dock{translate:none}}
