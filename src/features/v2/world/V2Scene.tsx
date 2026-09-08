@@ -59,6 +59,8 @@ export function V2Scene({
   agents,
   rosterReachable,
   approvalsWaiting,
+  claims,
+  onClaimSelect,
   vault,
   projects,
   libraryItems,
@@ -93,6 +95,9 @@ export function V2Scene({
   agents: RosterAgent[];
   rosterReachable: boolean;
   approvalsWaiting: number;
+  /** Ansprueche fuer die Schale um den Hermes-Kern. */
+  claims?: import("@/features/v2/foundations/claims").Claim[];
+  onClaimSelect?: (claim: import("@/features/v2/foundations/claims").Claim) => void;
   vault: VaultState;
   projects: Project[];
   /** What stands on the library shelf right now. Derived from the vault. */
@@ -521,6 +526,8 @@ export function V2Scene({
               agents={agents}
               rosterReachable={rosterReachable}
               approvalsWaiting={approvalsWaiting}
+              claims={claims}
+              onClaimSelect={onClaimSelect}
               onSelectAgent={onSelectAgent}
             />
             <Horizon

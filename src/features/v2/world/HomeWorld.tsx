@@ -8,6 +8,8 @@ import * as THREE from "three";
 import { useV2 } from "@/features/v2/state";
 import { DECISION_COLOR } from "@/features/v2/palette";
 import type { RosterAgent } from "@/features/v2/useRoster";
+import { ClaimShell } from "@/features/v2/foundations/ClaimShell";
+import type { Claim } from "@/features/v2/foundations/claims";
 import { AgentDeck } from "@/features/v2/world/AgentDeck";
 import { DeckDust } from "@/features/v2/world/DeckDust";
 
@@ -47,11 +49,16 @@ export function HomeWorld({
   agents,
   rosterReachable,
   approvalsWaiting,
+  claims = [],
+  onClaimSelect,
   onSelectAgent,
 }: {
   agents: RosterAgent[];
   rosterReachable: boolean;
   approvalsWaiting: number;
+  /** Was den Kern gerade beansprucht — gemessen, nie geschaetzt. */
+  claims?: Claim[];
+  onClaimSelect?: (claim: Claim) => void;
   onSelectAgent: (id: string) => void;
 }) {
   const { selection, focus, prefs } = useV2();
@@ -89,6 +96,12 @@ export function HomeWorld({
       <StagePlatform />
       <BackBrace />
       <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />
+
+      {/*
+        Die Anspruchsschale. Sie zeichnet nur, was ein Waechter tatsaechlich
+        gemeldet hat — und nichts, was Onur bewusst undatiert gelassen hat.
+      */}
+      <ClaimShell claims={claims} onSelect={onClaimSelect} />
 
       {/* Alle Agenten in einem Objekt statt einem pro Figur. Der Grund steht
           in AgentDeck.tsx und ist gemessen, nicht vermutet. */}

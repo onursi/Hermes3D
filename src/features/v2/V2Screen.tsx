@@ -28,6 +28,7 @@ import { areaRadius, BRAIN_CENTERS } from "@/features/v2/knowledge/brainLayout";
 import { adaptVaultToKnowledge } from "@/features/v2/knowledge/adaptVault";
 import { playArrive, playSelect } from "@/features/v2/sound";
 import type { MarkerRegistry } from "@/features/v2/universe/CockpitProjector";
+import { useClaims } from "@/features/v2/foundations/useClaims";
 import { useContentSearch } from "@/features/v2/useContentSearch";
 import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
@@ -265,6 +266,12 @@ export function V2Screen() {
     reachable: boolean;
   }>({ items: [], reachable: true });
   const approvals = approvalState.items.length;
+  /**
+   * Was den Hermes-Kern beansprucht. Eine Quelle fuer die Schale im Zuhause.
+   * Regeln in `foundations/claims.ts` — nur hohe Prioritaet und heute faellig,
+   * Ueberfaelliges hebt eine Stufe, Undatiertes taucht nie auf.
+   */
+  const { claims } = useClaims();
 
   useEffect(() => {
     let cancelled = false;
@@ -619,7 +626,13 @@ export function V2Screen() {
         agents={roster.agents}
         rosterReachable={roster.reachable}
         approvalsWaiting={approvals}
-        vault={vault}
+          claims={claims}
+        onClaimSelect={(claim) => {
+          // Klick fuehrt zum Ursprung. Eine Todoist-Aufgabe hat keinen Ort
+          // im Raum — dann passiert nichts, statt irgendwohin zu springen.
+          if (claim.href) flyToSource(claim.href);
+        }}
+      vault={vault}
         projects={projects.projects}
         libraryItems={libraryItems}
         query={world === "cosmos" ? query : ""}
