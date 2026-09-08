@@ -6,6 +6,7 @@ import * as THREE from "three";
 import {useV2} from "../state";
 import {useWorlds} from "./WorldsProvider";
 import {projectRadius,type WorldObject} from "./model";
+import {ProjectSystem} from "./ProjectSystem";
 import {BlackHole} from "../spatial/BlackHole";
 const PALETTE=['#ead1a0','#a6bde7','#d9afc9','#98cfb8','#beaff0'];
 export const ROOM_WORLDS=['horizon','flow','atelier','sanctuary','success'];
@@ -48,7 +49,7 @@ function Artifact({object,position,color,moon=false}:{object:WorldObject;positio
   <Billboard position={[0,size+1.2,0]}><Text fontSize={active?.65:.48} color={active?'#fff4dc':'#b9bdc9'} maxWidth={12} textAlign="center" outlineWidth={.015} outlineColor="#050810">{object.title}</Text></Billboard>
  </group>;
 }
-export function WorldsScene({onDive}:{onDive?:()=>void}){
+export function WorldsScene({onDive,onFocus,controlsRef,cameraBusy=false}:{onDive?:()=>void;onFocus?:(position:[number,number,number],target:[number,number,number],duration?:number)=>void;controlsRef?:React.MutableRefObject<{target:THREE.Vector3;update:()=>void;enabled:boolean}|null>;cameraBusy?:boolean}){
  const {world,prefs}=useV2();const {objects,selected,choose,jobs}=useWorlds();
  const kind=world==='horizon'?'goal':world==='atelier'?'idea':'project';
  const visible=objects.filter(o=>o.kind===kind&&(world!=='success'||o.state==='abgeschlossen')&&(world!=='projects'||o.state!=='abgeschlossen'));
@@ -58,9 +59,8 @@ export function WorldsScene({onDive}:{onDive?:()=>void}){
   <ambientLight intensity={.55}/><pointLight position={[8,20,12]} intensity={160} color={world==='success'?'#ffe2b6':'#b5cbf6'} distance={140}/>
   {world==='projects'?<BlackHole reducedMotion={prefs.reducedMotion} onDive={onDive??(()=>{})}/>:<Dust warm={world==='success'||world==='sanctuary'}/>}
   {world==='success'&&<HyperArchive/>}
-  {world==='projects'&&[14,19.5,25,30.5,36].map((r,i)=><mesh key={r} rotation={[-Math.PI/2,0,0]} raycast={()=>null}><torusGeometry args={[r,.018,4,128]}/><meshBasicMaterial color={PALETTE[i]} transparent opacity={.15}/></mesh>)}
-  {['horizon','projects','success','atelier'].includes(world)&&roots.map((o,i)=><Artifact key={o.id} object={o} position={positions.get(o.id)!} color={PALETTE[i%5]}/>)}
-  {world==='projects'&&active&&visible.filter(o=>o.parent===(active.parent||active.id)).map((o,i)=>{const parent=positions.get(active.parent||active.id)||[0,0,0];const a=i*2.2;const p:[number,number,number]=[parent[0]+Math.cos(a)*6,parent[1]+2,parent[2]+Math.sin(a)*6];return <group key={o.id}><Artifact object={o} position={p} color="#d5c0fa" moon/><Line points={[parent,p]} color="#a58cc8" transparent opacity={.4} lineWidth={1}/></group>;})}
+  {world==='projects'&&onFocus&&controlsRef&&<ProjectSystem onFocus={onFocus} controlsRef={controlsRef} cameraBusy={cameraBusy}/>}
+  {['horizon','success','atelier'].includes(world)&&roots.map((o,i)=><Artifact key={o.id} object={o} position={positions.get(o.id)!} color={PALETTE[i%5]}/>)}
   {world==='horizon'&&['Beruf','Lernen','Familie','Gesundheit','Spiritualität'].map((name,i)=>{const a=i/5*Math.PI*2;return <Billboard key={name} position={[Math.cos(a)*22,11,Math.sin(a)*15]}><Text fontSize={.62} color={PALETTE[i]} letterSpacing={.12}>{name}</Text></Billboard>;})}
   {world==='horizon'&&active?.kind==='goal'&&active.groups.map(group=>{const index=['beruflich','lernen','familiär','gesundheit','spirituell'].indexOf(group);const position=positions.get(active.id);if(index<0||!position)return null;const a=index/5*Math.PI*2;return <Line key={group} points={[position,[Math.cos(a)*22,11,Math.sin(a)*15]]} color={PALETTE[index]} transparent opacity={.55} lineWidth={1}/>;})}
   {world==='horizon'&&active?.kind==='goal'&&active.milestones.map((m,i)=><group key={i} position={[-10+i*4,-3,9]}><mesh><sphereGeometry args={[.23,12,8]}/><meshBasicMaterial color={m.done?'#e9c681':'#78869e'}/></mesh><Billboard position={[0,-1.1,0]}><Text fontSize={.3} maxWidth={3.6} textAlign="center" color="#c4cad7">{m.title}</Text></Billboard></group>)}

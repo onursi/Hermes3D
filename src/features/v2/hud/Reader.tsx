@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {PanelWindow} from "./PanelWindow";
+import {highlightFoundText} from "./foundText";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -34,9 +36,13 @@ export function Reader({
   onOpenExternally,
   onOpenNeighbour,
   neighbours,
+  query = "",
+  onMinimizedChange,
 }: {
   /** The note to read, or null when the reader is closed. */
   node: VaultNode | null;
+  query?: string;
+  onMinimizedChange?:(minimized:boolean)=>void;
   onClose: () => void;
   /** Obsidian, still available — as a choice rather than as the only way. */
   onOpenExternally: (id: string) => void;
@@ -46,6 +52,11 @@ export function Reader({
 }) {
   const document = useDocument(node?.id ?? null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [matchIndex,setMatchIndex]=useState(0);
+  const [matchCount,setMatchCount]=useState(0);
+  const highlight=useMemo(()=>highlightFoundText(query),[query]);
+  const jump=(index:number)=>{const marks=scrollRef.current?.querySelectorAll<HTMLElement>('mark[data-found]');if(!marks?.length)return;const next=(index+marks.length)%marks.length;marks.forEach((m,i)=>m.dataset.current=String(i===next));marks[next].scrollIntoView({block:'center',behavior:'auto'});setMatchIndex(next);};
+  useEffect(()=>{const frame=requestAnimationFrame(()=>{const marks=scrollRef.current?.querySelectorAll<HTMLElement>('mark[data-found]');setMatchCount(marks?.length??0);setMatchIndex(0);if(marks?.[0]){marks[0].dataset.current='true';marks[0].scrollIntoView({block:'center',behavior:'auto'});}});return()=>cancelAnimationFrame(frame);},[document,query,node?.id]);
 
   /**
    * A new note starts at the top.
@@ -54,8 +65,9 @@ export function Reader({
    * before it and drops him into the middle of a document he has not started.
    */
   useEffect(() => {
+    onMinimizedChange?.(false);
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [node?.id]);
+  }, [node?.id,onMinimizedChange]);
 
   /**
    * Front matter, separated rather than thrown away.
@@ -86,7 +98,7 @@ export function Reader({
   if (!node) return null;
 
   return (
-    <section
+    <PanelWindow key={node.id} title="Notiz" slot="reader" onClose={onClose} onMinimizedChange={onMinimizedChange}><section
       className="pointer-events-auto absolute inset-y-0 right-0 z-40 flex w-[min(720px,calc(100vw-2rem))] flex-col border-l border-white/10 bg-[#070c12]/97 backdrop-blur-md"
       aria-label={`Notiz: ${node.name}`}
     >
@@ -109,6 +121,7 @@ export function Reader({
         </button>
       </header>
 
+      {query.trim()&&<nav className="found-navigation" aria-label="Fundstellen"><span>„{query}“ · {matchCount?`${matchIndex+1} / ${matchCount}`:'Keine Textfundstelle'}</span><button disabled={!matchCount} onClick={()=>jump(matchIndex-1)} aria-label="Vorherige Fundstelle">↑</button><button disabled={!matchCount} onClick={()=>jump(matchIndex+1)} aria-label="Nächste Fundstelle">↓</button></nav>}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {document.status === "loading" ? (
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-white/35">
@@ -155,7 +168,7 @@ export function Reader({
                 </pre>
               </details>
             ) : null}
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{split.body}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[highlight]}>{split.body}</ReactMarkdown>
             {document.truncated ? (
               <p className="mt-6 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-amber-300/70">
                 Gekürzt — die Notiz ist länger als der Leser auf einmal holt.
@@ -195,7 +208,7 @@ export function Reader({
           In Obsidian öffnen
         </button>
       </div>
-    </section>
+    </section></PanelWindow>
   );
 }
 

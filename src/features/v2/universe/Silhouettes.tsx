@@ -148,7 +148,7 @@ export function Silhouettes({
       const entry = portals.current.get(place.id);
       if (!entry) continue;
       const highlighted = place.id === liveReachable;
-      entry.rim.set(highlighted ? SELECTION_COLOR : (PORTAL_RIM[place.kind] ?? DISTANT_TINT));
+      entry.rim.set(highlighted ? SELECTION_COLOR : (place.color ?? PORTAL_RIM[place.kind] ?? DISTANT_TINT));
       entry.core.set(PORTAL_CORE[place.kind] ?? "#101010");
       entry.open = highlighted;
       entry.still = still;
@@ -269,6 +269,7 @@ function Silhouette({
             {place.kind === "library" ? (
               <ShelfRoom radius={place.radius * 0.58} tint={peek} />
             ) : null}
+            {place.kind === "room" ? <RoomPeek place={place}/> : null}
             {place.kind === "project" ? (
               <Station radius={place.radius * 0.85} tint={peek} />
             ) : null}
@@ -471,3 +472,12 @@ function Deck({ radius, tint }: { radius: number; tint: string }) {
   );
 }
 
+
+function RoomPeek({place}:{place:Place}){
+ const r=place.radius*.34,c=place.color??'#bbd6ee';
+ if(place.world==='memory')return <group rotation={[.35,0,.3]}><mesh><sphereGeometry args={[r*.65,20,16]}/><meshBasicMaterial color={c} transparent opacity={.5}/></mesh><mesh rotation={[-Math.PI/2,0,0]}><ringGeometry args={[r*.85,r*1.4,48]}/><meshBasicMaterial color={c} transparent opacity={.5} side={THREE.DoubleSide}/></mesh></group>;
+ if(place.world==='flow')return <group>{[0,1,2].map(i=><mesh key={i} rotation={[i*.65,i*.5,0]}><torusGeometry args={[r,.045,6,48]}/><meshBasicMaterial color={c}/></mesh>)}</group>;
+ if(place.world==='success')return <group rotation={[.35,.6,.2]}>{[1,.55].map(s=><mesh key={s} scale={s}><boxGeometry args={[r*1.5,r*1.5,r*1.5]}/><meshBasicMaterial color={c} wireframe/></mesh>)}</group>;
+ if(place.world==='sanctuary')return <group><mesh><torusGeometry args={[r,.07,8,48,Math.PI]}/><meshBasicMaterial color={c}/></mesh><mesh position={[0,-r*.6,0]}><sphereGeometry args={[r*.35,16,12]}/><meshBasicMaterial color={c} transparent opacity={.5}/></mesh></group>;
+ return <mesh rotation={[.4,.2,.3]}><octahedronGeometry args={[r,place.world==='horizon'?1:0]}/><meshBasicMaterial color={c} wireframe/></mesh>;
+}

@@ -31,7 +31,7 @@ export function Dock({
   const { world, goTo } = useV2();
 
   return (
-    <nav className="pointer-events-auto absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/10 bg-[#0a1018]/90 p-1.5 backdrop-blur-md">
+    <nav className="hermes-dock pointer-events-auto absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/10 bg-[#0a1018]/90 p-1.5 backdrop-blur-md">
       <DockButton
         active={world === "home"}
         onClick={() => goTo("home")}

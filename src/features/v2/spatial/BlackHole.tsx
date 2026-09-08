@@ -39,13 +39,14 @@ void main(){
    vec3 hit=mix(p,next,abs(p.y)/(abs(p.y)+abs(next.y)));
    float ring=length(hit.xz);
    float mask=smoothstep(3.65,4.6,ring)*(1.-smoothstep(12.,16.,ring));
-   float angle=atan(hit.z,hit.x);
+   float angle=atan(hit.z,hit.x)-uTime*(.28+1.4/pow(max(ring,1.),.6));
    float lanes=.4+.6*noise(vec3(ring*2.8,cos(angle)*9.,sin(angle)*9.-uTime*.55));
    float filaments=.7+.3*sin(ring*21.+angle*5.-uTime*2.5);
    float hot=pow(4.6/max(ring,4.6),1.65);
    float doppler=clamp(1.+dot(normalize(vec3(-hit.z,0.,hit.x)),-rd)*.65,.25,1.7);
    vec3 heat=mix(vec3(1.,.25,.055),vec3(1.,.87,.58),hot);
-   light+=transmission*heat*mask*lanes*filaments*hot*doppler*2.4;
+   float flare=.86+.14*sin(angle*3.-uTime*1.1)+.12*pow(max(0.,sin(angle*7.+uTime*1.9)),12.);
+   light+=transmission*heat*mask*lanes*filaments*hot*doppler*2.4*flare;
    transmission*=1.-mask*.68;
   }
   float halo=exp(-abs(r-3.28)*7.5) * (1.-abs(dot(normalize(p),rd)));

@@ -57,6 +57,7 @@ export interface JarvisCompanionProps {
   onFlyToSource?: (sourceId: string) => void;
   /** Signal an den 3D-Graph, welche Notizen zitiert wurden */
   onSourcesChange?: (sourceIds: string[]) => void;
+  onSearchQuery?: (query:string)=>void;
   /** Aktuelle 3D-Welt */
   currentWorld?: string;
   /** Optionaler Callback zum Weltenwechsel */
@@ -79,6 +80,7 @@ export function JarvisCompanion({
   noteCount = 0,
   onFlyToSource,
   onSourcesChange,
+  onSearchQuery,
   currentWorld = "cosmos",
   onNavigateWorld,
 }: JarvisCompanionProps) {
@@ -246,6 +248,7 @@ export function JarvisCompanion({
       if (phase === "searching" || phase === "thinking" || phase === "speaking") return;
       if (spoken) setQuestion(spoken);
 
+      onSearchQuery?.(text);
       // Reset
       stopAudio();
       streamRef.current?.close();

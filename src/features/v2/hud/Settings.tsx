@@ -1,5 +1,6 @@
 "use client";
 
+import {PanelWindow} from "./PanelWindow";
 import { unlockAtmosphere } from "@/features/v2/atmosphereAudio";
 import { useV2 } from "@/features/v2/state";
 
@@ -18,8 +19,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const { prefs, setPref } = useV2();
 
   return (
-    <div
-      className="pointer-events-auto absolute inset-0 z-40 flex items-start justify-end bg-black/30 p-4 pt-16 backdrop-blur-[2px]"
+    <PanelWindow title="Darstellung" slot="settings" onClose={onClose}><div
+      className="settings-window pointer-events-auto absolute inset-0 z-40 flex items-start justify-end bg-black/30 p-4 pt-16 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
@@ -100,7 +101,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
           System selbst.
         </p>
       </div>
-    </div>
+    </div></PanelWindow>
   );
 }
 

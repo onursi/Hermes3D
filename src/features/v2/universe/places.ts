@@ -22,7 +22,7 @@ import type { Project } from "@/features/v2/useProjects";
  * out from the platform shows three distinct things rather than one cluster.
  */
 
-export type PlaceKind = "home" | "cosmos" | "library" | "project";
+export type PlaceKind = "home" | "cosmos" | "library" | "project" | "room";
 
 export type Place = {
   /** Stable and unique. Project places carry the folder, so they survive a reload. */
@@ -46,6 +46,7 @@ export type Place = {
   entryRadius: number;
   /** Which world entering it mounts. */
   world: V2World;
+  color?:string;
   /** For a project station: which project to select on entry. */
   projectFolder?: string;
 };
@@ -68,28 +69,21 @@ const HOME_PLACE: Place = {
   world: "home",
 };
 
-const COSMOS_PLACE: Place = {
-  id: "cosmos",
-  kind: "cosmos",
-  name: "Das Synapsentor",
-  hint: "Alle Notizen, räumlich gegliedert.",
-  position: new THREE.Vector3(-24, -8, -54),
-  // Ein Portal, kein Körper. Onurs Einwand war richtig: der Wissenskörper
-  // nahm zwanzig Einheiten Platz ein, um zu sagen "hier geht es hinein".
-  // Ein Tor von sieben tut dasselbe und lässt den Raum, den ein Raum braucht.
-  radius: 9,
-  entryRadius: 20,
-  world: "cosmos",
-};
 
 export function placesFor(projects: Project[], includeLibrary: boolean): Place[] {
   // Exactly one project entrance, independent of the project count.
-  void includeLibrary;
-  return [HOME_PLACE, COSMOS_PLACE, {
-    id: "projects", kind: "project", name: "Project Singularity",
-    hint: `${projects.length} Projekte im Gravitationsraum.`,
-    position: new THREE.Vector3(28, -5, -58), radius: 9, entryRadius: 18, world: "projects",
-  }];
+  void includeLibrary;void projects;
+  const destinations:{id:V2World;name:string;color:string;hint:string}[]=[
+    {id:'cosmos',name:'Das Synapsentor',color:'#9dbdff',hint:'Notizen und echte Verbindungen.'},
+    {id:'projects',name:'Project Singularity',color:'#f2bd72',hint:'Projektplaneten und nächste Schritte.'},
+    {id:'horizon',name:'Goal Horizon',color:'#f8e3ac',hint:'Deine Richtung und Ziele.'},
+    {id:'flow',name:'Flow Orbit',color:'#8bdfca',hint:'Automationen und gemeldete Läufe.'},
+    {id:'atelier',name:'Ideenatelier',color:'#d6a7f3',hint:'Aus einem Gedanken wird ein nächster Schritt.'},
+    {id:'sanctuary',name:'Vision Sanctuary',color:'#bad2a3',hint:'Raum für dein Warum.'},
+    {id:'memory',name:'Memory Orbit',color:'#eda8be',hint:'Deine Lebensringe und Fotoalben.'},
+    {id:'success',name:'Jenseits des Horizonts',color:'#e9b778',hint:'Erreichtes wiederfinden.'},
+  ];
+  return [HOME_PLACE,...destinations.map((d,i)=>{const angle=-Math.PI*.7+i/destinations.length*Math.PI*2;return {id:d.id,kind:d.id==='cosmos'?'cosmos':d.id==='projects'?'project':'room',name:d.name,hint:d.hint,color:d.color,position:new THREE.Vector3(Math.cos(angle)*48,1,Math.sin(angle)*48),radius:6,entryRadius:12,world:d.id} as Place;})];
 }
 
 /**

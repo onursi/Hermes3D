@@ -34,8 +34,11 @@ import { V2Scene } from "@/features/v2/world/V2Scene";
 import { JarvisCompanion } from "@/features/v2/jarvis";
 import "./spatial/spatial.css";
 import {WorldsProvider} from "./foundations/WorldsProvider";
+import {WormholeJourney} from "./foundations/WormholeJourney";
 import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
 import "./foundations/worlds.css";
+import {loadPhotos,storePhotos,type StoredPhoto} from "./spatial/photoStore";
+import {PhotoCarousel} from "./spatial/PhotoCarousel";
 import { MemoryHud, MemoryCard } from "./spatial/SpatialHud";
 import type { MemoryEntry, ProjectMeta } from "./spatial/model";
 import type { MemoryMode } from "./spatial/MemoryWorld";
@@ -77,6 +80,7 @@ export function V2Screen() {
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [sourceQuery,setSourceQuery]=useState("");
   /**
    * Die Volltextsuche ueber die Notizen — einmal hier, fuer Liste und Raum.
    *
@@ -129,6 +133,7 @@ export function V2Screen() {
    * screen. Reading is a second, deliberate step — and closing the reader
    * leaves the selection standing where it was.
    */
+  const [readerMinimized,setReaderMinimized]=useState(false);
   const [readerId, setReaderId] = useState<string | null>(null);
   const [openProjectFolder, setOpenProjectFolder] = useState<string | null>(null);
   const [openNotePath, setOpenNotePath] = useState<string | null>(null);
@@ -141,6 +146,7 @@ export function V2Screen() {
   const [memoryPhase, setMemoryPhase] = useState("Gegenwart");
   const [memoryCard, setMemoryCard] = useState<MemoryEntry | null>(null);
   const mediaUrls = useRef<string[]>([]);
+  const [mediaStatus,setMediaStatus]=useState("");
   useEffect(() => {
     const controller = new AbortController();
     const urls = mediaUrls.current;
@@ -153,9 +159,10 @@ export function V2Screen() {
     void fetch("/api/vault/memories", { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => {
-        if (d.ok) setMemoryEntries(d.memories);
+        if (d.ok) setMemoryEntries(previous=>[...previous.filter(e=>e.local),...d.memories]);
       })
       .catch(() => {});
+    void loadPhotos().then(photos=>{if(controller.signal.aborted)return;const media:MemoryEntry[]=photos.map(photo=>{const url=URL.createObjectURL(photo.blob);urls.push(url);return {id:photo.id,title:photo.title,phase:photo.phase,kind:photo.kind,url,date:'',local:true};});setMemoryEntries(previous=>[...previous.filter(e=>!media.some(m=>m.id===e.id)),...media]);}).catch(()=>{if(!controller.signal.aborted)setMediaStatus('Lokaler Fotospeicher nicht verfügbar. Neue Medien bleiben nur in dieser Sitzung.');});
     return () => {
       controller.abort();
       urls.forEach((url) => URL.revokeObjectURL(url));
@@ -167,13 +174,16 @@ export function V2Screen() {
     setMemoryCard(null);
   }, []);
   const importMemories = useCallback((files: FileList, phase: string) => {
+    const stored:StoredPhoto[]=[];
     const imported: MemoryEntry[] = Array.from(files)
       .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
       .map((f) => {
         const url = URL.createObjectURL(f);
         mediaUrls.current.push(url);
+        const id=crypto.randomUUID();
+        stored.push({id,title:f.name,phase,kind:f.type.startsWith("video/")?"video":"image",blob:f});
         return {
-          id: crypto.randomUUID(),
+          id,
           title: f.name,
           date: "",
           phase,
@@ -182,6 +192,7 @@ export function V2Screen() {
           local: true,
         };
       });
+    void storePhotos(stored).then(()=>setMediaStatus(`${stored.length} Medien lokal gespeichert.`)).catch(()=>setMediaStatus("Speichern fehlgeschlagen (z. B. Speicher voll). Diese neuen Medien sind nur in der aktuellen Sitzung verfügbar."));
     setMemoryEntries((previous) => [...previous, ...imported]);
     setMemoryPhase(phase);
     setMemoryMode("carousel");
@@ -626,7 +637,7 @@ export function V2Screen() {
         queryHitIds={contentSearch.ids}
         citedSourceIds={citedSourceIds}
         flyThrough={flyThrough}
-        inputBlocked={readerId !== null || memoryCard !== null}
+        inputBlocked={(readerId !== null && !readerMinimized)}
         onFrame={devOpen ? setMeter : undefined}
         crashWorld={crashWorld}
       />
@@ -649,12 +660,13 @@ export function V2Screen() {
       )}
       {world === "memory" && (
         <MemoryHud
+          mediaStatus={mediaStatus}
           key={memoryMode + memoryPhase}
           mode={memoryMode}
           phase={memoryPhase}
           count={
             memoryMode === "carousel"
-              ? memoryEntries.filter((e) => e.phase === memoryPhase).length
+              ? memoryEntries.filter((e) => e.phase === memoryPhase && e.kind!=="note").length
               : memoryEntries.length
           }
           entries={memoryEntries}
@@ -664,6 +676,7 @@ export function V2Screen() {
           onImport={importMemories}
         />
       )}
+      {world === "memory" && memoryMode==='carousel'&&<PhotoCarousel key={memoryPhase} entries={memoryEntries} phase={memoryPhase} onClose={()=>setMemoryMode('saturn')}/>}
       {world === "memory" && memoryCard && (
         <MemoryCard
           entry={memoryCard}
@@ -697,7 +710,7 @@ export function V2Screen() {
         <SearchField
           nodes={vault.nodes}
           query={query}
-          onQuery={setQuery}
+          onQuery={value=>{setQuery(value);setSourceQuery(value);}}
           contentHits={contentSearch.hits}
           onPick={selectSource}
           selectedId={selection.kind === "source" ? selection.id : null}
@@ -716,7 +729,7 @@ export function V2Screen() {
           Arealliste ihre Höhe selbst kennt; so bleibt die Spalte auch auf
           niedrigen Fenstern innerhalb ihrer Grenzen. */}
       {["home","cosmos","library","universe"].includes(world) ? (
-      <div className="pointer-events-none absolute right-4 top-16 bottom-20 z-30 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
+      <div className="knowledge-sidebar pointer-events-none absolute right-4 top-[112px] bottom-20 z-30 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
         {approvalsOpen ? (
           <Approvals
             approvals={approvalState.items}
@@ -725,6 +738,7 @@ export function V2Screen() {
           />
         ) : (
           <Inspector
+            query={sourceQuery}
             agents={roster.agents}
             nodes={vault.nodes}
             projects={projects.projects}
@@ -760,6 +774,8 @@ export function V2Screen() {
       ) : null}
 
       <Reader
+        onMinimizedChange={setReaderMinimized}
+        query={sourceQuery}
         node={readerNode}
         onClose={() => setReaderId(null)}
         onOpenExternally={openInObsidian}
@@ -855,6 +871,7 @@ export function V2Screen() {
       {/* Globaler, vollumfänglicher Jarvis Companion unten rechts (Hologramm-Gesicht & Arc Reactor Core) */}
       <JarvisCompanion
         noteCount={vault.nodes.length}
+        onSearchQuery={value=>{setSourceQuery(value);setQuery("");}}
         currentWorld={world}
         onFlyToSource={(id) => {
           flyToSource(id);
@@ -867,7 +884,8 @@ export function V2Screen() {
         }}
         onNavigateWorld={(w) => goTo(w)}
       />
-      <WorldsHud onRead={id=>setReaderId(id)} onDive={()=>{setDive(1);setCrossing(true);}}/>
+      <WormholeJourney/>
+      <WorldsHud onRead={id=>{setSourceQuery("");setReaderId(id);}} onDive={()=>{setDive(1);setCrossing(true);}}/>
       {crossing&&world==='projects'&&<HorizonCrossing onComplete={()=>{setCrossing(false);setDive(0);goTo('success');}}/>}
     </main></WorldsProvider>
   );

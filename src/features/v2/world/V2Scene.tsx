@@ -1,4 +1,5 @@
 "use client";
+import {WormholeMouth} from "../foundations/WormholeJourney";
 
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -281,6 +282,7 @@ export function V2Scene({
    */
   const handleFocusPlace = useCallback(
     (place: Place) => {
+      if(world === "home"){goTo(place.world,"travel");return;}
       pendingApproach.current = place;
       if (world === "universe") {
         const view = approachFor(place);
@@ -321,6 +323,13 @@ export function V2Scene({
    * that moved the camera itself would fight the director the moment two
    * things wanted it. So this is a request, granted as a flight.
    */
+  const handleWorldFocus=useCallback((position:[number,number,number],target:[number,number,number],duration=1.6)=>setGoal({position:new THREE.Vector3(...position),target:new THREE.Vector3(...target),duration,instant:prefs.reducedMotion}),[prefs.reducedMotion]);
+  useEffect(()=>{
+    if(world!=='home')return;
+    const overview=()=>{const distance=Math.max(160,130/Math.max(.3,window.innerWidth/window.innerHeight));handleWorldFocus([0,distance*.7,distance],[0,0,0],2);};
+    window.addEventListener('hermes:portal-overview',overview);
+    return()=>window.removeEventListener('hermes:portal-overview',overview);
+  },[world,handleWorldFocus]);
   const handleFocusArea = useCallback(
     (focus: { center: [number, number, number]; radius: number }) => {
       const centre = new THREE.Vector3(...focus.center);
@@ -492,7 +501,7 @@ export function V2Scene({
           target={HOME_VIEW.target.toArray()}
           enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={false}
-          minDistance={world === "projects" && !openProject ? 7.8 : 3.2}
+          minDistance={world === "projects" && !openProject ? 2 : 3.2}
           maxDistance={world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
           maxPolarAngle={world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
@@ -503,6 +512,7 @@ export function V2Scene({
       ) : null}
 
       <Suspense fallback={null}>
+        <WormholeMouth/>
         {world !== "library" && !ROOM_WORLDS.includes(world) && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
@@ -603,7 +613,7 @@ export function V2Scene({
               onOpenNote={onOpenProjectNote ?? (() => {})}
             />
           ) : (
-            <WorldsScene onDive={onDive}/>
+            <WorldsScene onDive={onDive} onFocus={handleWorldFocus} controlsRef={controlsRef} cameraBusy={goal!==null}/>
           )
         ) : ROOM_WORLDS.includes(world) ? (
           <WorldsScene/>

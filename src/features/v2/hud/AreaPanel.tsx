@@ -1,4 +1,5 @@
 "use client";
+import {PanelWindow} from "./PanelWindow";
 
 import { useState } from "react";
 
@@ -48,7 +49,7 @@ export function AreaPanel({
   const total = areas.reduce((sum, area) => sum + area.count, 0);
 
   return (
-    <section className="pointer-events-auto relative z-30 w-[260px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 backdrop-blur-md">
+    <PanelWindow title="Areale" slot="right"><section className="pointer-events-auto relative z-30 w-[260px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 backdrop-blur-md">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -131,6 +132,6 @@ export function AreaPanel({
           </p>
         </>
       ) : null}
-    </section>
+    </section></PanelWindow>
   );
 }

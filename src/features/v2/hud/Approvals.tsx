@@ -1,4 +1,5 @@
 "use client";
+import {PanelWindow} from "./PanelWindow";
 
 /**
  * What is waiting, in words.
@@ -51,7 +52,7 @@ export function Approvals({
   onClose: () => void;
 }) {
   return (
-    <aside className="pointer-events-auto relative z-40 min-h-0 w-full shrink overflow-y-auto rounded-2xl border border-amber-400/25 bg-[#0a1018]/96 shadow-[0_18px_60px_rgba(0,0,0,.65)] backdrop-blur-md">
+    <PanelWindow title="Freigaben" slot="right"><aside className="pointer-events-auto relative z-40 min-h-0 w-full shrink overflow-y-auto rounded-2xl border border-amber-400/25 bg-[#0a1018]/96 shadow-[0_18px_60px_rgba(0,0,0,.65)] backdrop-blur-md">
       <header className="flex items-center justify-between border-b border-white/8 px-4 py-2.5">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-200/80">
           Wartet auf dich
@@ -101,6 +102,6 @@ export function Approvals({
           ansteht — erfunden wird nichts.
         </p>
       </footer>
-    </aside>
+    </aside></PanelWindow>
   );
 }

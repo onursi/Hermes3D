@@ -1,5 +1,6 @@
 "use client";
 
+import {PanelWindow} from "./PanelWindow";
 import { useMemo, useState } from "react";
 
 import { linksAmong, neighboursOf } from "@/features/v2/graph";
@@ -98,7 +99,7 @@ export function Neighbourhood({
   const centre = VIEW / 2;
 
   return (
-    <section
+    <PanelWindow key={node.id} title="Vernetzung" slot="graph" onClose={onClose}><section
       className="pointer-events-auto absolute bottom-20 left-4 z-30 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md"
       aria-label={`Nachbarschaft von ${node.name}`}
     >
@@ -231,6 +232,6 @@ export function Neighbourhood({
           Ordner. Größe sagt nichts über Wichtigkeit.
         </p>
       </footer>
-    </section>
+    </section></PanelWindow>
   );
 }

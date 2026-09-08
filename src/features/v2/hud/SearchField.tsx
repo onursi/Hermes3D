@@ -93,7 +93,7 @@ export function SearchField({
   }, [nodes, needle, contentHits]);
 
   return (
-    <div className="pointer-events-auto absolute left-4 top-16 z-30 w-[300px] max-w-[calc(100vw-2rem)]">
+    <div className="knowledge-search pointer-events-auto absolute left-4 top-[112px] z-40 w-[340px] max-w-[calc(100vw-2rem)]">
       <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a1018]/92 px-3 py-2 backdrop-blur-md">
         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0 text-white/30" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="11" cy="11" r="7" />

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+import {PanelWindow} from "./PanelWindow";
+import {useDocument} from "../useDocument";
+import {matchingExcerpt,termPattern} from "./foundText";
 import { useV2 } from "@/features/v2/state";
 import type { Project } from "@/features/v2/useProjects";
 import type { RosterAgent } from "@/features/v2/useRoster";
@@ -27,6 +30,7 @@ export function Inspector({
   onOpenSource,
   onDiveToSource,
   councilAvailable = false,
+  query = "",
 }: {
   agents: RosterAgent[];
   nodes: VaultNode[];
@@ -45,6 +49,7 @@ export function Inspector({
    * Methodenliste, die der Server beim Verbinden selbst nennt.
    */
   councilAvailable?: boolean;
+  query?: string;
 }) {
   const { selection, focus, setFocus, clearSelection, world } = useV2();
 
@@ -57,7 +62,7 @@ export function Inspector({
   if (selection.kind === "none") return null;
 
   return (
-    <aside className="pointer-events-auto relative z-30 min-h-0 w-full shrink overflow-y-auto rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
+    <PanelWindow key={JSON.stringify(selection)} title="Auswahl" slot="right" onClose={clearSelection}><aside className="pointer-events-auto relative z-30 min-h-0 w-full shrink overflow-y-auto rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_18px_60px_rgba(0,0,0,.6)] backdrop-blur-md">
       {selection.kind === "agent" ? (
         <AgentBody agent={agents.find((a) => a.id === selection.id)} councilAvailable={councilAvailable} />
       ) : null}
@@ -68,6 +73,7 @@ export function Inspector({
           id={selection.id}
           title={selection.title}
           world={world}
+          query={query}
           onOpen={() => onOpenSource(selection.id)}
           onDive={() => onDiveToSource(selection.id)}
         />
@@ -101,7 +107,7 @@ export function Inspector({
           Esc · schließen
         </button>
       </footer>
-    </aside>
+    </aside></PanelWindow>
   );
 }
 
@@ -154,6 +160,7 @@ function SourceBody({
   id,
   title,
   world,
+  query,
   onOpen,
   onDive,
 }: {
@@ -161,11 +168,16 @@ function SourceBody({
   id: string;
   title: string;
   world: string;
+  query: string;
   onOpen: () => void;
   onDive: () => void;
 }) {
+  const doc=useDocument(query.trim()?id:null);
+  const excerpt=doc.status==='ready'?matchingExcerpt(doc.content,query):'';
+  const pattern=termPattern(query);
   return (
     <div className="px-4 pb-3 pt-4">
+      {excerpt&&<div className="source-found"><small>FUNDSTELLE · {query}</small><p>{pattern?excerpt.split(pattern).map((part,i)=>i%2?<mark key={i}>{part}</mark>:part):excerpt}</p><button onClick={onOpen}>Direkt zur Fundstelle →</button></div>}
       <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-300/55">
         Quelle
       </p>

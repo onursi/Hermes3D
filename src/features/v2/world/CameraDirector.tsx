@@ -180,6 +180,7 @@ export function CameraDirector({
         camera.lookAt(goal.target);
       }
       active.current = false;
+      if(controlsRef.current)controlsRef.current.enabled=true;
       onArrive();
     }
   }, [goal, camera, controlsRef, reducedMotion, onArrive]);
