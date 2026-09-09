@@ -1,4 +1,5 @@
 "use client";
+import {EvidencePdf} from './EvidencePdf';
 import NextLink from 'next/link';
 import {useEffect,useRef,useState} from "react";
 import {PROJECT_PHASES} from "./projectMotion";
@@ -31,7 +32,7 @@ ${thought}
 Status: Entwurf, noch nicht im LifeOS übernommen.
 `;const url=URL.createObjectURL(new Blob([text],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Ideenentscheidung.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
  return <>
-  {preview&&<PanelWindow key={preview} title="Belegansicht"><aside className="success-proof-view"><button onClick={()=>setPreview(null)}>Beleg schließen ×</button><h2>{preview.split('/').pop()}</h2>{/\.pdf$/i.test(preview)?<iframe title="Abschlussdokument" src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>:<img alt={preview.split('/').pop()} src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>}<a href={'/api/vault/attachment?id='+encodeURIComponent(preview)} target="_blank" rel="noreferrer">In voller Größe öffnen ↗</a></aside></PanelWindow>}
+  {preview&&<PanelWindow key={preview} title="Belegansicht"><aside className="success-proof-view"><button onClick={()=>setPreview(null)}>Beleg schließen ×</button><h2>{preview.split('/').pop()}</h2>{/\.pdf$/i.test(preview)?<EvidencePdf key={preview} id={preview}/>:<img alt={preview.split('/').pop()} src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>}<a href={'/api/vault/attachment?id='+encodeURIComponent(preview)} target="_blank" rel="noreferrer">In voller Größe öffnen ↗</a></aside></PanelWindow>}
   <button className="worlds-switch" onClick={()=>setMenu(!menu)} aria-expanded={menu}>◈ Räume</button>
   {world==='home'&&<button className="home-portal-overview" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis ansehen</button>}
   {menu&&<nav className="worlds-menu" aria-label="Alle Räume"><NextLink className="worlds-primary" href="/atelier-lab">Neuronales Impulsfeld →</NextLink>{ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}</nav>}
