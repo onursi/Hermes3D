@@ -17,3 +17,6 @@ export function portalSound(volume:number,arrival=false){
  wormholeSound(volume*.8,arrival);const ctx=getAudioContext();if(!ctx||ctx.state!=='running'||volume<=0)return;
  [92.5,185,277.2,554.4].forEach((hz,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain(),t=ctx.currentTime+i*.045;osc.type='sine';osc.frequency.setValueAtTime(arrival?hz*2:hz*.5,t);osc.frequency.exponentialRampToValueAtTime(arrival?hz:hz*3,t+1.05);gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(volume*.026,t+.18);gain.gain.exponentialRampToValueAtTime(.0001,t+1.8);osc.connect(gain).connect(ctx.destination);osc.start(t);osc.stop(t+1.9);osc.onended=()=>{osc.disconnect();gain.disconnect();};});
 }
+
+/** Replay is a finite celebratory sound, never a new completion event. */
+export function supernovaSound(volume:number){roomSound(volume*.8,true);wormholeSound(volume*.55,true);}

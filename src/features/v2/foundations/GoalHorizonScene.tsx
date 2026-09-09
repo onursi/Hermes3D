@@ -5,10 +5,12 @@ import {useEffect,useMemo,useRef} from 'react';
 import * as THREE from 'three';
 import {useV2} from '../state';
 import {useWorlds} from './WorldsProvider';
-import {DIRECTIONS,goalPosition,goalColor,nextMilestone,goalPath,BAND_LABELS,stableSeed,type Point} from './goalLayout';
+import {DIRECTIONS,closedGoal,goalConstellation,goalColor,nextMilestone,goalPath,BAND_LABELS,stableSeed,type Point} from './goalLayout';
 import {roomSound,wormholeSound} from './roomSound';
 
-import {HorizonLight,DivineHorizon} from './HorizonLight';
+import {routineDirections} from './horizonRoutines';
+import {GoalActions} from './GoalActions';
+import {HorizonLight,DivineHorizon,SupernovaReplay,DevotionStream} from './HorizonLight';
 const vertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const glow=`varying vec2 vUv;uniform vec3 tint;uniform float outline;void main(){vec2 p=(vUv-.5)*2.;float r=length(p);float halo=exp(-r*6.)*.45;float core=exp(-r*r*140.);float rays=exp(-abs(p.x)*90.)*exp(-abs(p.y)*6.)+exp(-abs(p.y)*90.)*exp(-abs(p.x)*6.);float ring=exp(-pow((r-.24)*50.,2.));float a=mix(halo+core+rays*.6,halo*.2+ring*.65,outline);gl_FragColor=vec4(tint,a);}`;
 function Star({position,color,size=1,outline=false,onClick}:{position:Point;color:string;size?:number;outline?:boolean;onClick?:()=>void}){
@@ -30,10 +32,10 @@ function Sector({center,color,label,activity=0}:{center:Point;color:string;label
  const t=useMemo(()=>({tint:{value:new THREE.Color(color).multiplyScalar(1+activity*.35)}}),[color,activity]);
  return <group position={center}>{[0,1,2,3].map(k=><Billboard key={k} position={[Math.sin(k*2)*9,Math.cos(k*2)*6,-k*13]}><mesh raycast={()=>null}><planeGeometry args={[65-k*5,42+k*4]}/><shaderMaterial transparent depthWrite={false} blending={THREE.AdditiveBlending} uniforms={t} vertexShader={vertex} fragmentShader={`varying vec2 vUv;uniform vec3 tint;void main(){vec2 p=vUv-.5;float n=sin(p.x*23.+sin(p.y*17.))*sin(p.y*29.);float a=exp(-dot(p*vec2(2.,3.),p*vec2(2.,3.))*4.)*(.055+n*.020);gl_FragColor=vec4(tint,a);}`}/></mesh></Billboard>)}<Billboard position={[0,15,0]}><Text fontSize={1.1} letterSpacing={.18} color={color}>{label.toUpperCase()}</Text></Billboard></group>;
 }
-function GoalBody({point,color,title,size,onPick,achieved=false}:{point:Point;color:string;title:string;size:number;onPick:()=>void;achieved?:boolean}){
+function GoalBody({point,color,title,size,onPick,achieved=false,dormant=false}:{point:Point;color:string;title:string;size:number;onPick:()=>void;achieved?:boolean;dormant?:boolean}){
  const label=useRef<THREE.Group>(null);const position=useMemo(()=>new THREE.Vector3(...point),[point]);
- useFrame(({camera})=>{if(label.current)label.current.visible=camera.position.distanceTo(position)<180;});
- return <group><HorizonLight point={point} color={color} size={size} achieved={achieved} onPick={onPick}/><Billboard position={[point[0],point[1]-size*3,point[2]]}><group ref={label}><Text fontSize={.55} maxWidth={12} textAlign="center" color="#ece5da" outlineColor="#050810" outlineWidth={.015}>{title}</Text></group></Billboard></group>;
+ useFrame(({camera})=>{if(label.current){const distance=camera.position.distanceTo(position);label.current.visible=distance<400;label.current.scale.setScalar(Math.max(.7,distance*.016));}});
+ return <group><HorizonLight point={point} color={color} size={size} achieved={achieved} dormant={dormant} onPick={onPick}/><Billboard position={[point[0],point[1]-size*3,point[2]]}><group ref={label}><Text fontSize={.55} maxWidth={12} textAlign="center" color="#ece5da" outlineColor="#050810" outlineWidth={.015}>{title}</Text></group></Billboard></group>;
 }
 function OriginVector({origin}:{origin:Point}){
  const arrow=useRef<HTMLElement|null>(null),distance=useRef<HTMLElement|null>(null);const last=useRef(0);const point=useMemo(()=>new THREE.Vector3(),[]);
@@ -48,27 +50,27 @@ function FlightVeil({journey,quiet}:{journey:string;quiet:boolean}){
  return <group ref={group}><mesh position={[0,0,-1]} raycast={()=>null} renderOrder={100}><planeGeometry args={[4,3]}/><shaderMaterial ref={material} transparent depthTest={false} depthWrite={false} uniforms={uniforms} vertexShader={vertex} fragmentShader={`varying vec2 vUv;uniform float amount;uniform float time;void main(){vec2 p=(vUv-.5)*2.;float r=length(p);float a=atan(p.y,p.x);float rays=pow(max(0.,sin(a*71.+sin(a*11.))),22.);float stream=pow(max(0.,sin(r*26.-time*75.)),5.);gl_FragColor=vec4(.68,.82,1.,rays*stream*smoothstep(.3,1.,r)*amount);}`}/></mesh></group>;
 }
 export function GoalHorizonScene({onFocus}:{onFocus:(position:Point,target:Point,duration?:number)=>void}){
- const {prefs}=useV2();const {routineSignals,objects,selected,choose,horizonView,milestone,setMilestone,quick,positions,timeLayers,homeSignal}=useWorlds();
- const size=useThree(s=>s.size);const goals=useMemo(()=>objects.filter(o=>o.kind==='goal'),[objects]);const active=goals.find(o=>o.id===selected);const next=active?nextMilestone(active):-1;const route=useMemo(()=>{if(!active)return null;const path=goalPath(active),anchor=goalPosition(active);if(active.state==='erreicht')return {...path,points:[],edges:[],goal:anchor,anchor};const offset=(p:Point):Point=>[p[0]+anchor[0],p[1]+anchor[1],p[2]+anchor[2]];return {...path,points:path.points.map(offset),goal:offset(path.goal),anchor};},[active]);
- const layout=useMemo(()=>new Map(goals.map(o=>[o.id,goalPosition(o)])),[goals]);const color=active?goalColor(active):'#eacfa3';
+ const {prefs}=useV2();const {supernova,routineSignals,objects,selected,choose,horizonView,milestone,setMilestone,quick,positions,timeLayers,homeSignal}=useWorlds();
+ const size=useThree(s=>s.size);const goals=useMemo(()=>objects.filter(o=>o.kind==='goal'),[objects]);const active=goals.find(o=>o.id===selected);const next=active?nextMilestone(active):-1;const layout=useMemo(()=>goalConstellation(goals),[goals]);const route=useMemo(()=>{if(!active)return null;const path=goalPath(active),anchor=layout.get(active.id)!;if(closedGoal(active.state))return {...path,points:[],edges:[],goal:anchor,anchor};const offset=(p:Point):Point=>[p[0]+anchor[0],p[1]+anchor[1],p[2]+anchor[2]];return {...path,points:path.points.map(offset),goal:offset(path.goal),anchor};},[active,layout]);
+ const color=active?goalColor(active):'#eacfa3';
  useEffect(()=>{const registry=positions.current;for(const [id,p] of layout)registry.set(id,p);if(active&&route)registry.set(active.id,route.goal);return()=>{for(const id of layout.keys())registry.delete(id);};},[layout,positions,active,route]);
- useEffect(()=>{const duration=prefs.reducedMotion?0:quick?.25:2.2;const frame=requestAnimationFrame(()=>{if(active&&route){const i=milestone??Math.max(0,next),p=route.points[i]??route.anchor;if(active.state==='erreicht'){onFocus([p[0],p[1]+2,p[2]+29],p,duration);return;}onFocus([p[0]+3,p[1]+3,p[2]+12],[p[0],p[1],p[2]-7],duration);}else if(horizonView==='top')onFocus([0,160,-45],[0,0,-45],duration);else onFocus([0,5,size.width<size.height?155:100],[0,8,-65],duration);});return()=>cancelAnimationFrame(frame);},[active,route,milestone,next,horizonView,homeSignal,onFocus,quick,prefs.reducedMotion,size.width,size.height]);
+ useEffect(()=>{const duration=prefs.reducedMotion?0:quick?.25:2.2;const frame=requestAnimationFrame(()=>{if(active&&route){const i=milestone??Math.max(0,next),p=route.points[i]??route.anchor;if(closedGoal(active.state)){onFocus([p[0],p[1]+2,p[2]+29],p,duration);return;}onFocus([p[0]+3,p[1]+3,p[2]+12],[p[0],p[1],p[2]-7],duration);}else if(horizonView==='top')onFocus([0,160,-45],[0,0,-45],duration);else onFocus([0,5,size.width<size.height?155:100],[0,8,-65],duration);});return()=>cancelAnimationFrame(frame);},[active,route,milestone,next,horizonView,homeSignal,onFocus,quick,prefs.reducedMotion,size.width,size.height]);
  const enter=(id:string)=>{setMilestone(null);choose(id);if(!quick&&!prefs.reducedMotion)wormholeSound(prefs.sound*.35);};
- return <><Firmament/><DivineHorizon/><FlightVeil journey={(active?.id??'sky')+':'+milestone+':'+homeSignal} quiet={prefs.reducedMotion||quick}/><OriginVector origin={route?[route.anchor[0],route.anchor[1],route.anchor[2]+8]:[0,0,20]}/>
+ return <><Firmament/><DivineHorizon/><DevotionStream active={routineSignals.some(r=>routineDirections(r,objects).includes('spirituell')&&r.doneToday)}/>{active?.state==='erreicht'&&route&&<SupernovaReplay key={active.id} point={route.goal} signal={supernova} quiet={prefs.reducedMotion}/> }<FlightVeil journey={(active?.id??'sky')+':'+milestone+':'+homeSignal} quiet={prefs.reducedMotion||quick}/><GoalActions goals={goals} signals={routineSignals} layout={layout} selected={selected}/><OriginVector origin={route?[route.anchor[0],route.anchor[1],route.anchor[2]+8]:[0,0,20]}/>
  {!active&&<>
- {DIRECTIONS.map(d=><Sector key={d.id} center={[d.center[0]*1.9,d.center[1]*1.5,-45]} color={d.color} label={d.label} activity={routineSignals.filter(r=>r.sector===d.id&&r.doneToday).length}/>)}
+ {DIRECTIONS.map(d=><Sector key={d.id} center={[d.center[0]*1.9,d.center[1]*1.5,-45]} color={d.color} label={d.label} activity={routineSignals.filter(r=>routineDirections(r,objects).includes(d.id)&&r.doneToday).length}/>)}
  {timeLayers&&BAND_LABELS.map((label,i)=><group key={label} position={[0,0,-28-i*32]}><mesh raycast={()=>null}><planeGeometry args={[170,85]}/><meshBasicMaterial color="#a3cde5" transparent opacity={.035} side={THREE.DoubleSide} depthWrite={false}/></mesh><Billboard position={[-58,-22,0]}><Text fontSize={1} color="#b8cbdc">{label}</Text></Billboard></group>)}
- {goals.map(o=><GoalBody key={o.id} point={layout.get(o.id)!} color={goalColor(o)} achieved={o.state==='erreicht'} size={o.importance==='gross'?1.9:o.importance==='klein'?1:1.4} title={o.path.split('/').pop()?.replace(/\.md$/,'')??o.title} onPick={()=>enter(o.id)}/>)}
+ {goals.map(o=><GoalBody key={o.id} point={layout.get(o.id)!} color={goalColor(o)} achieved={o.state==='erreicht'} dormant={['nicht-erreicht','beendet','verworfen','zurueckgestellt'].includes(o.state)} size={o.importance==='gross'?1.9:o.importance==='klein'?1:1.4} title={o.path.split('/').pop()?.replace(/\.md$/,'')??o.title} onPick={()=>enter(o.id)}/>)}
  </>}
  {active&&route&&<>
- <Sector center={[route.goal[0],route.goal[1]+12,route.goal[2]-18]} color={color} label={active.state==='erreicht'?'Dein erreichtes Ziel':'Dein Ziel'}/>
- <GoalBody point={route.goal} color={color} size={active.state==='erreicht'?3.6:2.4} achieved={active.state==='erreicht'} title={active.title} onPick={()=>onFocus([route.goal[0]+5,route.goal[1]+8,route.goal[2]+20],route.goal,quick?.25:2)}/>
- {active.state!=='erreicht'&&active.milestones.map((m,i)=>{const p=route.points[i],chosen=(milestone??next)===i;return <group key={i}>
+ <Sector center={[route.goal[0],route.goal[1]+12,route.goal[2]-18]} color={color} label={active.state==='erreicht'?'Dein erreichtes Ziel':closedGoal(active.state)?'Deine Erfahrung bleibt':'Dein Ziel'}/>
+ <GoalBody point={route.goal} color={color} size={active.state==='erreicht'?3.6:2.4} achieved={active.state==='erreicht'} dormant={['nicht-erreicht','beendet','verworfen','zurueckgestellt'].includes(active.state)} title={active.title} onPick={()=>onFocus([route.goal[0]+5,route.goal[1]+8,route.goal[2]+20],route.goal,quick?.25:2)}/>
+ {!closedGoal(active.state)&&active.milestones.map((m,i)=>{const p=route.points[i],chosen=(milestone??next)===i;return <group key={i}>
  {route.edges[i].map(parent=><Line key={parent} points={[route.points[parent],[(route.points[parent][0]+p[0])/2,(route.points[parent][1]+p[1])/2+1.5,(route.points[parent][2]+p[2])/2],p]} color={m.done&&active.milestones[parent].done?'#98e2bf':'#9aafc9'} transparent opacity={chosen?.55:.23} dashed={!route.branched} dashSize={.7} gapSize={.3} lineWidth={chosen?2:1}/>)}
  <group position={p}><mesh rotation={[-Math.PI/2,0,0]} onClick={e=>{e.stopPropagation();setMilestone(i);}}><torusGeometry args={[2.3,.075,8,64]}/><meshBasicMaterial color={m.done?'#a2e8c1':chosen?'#ffdb98':'#9ab7d3'}/></mesh><Star position={[0,.8,0]} size={chosen?.95:.7} color={m.done?'#a2e8c1':chosen?'#ffdb98':'#9ab7d3'} onClick={()=>{setMilestone(i);roomSound(prefs.sound*.16,true);}}/><Billboard position={[0,3.7,0]}><Text fontSize={.25} maxWidth={5.5} textAlign="center" color="#e5ded0" outlineColor="#050810" outlineWidth={.02}>{`${m.done?'✓':i+1} ${m.title}`}</Text>{(timeLayers||chosen)&&<Text position={[0,-1.15,0]} fontSize={.2} maxWidth={12} color="#bdd3df">{m.date||'Termin offen'}</Text>}</Billboard></group>
  </group>;})}
- {active.state!=='erreicht'&&next>=0&&<Billboard position={[route.points[next][0]-4,route.points[next][1]+1,route.points[next][2]+6]}><Text fontSize={.42} color="#ffe4af">DEIN AKTUELLER STAND</Text><Text position={[0,-.7,0]} fontSize={.27} color="#bbc8d2">Vor dem ersten offenen Schritt</Text></Billboard>}
- {active.state!=='erreicht'&&!active.milestones.length&&<Billboard position={[route.anchor[0],route.anchor[1]+2,route.anchor[2]-4]}><Text fontSize={.55} maxWidth={18} color="#cbd5e3">Noch keine Meilensteine dokumentiert.</Text></Billboard>}
+ {!closedGoal(active.state)&&next>=0&&<Billboard position={[route.points[next][0]-4,route.points[next][1]+1,route.points[next][2]+6]}><Text fontSize={.42} color="#ffe4af">DEIN AKTUELLER STAND</Text><Text position={[0,-.7,0]} fontSize={.27} color="#bbc8d2">Vor dem ersten offenen Schritt</Text></Billboard>}
+ {!closedGoal(active.state)&&!active.milestones.length&&<Billboard position={[route.anchor[0],route.anchor[1]+2,route.anchor[2]-4]}><Text fontSize={.55} maxWidth={18} color="#cbd5e3">Noch keine Meilensteine dokumentiert.</Text></Billboard>}
  </>}
  </>;
 }

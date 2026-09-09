@@ -20,9 +20,9 @@ export function horizonBand(due:string|undefined,now=new Date()):number|null{
 }
 export const BAND_LABELS=['bis 3 Monate','3–12 Monate','1–3 Jahre','über 3 Jahre'];
 export function goalPosition(goal:WorldObject,now=new Date()):Point{
- const direction=DIRECTIONS.find(d=>goal.groups.includes(d.id));
+ const directions=DIRECTIONS.filter(d=>goal.groups.includes(d.id));
  const seed=stableSeed(goal.id),a=seed*Math.PI*2,band=horizonBand(goal.due,now);
- const c=direction?.center??[0,-22,8];
+ const c=directions.length?directions.reduce((sum,d)=>sum.map((v,i)=>v+d.center[i]/directions.length) as Point,[0,0,0] as Point):[0,-22,8];
  return [c[0]*1.9+Math.cos(a)*14,c[1]*1.5+Math.sin(a)*10,-28-(band===null?22:band*32)-stableSeed(goal.id+'depth')*12];
 }
 export function nextMilestone(goal:WorldObject){return goal.milestones.findIndex(m=>!m.done);}
@@ -34,6 +34,8 @@ export function goalColor(goal:WorldObject){return DIRECTIONS.find(d=>goal.group
 export function goalStatus(goal:WorldObject){
  if(goal.state==='zurueckgestellt')return 'Bewusst zurückgestellt';
  if(goal.state==='verworfen')return 'Verworfen · Teil deiner Geschichte';
+ if(goal.state==='nicht-erreicht')return 'Nicht erreicht · Erfahrung bewahrt';
+ if(goal.state==='beendet')return 'Bewusst beendet · Erfahrung bewahrt';
  if(goal.state==='erreicht')return 'Als erreicht dokumentiert';
  if(goal.waiting==='andere')return 'Andere sind am Zug';
  if(goal.state==='unklar')return 'Klärung offen';
@@ -49,3 +51,12 @@ export function goalPath(goal:WorldObject){
  const points=steps.map((_,i)=>{const peers=levels.flatMap((v,k)=>v===levels[i]?[k]:[]);const lane=peers.indexOf(i)-(peers.length-1)/2;return [lane*16+Math.sin(levels[i]*.8)*3,Math.sin(levels[i]*.7)*1.5,-(levels[i]-base)*24] as Point;});
  return {points,edges,branched:steps.some(m=>m.after!==undefined),goal:[0,5,-((Math.max(0,...levels)-base)+1.6)*24] as Point};
 }
+
+/** Documented graph attraction in X/Y only; depth retains its time meaning. Not PCA. */
+export function goalConstellation(goals:WorldObject[],now=new Date()){
+ const sorted=[...goals].sort((a,b)=>a.id.localeCompare(b.id));const base=new Map(sorted.map(g=>[g.id,goalPosition(g,now)]));let layout=new Map(base);
+ for(let pass=0;pass<12;pass++){const next=new Map<string,Point>();for(const g of sorted){const p=layout.get(g.id)!,anchor=base.get(g.id)!;let x=p[0]+(anchor[0]-p[0])*.10,y=p[1]+(anchor[1]-p[1])*.10;const linked=sorted.filter(o=>o.id!==g.id&&(g.links.includes(o.id)||o.links.includes(g.id)));for(const o of linked){const q=layout.get(o.id)!;x+=(q[0]-p[0])*.045/linked.length;y+=(q[1]-p[1])*.045/linked.length;}for(const o of sorted){if(o.id===g.id)continue;const q=layout.get(o.id)!,dx=p[0]-q[0],dy=p[1]-q[1],dist=Math.hypot(dx,dy);if(dist<12){const a=dist>.001?Math.atan2(dy,dx):stableSeed(g.id)*6.28;x+=Math.cos(a)*(12-dist)*.15;y+=Math.sin(a)*(12-dist)*.15;}}next.set(g.id,[x,y,p[2]]);}layout=next;}
+ return layout;
+}
+
+export const closedGoal=(state:string)=>['erreicht','nicht-erreicht','beendet','verworfen'].includes(state);
