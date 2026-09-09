@@ -13,3 +13,5 @@
 .goal-composer{z-index:40}.goal-interface .panel-restore{z-index:45}
 
 .goal-composer{top:120px;max-height:calc(100% - 240px)}
+
+.goal-replay-return{position:absolute;right:20px;top:120px;pointer-events:auto;background:#0a121ddd;border:1px solid #d9bf7044;border-radius:18px;padding:12px 18px;color:#e4d6b0;font-size:11px}
