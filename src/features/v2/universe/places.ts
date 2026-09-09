@@ -81,7 +81,7 @@ export function placesFor(projects: Project[], includeLibrary: boolean): Place[]
     {id:'atelier',name:'Ideenatelier',color:'#d6a7f3',hint:'Aus einem Gedanken wird ein nächster Schritt.'},
     {id:'sanctuary',name:'Vision Sanctuary',color:'#bad2a3',hint:'Raum für dein Warum.'},
     {id:'memory',name:'Memory Orbit',color:'#eda8be',hint:'Deine Lebensringe und Fotoalben.'},
-    {id:'success',name:'Jenseits des Horizonts',color:'#e9b778',hint:'Erreichtes wiederfinden.'},
+    {id:'success',name:'Success Singularity',color:'#e9b778',hint:'Erreichtes wiederfinden.'},
   ];
   return [HOME_PLACE,...destinations.map((d,i)=>{const angle=-Math.PI*.7+i/destinations.length*Math.PI*2;return {id:d.id,kind:d.id==='cosmos'?'cosmos':d.id==='projects'?'project':'room',name:d.name,hint:d.hint,color:d.color,position:new THREE.Vector3(Math.cos(angle)*48,1,Math.sin(angle)*48),radius:6,entryRadius:12,world:d.id} as Place;})];
 }
