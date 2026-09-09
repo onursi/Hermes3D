@@ -1,5 +1,5 @@
 "use client";
-import {wormholeSound} from "../foundations/roomSound";
+import {wormholeSound,portalSound} from "../foundations/roomSound";
 import {WormholeMouth} from "../foundations/WormholeJourney";
 
 import { OrbitControls } from "@react-three/drei";
@@ -140,7 +140,7 @@ export function V2Scene({
    * `goTo`: state would arrive a render later, after the effect that needed
    * to read it had already run and sent the camera to the default view.
    */
-  const pendingPortal=useRef<Place|null>(null);
+  const pendingPortal=useRef<Place|null>(null);const portalAligned=useRef(false);
   const pendingApproach = useRef<Place | null>(null);
   const [reachable, setReachable] = useState<Place | null>(null);
   const controlsRef = useRef<{ target: THREE.Vector3; update: () => void; enabled: boolean } | null>(
@@ -265,10 +265,12 @@ export function V2Scene({
 
   const handleArrive = useCallback(() => {
     setGoal(null);
-    const portal=pendingPortal.current;pendingPortal.current=null;if(portal){goTo(portal.world,"travel");wormholeSound(prefs.sound*.45,true);}
+    const portal=pendingPortal.current;
+    if(portal&&!portalAligned.current){portalAligned.current=true;const outward=portal.position.clone().sub(new THREE.Vector3(0,4,0)).normalize();setGoal({position:portal.position.clone().addScaledVector(outward,10),target:portal.position.clone().addScaledVector(outward,26),duration:1.25*Math.min(3,Math.max(.5,prefs.flightSpeed)),pull:true});portalSound(prefs.sound);return;}
+    pendingPortal.current=null;if(portal){goTo(portal.world,"direct");portalSound(prefs.sound*.55,true);}
     setTravelling(false);
     setWarpProgress(0);
-  }, [setTravelling,goTo,prefs.sound]);
+  }, [setTravelling,goTo,prefs.sound,prefs.flightSpeed]);
 
   const sampleCamera = useCallback(
     (position: THREE.Vector3, target: THREE.Vector3) => {
@@ -288,8 +290,8 @@ export function V2Scene({
     (place: Place) => {
       if(world === "home"){
         if(prefs.reducedMotion){goTo(place.world,"direct");return;}
-        pendingPortal.current=place;const direction=place.position.clone().normalize();
-        setGoal({position:place.position.clone().addScaledVector(direction,8),target:place.position.clone().addScaledVector(direction,22),duration:2.1*Math.min(3,Math.max(.5,prefs.flightSpeed))});
+        pendingPortal.current=place;portalAligned.current=false;const direction=place.position.clone().sub(new THREE.Vector3(0,4,0)).normalize();
+        setGoal({position:place.position.clone().addScaledVector(direction,-14),target:place.position.clone(),duration:1.1*Math.min(3,Math.max(.5,prefs.flightSpeed))});
         wormholeSound(prefs.sound*.65);return;
       }
       pendingApproach.current = place;

@@ -37,6 +37,7 @@ export type CameraGoal = {
    * it was the better default hiding inside one.
    */
   instant?: boolean;
+  pull?: boolean;
 };
 
 /**
@@ -203,7 +204,7 @@ export function CameraDirector({
     elapsed.current += delta * rate;
     const t = Math.min(1, elapsed.current / goal.duration);
     // Ease in and out: leaves unhurried, arrives settled.
-    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const eased = goal.pull ? Math.pow(t,2.4) : t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
     camera.position.lerpVectors(fromPosition.current, goal.position, eased);
     if (controls) {
