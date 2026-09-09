@@ -1,0 +1,7 @@
+import {describe,it,expect} from 'vitest';
+import {initialCouncil,demoSequence,reduceCouncil,actionPayload,approveTest,executeTest} from '../../src/features/council/model';
+describe('isolated council event and approval boundary',()=>{
+ it('rejects duplicate, out-of-order, wrong-session and stale events',()=>{const s=initialCouncil('a','question','source');const e=demoSequence(s);expect(reduceCouncil(s,e[1])).toBe(s);const next=reduceCouncil(s,e[0]);expect(reduceCouncil(next,e[0])).toBe(next);expect(reduceCouncil(s,{...e[0],revision:2})).toBe(s);expect(reduceCouncil(s,{...e[0],sessionId:'b'})).toBe(s);});
+ it('retains a claim-referenced objection without forced consensus',()=>{const s=initialCouncil('a','q','s');const done=demoSequence(s).reduce(reduceCouncil,s);const objection=done.events.find(e=>e.type==='challenge')!;expect(done.events.find(e=>e.id===objection.target)?.type).toBe('claim');expect(done.phase).toBe('decision');});
+ it('executes exactly once, only after matching approval; replay cannot execute',()=>{const start=initialCouncil('a','q','s');const s=demoSequence(start).reduce(reduceCouncil,start);expect(executeTest(s).applied).toBe(0);const approved=approveTest(s,actionPayload(s));expect(executeTest({...approved,mission:'changed'}).applied).toBe(0);expect(executeTest({...approved,mode:'replay'}).applied).toBe(0);const done=executeTest(approved);expect(executeTest(done).applied).toBe(1);});
+});

@@ -1,0 +1,6 @@
+import {NextResponse} from 'next/server';import {VAULT_ROOT} from '@/lib/vault/root';import {saveImpulseEvidence} from '@/lib/impulseEvidence';
+export const dynamic='force-dynamic';
+export async function POST(req:Request){
+ if(req.headers.get('origin')!==new URL(req.url).origin||req.headers.get('sec-fetch-site')==='cross-site')return NextResponse.json({ok:false,error:'Fremder Ursprung'},{status:403});
+ try{const reader=req.body?.getReader();if(!reader)throw Error('Keine Datei');let size=0;const chunks:Uint8Array[]=[];while(true){const next=await reader.read();if(next.done)break;size+=next.value.length;if(size>11*1024*1024){await reader.cancel();return NextResponse.json({ok:false,error:'Datei zu groß'},{status:413});}chunks.push(next.value);}const body=Buffer.concat(chunks);const parsed=new Request(req.url,{method:'POST',headers:{'content-type':req.headers.get('content-type')||''},body});const form=await parsed.formData(),file=form.get('file'),impulse=form.get('impulse');if(!(file instanceof File)||typeof impulse!=='string')throw Error('Datei und Impuls fehlen');return NextResponse.json({ok:true,...await saveImpulseEvidence(VAULT_ROOT,file.name,Buffer.from(await file.arrayBuffer()),impulse)});}catch(e){return NextResponse.json({ok:false,error:e instanceof Error?e.message:'Beleg nicht gespeichert'},{status:400});}
+}

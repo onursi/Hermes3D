@@ -1,3 +1,19 @@
+# Hermes3D LifeOS — Onurs räumliches Lebens- und Arbeitssystem
+
+Diese eigenständige Weiterentwicklung folgt Onur Sinoplus Produktvision: Wissen, Projekte, Ziele, Erinnerungen, Ideen und belegte Erfolge werden zu zusammenhängenden, begehbaren Arbeitsräumen. Gestaltung und Entwicklung erfolgen mit Unterstützung von KI-Werkzeugen.
+
+- Hauptoberfläche: `/v2`.
+- Ideenatelier: `/atelier-lab`.
+- Isolierte Konsil-Testbühne: `/council-lab` (DEMO/Replay; noch keine Live-Mehrmodellberatung).
+- Eigene Entwicklungshistorie: [WEITERENTWICKLUNG.md](WEITERENTWICKLUNG.md).
+- R19: Themenwelten für Erinnerungen, räumliches Fotokarussell, Belegablage, optionale KI-Verbindungsvorschläge, goldene Horizontkalligrafie, Raumfilme und kontrollierter Konsil-Testablauf.
+
+Die technische Ausgangsbasis stammt von LukeTheDevs Hermes3D. Die ursprüngliche MIT-Lizenz und Copyright-Hinweise bleiben in [LICENSE](LICENSE) erhalten. Die folgenden älteren Projektangaben dokumentieren diese Ausgangsbasis; ihre Release-Badges und Aussagen zum Upstream-Maintainer bezeichnen nicht den Veröffentlichungsstand dieser LifeOS-Weiterentwicklung. Ein eigenes öffentliches Repository wurde mit R19 nicht veröffentlicht.
+
+---
+
+## Dokumentation der technischen Ausgangsbasis
+
 # Hermes3D — A 3D Workspace for AI Agents
 
 > **Fork-Hinweis:** Dies ist ein Fork von [iamlukethedev/Hermes3D](https://github.com/iamlukethedev/Hermes3D).

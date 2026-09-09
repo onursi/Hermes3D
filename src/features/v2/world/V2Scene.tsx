@@ -1,4 +1,5 @@
 "use client";
+import {CinemaFlight} from "./CinemaFlight";
 import {wormholeSound,portalSound} from "../foundations/roomSound";
 import {WormholeMouth} from "../foundations/WormholeJourney";
 
@@ -54,6 +55,8 @@ export function V2Scene({
   memoryEntries = [],
   memoryMode = "saturn",
   memoryPhase = "Gegenwart",
+  memoryTopic = "Lebensweg",
+  onMemoryTopic,
   onMemoryPhase,
   onMemoryMode,
   onMemoryOpen,
@@ -88,6 +91,8 @@ export function V2Scene({
   memoryEntries?: MemoryEntry[];
   memoryMode?: MemoryMode;
   memoryPhase?: string;
+  memoryTopic?: string;
+  onMemoryTopic?: (topic:string)=>void;
   onMemoryPhase?: (p: string) => void;
   onMemoryMode?: (m: MemoryMode) => void;
   onMemoryOpen?: (e: MemoryEntry) => void;
@@ -612,6 +617,8 @@ export function V2Scene({
             entries={memoryEntries}
             mode={memoryMode}
             phase={memoryPhase}
+            topic={memoryTopic}
+            onTopic={onMemoryTopic??(()=>{})}
             reducedMotion={prefs.reducedMotion}
             onPhase={onMemoryPhase ?? (() => {})}
             onFree={() => onMemoryMode?.("free")}
@@ -652,6 +659,7 @@ export function V2Scene({
         </EffectComposer>
       ) : null}
 
+      <CinemaFlight controlsRef={controlsRef} blocked={goal!==null||inputBlocked}/>
       {onFrame ? <FrameProbe onSample={onFrame} /> : null}
     </Canvas>
   );

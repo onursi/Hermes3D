@@ -1,0 +1,9 @@
+import fs from 'node:fs/promises';import path from 'node:path';import {randomUUID,createHash} from 'node:crypto';
+export async function saveImpulseEvidence(vault:string,name:string,data:Buffer,impulse:string){
+ const ext=path.extname(name).toLowerCase();const valid=(ext==='.pdf'&&data.subarray(0,5).toString()==='%PDF-')||(['.jpg','.jpeg'].includes(ext)&&data[0]===255&&data[1]===216&&data[2]===255)||(ext==='.png'&&data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))||(ext==='.webp'&&data.subarray(0,4).toString()==='RIFF'&&data.subarray(8,12).toString()==='WEBP');
+ if(!valid||data.length>10*1024*1024||!impulse.trim()||impulse.length>2000)throw Error('Erlaubt: PDF, PNG, JPEG oder WebP bis 10 MB mit einem Impulstext.');
+ const root=await fs.realpath(vault),inbox=await fs.realpath(path.join(root,'00📥Inbox'));if(!inbox.startsWith(root+path.sep))throw Error('Inbox außerhalb des Vaults');const dir=path.join(inbox,'Hermes Impulsbelege');await fs.mkdir(dir,{recursive:true});const real=await fs.realpath(dir);if(!real.startsWith(inbox+path.sep))throw Error('Belegordner außerhalb der Inbox');
+ const id=randomUUID(),file=id+ext,relative='00📥Inbox/Hermes Impulsbelege/'+file,hash=createHash('sha256').update(data).digest('hex');await fs.writeFile(path.join(real,file),data,{flag:'wx'});
+ const note='---\nstatus: ungeprüft\nquelle: '+JSON.stringify(name)+'\nerfasst_am: '+new Date().toISOString().slice(0,10)+'\nsensibilität: persönlich\n---\n\n## Zugehöriger Impuls\n\n'+impulse+'\n\n## Originalbeleg\n\n[['+relative+']]\n\nSHA-256: `'+hash+'`\n\nVom Nutzer als Beleg angefügt. Inhalt und Beweiskraft wurden nicht automatisch geprüft. Keine KI-Übertragung.\n';
+ await fs.writeFile(path.join(real,id+'.md'),note,{encoding:'utf8',flag:'wx'});return {path:relative,note:'00📥Inbox/Hermes Impulsbelege/'+id+'.md',sha256:hash,name};
+}

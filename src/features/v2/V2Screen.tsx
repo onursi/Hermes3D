@@ -1,4 +1,5 @@
 "use client";
+import {CinemaButton} from "./hud/CinemaButton";
 
 import * as THREE from "three";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -144,6 +145,8 @@ export function V2Screen() {
   const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
   const [memoryMode, setMemoryMode] = useState<MemoryMode>("saturn");
   const [memoryPhase, setMemoryPhase] = useState("Gegenwart");
+  const [memoryTopic,setMemoryTopic]=useState("Lebensweg");
+  const topicMemories=memoryEntries.filter(e=>(e.topic||"Lebensweg")===memoryTopic);
   const [memoryCard, setMemoryCard] = useState<MemoryEntry | null>(null);
   const mediaUrls = useRef<string[]>([]);
   const [mediaStatus,setMediaStatus]=useState("");
@@ -162,7 +165,7 @@ export function V2Screen() {
         if (d.ok) setMemoryEntries(previous=>[...previous.filter(e=>e.local),...d.memories]);
       })
       .catch(() => {});
-    void loadPhotos().then(photos=>{if(controller.signal.aborted)return;const media:MemoryEntry[]=photos.map(photo=>{const url=URL.createObjectURL(photo.blob);urls.push(url);return {id:photo.id,title:photo.title,phase:photo.phase,kind:photo.kind,url,date:'',local:true};});setMemoryEntries(previous=>[...previous.filter(e=>!media.some(m=>m.id===e.id)),...media]);}).catch(()=>{if(!controller.signal.aborted)setMediaStatus('Lokaler Fotospeicher nicht verfügbar. Neue Medien bleiben nur in dieser Sitzung.');});
+    void loadPhotos().then(photos=>{if(controller.signal.aborted)return;const media:MemoryEntry[]=photos.map(photo=>{const url=URL.createObjectURL(photo.blob);urls.push(url);return {id:photo.id,title:photo.title,phase:photo.phase,topic:photo.topic,kind:photo.kind,url,date:'',local:true};});setMemoryEntries(previous=>[...previous.filter(e=>!media.some(m=>m.id===e.id)),...media]);}).catch(()=>{if(!controller.signal.aborted)setMediaStatus('Lokaler Fotospeicher nicht verfügbar. Neue Medien bleiben nur in dieser Sitzung.');});
     return () => {
       controller.abort();
       urls.forEach((url) => URL.revokeObjectURL(url));
@@ -181,10 +184,11 @@ export function V2Screen() {
         const url = URL.createObjectURL(f);
         mediaUrls.current.push(url);
         const id=crypto.randomUUID();
-        stored.push({id,title:f.name,phase,kind:f.type.startsWith("video/")?"video":"image",blob:f});
+        stored.push({id,title:f.name,phase,topic:memoryTopic,kind:f.type.startsWith("video/")?"video":"image",blob:f});
         return {
           id,
           title: f.name,
+          topic: memoryTopic,
           date: "",
           phase,
           kind: f.type.startsWith("video/") ? "video" : "image",
@@ -196,7 +200,7 @@ export function V2Screen() {
     setMemoryEntries((previous) => [...previous, ...imported]);
     setMemoryPhase(phase);
     setMemoryMode("carousel");
-  }, []);
+  }, [memoryTopic]);
   /**
    * Die Notiz, deren Nachbarschaft er zugeklappt hat — nicht ein Ja/Nein.
    *
@@ -610,7 +614,9 @@ export function V2Screen() {
         metadata={metadata}
         dive={dive}
         onDive={() => {setDive(1);setCrossing(true);}}
-        memoryEntries={memoryEntries}
+        memoryEntries={topicMemories}
+        memoryTopic={memoryTopic}
+        onMemoryTopic={setMemoryTopic}
         memoryMode={memoryMode}
         memoryPhase={memoryPhase}
         onMemoryPhase={chooseMemoryPhase}
@@ -643,6 +649,8 @@ export function V2Screen() {
       />
       </WorldBoundary>
 
+      <CinemaButton/>
+      {world === "home" && <a href="/council-lab" style={{position:"absolute",left:24,bottom:160,zIndex:35,padding:"12px 18px",background:"#102430e8",border:"1px solid #87b8c455",borderRadius:14,color:"#cae6ee",fontSize:12}}>Konsil · Testbühne ↗</a>}
       {world === "projects" && openProject && (
         <aside className="r10-glass r10-room-bar">
           <span className="r10-eyebrow">Dein Projektraum</span>
@@ -661,22 +669,24 @@ export function V2Screen() {
       {world === "memory" && (
         <MemoryHud
           mediaStatus={mediaStatus}
+          topic={memoryTopic}
+          onTopic={setMemoryTopic}
           key={memoryMode + memoryPhase}
           mode={memoryMode}
           phase={memoryPhase}
           count={
             memoryMode === "carousel"
-              ? memoryEntries.filter((e) => e.phase === memoryPhase && e.kind!=="note").length
-              : memoryEntries.length
+              ? topicMemories.filter((e) => e.phase === memoryPhase && e.kind!=="note").length
+              : topicMemories.length
           }
-          entries={memoryEntries}
+          entries={topicMemories}
           onOpen={setMemoryCard}
           onMode={setMemoryMode}
           onPhase={chooseMemoryPhase}
           onImport={importMemories}
         />
       )}
-      {world === "memory" && memoryMode==='carousel'&&<PhotoCarousel key={memoryPhase} entries={memoryEntries} phase={memoryPhase} onClose={()=>setMemoryMode('saturn')}/>}
+      {world === "memory" && memoryMode==='carousel'&&<PhotoCarousel topic={memoryTopic} key={memoryTopic+memoryPhase} entries={topicMemories} phase={memoryPhase} onClose={()=>setMemoryMode('saturn')}/>}
       {world === "memory" && memoryCard && (
         <MemoryCard
           entry={memoryCard}

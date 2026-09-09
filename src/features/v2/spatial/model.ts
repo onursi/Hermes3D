@@ -13,7 +13,7 @@ export function orbitState(meta: ProjectMeta | undefined, now: number) {
   return { radius: 32, label: "Aktiv · kein Termin fällig", tone: "#8dcebf" };
 }
 export function planetSize(project: Pick<Project, "noteCount">) { return 1.1 + Math.min(1.8, Math.log2(1 + project.noteCount) * .24); }
-export type MemoryEntry = { id: string; title: string; date: string; phase: string; path?: string; url?: string; kind: "note" | "image" | "video"; local?: boolean };
+export type MemoryEntry = { id: string; title: string; date: string; phase: string; topic?: string; path?: string; url?: string; kind: "note" | "image" | "video"; local?: boolean };
 export const PHASES = ["Babyjahre", "Kindheit", "Jugend", "Erwachsenenleben", "Gegenwart"];
 export const PHASE_COLORS = ["#9abbd7", "#b8a5d9", "#dfbc93", "#96c8bd", "#e1d3b9"];
 export const spatialSignal = { depth: 0, memorySpeed: 0 };

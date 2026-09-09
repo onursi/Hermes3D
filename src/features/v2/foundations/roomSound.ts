@@ -20,3 +20,13 @@ export function portalSound(volume:number,arrival=false){
 
 /** Replay is a finite celebratory sound, never a new completion event. */
 export function supernovaSound(volume:number){roomSound(volume*.8,true);wormholeSound(volume*.55,true);}
+
+/** Black-hole descent: overlapping falling octaves, then a sparse golden arrival. */
+export function singularitySound(volume:number,arrival=false){
+ const ctx=getAudioContext();if(!ctx||ctx.state!=='running'||volume<=0)return;
+ const t=ctx.currentTime,length=arrival?3.8:3.25;
+ const bus=ctx.createGain(),filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.setValueAtTime(arrival?1800:2400,t);filter.frequency.exponentialRampToValueAtTime(arrival?900:90,t+length);
+ bus.gain.value=Math.min(1,volume);filter.connect(bus).connect(ctx.destination);
+ let remaining=6;
+ for(let i=0;i<6;i++){const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';const start=t+i*.095;const hz=arrival?[82.4,164.8,247.2,329.6,494.4,659.2][i]:55*Math.pow(2,i);osc.frequency.setValueAtTime(hz,start);osc.frequency.exponentialRampToValueAtTime(arrival?hz*.997:hz*.18,t+length);gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime((arrival?.027:.042)/(1+i*.16),start+.35);gain.gain.exponentialRampToValueAtTime(.0001,t+length);osc.connect(gain).connect(filter);osc.start(start);osc.stop(t+length+.1);osc.onended=()=>{osc.disconnect();gain.disconnect();if(--remaining===0){filter.disconnect();bus.disconnect();}};}
+}
