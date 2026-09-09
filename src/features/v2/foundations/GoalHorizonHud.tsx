@@ -19,7 +19,7 @@ export function GoalHorizonHud({onRead}:{onRead:(id:string)=>void}){
  const next=active?nextMilestone(active):-1;const index=milestone??next;const step=active?.milestones[index];
  const linked=active?objects.filter(o=>o.id!==active.id&&(active.links.includes(o.id)||o.links.includes(active.id))):[];
  const enter=(id:string)=>{setMilestone(null);choose(id);setCatalog(false);roomSound(prefs.sound*.3,true);};
- return <div className="goal-interface" style={{visibility:trip?'hidden':undefined}}>
+ return <div className="goal-interface" style={{zIndex:composer?80:undefined,visibility:trip?'hidden':undefined}}>
   <header className="goal-heading" style={{display:active?undefined:'none'}}><span>DEIN MORGEN · DEIN TEMPO</span><h1>Goal Horizon</h1><p>{achieved?'Erreicht. Ein Teil deiner Geschichte.':active?'Ein Ziel. Dein nächster sinnvoller Schritt.':'Dein Zukunftsfirmament · W A S D zum Reisen'}</p></header>
   <button className="goal-home-vector" onClick={()=>{setMilestone(null);returnHome();}} title="Zum Bezugspunkt zurückfliegen"><span id="goal-home-arrow">↑</span> Home Vector<small id="goal-home-distance">Rückflug zum Bezugspunkt</small></button><nav className="goal-controls" aria-label="Zielraum Ansichten">
    {active?<button onClick={()=>{choose(null);setMilestone(null);}}>← Zielhimmel</button>:<><button aria-pressed={horizonView==='sky'} onClick={()=>setHorizonView('sky')}>Perspektive</button><button aria-pressed={horizonView==='top'} onClick={()=>setHorizonView('top')}>Draufsicht</button></>}
