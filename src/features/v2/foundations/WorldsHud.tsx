@@ -16,7 +16,7 @@ export function WorldsHud({onRead,onDive}:{onRead:(id:string)=>void;onDive:()=>v
  const {decision,thought}=drafts[active?.id??'']??{decision:'Experiment',thought:''};
  const updateDraft=(change:Partial<{decision:string;thought:string}>)=>{if(active)setDrafts(prev=>({...prev,[active.id]:{...(prev[active.id]??{decision:'Experiment',thought:''}),...change}}));};
  const list=objects.filter(o=>world==='projects'?o.kind==='project'&&o.state!=='abgeschlossen':world==='success'?o.kind==='project'&&o.state==='abgeschlossen':world==='horizon'?o.kind==='goal':world==='atelier'?o.kind==='idea':false);
- const enter=(id:V2World)=>{choose(null);roomSound(prefs.sound);goTo(id);setMenu(false);};
+ const enter=(id:V2World)=>{choose(null);setMenu(false);if(world==='home'&&!prefs.reducedMotion){window.dispatchEvent(new CustomEvent('hermes:portal-enter',{detail:id}));return;}roomSound(prefs.sound);goTo(id);};
  const draft=()=>{if(!active)return;const text=`# Entscheidung zur Idee
 
 Quelle: [[${active.path.replace(/\.md$/,'')}]]

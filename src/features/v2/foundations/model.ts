@@ -1,5 +1,5 @@
 export type WorldKind="goal"|"project"|"idea";
-export type WorldObject={id:string;kind:WorldKind;title:string;path:string;state:string;parent?:string;links:string[];groups:string[];due?:string;waiting?:string;importance?:string;proof?:string;measure?:string;cadence?:string;pauseReason?:string;milestones:{title:string;done:boolean;date?:string;status?:string}[];summary?:string;current?:string;nextTodo?:string;nextHeading?:string;flowAccess?:boolean};
+export type WorldObject={id:string;kind:WorldKind;title:string;path:string;state:string;parent?:string;links:string[];groups:string[];due?:string;waiting?:string;importance?:string;proof?:string;measure?:string;cadence?:string;pauseReason?:string;milestones:{title:string;done:boolean;date?:string;status?:string;after?:number[]}[];summary?:string;current?:string;nextTodo?:string;nextHeading?:string;flowAccess?:boolean};
 export const PHASES=["idee","entwurf","in-arbeit","abnahme","fertig","abgeschlossen"];
 export function frontmatter(text:string):Record<string,string>{
  const result:Record<string,string>={};const head=/^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];if(!head)return result;
@@ -10,7 +10,7 @@ export function toObject(path:string,text:string):WorldObject|null{
  const fm=frontmatter(text);const goal=path.startsWith("03🪪 Identität/Ziele/")&&!!fm.ziel;
  if(!goal&&!PHASES.includes(fm.phase))return null;
  const milestoneBlock=text.split(/^## Meilensteine[^\n]*$/m)[1]?.split(/^## /m)[0]||'';
- const milestones=milestoneBlock.split(/\r?\n/).filter(line=>/^\|\s*\d+\s*\|/.test(line)).map(line=>{const cells=line.split('|');return{title:cells[2]?.trim()??"",done:line.includes('✅'),date:cells[3]?.trim(),status:cells[4]?.trim()};});
+ const milestones=milestoneBlock.split(/\r?\n/).filter(line=>/^\|\s*\d+\s*\|/.test(line)).map(line=>{const cells=line.split('|');return{title:cells[2]?.trim()??"",done:line.includes('✅'),date:cells[3]?.trim(),status:cells[4]?.trim(),after:/^nach:\s*\d+(?:\s*,\s*\d+)*$/i.test(cells[5]?.trim()||'')?cells[5].trim().replace(/^nach:\s*/i,'').split(',').map(n=>Number(n.trim())-1):undefined};});
  const title=fm.ziel||path.split('/').pop()!.replace(/\.md$/,'');
  const sections=[...text.matchAll(/^## (.+)\r?\n([\s\S]*?)(?=^## |$(?![\s\S]))/gm)];
  const plain=(s:string)=>s.replace(/```[\s\S]*?```/g,'').replace(/<[^>]*>/g,'').replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g,'$2').replace(/\[\[([^\]]+)\]\]/g,'$1').replace(/[*_#]/g,'').trim();
