@@ -12,7 +12,7 @@ const WORLD_NAMES: Record<V2World, string> = {
   library: "Bibliothek",
   saturn: "Memory Saturn",
   tesseract: "4D-Tesserakt",
-  horizon:"Goal Horizon",flow:"Flow Orbit",atelier:"Ideenatelier",sanctuary:"Vision Sanctuary",success:"Jenseits des Horizonts",
+  horizon:"Goal Horizon",flow:"Flow Orbit",atelier:"Ideenatelier",sanctuary:"Vision Sanctuary",success:"Success Singularity",
 };
 
 /**

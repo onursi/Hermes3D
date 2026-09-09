@@ -64,6 +64,7 @@ void main(){
 }`;
 
 export function BlackHole({ reducedMotion, onDive }: { reducedMotion: boolean; onDive: () => void }) {
+  const triggered = useRef(false);
   const material = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(() => ({ uTime: { value: 0 }, uDepth: { value: 0 }, uEye: { value: new THREE.Vector3() }, uProjectionInverse: { value: new THREE.Matrix4() }, uCameraWorld: { value: new THREE.Matrix4() } }), []);
   useEffect(() => () => { spatialSignal.depth = 0; }, []);
@@ -75,6 +76,8 @@ export function BlackHole({ reducedMotion, onDive }: { reducedMotion: boolean; o
     u.uCameraWorld.value.copy(camera.matrixWorld);
     spatialSignal.depth = THREE.MathUtils.clamp((45-camera.position.length())/36,0,1);
     u.uDepth.value = spatialSignal.depth;
+    if(camera.position.length()<3.4&&!triggered.current){triggered.current=true;onDive();}
+    if(camera.position.length()>8)triggered.current=false;
   });
   return <>
     <mesh frustumCulled={false} renderOrder={-100} raycast={() => null}>

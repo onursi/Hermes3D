@@ -236,8 +236,8 @@ export function V2Scene({
       : {
           position: new THREE.Vector3(
             0,
-            31 * (1 - dive) + 5.5 * dive,
-            78 * (1 - dive) + 20 * dive,
+            31 * (1 - dive) + .4 * dive,
+            78 * (1 - dive) + 2.6 * dive,
           ),
           target: new THREE.Vector3(0, 0, 0),
         };
