@@ -1,4 +1,5 @@
 "use client";
+import {wormholeSound} from "../foundations/roomSound";
 import {WormholeMouth} from "../foundations/WormholeJourney";
 
 import { OrbitControls } from "@react-three/drei";
@@ -139,6 +140,7 @@ export function V2Scene({
    * `goTo`: state would arrive a render later, after the effect that needed
    * to read it had already run and sent the camera to the default view.
    */
+  const pendingPortal=useRef<Place|null>(null);
   const pendingApproach = useRef<Place | null>(null);
   const [reachable, setReachable] = useState<Place | null>(null);
   const controlsRef = useRef<{ target: THREE.Vector3; update: () => void; enabled: boolean } | null>(
@@ -162,6 +164,7 @@ export function V2Scene({
    */
   useEffect(() => {
     const base = viewFor(journey.world);
+    pendingPortal.current=null;
 
     // A click on a silhouette: enter the universe and fly to that place. The
     // flight is his own choice here, so it is a flight and not a cut.
@@ -262,9 +265,10 @@ export function V2Scene({
 
   const handleArrive = useCallback(() => {
     setGoal(null);
+    const portal=pendingPortal.current;pendingPortal.current=null;if(portal){goTo(portal.world,"travel");wormholeSound(prefs.sound*.45,true);}
     setTravelling(false);
     setWarpProgress(0);
-  }, [setTravelling]);
+  }, [setTravelling,goTo,prefs.sound]);
 
   const sampleCamera = useCallback(
     (position: THREE.Vector3, target: THREE.Vector3) => {
@@ -282,7 +286,12 @@ export function V2Scene({
    */
   const handleFocusPlace = useCallback(
     (place: Place) => {
-      if(world === "home"){goTo(place.world,"travel");return;}
+      if(world === "home"){
+        if(prefs.reducedMotion){goTo(place.world,"direct");return;}
+        pendingPortal.current=place;const direction=place.position.clone().normalize();
+        setGoal({position:place.position.clone().addScaledVector(direction,8),target:place.position.clone().addScaledVector(direction,22),duration:2.1*Math.min(3,Math.max(.5,prefs.flightSpeed))});
+        wormholeSound(prefs.sound*.65);return;
+      }
       pendingApproach.current = place;
       if (world === "universe") {
         const view = approachFor(place);
@@ -292,7 +301,7 @@ export function V2Scene({
       }
       goTo("universe", "direct");
     },
-    [world, goTo, prefs.reducedMotion],
+    [world, goTo, prefs.reducedMotion,prefs.flightSpeed,prefs.sound],
   );
 
   /**
@@ -306,6 +315,7 @@ export function V2Scene({
    * durch das naechstgelegene vertreten — angesteuert wird trotzdem jedes
    * einzelne, sobald man draussen ist.
    */
+  useEffect(()=>{if(world!=='home')return;const request=(e:Event)=>{const place=places.find(p=>p.world===(e as CustomEvent).detail);if(place)handleFocusPlace(place);};window.addEventListener('hermes:portal-enter',request);return()=>window.removeEventListener('hermes:portal-enter',request);},[world,places,handleFocusPlace]);
   const homePlaces = useMemo(() => {
     const seen = new Set<string>();
     return places.filter((place) => {
@@ -500,9 +510,9 @@ export function V2Scene({
           ref={controlsRef as never}
           target={HOME_VIEW.target.toArray()}
           enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
-          enablePan={false}
+          enablePan={world==='horizon'}
           minDistance={world === "horizon" ? 2 : world === "projects" && !openProject ? 2 : 3.2}
-          maxDistance={world === "horizon" ? 350 : world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
+          maxDistance={world === "horizon" ? 1600 : world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
           maxPolarAngle={world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
@@ -512,7 +522,7 @@ export function V2Scene({
       ) : null}
 
       <Suspense fallback={null}>
-        <WormholeMouth/>
+        <WormholeMouth/>{world==='horizon'&&<HorizonFlight controlsRef={controlsRef} blocked={inputBlocked||goal!==null}/>}
         {world !== "library" && !ROOM_WORLDS.includes(world) && !(world === "projects" && !openProject) && <GalaxyAtmosphere reducedMotion={prefs.reducedMotion} dimmed={world === "cosmos"} />}
         {crashWorld === world ? <Boom world={world} /> : null}
         {world === "home" ? (
@@ -720,4 +730,11 @@ function FrameProbe({
   });
 
   return null;
+}
+
+/** Translates both camera and orbit origin: free movement without fighting camera journeys. */
+function HorizonFlight({controlsRef,blocked}:{controlsRef:React.MutableRefObject<{target:THREE.Vector3;update:()=>void;enabled:boolean}|null>;blocked:boolean}){
+ const keys=useRef(new Set<string>());const direction=useMemo(()=>new THREE.Vector3(),[]),right=useMemo(()=>new THREE.Vector3(),[]),move=useMemo(()=>new THREE.Vector3(),[]);
+ useEffect(()=>{const clear=()=>keys.current.clear();const down=(e:KeyboardEvent)=>{if((e.target as HTMLElement)?.closest('input,textarea,select,[contenteditable=true]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','shift'].includes(k))keys.current.add(k);};const up=(e:KeyboardEvent)=>keys.current.delete(e.key.toLowerCase());window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',clear);window.addEventListener('focusin',clear);return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',clear);window.removeEventListener('focusin',clear);};},[]);
+ useFrame(({camera},dt)=>{const c=controlsRef.current;if(blocked||!c||!c.enabled)return;camera.getWorldDirection(direction);right.crossVectors(direction,camera.up).normalize();move.set(0,0,0);if(keys.current.has('w'))move.add(direction);if(keys.current.has('s'))move.sub(direction);if(keys.current.has('a'))move.sub(right);if(keys.current.has('d'))move.add(right);if(!move.lengthSq())return;move.normalize().multiplyScalar(Math.min(dt,.05)*(keys.current.has('shift')?42:14));camera.position.add(move);c.target.add(move);c.update();});return null;
 }

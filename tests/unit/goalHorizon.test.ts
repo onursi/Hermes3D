@@ -1,3 +1,4 @@
+import {goalPath} from '../../src/features/v2/foundations/goalLayout';
 import {describe,it,expect} from 'vitest';
 import {toObject,type WorldObject} from '../../src/features/v2/foundations/model';
 import {goalPosition,horizonBand,nextMilestone,goalStatus} from '../../src/features/v2/foundations/goalLayout';
@@ -10,4 +11,11 @@ describe('Goal Horizon uses evidence rather than invented progress',()=>{
  it('points to the first open milestone even with non-contiguous completion',()=>{expect(nextMilestone(goal({milestones:[{title:'A',done:true},{title:'B',done:false},{title:'C',done:true}]}))).toBe(1);expect(nextMilestone(goal())).toBe(-1);});
  it('preserves dates, annotations and documented evidence from goal notes',()=>{const g=toObject('03🪪 Identität/Ziele/Z.md','---\nziel: Z\nbedeutung: gross\nnachweis: Selbsterklärung\n---\n## Meilensteine\n| 1 | A | ~~2026~~ → 2027 | ⏳ neu terminiert |\n## Quelle\n[[05 🚀 Projekte/P]]');expect(g?.milestones[0]).toMatchObject({title:'A',done:false,date:'~~2026~~ → 2027',status:'⏳ neu terminiert'});expect(g?.links).toContain('05 🚀 Projekte/P.md');expect(g?.proof).toBe('Selbsterklärung');});
  it('does not accuse waiting or deliberately paused goals of inactivity',()=>{expect(goalStatus(goal({waiting:'andere'}))).toBe('Andere sind am Zug');expect(goalStatus(goal({state:'zurueckgestellt'}))).toBe('Bewusst zurückgestellt');});
+});
+
+describe('navigable goal paths',()=>{
+ it('puts completed stations behind the current open station',()=>{const g=goal({milestones:[{title:'A',done:true},{title:'B',done:false},{title:'C',done:false}]});const p=goalPath(g);expect(p.points[0][2]).toBeGreaterThan(p.points[1][2]);expect(p.points[2][2]).toBeLessThan(p.points[1][2]);});
+ it('branches only from explicit dependency data',()=>{const g=goal({milestones:[{title:'A',done:true},{title:'B',done:false,after:[0]},{title:'C',done:false,after:[0]},{title:'D',done:false,after:[1,2]}]});const p=goalPath(g);expect(p.points[1][2]).toBe(p.points[2][2]);expect(p.points[1][0]).not.toBe(p.points[2][0]);expect(p.edges[3]).toEqual([1,2]);});
+ it('ignores invalid forward references and cycles',()=>{const p=goalPath(goal({milestones:[{title:'A',done:false,after:[0,1,-1]}]}));expect(p.edges[0]).toEqual([]);});
+ it('reads explicitly supplied predecessors without inventing them',()=>{const g=toObject('03🪪 Identität/Ziele/Z.md','---\nziel: Z\n---\n## Meilensteine\n| 1 | A | offen | offen |\n| 2 | B | offen | offen | nach: 1 |');expect(g?.milestones[1].after).toEqual([0]);expect(g?.milestones[0].after).toBeUndefined();});
 });

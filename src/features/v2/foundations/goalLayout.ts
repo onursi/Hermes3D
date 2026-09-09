@@ -23,7 +23,7 @@ export function goalPosition(goal:WorldObject,now=new Date()):Point{
  const direction=DIRECTIONS.find(d=>goal.groups.includes(d.id));
  const seed=stableSeed(goal.id),a=seed*Math.PI*2,band=horizonBand(goal.due,now);
  const c=direction?.center??[0,-22,8];
- return [c[0]+Math.cos(a)*7,c[1]+Math.sin(a)*6,c[2]-(band===null?0:band*8)];
+ return [c[0]*1.9+Math.cos(a)*14,c[1]*1.5+Math.sin(a)*10,-28-(band===null?22:band*32)-stableSeed(goal.id+'depth')*12];
 }
 export function nextMilestone(goal:WorldObject){return goal.milestones.findIndex(m=>!m.done);}
 export function pathPosition(index:number,count:number):Point{
@@ -39,4 +39,13 @@ export function goalStatus(goal:WorldObject){
  if(goal.state==='unklar')return 'Klärung offen';
  if(goal.state==='unterversorgt')return 'Als unterversorgt dokumentiert';
  return 'Aktives Ziel';
+}
+
+/** Explicit dependencies may point backwards only: no cycles, no invented parallelism. */
+export function goalPath(goal:WorldObject){
+ const steps=goal.milestones;const levels:number[]=[];
+ const edges=steps.map((m,i)=>{const parents=m.after===undefined?(i?[i-1]:[]):[...new Set(m.after)].filter(n=>Number.isInteger(n)&&n>=0&&n<i);levels[i]=parents.length?Math.max(...parents.map(n=>levels[n]))+1:0;return parents;});
+ const current=nextMilestone(goal);const base=levels[current<0?Math.max(0,steps.length-1):current]??0;
+ const points=steps.map((_,i)=>{const peers=levels.flatMap((v,k)=>v===levels[i]?[k]:[]);const lane=peers.indexOf(i)-(peers.length-1)/2;return [lane*16+Math.sin(levels[i]*.8)*3,Math.sin(levels[i]*.7)*1.5,-(levels[i]-base)*24] as Point;});
+ return {points,edges,branched:steps.some(m=>m.after!==undefined),goal:[0,5,-((Math.max(0,...levels)-base)+1.6)*24] as Point};
 }
