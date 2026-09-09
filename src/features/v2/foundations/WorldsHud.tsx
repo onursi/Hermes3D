@@ -1,4 +1,5 @@
 "use client";
+import NextLink from 'next/link';
 import {useEffect,useRef,useState} from "react";
 import {PROJECT_PHASES} from "./projectMotion";
 import {PanelWindow} from "../hud/PanelWindow";
@@ -31,11 +32,11 @@ Status: Entwurf, noch nicht im LifeOS übernommen.
  return <>
   <button className="worlds-switch" onClick={()=>setMenu(!menu)} aria-expanded={menu}>◈ Räume</button>
   {world==='home'&&<button className="home-portal-overview" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis ansehen</button>}
-  {menu&&<nav className="worlds-menu" aria-label="Alle Räume">{ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}</nav>}
+  {menu&&<nav className="worlds-menu" aria-label="Alle Räume"><NextLink className="worlds-primary" href="/atelier-lab">Neuronales Impulsfeld →</NextLink>{ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}</nav>}
   {world==='horizon'&&<GoalHorizonHud onRead={onRead}/>}
   {world!=='horizon'&&(ROOM_WORLDS.includes(world)||world==='projects')&&<PanelWindow key={world} title={room?.title??"Raum"}><aside className="worlds-panel" aria-label="Raumübersicht" style={{visibility:trip?"hidden":undefined}}>
    <span className="worlds-eyebrow">{world==='success'?'DAS BLEIBT':world==='atelier'?'FORMRAUM':world==='flow'?'BETRIEB':'DEIN UNIVERSUM'}</span>
-   <h1>{room?.title}</h1><p>{room?.description}</p>
+   <h1>{room?.title}</h1>{world==='atelier'&&<NextLink className="worlds-primary" href="/atelier-lab">Im neuronalen Impulsfeld weiterdenken →</NextLink>}<p>{room?.description}</p>
    {loading&&<p role="status">LifeOS wird gelesen …</p>}{issues.length>0&&<p role="status">{issues.join(' · ')}</p>}
    {world==='projects'&&<><p>Die Bahn zeigt die erfasste Projektphase. Monde erscheinen bei Auswahl ihres Projekts.</p><button className="worlds-primary" onClick={onDive}>Durch den Ereignishorizont →</button></>}
    {world==='projects'&&<><details className="phase-legend"><summary>Die fünf Projektphasen</summary>{PROJECT_PHASES.map(p=><button key={p.id} onClick={()=>setPhase(p.id)}>{p.title}</button>)}</details>{phase&&<section className="worlds-phase-info"><h3>{PROJECT_PHASES.find(p=>p.id===phase)?.title}</h3><p>{PROJECT_PHASES.find(p=>p.id===phase)?.description}</p><button onClick={()=>setPhase(null)}>Phasenerklärung schließen</button></section>}</>}

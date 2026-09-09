@@ -1,4 +1,5 @@
-export type Impulse={id:string;raw:string;origin:string;tags:string[];example:boolean;created:string;answer:string;question:string;clear:boolean;resting:boolean};
+export const ORIGINS=['gesehen','Gespräch','Erinnerung','Problem','anderes Projekt','spontane Idee'] as const;
+export type Impulse={id:string;raw:string;origin:string;originKind?:string;tags:string[];example:boolean;created:string;answer:string;question:string;clear:boolean;resting:boolean};
 export type Link={id:string;a:string;b:string;status:'candidate'|'confirmed'|'rejected';reason:string};
 export type Entry={id:string;at:string;action:string;subject:string;detail:string};
 export type Lab={version:1;impulses:Impulse[];links:Link[];events:Entry[]};
@@ -22,7 +23,7 @@ export function formOf(lab:Lab,id:string){
 export function parseLab(raw:string):Lab{
  const x=JSON.parse(raw);const str=(s:unknown)=>typeof s==='string'&&s.length<=20000;
  if(!x||x.version!==1||!Array.isArray(x.impulses)||!Array.isArray(x.links)||!Array.isArray(x.events)||x.impulses.length>300||x.links.length>10000||x.events.length>20000)throw Error('Keine unterstützte Atelier-Testdatei.');
- if(!x.impulses.every((i:Impulse)=>i&&[i.id,i.raw,i.origin,i.created,i.answer,i.question].every(str)&&Array.isArray(i.tags)&&i.tags.length<=12&&i.tags.every(str)&&typeof i.clear==='boolean'&&typeof i.resting==='boolean'&&typeof i.example==='boolean'))throw Error('Ungültige Impulsdaten.');
+ if(!x.impulses.every((i:Impulse)=>i&&[i.id,i.raw,i.origin,i.created,i.answer,i.question].every(str)&&(i.originKind===undefined||ORIGINS.includes(i.originKind as typeof ORIGINS[number]))&&Array.isArray(i.tags)&&i.tags.length<=12&&i.tags.every(str)&&typeof i.clear==='boolean'&&typeof i.resting==='boolean'&&typeof i.example==='boolean'))throw Error('Ungültige Impulsdaten.');
  const ids=new Set(x.impulses.map((i:Impulse)=>i.id));if(ids.size!==x.impulses.length)throw Error('Doppelte Impuls-IDs.');
  if(!x.links.every((l:Link)=>l&&str(l.id)&&str(l.reason)&&ids.has(l.a)&&ids.has(l.b)&&l.a!==l.b&&l.id===pairId(l.a,l.b)&&['candidate','confirmed','rejected'].includes(l.status)))throw Error('Ungültige Verbindungen.');
  if(new Set(x.links.map((l:Link)=>l.id)).size!==x.links.length)throw Error('Doppelte Verbindungen.');
@@ -38,3 +39,10 @@ export function demoImpulses():Impulse[]{return [
  ['Wissen räumlich erklären','Freies Anschauungsbeispiel','lernen, räume'],
  ['Ein stiller Ort zum Nachdenken','Unverbundener Beispielimpuls darf bestehen bleiben','ruhe, räume'],
  ].map(([raw,origin,tags],i)=>({id:'demo-'+i,raw,origin,tags:tagsFrom(tags),example:true,created:new Date().toISOString(),answer:'',question:'Was könnte daraus werden — und was bleibt noch offen?',clear:false,resting:false}));}
+
+export function connectionBenefit(a:Impulse,b:Impulse):string {
+ if(a.originKind==='Problem'||b.originKind==='Problem')return 'Prüffrage: Könnte der andere Gedanke einen Lösungsansatz oder einen kleinen Test für dieses Problem liefern?';
+ if(a.originKind==='anderes Projekt'||b.originKind==='anderes Projekt')return 'Prüffrage: Lassen sich Erfahrungen oder Bausteine aus dem anderen Projekt wiederverwenden?';
+ if(a.originKind&&b.originKind&&a.originKind!==b.originKind)return `Prüffrage: Was wird sichtbar, wenn du ${a.originKind} und ${b.originKind} zusammen betrachtest?`;
+ return 'Prüffrage: Können diese Gedanken sich ergänzen, eine offene Frage klären oder einen gemeinsamen kleinen Versuch ermöglichen?';
+}
