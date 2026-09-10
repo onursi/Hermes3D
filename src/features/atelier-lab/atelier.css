@@ -3,3 +3,5 @@
 .atelier-panel select{display:block;width:100%;margin-top:8px;padding:11px;background:#101a2c;color:#dbeaff;border:1px solid #7b9dbd44;border-radius:9px;font:inherit}.atelier-benefit{border-left:2px solid #a78bfa66;padding-left:10px}.atelier-toolbar{max-width:calc(100% - 24px);flex-wrap:wrap;justify-content:center}.atelier-guide{max-width:205px}
 
 .atelier-header{z-index:45}.atelier-rooms{pointer-events:auto;position:relative;font:500 11px var(--font-sans),sans-serif}.atelier-rooms summary{cursor:pointer;list-style:none;border:1px solid #b5c7db26;border-radius:22px;background:#09121ee8;padding:12px 18px;color:#cbdce9}.atelier-rooms nav{position:absolute;right:0;top:48px;display:grid;gap:5px;padding:10px;border:1px solid #b5c7db26;border-radius:18px;background:#09121ef5;min-width:210px;max-height:65dvh;overflow:auto}.atelier-rooms nav a{display:block;border-radius:10px}.atelier-lab{font-family:var(--font-sans),Arial,sans-serif}
+
+.atelier-toolbar{width:max-content}.atelier-toolbar [data-cinema-control]{min-width:110px}
