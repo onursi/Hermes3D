@@ -672,7 +672,7 @@ export function JarvisCompanion({
         {/* ============================================================ */}
         {isOpen && !isMinimized && (
           <section
-            className={`relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_35px_rgba(56,189,248,0.14)] backdrop-blur-xl transition-all duration-300 ${
+            className={`relative flex flex-col overflow-y-auto [&>*]:shrink-0 rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_35px_rgba(56,189,248,0.14)] backdrop-blur-xl transition-all duration-300 ${
               isExpanded
                 ? "h-[min(780px,calc(100dvh-13rem))] w-[min(760px,calc(100vw-2.5rem))]"
                 : "h-[min(640px,calc(100dvh-13rem))] w-[min(560px,calc(100vw-2.5rem))]"
@@ -965,7 +965,7 @@ export function JarvisCompanion({
             </div>
 
             {/* Antwort- & Quellen-Bereich */}
-            <div ref={answerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            <div ref={answerRef} className="min-h-[180px] flex-1 overflow-y-auto px-4 py-3">
               {answer ? (
                 <div className="rounded-xl border border-white/10 bg-[#0c1624]/60 p-3.5 shadow-inner">
                   <div className="mb-2 flex items-center justify-between border-b border-white/10 pb-1.5">
