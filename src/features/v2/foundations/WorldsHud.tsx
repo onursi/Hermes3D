@@ -1,4 +1,6 @@
 "use client";
+import {AtmosphereAudio} from "../hud/AtmosphereAudio";
+import {CinemaButton} from "../hud/CinemaButton";
 import {EvidencePdf} from './EvidencePdf';
 import NextLink from 'next/link';
 import {useEffect,useRef,useState} from "react";
@@ -33,9 +35,16 @@ Status: Entwurf, noch nicht im LifeOS übernommen.
 `;const url=URL.createObjectURL(new Blob([text],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Ideenentscheidung.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
  return <>
   {preview&&<PanelWindow key={preview} title="Belegansicht"><aside className="success-proof-view"><button onClick={()=>setPreview(null)}>Beleg schließen ×</button><h2>{preview.split('/').pop()}</h2>{/\.pdf$/i.test(preview)?<EvidencePdf key={preview} id={preview}/>:<img alt={preview.split('/').pop()} src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>}<a href={'/api/vault/attachment?id='+encodeURIComponent(preview)} target="_blank" rel="noreferrer">In voller Größe öffnen ↗</a></aside></PanelWindow>}
-  <button className="worlds-switch" onClick={()=>setMenu(!menu)} aria-expanded={menu}>◈ Räume</button>
-  {world==='home'&&<button className="home-portal-overview" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis ansehen</button>}
-  {menu&&<nav className="worlds-menu" aria-label="Alle Räume"><NextLink className="worlds-primary" href="/atelier-lab">Neuronales Impulsfeld →</NextLink>{ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}</nav>}
+  <div className="room-toolbar" role="toolbar" aria-label="Raumwerkzeuge">
+   <AtmosphereAudio/><CinemaButton/>
+   {world==='home'&&<button className="room-tool" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis</button>}
+   <button className="room-tool" onClick={()=>setMenu(!menu)} aria-expanded={menu} aria-controls="room-navigation">◈ Räume</button>
+  </div>
+  {menu&&<nav id="room-navigation" className="worlds-menu" aria-label="Alle Räume" onKeyDown={e=>{if(e.key==='Escape'){setMenu(false);document.querySelector<HTMLButtonElement>('[aria-controls="room-navigation"]')?.focus();}}}>
+   <NextLink className="worlds-room-card" href="/atelier-lab"><strong>Neuronales Impulsfeld</strong><span>Gedanken im neuronalen Raum verbinden →</span></NextLink>
+   {ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}
+   <button className="room-menu-close" onClick={()=>setMenu(false)}>Menü schließen ×</button>
+  </nav>}
   {world==='horizon'&&<GoalHorizonHud onRead={onRead}/>}
   {world!=='horizon'&&(ROOM_WORLDS.includes(world)||world==='projects')&&<PanelWindow key={world} title={room?.title??"Raum"}><aside className="worlds-panel" aria-label="Raumübersicht" style={{visibility:trip?"hidden":undefined}}>
    <span className="worlds-eyebrow">{world==='success'?'DAS BLEIBT':world==='atelier'?'FORMRAUM':world==='flow'?'BETRIEB':'DEIN UNIVERSUM'}</span>
@@ -47,7 +56,7 @@ Status: Entwurf, noch nicht im LifeOS übernommen.
    {world==='flow'&&<>{origin&&<p>Ankunft von {objects.find(o=>o.id===origin)?.title}. Dieser Projektbezug ist noch keinem gemeldeten Lauf zugeordnet.</p>}<p role="status">{flowStatus}</p><small>Die Stationen zeigen die Ablaufstruktur. Bewegte Objekte stehen ausschließlich für gemeldete aktive Läufe.</small>{jobs.map(j=><button key={j.id} onClick={()=>choose('run:'+j.id)}>{j.name}<small>{j.state?.runningAtMs?'Läuft':j.enabled?'Geplant':'Pausiert'}</small></button>)}{run&&<section><h2>{run.name}</h2><p>{run.state?.lastError||run.description||'Keine weitere Beschreibung gemeldet.'}</p><p>Letzter Status: {run.state?.lastStatus||'Noch nicht gemeldet'}</p></section>}</>}
    {world==='sanctuary'&&<><p>Ein weiter, ruhiger Ort für das, was dir wichtig ist. Hier muss noch nichts messbar sein.</p><label>Welcher Gedanke soll Raum bekommen?<textarea value={reflection} onChange={e=>setReflection(e.target.value)} placeholder="Was wünsche ich mir – und weshalb?"/></label><small>Dein Gedanke bleibt vorerst in dieser Sitzung.</small><button onClick={()=>enter('horizon')}>Zu meinen Zielen →</button><button onClick={()=>enter('atelier')}>Eine Idee weiterdenken →</button></>}
    {!loading&&['projects','horizon','atelier','success'].includes(world)&&list.length===0&&<p>Hier ist noch kein passender Eintrag erfasst.</p>}
-   {world==='home'&&<a href="/council-lab" className="worlds-primary">Konsil · Testbühne öffnen ↗</a>}<div className="worlds-object-list">{list.map(o=><button key={o.id} onClick={()=>{choose(o.id);roomSound(prefs.sound,true);}} aria-pressed={selected===o.id}><span>{world==='success'?(o.kind==='goal'?'✦ Ziel · ':'◇ Projekt · '):''}{o.parent?'◦ ':'◇ '}{o.title}</span><small>{o.state}{o.waiting==='andere'?' · wartet auf andere':''}</small></button>)}</div>
+   {world==='home'&&<NextLink href="/council-lab" className="worlds-primary">Konsil · Testbühne öffnen ↗</NextLink>}<div className="worlds-object-list">{list.map(o=><button key={o.id} onClick={()=>{choose(o.id);roomSound(prefs.sound,true);}} aria-pressed={selected===o.id}><span>{world==='success'?(o.kind==='goal'?'✦ Ziel · ':'◇ Projekt · '):''}{o.parent?'◦ ':'◇ '}{o.title}</span><small>{o.state}{o.waiting==='andere'?' · wartet auf andere':''}</small></button>)}</div>
    {active&&list.some(o=>o.id===active.id)&&<section className="worlds-detail"><h2>{active.title}</h2><p>{active.due?'Zeithorizont: '+active.due:'Kein Zeithorizont erfasst'}</p><button onClick={()=>onRead(active.path)}>Original im Raum lesen ↗</button>
     {active.kind==='project'&&<><h3>Projektziel & Zusammenfassung</h3><p>{active.summary||'Kein eindeutiger Kurztext erfasst. Die Originalnotiz enthält den vollständigen Kontext.'}</p><h3>Dokumentierter Stand</h3><p>{active.current||`Erfasste Phase: ${PROJECT_PHASES.find(p=>p.id===active.state)?.title??active.state}.`}</p><h3>Nächstes Todo</h3><p>{active.nextTodo||'Kein nächstes Todo eindeutig erfasst.'}</p>{active.nextHeading&&<small>Quelle: {active.nextHeading} · Datum und Gültigkeit vor Ausführung prüfen.</small>}<h3>{world==='success'?'Weiterführende Räume':'Wurmlöcher'}</h3>{active.flowAccess&&<button onClick={()=>travel('flow',undefined,'Flow Orbit')}>◎ Flow Orbit · Automation ansehen →</button>}</>}
     {world==='success'&&<section><h3>Belege & Erinnerungen</h3><p>{active.proof||'Kein gesonderter Nachweis beschrieben.'}</p>{(active.attachments||[]).map(file=><button className="success-proof" key={file} onClick={()=>setPreview(file)}>{file.split('/').pop()} ansehen ↗</button>)}{!active.attachments?.length&&<small>Noch kein Foto, Zeugnis oder Dokument verknüpft.</small>}<h3>Verbindungen</h3></section>}
