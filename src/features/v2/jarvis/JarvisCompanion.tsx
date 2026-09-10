@@ -28,7 +28,8 @@ import { JarvisArcReactor } from "./JarvisArcReactor";
 import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
 import { reportJarvisHead, setBeamActive } from "./beamAnchors";
 import { jarvisAudio } from "./jarvisAudio";
-import { useVoice } from "@/features/jarvis/useVoice";
+import Link from "next/link";
+import { useHermesOpenMic } from "./useHermesOpenMic";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 import { PersonalityStudioModal, PERSONAS, type PersonaConfig } from "./PersonalityStudioModal";
 
@@ -140,9 +141,10 @@ export function JarvisCompanion({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isAudioPaused, setIsAudioPaused] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const audioGeneration = useRef(0);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
   const busyRef = useRef(false);
@@ -160,6 +162,7 @@ export function JarvisCompanion({
 
   // Neural Voice Vorlesefunktion
   const speakText = useCallback(async (textToSpeak: string) => {
+    const generation = ++audioGeneration.current;
     const clean = textToSpeak.replace(/[*#_`[\]()]/g, "").trim();
     if (!clean) return;
 
@@ -185,6 +188,7 @@ export function JarvisCompanion({
       if (!res.ok) throw new Error("Audio synthesis failed");
 
       const blob = await res.blob();
+      if (generation !== audioGeneration.current) return;
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       ttsAudioRef.current = audio;
@@ -224,6 +228,8 @@ export function JarvisCompanion({
   };
 
   const stopAudio = () => {
+    audioGeneration.current++;
+    setAudioLoading(false);
     if (ttsAudioRef.current) {
       ttsAudioRef.current.pause();
       ttsAudioRef.current = null;
@@ -333,11 +339,22 @@ export function JarvisCompanion({
         source.close();
       });
     },
-    [question, phase, voiceReply, speakText, onNavigateWorld]
+    [question, phase, voiceReply, speakText, onNavigateWorld, onSearchQuery]
   );
 
   // Spracherkennung ("Hey Hermes")
-  const voice = useVoice({ onTranscript: (text) => ask(text) });
+  const dictationBase = useRef("");
+  const voice = useHermesOpenMic(text => setQuestion([dictationBase.current, text].filter(Boolean).join("\n\n")), () => {
+    stopAudio();
+    window.speechSynthesis?.cancel();
+  });
+  const toggleMic = () => {
+    if (voice.listening) voice.stopListening();
+    else { dictationBase.current = question.trim(); voice.startListening(); }
+  };
+  const submitQuestion = () => { voice.stopListening(); ask(); };
+  const stopMic = voice.stopListening;
+  useEffect(() => { stopMic(); }, [currentWorld, stopMic]);
 
   const displayPhase: JarvisPhase = voice.listening
     ? "listening"
@@ -513,6 +530,7 @@ export function JarvisCompanion({
 
   // Konsole öffnen / minimieren
   const handleToggleOpen = () => {
+    if (isOpen) voice.stopListening();
     jarvisAudio.playChime();
     setIsOpen((prev) => {
       const next = !prev;
@@ -536,7 +554,9 @@ export function JarvisCompanion({
 
   // Avatar Phasen-Mapping
   const avatarPhase =
-    phase === "searching"
+    voice.listening
+      ? "speaking"
+      : phase === "searching"
       ? "scanning"
       : phase === "thinking"
       ? "thinking"
@@ -545,7 +565,9 @@ export function JarvisCompanion({
       : "idle";
 
   const statusLabel =
-    busy ? "Denkt nach"
+    voice.listening ? "Hört zu"
+    : phase === "error" ? "Verbindung prüfen"
+    : busy ? "Denkt nach"
     : isScanning ? "Scannt Vault"
     : isPlayingAudio ? "Liest vor"
     : voice.listening ? "Hört zu"
@@ -729,7 +751,7 @@ export function JarvisCompanion({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsOpen(false)}
+                    onClick={() => { voice.stopListening(); setIsOpen(false); }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/50 transition hover:bg-red-500/20 hover:text-red-200"
                     title="Schließen"
                   >
@@ -739,12 +761,20 @@ export function JarvisCompanion({
               </div>
             </div>
 
+            <nav aria-label="Hermes Arbeitsmodi" className="flex flex-wrap gap-2 border-b border-white/10 px-3 py-2 text-xs text-cyan-100">
+              <button onClick={() => {voice.stopListening();sessionStorage.setItem("hermes:work-tab","tasks");onNavigateWorld?.("home");window.dispatchEvent(new CustomEvent("hermes:work-tab",{detail:"tasks"}));setIsOpen(false);}} className="rounded-lg border border-white/15 px-3 py-2">Meine Aufgaben</button>
+              <button onClick={() => {voice.stopListening();sessionStorage.setItem("hermes:work-tab","projects");onNavigateWorld?.("home");window.dispatchEvent(new CustomEvent("hermes:work-tab",{detail:"projects"}));setIsOpen(false);}} className="rounded-lg border border-white/15 px-3 py-2">Projektstand</button>
+              <Link onClick={()=>voice.stopListening()} href="/council-lab" className="rounded-lg border border-white/15 px-3 py-2">Diskussion · Testbühne ↗</Link>
+            </nav>
+            <p role="status" className="px-3 pt-2 text-xs text-emerald-200">{voice.status}</p>
+            <p className="px-3 py-2 text-[11px] text-white/50">Open Mic sammelt deinen Text. Erst SCAN sendet ihn. Die Spracherkennung kann einen Dienst deines Browsers nutzen.</p>
             {/* Quick-Scan Action Chips (V2 Grundton, V2 Blau & V2 Typografie) */}
             <div className="flex flex-wrap gap-1.5 border-b border-white/10 bg-black/25 px-3.5 py-2">
               <button
                 type="button"
                 onClick={() => {
                   setQuestion("Scanne Second Brain und Index nach aktuellem Wissensstand");
+                  voice.stopListening();
                   ask("Scanne Second Brain und Index nach aktuellem Wissensstand");
                 }}
                 className="rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/80 transition hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-100"
@@ -755,6 +785,7 @@ export function JarvisCompanion({
                 type="button"
                 onClick={() => {
                   setQuestion("Projekt Singularität Reifegrade und nächste Schritte");
+                  voice.stopListening();
                   ask("Projekt Singularität Reifegrade und nächste Schritte");
                 }}
                 className="rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/80 transition hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-100"
@@ -765,6 +796,7 @@ export function JarvisCompanion({
                 type="button"
                 onClick={() => {
                   setQuestion("Kanonische Regeln und AGENTS.md prüfen");
+                  voice.stopListening();
                   ask("Kanonische Regeln und AGENTS.md prüfen");
                 }}
                 className="rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/80 transition hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-100"
@@ -773,7 +805,7 @@ export function JarvisCompanion({
               </button>
               <button
                 type="button"
-                onClick={() => void briefing()}
+                onClick={() => {voice.stopListening();void briefing();}}
                 className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-200 transition hover:border-amber-400/50 hover:bg-amber-400/20"
               >
                 🌅 MEIN STAND
@@ -783,20 +815,22 @@ export function JarvisCompanion({
             {/* Eingabebereich + Audio-Toolbar */}
             <div className="border-b border-white/10 bg-black/30 p-3">
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#060a10]/85 px-3 py-2 focus-within:border-cyan-400/50 focus-within:ring-1 focus-within:ring-cyan-400/30">
-                <input
+                <textarea
+                  rows={3}
+                  aria-label="Frage an Hermes"
                   ref={inputRef}
                   value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
+                  onChange={(e) => { voice.stopListening(); setQuestion(e.target.value); }}
                   onKeyDown={(e) => {
                     e.stopPropagation();
-                    if (e.key === "Enter") ask();
+                    if (e.key === "Enter" && !e.shiftKey) {e.preventDefault();submitQuestion();}
                   }}
                   placeholder="Was möchtest du aus deinem Second Brain wissen?..."
                   className="min-w-0 flex-1 bg-transparent font-sans text-xs text-white placeholder:text-white/30 outline-none"
                 />
                 <button
                   type="button"
-                  onClick={() => ask()}
+                  onClick={submitQuestion}
                   disabled={busy || !question.trim()}
                   className="flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-100 transition hover:bg-cyan-400/25 disabled:opacity-30"
                   title="Abfrage starten (Scan & Analyse)"
@@ -817,17 +851,17 @@ export function JarvisCompanion({
                 {voice.supported ? (
                   <button
                     type="button"
-                    onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}
+                    onClick={toggleMic}
                     disabled={busy}
                     className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition disabled:opacity-30 ${
                       voice.listening
                         ? "border-green-400/50 bg-green-400/20 text-green-200"
                         : "border-white/10 bg-[#0c1420]/80 text-white/70 hover:border-cyan-400/40 hover:text-cyan-100"
                     }`}
-                    title="Sprich deine Frage — lokale Spracherkennung"
+                    title="Open Mic: diktieren, prüfen, dann bewusst absenden"
                   >
                     {voice.listening ? <MicOff size={12} /> : <Mic size={12} />}
-                    <span>{voice.listening ? "Hört zu…" : "Hey Hermes"}</span>
+                    <span>{voice.listening ? "Mikrofon ausschalten" : "Open Mic starten"}</span>
                   </button>
                 ) : null}
 
@@ -863,7 +897,7 @@ export function JarvisCompanion({
 
                 <button
                   type="button"
-                  onClick={() => void briefing()}
+                  onClick={() => {voice.stopListening();void briefing();}}
                   disabled={busy}
                   className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/70 transition hover:border-cyan-400/40 hover:text-cyan-100 disabled:opacity-30"
                   title="Wie ist mein Stand? — Briefing abrufen"
@@ -897,7 +931,7 @@ export function JarvisCompanion({
                     {isAudioPaused ? (
                       <button
                         type="button"
-                        onClick={resumeAudio}
+                        onClick={() => {voice.stopListening();resumeAudio();}}
                         className="flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-400/30"
                         title="Wiedergabe fortsetzen"
                       >
@@ -942,7 +976,7 @@ export function JarvisCompanion({
                       {!isPlayingAudio && !audioLoading ? (
                         <button
                           type="button"
-                          onClick={() => void speakText(answer)}
+                          onClick={() => {voice.stopListening();void speakText(answer);}}
                           className="flex items-center gap-1 rounded-md border border-white/10 bg-[#0a1018]/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-cyan-200 hover:border-cyan-400/40 hover:text-white"
                           title="Diese Antwort vorlesen lassen"
                         >
@@ -1175,6 +1209,7 @@ export function JarvisCompanion({
             </button>
           ) : null}
 
+          {voice.listening && <button onClick={voice.stopListening} className="rounded-full border border-emerald-300/50 bg-[#071b18] px-3 py-2 text-xs text-emerald-100" aria-label="Open Mic ausschalten">● Mikrofon an · Ausschalten</button>}
           {/* Haupt-Avatar-Knopf (V2 Grundton & Cyan Aura) */}
           <div className="relative group">
             <button
@@ -1197,7 +1232,10 @@ export function JarvisCompanion({
               {/* Status-Punkt */}
               <span
                 className={`absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-black/80 transition-colors ${
-                  busy
+                  voice.listening
+                    ? "bg-emerald-300 animate-pulse shadow-[0_0_12px_#6ee7b7]"
+                    : phase === "error" ? "bg-rose-400"
+                    : busy
                     ? "bg-amber-400 animate-ping shadow-[0_0_6px_#fbbf24]"
                     : isPlayingAudio
                     ? "bg-cyan-300 shadow-[0_0_8px_#38bdf8] animate-pulse"
