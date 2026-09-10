@@ -41,6 +41,7 @@ ${thought}
 Status: Entwurf, noch nicht im LifeOS übernommen.
 `;const url=URL.createObjectURL(new Blob([text],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Ideenentscheidung.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
  return <>
+ <div id="hermes-panel-tray" role="region" aria-label="Minimierte Arbeitsfenster"/>
   {preview&&<PanelWindow key={preview} title="Belegansicht"><aside className="success-proof-view"><button onClick={()=>setPreview(null)}>Beleg schließen ×</button><h2>{preview.split('/').pop()}</h2>{/\.pdf$/i.test(preview)?<EvidencePdf key={preview} id={preview}/>:<img alt={preview.split('/').pop()} src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>}<a href={'/api/vault/attachment?id='+encodeURIComponent(preview)} target="_blank" rel="noreferrer">In voller Größe öffnen ↗</a></aside></PanelWindow>}
   <div className="room-toolbar" role="toolbar" aria-label="Raumwerkzeuge">
    <AtmosphereAudio/><CinemaButton/><HudLayoutSwitch/><PanelVisibility key={world}/>

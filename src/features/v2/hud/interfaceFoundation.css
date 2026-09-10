@@ -111,3 +111,34 @@
 .memory-manager-current{display:flex;flex-direction:column;gap:5px;margin:12px 0}.memory-manager-current small{color:#9dbac5;font-size:9px;letter-spacing:.14em}.memory-manager-current strong{font-size:17px;font-weight:500;color:#e2edf2}.memory-name-editor,.memory-remove-confirm{padding:12px;border:1px solid #9bc9df40;border-radius:10px;margin:12px 0;background:#08111be8}.memory-manager details{margin-top:12px}.memory-manager summary{cursor:pointer;font-size:12px;padding:8px 0}.memory-manager fieldset button{min-height:40px}.panel-window-tools button{min-width:36px;min-height:34px}.panel-window-tools button:focus-visible,.panel-restore button:focus-visible{outline:2px solid #a5dff2;outline-offset:2px}
 
 @media(max-width:700px){.hermes-universe .room-toolbar{overflow-x:auto;justify-content:flex-start;scrollbar-width:thin}.hermes-universe .room-tool{flex-shrink:0}}
+
+/* Shared shelf keeps restore controls separate from room content. */
+#hermes-panel-tray{position:absolute;left:20px;right:120px;bottom:88px;z-index:49;display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-height:100px;overflow:auto;pointer-events:none}
+#hermes-panel-tray:empty{display:none}
+#hermes-panel-tray .panel-restore{position:static!important;inset:auto!important;pointer-events:auto;flex:0 0 auto;max-width:260px;box-shadow:none;background:#0b1723f5}
+#hermes-panel-tray .panel-restore button{min-height:42px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hermes-universe .r10-memory-controls{display:block;padding:0;scroll-padding-top:60px;border-radius:16px}
+.hermes-universe .r10-memory-controls>.panel-window-tools{position:sticky;top:0;margin:0;padding:8px 12px;background:#0b1522;z-index:5}
+.hermes-universe .r10-memory-controls> :not(.panel-window-tools){margin:14px 16px}
+.hermes-universe .r10-memory-controls>input[hidden]{display:none}
+.hermes-universe .r10-memory-controls .memory-manager-current{margin-top:4px}
+.hermes-universe:has(.r10-memory-controls) .r10-title h1{font-size:25px;line-height:1.2}
+@media(max-width:700px){
+.hermes-universe{height:100dvh}
+.hermes-universe .hermes-status{padding:8px 12px 4px}
+.hermes-universe .hermes-status>div:first-child{padding:5px 10px}
+.hermes-universe .hermes-status>div:last-child{width:100%;overflow-x:auto;flex-wrap:nowrap}
+.hermes-universe .hermes-status>div:last-child>span{white-space:nowrap;font-size:8px;padding:4px 6px;flex-shrink:0}
+.hermes-universe .hermes-status>div:last-child>button{flex-shrink:0;min-width:36px;min-height:36px}
+.hermes-universe .room-toolbar{top:88px;gap:0;padding:3px}
+.hermes-universe .room-tool{font-size:10px;padding:6px 9px}
+.hermes-universe .worlds-menu{top:142px;max-height:calc(100dvh - 236px)}
+#hermes-panel-tray{left:12px;right:12px;bottom:86px;flex-wrap:nowrap;max-height:52px;scrollbar-width:thin}
+#hermes-panel-tray .panel-restore button{min-height:44px}
+.hermes-universe [data-panel-window=memory]{top:218px;bottom:154px;left:12px;right:12px;width:auto;max-width:none;max-height:none!important}
+.hermes-universe:has(.r10-memory-controls) .r10-title{top:144px;left:16px;right:16px}
+.hermes-universe:has(.r10-memory-controls) .r10-title h1{font-size:21px;margin:6px 0}
+.hermes-universe:has(.r10-memory-controls) .r10-title p{display:none}
+.hermes-universe .panel-window-tools button{min-width:44px;min-height:44px}
+.hermes-universe [data-panel-window] input,.hermes-universe [data-panel-window] textarea,.hermes-universe [data-panel-window] select{font-size:16px}
+}
