@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {ORIGINS,connectionBenefit,emptyLab,demoImpulses,candidates,formOf,parseLab} from '../../src/features/atelier-lab/model';
+import {ORIGINS,moveImpulse,connectionBenefit,emptyLab,demoImpulses,candidates,formOf,parseLab} from '../../src/features/atelier-lab/model';
 describe('isolated impulse laboratory',()=>{
  it('starts without importing personal data',()=>expect(emptyLab().impulses).toEqual([]));
  it('labels every demo impulse as an example',()=>expect(demoImpulses().every(i=>i.example)).toBe(true));
@@ -16,4 +16,22 @@ describe('structured origins',()=>{
  it('roundtrips every allowed origin',()=>{for(const originKind of ORIGINS){const impulses=demoImpulses();impulses[0].originKind=originKind;expect(parseLab(JSON.stringify({...emptyLab(),impulses})).impulses[0].originKind).toBe(originKind);}});
  it('rejects unknown categories without replacing the saved state',()=>{const impulses=demoImpulses();impulses[0].originKind='invented';expect(()=>parseLab(JSON.stringify({...emptyLab(),impulses}))).toThrow();});
  it('frames usefulness as a question rather than evidence',()=>{const [a,b]=demoImpulses();a.originKind='Problem';expect(connectionBenefit(a,b)).toContain('Prüffrage:');expect(connectionBenefit(a,b)).toContain('Lösungsansatz');});
+});
+
+
+describe('spatial arrangement persistence',()=>{
+ it('moves one impulse without changing thoughts or links and restores its coordinates',()=>{
+  const lab={...emptyLab(),impulses:demoImpulses()};lab.links=candidates(lab,'demo-0');
+  const moved=moveImpulse(lab,'demo-0',[12,-8,19]);const restored=parseLab(JSON.stringify(moved));
+  expect(restored.impulses[0].position).toEqual([12,-8,19]);
+  expect(restored.impulses[0].raw).toBe(lab.impulses[0].raw);expect(restored.links).toEqual(lab.links);
+  expect(lab.impulses[0].position).toBeUndefined();expect(restored.impulses[1]).toEqual(lab.impulses[1]);
+ });
+ it('rejects corrupt or unbounded coordinates on import',()=>{
+  for(const position of [[1,2],['1',2,3],[121,0,0],[null,2,3]]){
+   const impulses=demoImpulses().map((i,k)=>k===0?{...i,position}:i);
+   expect(()=>parseLab(JSON.stringify({...emptyLab(),impulses}))).toThrow();
+  }
+  expect(()=>moveImpulse({...emptyLab(),impulses:demoImpulses()},'demo-0',[Infinity,0,0])).toThrow();
+ });
 });

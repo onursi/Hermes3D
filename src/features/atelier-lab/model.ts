@@ -1,5 +1,5 @@
 export const ORIGINS=['gesehen','Gespräch','Erinnerung','Problem','anderes Projekt','spontane Idee'] as const;
-export type Impulse={evidence?:{path:string;name:string;note:string}[];id:string;raw:string;origin:string;originKind?:string;tags:string[];example:boolean;created:string;answer:string;question:string;clear:boolean;resting:boolean};
+export type Impulse={position?:[number,number,number];evidence?:{path:string;name:string;note:string}[];id:string;raw:string;origin:string;originKind?:string;tags:string[];example:boolean;created:string;answer:string;question:string;clear:boolean;resting:boolean};
 export type Link={id:string;a:string;b:string;status:'candidate'|'confirmed'|'rejected';reason:string};
 export type Entry={id:string;at:string;action:string;subject:string;detail:string};
 export type Lab={version:1;impulses:Impulse[];links:Link[];events:Entry[]};
@@ -20,10 +20,12 @@ export function formOf(lab:Lab,id:string){
  if(i.clear)return 'Klare Idee';if(i.answer.trim())return 'Silhouette';
  return lab.links.some(l=>l.status==='confirmed'&&(l.a===id||l.b===id))?'Gedankenwolke':'Impuls';
 }
+export const validPosition=(p:unknown):p is [number,number,number]=>Array.isArray(p)&&p.length===3&&p.every(v=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=120);
+export function moveImpulse(lab:Lab,id:string,position:[number,number,number]):Lab{if(!validPosition(position))throw Error('Ungültige Raumposition.');return {...lab,impulses:lab.impulses.map(i=>i.id===id?{...i,position:[...position] as [number,number,number]}:i)};}
 export function parseLab(raw:string):Lab{
  const x=JSON.parse(raw);const str=(s:unknown)=>typeof s==='string'&&s.length<=20000;
  if(!x||x.version!==1||!Array.isArray(x.impulses)||!Array.isArray(x.links)||!Array.isArray(x.events)||x.impulses.length>300||x.links.length>10000||x.events.length>20000)throw Error('Keine unterstützte Atelier-Testdatei.');
- if(!x.impulses.every((i:Impulse)=>i&&[i.id,i.raw,i.origin,i.created,i.answer,i.question].every(str)&&(i.originKind===undefined||ORIGINS.includes(i.originKind as typeof ORIGINS[number]))&&Array.isArray(i.tags)&&i.tags.length<=12&&i.tags.every(str)&&(i.evidence===undefined||(Array.isArray(i.evidence)&&i.evidence.length<=30&&i.evidence.every(e=>e&&str(e.name)&&str(e.path)&&str(e.note)&&e.path.startsWith('00📥Inbox/Hermes Impulsbelege/')&&!e.path.includes('..'))))&&typeof i.clear==='boolean'&&typeof i.resting==='boolean'&&typeof i.example==='boolean'))throw Error('Ungültige Impulsdaten.');
+ if(!x.impulses.every((i:Impulse)=>i&&(i.position===undefined||validPosition(i.position))&&[i.id,i.raw,i.origin,i.created,i.answer,i.question].every(str)&&(i.originKind===undefined||ORIGINS.includes(i.originKind as typeof ORIGINS[number]))&&Array.isArray(i.tags)&&i.tags.length<=12&&i.tags.every(str)&&(i.evidence===undefined||(Array.isArray(i.evidence)&&i.evidence.length<=30&&i.evidence.every(e=>e&&str(e.name)&&str(e.path)&&str(e.note)&&e.path.startsWith('00📥Inbox/Hermes Impulsbelege/')&&!e.path.includes('..'))))&&typeof i.clear==='boolean'&&typeof i.resting==='boolean'&&typeof i.example==='boolean'))throw Error('Ungültige Impulsdaten.');
  const ids=new Set(x.impulses.map((i:Impulse)=>i.id));if(ids.size!==x.impulses.length)throw Error('Doppelte Impuls-IDs.');
  if(!x.links.every((l:Link)=>l&&str(l.id)&&str(l.reason)&&ids.has(l.a)&&ids.has(l.b)&&l.a!==l.b&&l.id===pairId(l.a,l.b)&&['candidate','confirmed','rejected'].includes(l.status)))throw Error('Ungültige Verbindungen.');
  if(new Set(x.links.map((l:Link)=>l.id)).size!==x.links.length)throw Error('Doppelte Verbindungen.');
