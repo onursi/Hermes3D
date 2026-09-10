@@ -61,6 +61,8 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
+  // Isolated previews can build without replacing the running installation.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   serverExternalPackages: ["msedge-tts", "ws"],
   turbopack: {
     root: path.resolve(__dirname),

@@ -1,0 +1,109 @@
+/* Shared instrument surfaces leave the world at the centre of attention. */
+.hermes-universe {
+  --hud-void: #08111be8;
+  --hud-edge: #9bc9df29;
+  --hud-light: #d5e6ee;
+  --hud-focus: #a5dff2;
+}
+.hermes-universe .hermes-status {
+  min-height: 60px;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, #060c15eb, #060c1566 76%, transparent);
+}
+.hermes-universe .hermes-status > div:first-child {
+  border-radius: 10px;
+  border-color: var(--hud-edge);
+  padding: 10px 15px;
+  background: var(--hud-void);
+  border-left: 2px solid #a5dff28c;
+}
+.hermes-universe .hermes-status > div:last-child > button {
+  min-width: 40px;
+  min-height: 40px;
+}
+.hermes-universe .room-toolbar {
+  top: 66px;
+  border-color: var(--hud-edge);
+  background: var(--hud-void);
+  border-radius: 14px;
+  padding: 4px;
+  gap: 2px;
+  box-shadow: 0 8px 32px #0003;
+}
+.hermes-universe .room-tool {
+  min-height: 38px;
+  border-radius: 10px;
+  color: var(--hud-light);
+}
+.hermes-universe .room-tool[aria-controls="room-navigation"] {
+  border-color: #9bc9df38;
+  background: #20344370;
+}
+.hermes-universe .hermes-dock {
+  border-radius: 16px;
+  border-color: var(--hud-edge);
+  background: var(--hud-void);
+  box-shadow: 0 10px 40px #0005;
+}
+.hermes-universe .worlds-menu {
+  top: 122px;
+  border-color: var(--hud-edge);
+  background: #09131bf5;
+  border-radius: 18px;
+  padding: 18px;
+}
+.room-navigation-heading { grid-column: 1 / -1; margin-bottom: 8px; }
+.worlds-menu .room-navigation-heading > span {
+  font: 9px var(--font-mono), monospace;
+  letter-spacing: .2em;
+  color: #8dbacb;
+}
+.worlds-menu .room-navigation-heading > strong {
+  margin: 8px 0 14px;
+  font-size: 22px;
+  letter-spacing: -.025em;
+  color: #e1edf2;
+}
+.room-navigation-heading input {
+  width: 100%; min-height: 44px; padding: 10px 12px;
+  border: 1px solid #9bc9df38; border-radius: 10px;
+  background: #030b13; color: #e1edf2; font: 13px var(--font-sans), sans-serif;
+}
+.room-navigation-heading input::placeholder { color: #8ca4b2; }
+.room-navigation-heading input:focus-visible,
+.hermes-universe .hermes-status button:focus-visible {
+  outline: 2px solid var(--hud-focus); outline-offset: 3px;
+}
+.hermes-universe .worlds-menu button[aria-current="page"] {
+  border-color: #a5dff27a; background: #1c3545;
+}
+.room-navigation-empty { grid-column: 1 / -1; color: #a5bbc7; padding: 15px 0; font-size: 13px; }
+/* Cockpit uses a left instrument rail. Both layouts share the actual controls. */
+@media (min-width: 1100px) {
+  .hermes-universe[data-hud-layout="cockpit"] .room-toolbar {
+    left: 20px; right: auto; flex-direction: column; align-items: stretch;
+    width: 138px; top: 76px; padding: 8px; border-radius: 14px;
+    border-top: 2px solid #a5dff27a;
+  }
+  .hermes-universe[data-hud-layout="cockpit"] .room-tool { text-align: left; min-height: 42px; }
+  .hermes-universe[data-hud-layout="cockpit"] .worlds-menu { left: 174px; right: auto; top: 76px; }
+  .hermes-universe[data-hud-layout="cockpit"] .worlds-panel { left: 174px; }
+  .hermes-universe[data-hud-layout="cockpit"] .work-central { left: 174px; }
+  .hermes-universe[data-hud-layout="cockpit"] .panel-slot-work { left: 174px !important; }
+  .hermes-universe[data-hud-layout="cockpit"] .knowledge-search { left: 174px !important; }
+}
+@media (max-width: 1099px) {
+  .hermes-universe .hud-layout-switch { display: none; }
+}
+@media (max-width: 700px) {
+  .hermes-universe .hermes-status { padding: 8px 12px; display: grid; grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .hermes-universe .hermes-status > div:last-child { gap: 4px; }
+  .hermes-universe .room-toolbar { left: 12px; right: 12px; top: 100px; justify-content: space-between; }
+  .hermes-universe .room-tool { min-height: 44px; padding: 6px 8px; font-size: 10px; }
+  .hermes-universe .worlds-menu { top: 158px; max-height: calc(100dvh - 250px); }
+  .hermes-universe .worlds-panel { top: 162px; max-height: calc(100dvh - 265px); }
+  .hermes-universe .work-central { top: 162px; }
+  .hermes-universe .panel-slot-work { top: 162px !important; }
+  .hermes-universe .knowledge-search { top: 160px !important; }
+  .hermes-universe .knowledge-sidebar { top: 220px !important; }
+}

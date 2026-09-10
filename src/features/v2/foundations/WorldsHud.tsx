@@ -1,6 +1,7 @@
 "use client";
 import {ProjectCreate,ProjectPhaseEditor} from "./ProjectEditing";
 import {AtmosphereAudio} from "../hud/AtmosphereAudio";
+import {HudLayoutSwitch} from "../hud/HudLayoutSwitch";
 import {CinemaButton} from "../hud/CinemaButton";
 import {EvidencePdf} from './EvidencePdf';
 import NextLink from 'next/link';
@@ -14,9 +15,13 @@ import {isSuccess} from './successModel';
 import {roomSound,singularitySound} from "./roomSound";
 import {GoalHorizonHud} from "./GoalHorizonHud";
 const ROOMS:{id:V2World;title:string;description:string}[]=[{id:'horizon',title:'Goal Horizon',description:'Richtung finden'},{id:'projects',title:'Project Singularity',description:'Vorhaben vollenden'},{id:'flow',title:'Flow Orbit',description:'Was gerade läuft'},{id:'cosmos',title:'Second Brain',description:'Wissen verbinden'},{id:'atelier',title:'Ideenatelier',description:'Aus Gedanken wird ein nächster Schritt'},{id:'sanctuary',title:'Vision Sanctuary',description:'Raum für das Warum'},{id:'success',title:'Success Singularity',description:'Erreichtes wiederfinden'},{id:'memory',title:'Memory Orbit',description:'Zurückblicken'}];
+const ROOM_SEARCH_TERMS:Partial<Record<V2World,string>>={horizon:'Ziele Zukunft Meilensteine',projects:'Projekte Vorhaben Planung',flow:'Automationen Routinen Handlungen',cosmos:'Gehirn Notizen Quellen Wissen',atelier:'Ideen Impulse Gedanken',sanctuary:'Vision Werte Sinn',success:'Erfolge erreicht abgeschlossen',memory:'Erinnerungen Fotos Reisen'};
 export function WorldsHud({onRead,onDive}:{onRead:(id:string)=>void;onDive:()=>void}){
  const {world,goTo,prefs}=useV2();const {objects,selected,choose,loading,issues,jobs,flowStatus,phase,setPhase,travel,origin,trip}=useWorlds();
+ const [roomQuery,setRoomQuery]=useState('');const menuRef=useRef<HTMLElement>(null);
  const [preview,setPreview]=useState<string|null>(null);const [menu,setMenu]=useState(false);const [drafts,setDrafts]=useState<Record<string,{decision:string;thought:string}>>({});const [reflection,setReflection]=useState('');
+ useEffect(()=>{if(!menu)return;const close=(event:PointerEvent)=>{const target=event.target as Element;if(!menuRef.current?.contains(target)&&!target.closest('[aria-controls="room-navigation"]'))setMenu(false);};document.addEventListener('pointerdown',close);menuRef.current?.querySelector<HTMLInputElement>('input')?.focus();return()=>document.removeEventListener('pointerdown',close);},[menu]);
+ const matchesRoom=(r:typeof ROOMS[number])=>(r.title+' '+r.description+' '+(ROOM_SEARCH_TERMS[r.id]??'')).toLocaleLowerCase('de').includes(roomQuery.trim().toLocaleLowerCase('de'));
  const room=ROOMS.find(r=>r.id===world);const active=objects.find(o=>o.id===selected);const run=jobs.find(j=>'run:'+j.id===selected);
  const {decision,thought}=drafts[active?.id??'']??{decision:'Experiment',thought:''};
  const updateDraft=(change:Partial<{decision:string;thought:string}>)=>{if(active)setDrafts(prev=>({...prev,[active.id]:{...(prev[active.id]??{decision:'Experiment',thought:''}),...change}}));};
@@ -37,13 +42,15 @@ Status: Entwurf, noch nicht im LifeOS übernommen.
  return <>
   {preview&&<PanelWindow key={preview} title="Belegansicht"><aside className="success-proof-view"><button onClick={()=>setPreview(null)}>Beleg schließen ×</button><h2>{preview.split('/').pop()}</h2>{/\.pdf$/i.test(preview)?<EvidencePdf key={preview} id={preview}/>:<img alt={preview.split('/').pop()} src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>}<a href={'/api/vault/attachment?id='+encodeURIComponent(preview)} target="_blank" rel="noreferrer">In voller Größe öffnen ↗</a></aside></PanelWindow>}
   <div className="room-toolbar" role="toolbar" aria-label="Raumwerkzeuge">
-   <AtmosphereAudio/><CinemaButton/>
+   <AtmosphereAudio/><CinemaButton/><HudLayoutSwitch/>
    {world==='home'&&<button className="room-tool" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis</button>}
-   <button className="room-tool" onClick={()=>setMenu(!menu)} aria-expanded={menu} aria-controls="room-navigation">◈ Räume</button>
+   <button className="room-tool" onClick={()=>{setRoomQuery('');setMenu(!menu);}} aria-expanded={menu} aria-controls="room-navigation">◈ Räume</button>
   </div>
-  {menu&&<nav id="room-navigation" className="worlds-menu" aria-label="Alle Räume" onKeyDown={e=>{if(e.key==='Escape'){setMenu(false);document.querySelector<HTMLButtonElement>('[aria-controls="room-navigation"]')?.focus();}}}>
-   <NextLink className="worlds-room-card" href="/atelier-lab"><strong>Neuronales Impulsfeld</strong><span>Gedanken im neuronalen Raum verbinden →</span></NextLink>
-   {ROOMS.map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}
+  {menu&&<nav ref={menuRef} id="room-navigation" className="worlds-menu" aria-label="Alle Räume" onKeyDown={e=>{if(e.key==='Escape'){setMenu(false);document.querySelector<HTMLButtonElement>('[aria-controls="room-navigation"]')?.focus();}}}>
+   <div className="room-navigation-heading"><span>DEIN UNIVERSUM</span><strong>Wohin möchtest du?</strong><input aria-label="Raum suchen" placeholder="Raum oder Tätigkeit suchen …" value={roomQuery} onChange={e=>setRoomQuery(e.target.value)}/></div>
+   {!roomQuery||'Neuronales Impulsfeld Gedanken neuronalen Raum verbinden'.toLocaleLowerCase('de').includes(roomQuery.toLocaleLowerCase('de'))?<NextLink className="worlds-room-card" href="/atelier-lab"><strong>Neuronales Impulsfeld</strong><span>Gedanken im neuronalen Raum verbinden →</span></NextLink>:null}
+   {ROOMS.filter(matchesRoom).map(r=><button key={r.id} onClick={()=>enter(r.id)} aria-current={world===r.id?'page':undefined}><strong>{r.title}</strong><span>{r.description}</span></button>)}
+   {roomQuery&&!ROOMS.some(matchesRoom)&&!'Neuronales Impulsfeld Gedanken neuronalen Raum verbinden'.toLocaleLowerCase('de').includes(roomQuery.toLocaleLowerCase('de'))&&<p className="room-navigation-empty" role="status">Kein passender Raum. Versuche „Wissen“, „Ziel“ oder „Gedanken“.</p>}
    <button className="room-menu-close" onClick={()=>setMenu(false)}>Menü schließen ×</button>
   </nav>}
   {world==='horizon'&&<GoalHorizonHud onRead={onRead}/>}

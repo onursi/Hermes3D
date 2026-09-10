@@ -37,6 +37,7 @@ import {WorldsProvider} from "./foundations/WorldsProvider";
 import {WormholeJourney} from "./foundations/WormholeJourney";
 import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
 import "./foundations/worlds.css";
+import "./hud/interfaceFoundation.css";
 import {initialCatalog,recoverCatalog,type MemoryCatalog} from "./spatial/memoryCatalog";
 import {loadMemoryCatalog,saveMemoryCatalog,loadPhotos,storePhotos,type StoredPhoto} from "./spatial/photoStore";
 import {PhotoCarousel} from "./spatial/PhotoCarousel";
@@ -604,7 +605,7 @@ export function V2Screen() {
   }, [goTo, clearSelection]);
 
   return (
-    <WorldsProvider><main className="relative h-screen w-screen overflow-hidden bg-[#05080d]">
+    <WorldsProvider><main data-hud-layout="quiet" className="hermes-universe relative h-screen w-screen overflow-hidden bg-[#05080d]">
       {/* Only the canvas is inside the boundary. Everything below it — status
           bar, dock, inspector — stays mounted when a world dies, so the way
           home is still where it always is. */}
