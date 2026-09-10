@@ -4,6 +4,7 @@ import {Canvas,useFrame} from '@react-three/fiber';
 import {Suspense,useEffect,useMemo,useRef,useState} from 'react';
 import * as THREE from 'three';
 import {formOf,type Lab,type Impulse,type Link} from './model';
+import {CinematicTour} from '../v2/world/CinematicTour';
 type Pulse={id:string;at:number}|null;
 type Point=[number,number,number];
 function hash(s:string){let n=17;for(const c of s)n=(Math.imul(n,31)+c.charCodeAt(0))>>>0;n^=n>>>16;n=Math.imul(n,0x7feb352d)>>>0;n^=n>>>15;n=Math.imul(n,0x846ca68b)>>>0;n^=n>>>16;return (n>>>0)/4294967296;}
@@ -36,15 +37,15 @@ function Environment({quiet}:{quiet:boolean}){
  useFrame((_,dt)=>{if(group.current&&!quiet)group.current.rotation.y+=dt*.002;});
  return <><color attach="background" args={['#040912']}/><fog attach="fog" args={['#040912',65,155]}/><ambientLight intensity={.5}/><pointLight position={[0,8,15]} intensity={120} color="#9ec7ff" distance={80}/><points ref={group} raycast={()=>null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[dust,3]}/></bufferGeometry><pointsMaterial size={.055} color="#8eb2d5" transparent opacity={.42}/></points></>;
 }
-function Camera({reset}:{reset:number}){
+function Camera({reset,quiet,onCue}:{reset:number;quiet:boolean;onCue:(phase:number)=>(()=>void)|undefined}){
  const controls=useRef<React.ComponentRef<typeof OrbitControls>>(null);
  useEffect(()=>{controls.current?.reset();},[reset]);
- return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={.075} minDistance={5} maxDistance={100} maxPolarAngle={Math.PI*.95}/>;
+ return <><CinematicTour controlsRef={controls} world="atelier" blocked={false} quiet={quiet} onCue={onCue}/><OrbitControls ref={controls} makeDefault enableDamping dampingFactor={.075} minDistance={5} maxDistance={100} maxPolarAngle={Math.PI*.95}/></>;
 }
-export default function ImpulseScene({lab,selected,scanning,quiet,pulse,onPick,reset,onMove}:{lab:Lab;selected:string|null;scanning:boolean;quiet:boolean;pulse:Pulse;onPick:(id:string)=>void;reset:number;onMove:(id:string,p:Point)=>void}){
+export default function ImpulseScene({lab,selected,scanning,quiet,pulse,onPick,reset,onMove,onCue}:{lab:Lab;selected:string|null;scanning:boolean;quiet:boolean;pulse:Pulse;onPick:(id:string)=>void;reset:number;onMove:(id:string,p:Point)=>void;onCue:(phase:number)=>(()=>void)|undefined}){
  const [drag,setDrag]=useState<{id:string;point:Point}|null>(null);
  const layout=useMemo(()=>new Map(lab.impulses.map((i,k)=>[i.id,drag?.id===i.id?drag.point:position(i,k)])),[lab.impulses,drag]);
- return <Canvas camera={{position:[9,9,43],fov:48,near:.1,far:250}} dpr={[1,1.5]} onPointerMissed={()=>{}}><Environment quiet={quiet}/><NeuralVolume quiet={quiet}/><Camera reset={reset}/><Suspense fallback={null}>{lab.links.filter(l=>l.status!=='rejected').map(l=><Synapse key={l.id} link={l} a={layout.get(l.a)!} b={layout.get(l.b)!} scanning={scanning&&(l.a===selected||l.b===selected)} quiet={quiet} pulse={pulse} onPick={()=>onPick(l.a)}/>)}{lab.impulses.map(i=><MovableNeuron key={i.id} point={layout.get(i.id)!} onDrag={point=>setDrag({id:i.id,point})} onDrop={point=>{onMove(i.id,point);setDrag(null);}}><Neuron impulse={i} stage={formOf(lab,i.id)} point={[0,0,0]} active={selected===i.id} quiet={quiet} pulseAt={lab.links.some(l=>l.id===pulse?.id&&(l.a===i.id||l.b===i.id))?pulse?.at:undefined} arrival={lab.links.find(l=>l.id===pulse?.id)?.a===i.id?0:1.6} onPick={()=>onPick(i.id)}/></MovableNeuron>)}</Suspense></Canvas>;
+ return <Canvas camera={{position:[9,9,43],fov:48,near:.1,far:250}} dpr={[1,1.5]} onPointerMissed={()=>{}}><Environment quiet={quiet}/><NeuralVolume quiet={quiet}/><Camera reset={reset} quiet={quiet} onCue={onCue}/><Suspense fallback={null}>{lab.links.filter(l=>l.status!=='rejected').map(l=><Synapse key={l.id} link={l} a={layout.get(l.a)!} b={layout.get(l.b)!} scanning={scanning&&(l.a===selected||l.b===selected)} quiet={quiet} pulse={pulse} onPick={()=>onPick(l.a)}/>)}{lab.impulses.map(i=><MovableNeuron key={i.id} point={layout.get(i.id)!} onDrag={point=>setDrag({id:i.id,point})} onDrop={point=>{onMove(i.id,point);setDrag(null);}}><Neuron impulse={i} stage={formOf(lab,i.id)} point={[0,0,0]} active={selected===i.id} quiet={quiet} pulseAt={lab.links.some(l=>l.id===pulse?.id&&(l.a===i.id||l.b===i.id))?pulse?.at:undefined} arrival={lab.links.find(l=>l.id===pulse?.id)?.a===i.id?0:1.6} onPick={()=>onPick(i.id)}/></MovableNeuron>)}</Suspense></Canvas>;
 }
 
 function MovableNeuron({point,onDrag,onDrop,children}:{point:Point;onDrag:(p:Point)=>void;onDrop:(p:Point)=>void;children:React.ReactNode}){
