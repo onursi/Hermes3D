@@ -11,9 +11,6 @@ import {
   type ProjectPlanetData,
 } from "@/features/v2/world/singularity/ProjectPlanet";
 
-import {singularitySound} from '../../foundations/roomSound';
-import {getAtmosphereVolume} from '../../atmosphereAudio';
-
 interface ProjectSingularityViewProps {
   projects: Project[];
   onSwitchMode: (mode: "werft" | "tesseract") => void;
@@ -170,7 +167,24 @@ export function ProjectSingularityView({
   };
 
   const handleDive = () => {
-    singularitySound(getAtmosphereVolume());
+    // Play Web Audio whoosh + 28Hz sub-bass dive sound
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(140, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 1.2);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.3);
+    } catch {}
 
     onSwitchMode("tesseract");
   };

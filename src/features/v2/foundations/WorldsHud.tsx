@@ -1,6 +1,7 @@
 "use client";
 import {ProjectCreate,ProjectPhaseEditor} from "./ProjectEditing";
 import {AtmosphereAudio} from "../hud/AtmosphereAudio";
+import {PanelVisibility} from "../hud/PanelVisibility";
 import {HudLayoutSwitch} from "../hud/HudLayoutSwitch";
 import {CinemaButton} from "../hud/CinemaButton";
 import {EvidencePdf} from './EvidencePdf';
@@ -42,7 +43,7 @@ Status: Entwurf, noch nicht im LifeOS übernommen.
  return <>
   {preview&&<PanelWindow key={preview} title="Belegansicht"><aside className="success-proof-view"><button onClick={()=>setPreview(null)}>Beleg schließen ×</button><h2>{preview.split('/').pop()}</h2>{/\.pdf$/i.test(preview)?<EvidencePdf key={preview} id={preview}/>:<img alt={preview.split('/').pop()} src={'/api/vault/attachment?id='+encodeURIComponent(preview)}/>}<a href={'/api/vault/attachment?id='+encodeURIComponent(preview)} target="_blank" rel="noreferrer">In voller Größe öffnen ↗</a></aside></PanelWindow>}
   <div className="room-toolbar" role="toolbar" aria-label="Raumwerkzeuge">
-   <AtmosphereAudio/><CinemaButton/><HudLayoutSwitch/>
+   <AtmosphereAudio/><CinemaButton/><HudLayoutSwitch/><PanelVisibility key={world}/>
    {world==='home'&&<button className="room-tool" onClick={()=>window.dispatchEvent(new Event('hermes:portal-overview'))}>◎ Portalkreis</button>}
    <button className="room-tool" onClick={()=>{setRoomQuery('');setMenu(!menu);}} aria-expanded={menu} aria-controls="room-navigation">◈ Räume</button>
   </div>

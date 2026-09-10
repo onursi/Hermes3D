@@ -107,3 +107,7 @@
   .hermes-universe .knowledge-search { top: 160px !important; }
   .hermes-universe .knowledge-sidebar { top: 220px !important; }
 }
+
+.memory-manager-current{display:flex;flex-direction:column;gap:5px;margin:12px 0}.memory-manager-current small{color:#9dbac5;font-size:9px;letter-spacing:.14em}.memory-manager-current strong{font-size:17px;font-weight:500;color:#e2edf2}.memory-name-editor,.memory-remove-confirm{padding:12px;border:1px solid #9bc9df40;border-radius:10px;margin:12px 0;background:#08111be8}.memory-manager details{margin-top:12px}.memory-manager summary{cursor:pointer;font-size:12px;padding:8px 0}.memory-manager fieldset button{min-height:40px}.panel-window-tools button{min-width:36px;min-height:34px}.panel-window-tools button:focus-visible,.panel-restore button:focus-visible{outline:2px solid #a5dff2;outline-offset:2px}
+
+@media(max-width:700px){.hermes-universe .room-toolbar{overflow-x:auto;justify-content:flex-start;scrollbar-width:thin}.hermes-universe .room-tool{flex-shrink:0}}
