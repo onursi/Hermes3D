@@ -29,8 +29,29 @@ function Firmament(){
 }
 
 function Sector({center,color,label,activity=0}:{center:Point;color:string;label:string;activity?:number}){
- const t=useMemo(()=>({tint:{value:new THREE.Color(color).multiplyScalar(1+activity*.35)}}),[color,activity]);
- return <group position={center}>{[0,1,2,3].map(k=><Billboard key={k} position={[Math.sin(k*2)*9,Math.cos(k*2)*6,-k*13]}><mesh raycast={()=>null}><planeGeometry args={[65-k*5,42+k*4]}/><shaderMaterial transparent depthWrite={false} blending={THREE.AdditiveBlending} uniforms={t} vertexShader={vertex} fragmentShader={`varying vec2 vUv;uniform vec3 tint;void main(){vec2 p=vUv-.5;float n=sin(p.x*23.+sin(p.y*17.))*sin(p.y*29.);float a=exp(-dot(p*vec2(2.,3.),p*vec2(2.,3.))*4.)*(.055+n*.020);gl_FragColor=vec4(tint,a);}`}/></mesh></Billboard>)}<Billboard position={[0,15,0]}><Text fontSize={1.1} letterSpacing={.18} color={color}>{label.toUpperCase()}</Text></Billboard></group>;
+ const {prefs}=useV2();
+ const layers=useRef<THREE.Group>(null);const materials=useRef<Array<THREE.ShaderMaterial|null>>([]);
+ const uniforms=useMemo(()=>({tint:{value:new THREE.Color(color)},time:{value:0},strength:{value:1+Math.min(activity,5)*.08}}),[color,activity]);
+ const particles=useMemo(()=>{
+  const p=new Float32Array(340*3);
+  for(let i=0;i<340;i++){
+   const a=stableSeed(label+'angle'+i)*Math.PI*2;
+   const r=Math.sqrt(stableSeed(label+'radius'+i));
+   p.set([Math.cos(a)*r*45,Math.sin(a)*r*26,(stableSeed(label+'depth'+i)-.5)*65],i*3);
+  }
+  return p;
+ },[label]);
+ useFrame(({clock})=>{for(const material of materials.current)if(material)material.uniforms.time.value=prefs.reducedMotion?0:clock.elapsedTime*.025;if(layers.current)layers.current.rotation.z=prefs.reducedMotion?0:Math.sin(clock.elapsedTime*.035)*.035;});
+ return <group position={center}>
+  <group ref={layers}>{[0,1,2].map(k=><Billboard key={k} position={[Math.sin(k*2.1)*13,Math.cos(k*2.1)*7,-k*21]}><mesh raycast={()=>null} rotation={[0,0,k*.75]}><planeGeometry args={[112-k*7,78+k*8]}/><shaderMaterial ref={material=>{materials.current[k]=material;}} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} uniforms={uniforms} vertexShader={vertex} fragmentShader={`
+   varying vec2 vUv;uniform vec3 tint;uniform float time;uniform float strength;
+   float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+   float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
+   float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=noise(p)*a;p=mat2(1.6,1.2,-1.2,1.6)*p+3.7;a*=.5;}return v;}
+   void main(){vec2 p=(vUv-.5)*2.;vec2 q=p*2.8+vec2(time*.12,-time*.08);float n=fbm(q+fbm(q+2.));float radius=length(p*vec2(.85,1.12));float edge=1.-smoothstep(.42,1.,radius);edge*=1.-smoothstep(.72,.98,max(abs(p.x),abs(p.y)));float ridge=pow(max(0.,1.-abs(n-.48)*3.4),3.);float dust=smoothstep(.22,.64,fbm(q*2.+n));float alpha=edge*edge*(.04+ridge*.13+dust*.10)*strength;vec3 c=mix(tint*.5,tint, dust);gl_FragColor=vec4(c,alpha);}`}/></mesh></Billboard>)}</group>
+  <points raycast={()=>null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[particles,3]}/></bufferGeometry><pointsMaterial color={color} size={.13} transparent opacity={.55} depthWrite={false} blending={THREE.AdditiveBlending}/></points>
+  <Billboard position={[0,23,12]}><Text fontSize={1.35} letterSpacing={.16} color={color} outlineColor="#080d19" outlineWidth={.015}>{label.toUpperCase()}</Text></Billboard>
+ </group>;
 }
 function GoalBody({point,color,title,size,onPick,achieved=false,dormant=false}:{point:Point;color:string;title:string;size:number;onPick:()=>void;achieved?:boolean;dormant?:boolean}){
  const label=useRef<THREE.Group>(null);const position=useMemo(()=>new THREE.Vector3(...point),[point]);
@@ -51,6 +72,8 @@ function FlightVeil({journey,quiet}:{journey:string;quiet:boolean}){
 }
 export function GoalHorizonScene({onFocus}:{onFocus:(position:Point,target:Point,duration?:number)=>void}){
  const {prefs}=useV2();const {supernova,routineSignals,objects,selected,choose,horizonView,milestone,setMilestone,quick,positions,timeLayers,homeSignal}=useWorlds();
+ const camera=useThree(s=>s.camera);
+ useEffect(()=>{const look=()=>{const p=camera.position;onFocus([p.x,p.y,p.z],[p.x,p.y+100,p.z-10],prefs.reducedMotion?0:1.4);};window.addEventListener('hermes:horizon-zenith',look);return()=>window.removeEventListener('hermes:horizon-zenith',look);},[camera,onFocus,prefs.reducedMotion]);
  const size=useThree(s=>s.size);const goals=useMemo(()=>objects.filter(o=>o.kind==='goal'),[objects]);const active=goals.find(o=>o.id===selected);const next=active?nextMilestone(active):-1;const layout=useMemo(()=>goalConstellation(goals),[goals]);const route=useMemo(()=>{if(!active)return null;const path=goalPath(active),anchor=layout.get(active.id)!;if(closedGoal(active.state))return {...path,points:[],edges:[],goal:anchor,anchor};const offset=(p:Point):Point=>[p[0]+anchor[0],p[1]+anchor[1],p[2]+anchor[2]];return {...path,points:path.points.map(offset),goal:offset(path.goal),anchor};},[active,layout]);
  const color=active?goalColor(active):'#eacfa3';
  useEffect(()=>{const registry=positions.current;for(const [id,p] of layout)registry.set(id,p);if(active&&route)registry.set(active.id,route.goal);return()=>{for(const id of layout.keys())registry.delete(id);};},[layout,positions,active,route]);

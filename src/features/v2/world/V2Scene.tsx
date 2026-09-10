@@ -523,7 +523,7 @@ export function V2Scene({
           enablePan={world==='horizon'}
           minDistance={world === "horizon" ? 2 : world === "projects" && !openProject ? 2 : 3.2}
           maxDistance={world === "horizon" ? 1600 : world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
-          maxPolarAngle={world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
+          maxPolarAngle={world === "horizon" ? Math.PI * 0.99 : world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
           rotateSpeed={0.55}

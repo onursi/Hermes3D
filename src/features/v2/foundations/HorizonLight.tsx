@@ -17,7 +17,7 @@ export function HorizonLight({point,color,size,achieved=false,dormant=false,onPi
 }
 /** Follows translation only: always at infinity, never a destination or score. */
 export function DivineHorizon(){
- const offset=useMemo(()=>new THREE.Vector3(0,150,-1600),[]);const group=useRef<THREE.Group>(null),material=useRef<THREE.MeshBasicMaterial>(null);const {prefs}=useV2();const {objects,routineSignals}=useWorlds();const [texture,setTexture]=useState<THREE.Texture|null>(null);
+ const offset=useMemo(()=>new THREE.Vector3(0,1900,-190),[]);const group=useRef<THREE.Group>(null),material=useRef<THREE.MeshBasicMaterial>(null);const {prefs}=useV2();const {objects,routineSignals}=useWorlds();const [texture,setTexture]=useState<THREE.Texture|null>(null);
  const daily=routineSignals.filter(r=>routineDirections(r,objects).includes('spirituell')&&r.doneToday).length;
  const hadsch=objects.some(o=>o.kind==='goal'&&o.state==='erreicht'&&o.horizonSignal==='pilgrimage');
  useEffect(()=>{let cancelled=false;let map:THREE.Texture|undefined;new THREE.TextureLoader().load('/hermes-assets/divine-calligraphy-r19.png',loaded=>{map=loaded;map.colorSpace=THREE.SRGBColorSpace;if(cancelled)map.dispose();else setTexture(map);});return()=>{cancelled=true;map?.dispose();};},[]);
@@ -39,7 +39,7 @@ export function SupernovaReplay({point,signal,quiet}:{point:Point;signal:number;
 }
 export function DevotionStream({active}:{active:boolean}){
  const {prefs}=useV2();const group=useRef<THREE.Group>(null);const particle=useRef<THREE.Points>(null);const buffer=useMemo(()=>new Float32Array(180*3),[]);
- useFrame(({camera,clock})=>{if(group.current)group.current.position.copy(camera.position);if(!particle.current)return;const attr=particle.current.geometry.getAttribute('position') as THREE.BufferAttribute;for(let i=0;i<180;i++){const t=(i/180+(prefs.reducedMotion?0:clock.elapsedTime*.045))%1;attr.setXYZ(i,85*(1-t)+Math.sin(t*10+i)*7, -30+t*300,-240-t*350);}attr.needsUpdate=true;});
+ useFrame(({camera,clock})=>{if(group.current)group.current.position.copy(camera.position);if(!particle.current)return;const attr=particle.current.geometry.getAttribute('position') as THREE.BufferAttribute;for(let i=0;i<180;i++){const t=(i/180+(prefs.reducedMotion?0:clock.elapsedTime*.045))%1;attr.setXYZ(i,85*(1-t)+Math.sin(t*10+i)*7, -30+t*850,-240+t*155);}attr.needsUpdate=true;});
  if(!active)return null;
  return <group ref={group}><points ref={particle} raycast={()=>null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[buffer,3]}/></bufferGeometry><pointsMaterial color="#ffd27b" size={1.1} transparent opacity={.7} depthWrite={false} blending={THREE.AdditiveBlending}/></points></group>;
 }
