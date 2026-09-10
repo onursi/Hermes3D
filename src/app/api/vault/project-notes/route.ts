@@ -1,0 +1,7 @@
+import {NextResponse} from 'next/server';
+import os from 'node:os';import path from 'node:path';
+import {createProject,changeProjectPhase,readProject,projectFolders} from '@/lib/projectNotes';
+export const dynamic='force-dynamic';
+const vault=()=>process.env.OBSIDIAN_VAULT_PATH?.trim()||path.join(os.homedir(),'Desktop','Life OS');
+export async function GET(req:Request){try{const id=new URL(req.url).searchParams.get('id');return NextResponse.json({ok:true,...(id?await readProject(vault(),id):{folders:await projectFolders(vault())})},{headers:{'Cache-Control':'no-store'}});}catch(e){return NextResponse.json({ok:false,error:e instanceof Error?e.message:'Projekt nicht verfügbar'},{status:400});}}
+export async function POST(req:Request){if(req.headers.get('origin')!==new URL(req.url).protocol+'//'+req.headers.get('host')||req.headers.get('sec-fetch-site')==='cross-site')return NextResponse.json({ok:false,error:'Fremder Ursprung'},{status:403});try{const text=await req.text();if(text.length>18000)throw Error('Projektangaben zu lang');const d=JSON.parse(text);if(!['create','phase'].includes(d.action))throw Error('Ungültige Projektaktion');return NextResponse.json(d.action==='create'?await createProject(vault(),d):await changeProjectPhase(vault(),d));}catch(e){return NextResponse.json({ok:false,error:e instanceof Error?e.message:'Speichern fehlgeschlagen'},{status:(e as {status?:number}).status===409?409:400});}}

@@ -38,3 +38,5 @@
 .memory-manager{margin:12px 0}.memory-manager input{width:100%;min-width:0;background:#0a1520;border:1px solid #a5bfd344;border-radius:8px;padding:9px;color:#e0eaf0}.memory-manager fieldset{border:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px}.memory-manager button:disabled{opacity:.4;cursor:not-allowed}
 
 @media(max-width:600px){.r10-title{top:126px}}
+
+.project-edit{margin:14px 0;padding:12px 0;border-top:1px solid #9ab8d02b}.project-edit fieldset{border:0;padding:0;min-width:0}.project-edit input{display:block;width:100%;min-width:0;margin-top:6px;border:1px solid #aebac340;border-radius:8px;padding:10px;background:#0c1621;color:#d2dbe8;font:12px var(--font-sans),sans-serif}.project-edit button:disabled{opacity:.4;cursor:not-allowed}

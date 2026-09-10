@@ -17,7 +17,7 @@ export function toObject(path:string,text:string):WorldObject|null{
  const milestoneBlock=text.split(/^## Meilensteine[^\n]*$/m)[1]?.split(/^## /m)[0]||'';
  const milestones=milestoneBlock.split(/\r?\n/).filter(line=>/^\|\s*\d+\s*\|/.test(line)).map(line=>{const cells=line.split('|');return{title:cells[2]?.trim()??"",done:line.includes('✅'),date:cells[3]?.trim(),status:cells[4]?.trim(),after:/^nach:\s*\d+(?:\s*,\s*\d+)*$/i.test(cells[5]?.trim()||'')?cells[5].trim().replace(/^nach:\s*/i,'').split(',').map(n=>Number(n.trim())-1):undefined};});
  let actions:string[]=[];try{const parsed=JSON.parse(fm.handlungen||'[]');if(Array.isArray(parsed))actions=parsed.filter((a:unknown)=>typeof a==='string');}catch{/* Old notes need no routine metadata. */}
- const title=fm.ziel||path.split('/').pop()!.replace(/\.md$/,'');
+ const title=fm.ziel||fm.projekt||path.split('/').pop()!.replace(/\.md$/,'');
  const sections=[...text.matchAll(/^## (.+)\r?\n([\s\S]*?)(?=^## |$(?![\s\S]))/gm)];
  const plain=(s:string)=>s.replace(/```[\s\S]*?```/g,'').replace(/<[^>]*>/g,'').replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g,'$2').replace(/\[\[([^\]]+)\]\]/g,'$1').replace(/[*_#]/g,'').trim();
  const summary=sections.find(s=>/^(Ziel|Zweck|Kurzbeschreibung|Ausgangslage)/i.test(s[1]));
