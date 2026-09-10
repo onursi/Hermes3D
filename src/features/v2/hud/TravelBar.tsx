@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { SELECTION_COLOR } from "@/features/v2/palette";
-import { playHyperJump, unlockAtmosphere } from "@/features/v2/atmosphereAudio";
+import { playHyperJump } from "@/features/v2/atmosphereAudio";
 import { useV2 } from "@/features/v2/state";
 import type { Place } from "@/features/v2/universe/places";
 
@@ -91,11 +91,9 @@ export function TravelBar({
           type="button"
           aria-pressed={prefs.hyperRide}
           onClick={() => {
-            unlockAtmosphere();
-            if (prefs.sound === 0) setPref("sound", 0.5);
             const next = !prefs.hyperRide;
             setPref("hyperRide", next);
-            if (next) playHyperJump(prefs.sound > 0 ? prefs.sound : 0.5);
+            if (next) playHyperJump(prefs.sound);
           }}
           className="flex flex-col items-center rounded-xl border border-white/20 px-3 py-1 text-white/75 transition-colors aria-pressed:bg-white/12 aria-pressed:text-white"
         >
