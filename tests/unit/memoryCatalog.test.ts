@@ -1,0 +1,12 @@
+import {describe,it,expect} from 'vitest';
+import {initialCatalog,parseCatalog,recoverCatalog} from '../../src/features/v2/spatial/memoryCatalog';
+describe('memory catalog migration and identity',()=>{
+ it('does not force childhood rings on travel worlds',()=>{const c=initialCatalog();expect(c.realms.find(r=>r.id==='Reisen')!.albums).toEqual([]);expect(c.realms[0].albums.length).toBeGreaterThan(0);});
+ it('recovers legacy photos without topic into the original life world',()=>{const c=recoverCatalog(initialCatalog(),[{phase:'Gegenwart'}]);expect(c.realms.find(r=>r.id==='Lebensweg')!.albums.filter(a=>a.id==='Gegenwart')).toHaveLength(1);});
+ it('preserves user labels and stable media references after rename',()=>{const c=initialCatalog();c.realms[1].title='Meine Reisen';c.realms[1].albums=[{id:'Gegenwart',title:'Japan'}];const media=[{topic:'Reisen',phase:'Gegenwart'}];const result=recoverCatalog(c,media);expect(result.realms[1].title).toBe('Meine Reisen');expect(result.realms[1].albums[0]).toEqual({id:'Gegenwart',title:'Japan'});expect(media[0]).toEqual({topic:'Reisen',phase:'Gegenwart'});});
+ it('does not resurrect archived albums during migration',()=>{const c=initialCatalog();c.realms[1].archived=true;c.realms[1].albums=[{id:'old',title:'Alt',archived:true}];expect(recoverCatalog(c,[{topic:'Reisen',phase:'old'}]).realms[1]).toEqual(c.realms[1]);});
+ it('recovers an unknown legacy world rather than losing its media',()=>{const c=recoverCatalog(initialCatalog(),[{topic:'Custom',phase:'2024'}]);expect(c.realms.at(-1)).toMatchObject({id:'Custom',albums:[{id:'2024',title:'2024'}]});});
+ it('is idempotent and leaves its input unchanged',()=>{const input=initialCatalog(),before=JSON.stringify(input),media=[{topic:'Reisen',phase:'Japan'}];const once=recoverCatalog(input,media);expect(recoverCatalog(once,media)).toEqual(once);expect(JSON.stringify(input)).toBe(before);});
+ it('rejects duplicate identities and damaged saved structures',()=>{const c=initialCatalog();c.realms.push(c.realms[0]);expect(()=>parseCatalog(c)).toThrow();expect(()=>parseCatalog({version:2,realms:[]})).toThrow();});
+ it('keeps identically named albums in different worlds independent',()=>{const c=recoverCatalog(initialCatalog(),[{topic:'Reisen',phase:'2026'},{topic:'Familie',phase:'2026'}]);c.realms.find(r=>r.id==='Reisen')!.albums[0].title='Japan';expect(c.realms.find(r=>r.id==='Familie')!.albums[0].title).toBe('2026');});
+});

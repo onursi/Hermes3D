@@ -23,6 +23,7 @@ import { LibraryWorld, type LibraryItem } from "@/features/v2/world/LibraryWorld
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { Horizon } from "@/features/v2/world/Horizon";
 import { WorldsScene, ROOM_WORLDS } from "../foundations/WorldsScene";
+import {initialCatalog,type MemoryCatalog} from "../spatial/memoryCatalog";
 import { MemoryWorld, type MemoryMode } from "../spatial/MemoryWorld";
 import type { MemoryEntry, ProjectMeta } from "../spatial/model";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
@@ -56,6 +57,7 @@ export function V2Scene({
   memoryMode = "saturn",
   memoryPhase = "Gegenwart",
   memoryTopic = "Lebensweg",
+  memoryCatalog = initialCatalog(),
   onMemoryTopic,
   onMemoryPhase,
   onMemoryMode,
@@ -92,6 +94,7 @@ export function V2Scene({
   memoryMode?: MemoryMode;
   memoryPhase?: string;
   memoryTopic?: string;
+  memoryCatalog?: MemoryCatalog;
   onMemoryTopic?: (topic:string)=>void;
   onMemoryPhase?: (p: string) => void;
   onMemoryMode?: (m: MemoryMode) => void;
@@ -614,6 +617,7 @@ export function V2Scene({
           </>
         ) : world === "memory" ? (
           <MemoryWorld
+            catalog={memoryCatalog}
             entries={memoryEntries}
             mode={memoryMode}
             phase={memoryPhase}

@@ -5,19 +5,21 @@ import {PanelWindow} from "../hud/PanelWindow";
 import {useV2} from "../state";
 import { useRef,useState } from "react";
 import type { MemoryEntry } from "./model";
-import {PHASES} from './model';
-import {MEMORY_TOPICS} from './memoryTopics';
+import {MemoryManager} from "./MemoryManager";
+import type {MemoryCatalog} from "./memoryCatalog";
 import {memoryMotion,type MemoryMode} from './MemoryWorld';
-export function MemoryHud({mode,phase,count,entries,onOpen,onMode,onPhase,onImport,mediaStatus,topic,onTopic}:{topic:string;onTopic:(topic:string)=>void;mediaStatus:string;mode:MemoryMode;phase:string;count:number;entries:MemoryEntry[];onOpen:(entry:MemoryEntry)=>void;onMode:(m:MemoryMode)=>void;onPhase:(p:string)=>void;onImport:(files:FileList,phase:string)=>void}){
+export function MemoryHud({catalog,ready,onSave,mode,phase,count,entries,onOpen,onMode,onPhase,onImport,mediaStatus,topic,onTopic}:{catalog:MemoryCatalog;ready:boolean;onSave:(c:MemoryCatalog)=>Promise<boolean>;topic:string;onTopic:(topic:string)=>void;mediaStatus:string;mode:MemoryMode;phase:string;count:number;entries:MemoryEntry[];onOpen:(entry:MemoryEntry)=>void;onMode:(m:MemoryMode)=>void;onPhase:(p:string)=>void;onImport:(files:FileList,phase:string)=>void}){
+ const realm=catalog.realms.find(r=>r.id===topic&&!r.archived),albums=realm?.albums.filter(a=>!a.archived)??[];
  const input=useRef<HTMLInputElement>(null);const [speed,setSpeed]=useState(0);
  return <>
-  <div className="r10-title" hidden={mode==='carousel'}><span className="r10-eyebrow">Zeit · Raum · Erinnerung</span><h1>{mode==='saturn'?'Dein Erinnerungsuniversum':mode==='free'?'Freies Erinnern':phase}</h1><p>{mode==='saturn'?'Innen die frühen Jahre. Außen die Gegenwart.':mode==='free'?'Momente entdecken, ohne einer Zeitlinie zu folgen.':'Deine Fotos. Pfeile zum Blättern, Lebensfilm zum Zurücklehnen.'}</p></div>
+  <div className="r10-title" hidden={mode==='carousel'}><span className="r10-eyebrow">Zeit · Raum · Erinnerung</span><h1>{mode==='saturn'?'Dein Erinnerungsuniversum':mode==='free'?'Freies Erinnern':phase}</h1><p>{mode==='saturn'?'Deine Welten. Deine Alben. Jeder Ring erzählt etwas anderes.':mode==='free'?'Momente entdecken, ohne einer Zeitlinie zu folgen.':'Deine Fotos. Pfeile zum Blättern, Lebensfilm zum Zurücklehnen.'}</p></div>
   <PanelWindow title="Erinnerungen" slot="memory"><section className="r10-glass r10-memory-controls">
-   {mode!=='saturn'&&<button onClick={()=>{memoryMotion.auto=0;setSpeed(0);onMode('saturn');}}>← Lebensringe</button>}
-   <label>Erinnerungswelt<select value={topic} onChange={e=>onTopic(e.target.value)}>{MEMORY_TOPICS.map(t=><option key={t.id}>{t.id}</option>)}</select></label>
-   <label>Lebensphase<select value={phase} onChange={e=>onPhase(e.target.value)}>{PHASES.map(p=><option key={p}>{p}</option>)}</select></label>
+   {mode!=='saturn'&&<button onClick={()=>{memoryMotion.auto=0;setSpeed(0);onMode('saturn');}}>← Erinnerungsringe</button>}
+   <label>Erinnerungswelt<select value={topic} onChange={e=>onTopic(e.target.value)}>{!realm&&<option value="">Erste Welt erstellen</option>}{catalog.realms.filter(r=>!r.archived).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}</select></label>
+   <label>Ring / Album<select value={phase} onChange={e=>onPhase(e.target.value)}>{!albums.length&&<option value="">Ersten Ring erstellen</option>}{albums.map(a=><option key={a.id} value={a.id}>{a.title}</option>)}</select></label>
+   <MemoryManager catalog={catalog} topic={topic} phase={phase} ready={ready} onSave={onSave} onTopic={onTopic}/>
    {mode==='free'&&<label>Lebensfilm <input aria-label="Karusselltempo" type="range" min="-8" max="8" step=".25" value={speed} onChange={e=>{setSpeed(+e.target.value);memoryMotion.auto=+e.target.value;}}/><button onClick={()=>{setSpeed(0);memoryMotion.auto=0;memoryMotion.velocity=0;}}>Anhalten</button></label>}
-   <button onClick={()=>input.current?.click()}>Eigene Fotos / Videos hinzufügen</button><input ref={input} hidden type="file" multiple accept="image/*,video/*" onChange={e=>{if(e.target.files)onImport(e.target.files,phase);e.target.value='';}}/>
+   <button disabled={!ready||!phase} onClick={()=>input.current?.click()}>Eigene Fotos / Videos hinzufügen</button><input ref={input} hidden type="file" multiple accept="image/*,video/*" onChange={e=>{if(e.target.files)onImport(e.target.files,phase);e.target.value='';}}/>
    <details><summary>Erinnerungen direkt öffnen</summary><div className="r10-filelist">{entries.filter(e=>mode!=='carousel'||e.phase===phase).map(e=><button key={e.id} onClick={()=>{memoryMotion.auto=0;memoryMotion.velocity=0;onOpen(e);}}>{e.date ? `${e.date} · ` : ""}{e.title}</button>)}</div></details>
    {mediaStatus&&<p role="status">{mediaStatus}</p>}
    <small>{count?`${count} Einträge in dieser Ansicht`:'Hier sind noch keine Erinnerungen zugeordnet.'} Eigene Medien werden lokal in diesem Browser gespeichert. Tagesrückblicke findest du separat unter „Erinnerungen direkt öffnen“.</small>

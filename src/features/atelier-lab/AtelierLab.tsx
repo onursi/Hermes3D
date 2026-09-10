@@ -1,5 +1,5 @@
 "use client";
-import NextLink from 'next/link';
+import {RoomLinks} from '../v2/hud/RoomLinks';
 import {useEffect,useRef,useState} from 'react';
 import dynamic from 'next/dynamic';
 import {ORIGINS,connectionBenefit,STORAGE,candidates,demoImpulses,emptyLab,formOf,parseLab,tagsFrom,withEvent,pairId,type Lab} from './model';
@@ -30,7 +30,7 @@ export default function AtelierLab(){
  const disabled=!ready||locked||uploading||thinking;
  return <main className="atelier-lab">
   <div className="atelier-canvas"><ImpulseScene lab={lab} selected={selected} scanning={scanning} quiet={quiet} pulse={pulse} onPick={pick} reset={reset}/></div>
-  <header className="atelier-header"><div><span className="atelier-kicker">HERMES3D · IDEENATELIER</span><h1>Neuronales Impulsfeld</h1><p>Ein Gedanke darf erst einmal ein Gedanke sein.</p></div><NextLink href="/v2" rel="noreferrer">Zurück ins Universum ↗</NextLink></header>
+  <header className="atelier-header"><div><span className="atelier-kicker">HERMES3D · IDEENATELIER</span><h1>Neuronales Impulsfeld</h1><p>Ein Gedanke darf erst einmal ein Gedanke sein.</p></div><RoomLinks/></header>
   <nav className="atelier-toolbar" aria-label="Atelier Werkzeuge"><button onClick={()=>{setComposer(true);setHistory(false);setPanel(true);}} disabled={disabled}>＋ Impuls</button><button onClick={()=>{setHistory(!history);setPanel(true);}}>Entstehung</button><button onClick={()=>setReset(r=>r+1)}>Überblick</button><button aria-expanded={listOpen} onClick={()=>setListOpen(!listOpen)}>{listOpen?'Liste einklappen':'Impulsliste'}</button><button onClick={()=>setQuiet(!quiet)} aria-pressed={quiet}>{quiet?'Bewegung ruhig':'Bewegung an'}</button><button onClick={()=>void toggleSound()} aria-pressed={sound}>{sound?'Ton an':'Ton aktivieren'}</button></nav>
   <div className="atelier-guide"><span>IDEENATELIER / VERSUCH 01</span><h2>{scanning?'Verbindungen suchen …':active?formOf(lab,active.id):'Hier beginnt etwas.'}</h2><p>{scanning?'Der Scan vergleicht die Stichwörter. Seine Vorschläge bleiben anschließend sichtbar.':active?'Wähle eine Verbindung. Kläre eine Frage. Beobachte, wie der Gedanke Form annimmt.':'Erfasse einen eigenen Impuls oder erkunde das gekennzeichnete Beispiel. Ziehen dreht den Raum, Scrollen verändert die Nähe.'}</p>{!lab.impulses.length&&<button className="atelier-primary" disabled={disabled} onClick={()=>{const examples=demoImpulses();commit(withEvent({...lab,impulses:examples},'Beispiel geladen','','Sechs Anschauungsimpulse, keine neuen LifeOS-Einträge.'));setSelected(examples[0].id);setPanel(true);}}>Beispiel erkunden</button>}<small role="status">{status}</small></div>
   {listOpen&&<aside className="atelier-index" aria-label="Impulse auswählen">{lab.impulses.map(i=><button key={i.id} onClick={()=>pick(i.id)} aria-pressed={selected===i.id}><i/>{i.raw}<small>{i.example?'BEISPIEL · ':''}{i.resting?'ruhend':formOf(lab,i.id)}</small></button>)}</aside>}

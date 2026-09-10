@@ -36,7 +36,8 @@ import {WorldsProvider} from "./foundations/WorldsProvider";
 import {WormholeJourney} from "./foundations/WormholeJourney";
 import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
 import "./foundations/worlds.css";
-import {loadPhotos,storePhotos,type StoredPhoto} from "./spatial/photoStore";
+import {initialCatalog,recoverCatalog,type MemoryCatalog} from "./spatial/memoryCatalog";
+import {loadMemoryCatalog,saveMemoryCatalog,loadPhotos,storePhotos,type StoredPhoto} from "./spatial/photoStore";
 import {PhotoCarousel} from "./spatial/PhotoCarousel";
 import { MemoryHud, MemoryCard } from "./spatial/SpatialHud";
 import type { MemoryEntry, ProjectMeta } from "./spatial/model";
@@ -140,11 +141,20 @@ export function V2Screen() {
   const [dive, setDive] = useState(0);
   const [crossing,setCrossing]=useState(false);
   if(crossing && world!=="projects")setCrossing(false);
+  useEffect(()=>{const room=new URLSearchParams(window.location.search).get('room');if(room&&['home','cosmos','projects','memory','horizon','success','flow','sanctuary'].includes(room))goTo(room as Parameters<typeof goTo>[0]);},[goTo]);
   const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
   const [memoryMode, setMemoryMode] = useState<MemoryMode>("saturn");
-  const [memoryPhase, setMemoryPhase] = useState("Gegenwart");
-  const [memoryTopic,setMemoryTopic]=useState("Lebensweg");
-  const topicMemories=memoryEntries.filter(e=>(e.topic||"Lebensweg")===memoryTopic);
+  const [memoryPhaseChoice, setMemoryPhase] = useState("Gegenwart");
+  const [memoryTopicChoice,setMemoryTopic]=useState("Lebensweg");
+  const [memoryCatalog,setMemoryCatalog]=useState<MemoryCatalog>(initialCatalog);
+  const [memoryReady,setMemoryReady]=useState(false);
+  const memoryRealm=memoryCatalog.realms.find(r=>r.id===memoryTopicChoice&&!r.archived)??memoryCatalog.realms.find(r=>!r.archived);
+  const memoryTopic=memoryRealm?.id??'';
+  const memoryAlbums=memoryRealm?.albums.filter(a=>!a.archived)??[];
+  const memoryPhase=memoryAlbums.find(a=>a.id===memoryPhaseChoice)?.id??memoryAlbums[0]?.id??'';
+  const changeMemoryTopic=(id:string)=>{setMemoryTopic(id);setMemoryMode('saturn');setMemoryCard(null);};
+  const persistMemoryCatalog=async(catalog:MemoryCatalog)=>{try{await saveMemoryCatalog(catalog,memoryCatalog);setMemoryPhase(memoryPhase);setMemoryCatalog(catalog);return true;}catch{setMediaStatus('Struktur konnte nicht gespeichert werden oder wurde in einem anderen Tab geändert. Bitte neu laden; der gespeicherte Stand bleibt erhalten.');return false;}};
+  const topicMemories=memoryEntries.filter(e=>(e.topic||"Lebensweg")===memoryTopic&&(e.kind==='note'||memoryAlbums.some(a=>a.id===e.phase)));
   const [memoryCard, setMemoryCard] = useState<MemoryEntry | null>(null);
   const mediaUrls = useRef<string[]>([]);
   const [mediaStatus,setMediaStatus]=useState("");
@@ -163,7 +173,7 @@ export function V2Screen() {
         if (d.ok) setMemoryEntries(previous=>[...previous.filter(e=>e.local),...d.memories]);
       })
       .catch(() => {});
-    void loadPhotos().then(photos=>{if(controller.signal.aborted)return;const media:MemoryEntry[]=photos.map(photo=>{const url=URL.createObjectURL(photo.blob);urls.push(url);return {id:photo.id,title:photo.title,phase:photo.phase,topic:photo.topic,kind:photo.kind,url,date:'',local:true};});setMemoryEntries(previous=>[...previous.filter(e=>!media.some(m=>m.id===e.id)),...media]);}).catch(()=>{if(!controller.signal.aborted)setMediaStatus('Lokaler Fotospeicher nicht verfügbar. Neue Medien bleiben nur in dieser Sitzung.');});
+    void Promise.all([loadPhotos(),loadMemoryCatalog()]).then(async([photos,saved])=>{if(controller.signal.aborted)return;const catalog=recoverCatalog(saved??initialCatalog(),photos);await saveMemoryCatalog(catalog,saved);if(controller.signal.aborted)return;setMemoryCatalog(catalog);setMemoryReady(true);const media:MemoryEntry[]=photos.map(photo=>{const url=URL.createObjectURL(photo.blob);urls.push(url);return {id:photo.id,title:photo.title,phase:photo.phase,topic:photo.topic,kind:photo.kind,url,date:'',local:true};});setMemoryEntries(previous=>[...previous.filter(e=>!media.some(m=>m.id===e.id)),...media]);}).catch(()=>{if(!controller.signal.aborted)setMediaStatus('Fotospeicher oder Erinnerungsstruktur nicht verfügbar. Bitte weitere Hermes-Tabs schließen und neu laden. Der Bestand wird nicht überschrieben.');});
     return () => {
       controller.abort();
       urls.forEach((url) => URL.revokeObjectURL(url));
@@ -175,6 +185,7 @@ export function V2Screen() {
     setMemoryCard(null);
   }, []);
   const importMemories = useCallback((files: FileList, phase: string) => {
+    if(!memoryReady||!memoryTopic||!memoryPhase)return;
     const stored:StoredPhoto[]=[];
     const imported: MemoryEntry[] = Array.from(files)
       .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
@@ -198,7 +209,7 @@ export function V2Screen() {
     setMemoryEntries((previous) => [...previous, ...imported]);
     setMemoryPhase(phase);
     setMemoryMode("carousel");
-  }, [memoryTopic]);
+  }, [memoryTopic,memoryPhase,memoryReady]);
   /**
    * Die Notiz, deren Nachbarschaft er zugeklappt hat — nicht ein Ja/Nein.
    *
@@ -613,8 +624,9 @@ export function V2Screen() {
         dive={dive}
         onDive={() => {setDive(1);setCrossing(true);}}
         memoryEntries={topicMemories}
+        memoryCatalog={memoryCatalog}
         memoryTopic={memoryTopic}
-        onMemoryTopic={setMemoryTopic}
+        onMemoryTopic={changeMemoryTopic}
         memoryMode={memoryMode}
         memoryPhase={memoryPhase}
         onMemoryPhase={chooseMemoryPhase}
@@ -665,10 +677,12 @@ export function V2Screen() {
       )}
       {world === "memory" && (
         <MemoryHud
+          catalog={memoryCatalog}
+          ready={memoryReady}
+          onSave={persistMemoryCatalog}
           mediaStatus={mediaStatus}
           topic={memoryTopic}
-          onTopic={setMemoryTopic}
-          key={memoryMode + memoryPhase}
+          onTopic={changeMemoryTopic}
           mode={memoryMode}
           phase={memoryPhase}
           count={
@@ -683,10 +697,10 @@ export function V2Screen() {
           onImport={importMemories}
         />
       )}
-      {world === "memory" && memoryMode==='carousel'&&<PhotoCarousel topic={memoryTopic} key={memoryTopic+memoryPhase} entries={topicMemories} phase={memoryPhase} onClose={()=>setMemoryMode('saturn')}/>}
+      {world === "memory" && memoryMode==='carousel'&&<PhotoCarousel albumTitle={memoryAlbums.find(a=>a.id===memoryPhase)?.title??""} topic={memoryRealm?.title??""} key={memoryTopic+memoryPhase} entries={topicMemories} phase={memoryPhase} onClose={()=>setMemoryMode('saturn')}/>}
       {world === "memory" && memoryCard && (
         <MemoryCard
-          entry={memoryCard}
+          entry={{...memoryCard,phase:memoryRealm?.albums.find(a=>a.id===memoryCard.phase)?.title??memoryCard.phase}}
           onClose={() => setMemoryCard(null)}
           onRead={() => {
             if (memoryCard.path) {

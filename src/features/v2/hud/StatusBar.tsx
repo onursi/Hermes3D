@@ -59,7 +59,7 @@ export function StatusBar({
   const worldName = WORLD_NAMES[world];
 
   return (
-    <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 py-3">
+    <header className="hermes-status pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 py-3">
       <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-[#0a1018]/85 px-4 py-1.5 backdrop-blur-md">
         <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/85">
           {worldName}
