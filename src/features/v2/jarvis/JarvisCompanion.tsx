@@ -674,8 +674,8 @@ export function JarvisCompanion({
           <section
             className={`relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_35px_rgba(56,189,248,0.14)] backdrop-blur-xl transition-all duration-300 ${
               isExpanded
-                ? "h-[min(780px,calc(100vh-6rem))] w-[min(760px,calc(100vw-2.5rem))]"
-                : "h-[min(640px,calc(100vh-6rem))] w-[min(560px,calc(100vw-2.5rem))]"
+                ? "h-[min(780px,calc(100dvh-13rem))] w-[min(760px,calc(100vw-2.5rem))]"
+                : "h-[min(640px,calc(100dvh-13rem))] w-[min(560px,calc(100vw-2.5rem))]"
             }`}
           >
             {/* Header: Cyber-Avatar + Telemetrie + Persönlichkeits-Studio + Fenster-Steuerung */}
