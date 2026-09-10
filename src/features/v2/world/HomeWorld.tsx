@@ -88,7 +88,9 @@ export function HomeWorld({
       <DeckDust />
       <StagePlatform />
       <BackBrace />
-      <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />
+      <group onClick={event=>{event.stopPropagation();window.dispatchEvent(new CustomEvent('hermes:panel-open',{detail:'work'}));}}>
+        <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />
+      </group>
 
       {/* Alle Agenten in einem Objekt statt einem pro Figur. Der Grund steht
           in AgentDeck.tsx und ist gemessen, nicht vermutet. */}

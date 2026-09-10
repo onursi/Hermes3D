@@ -96,6 +96,8 @@ export function JarvisCompanion({
 
   // Jarvis Workflow Zustände
   const [question, setQuestion] = useState("");
+  useEffect(()=>{const draft=(event:Event)=>{const text=(event as CustomEvent<unknown>).detail;if(typeof text!=='string')return;setIsOpen(true);setIsMinimized(false);setQuestion(previous=>previous.trim()?`${previous}\n\n${text}`:text);};window.addEventListener('hermes:jarvis-draft',draft);return()=>window.removeEventListener('hermes:jarvis-draft',draft);},[]);
+
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<JarvisSource[]>([]);
 

@@ -32,6 +32,7 @@ import { placesFor, type Place } from "@/features/v2/universe/places";
 import { V2Scene } from "@/features/v2/world/V2Scene";
 import { JarvisCompanion } from "@/features/v2/jarvis";
 import "./spatial/spatial.css";
+import {WorkCentral} from './hud/WorkCentral';
 import {WorldsProvider} from "./foundations/WorldsProvider";
 import {WormholeJourney} from "./foundations/WormholeJourney";
 import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
@@ -659,7 +660,7 @@ export function V2Screen() {
       />
       </WorldBoundary>
 
-      {world === "home" && <a href="/council-lab" style={{position:"absolute",left:24,bottom:160,zIndex:35,padding:"12px 18px",background:"#102430e8",border:"1px solid #87b8c455",borderRadius:14,color:"#cae6ee",fontSize:12}}>Konsil · Testbühne ↗</a>}
+      {world === "home" && <WorkCentral onRead={id=>{setSourceQuery("");setReaderId(id);}} onApprovals={()=>setApprovalsOpen(true)} approvals={approvalState.items} reachable={approvalState.reachable}/>}
       {world === "projects" && openProject && (
         <aside className="r10-glass r10-room-bar">
           <span className="r10-eyebrow">Dein Projektraum</span>
