@@ -1,7 +1,7 @@
 "use client";
 import {Billboard,Line,Text} from '@react-three/drei';
-import {useEffect,useMemo,useRef} from 'react';
-import {useFrame} from '@react-three/fiber';
+import {useCallback,useEffect,useMemo,useRef} from 'react';
+import {useFrame,useThree} from '@react-three/fiber';
 import type {Group} from 'three';
 import {useFlowWorkspace} from './FlowWorkspace';
 import {useWorlds} from './WorldsProvider';
@@ -12,8 +12,11 @@ export function FlowScene({onFocus}:{onFocus?:(p:[number,number,number],t:[numbe
  const {flow,stage}=useFlowWorkspace();const {choose,positions}=useWorlds();const {prefs}=useV2();const halo=useRef<Group>(null);const focus=useRef(onFocus);useEffect(()=>{focus.current=onFocus;},[onFocus]);
  const points=useMemo(()=>flow?.stages.map((_,i)=>flowPosition(i,flow.stages.length))??[],[flow]);
  useEffect(()=>{if(!flow)return;const map=positions.current;flow.stages.forEach((s,i)=>map.set(flowSelection(flow.project,s.id),points[i]));map.set(flow.project,[0,0,0]);return()=>{flow.stages.forEach(s=>map.delete(flowSelection(flow.project,s.id)));map.delete(flow.project);};},[flow,points,positions]);
+ const aspect=useThree(s=>s.size.width/Math.max(1,s.size.height));
+ const overview=useCallback(()=>{const d=Math.max(38,40/Math.max(.35,aspect));focus.current?.([0,d*.38,d],[0,2,0],prefs.reducedMotion?.04:.85);},[aspect,prefs.reducedMotion]);
+ useEffect(()=>{window.addEventListener('hermes:flow-overview',overview);return()=>window.removeEventListener('hermes:flow-overview',overview);},[overview]);
  const stageIndex=flow?.stages.findIndex(s=>s.id===stage?.id)??-1, stageCount=flow?.stages.length??0, project=flow?.project;
- useEffect(()=>{if(!project)return;if(stageIndex<0){focus.current?.([0,22,42],[0,2,0],prefs.reducedMotion?.04:.85);return;}const p=flowPosition(stageIndex,stageCount);focus.current?.([p[0]*1.3,p[1]+5,p[2]+10],p,prefs.reducedMotion?.04:.85);},[stageIndex,stageCount,project,prefs.reducedMotion]);
+ useEffect(()=>{if(!project||stageIndex<0)return;const p=flowPosition(stageIndex,stageCount);focus.current?.([p[0]*1.3,p[1]+5,p[2]+10],p,prefs.reducedMotion?.04:.85);},[stageIndex,stageCount,project,prefs.reducedMotion]);
  useFrame((_,dt)=>{if(halo.current&&!prefs.reducedMotion)halo.current.rotation.y+=dt*.035;});
  if(!flow)return null;
  return <group><group ref={halo}><mesh rotation={[-Math.PI/2,0,0]} raycast={()=>null}><torusGeometry args={[7,.025,6,128]}/><meshBasicMaterial color="#95b9cb" transparent opacity={.3}/></mesh><mesh rotation={[.55,.2,.6]} raycast={()=>null}><torusGeometry args={[5,.018,6,100]}/><meshBasicMaterial color="#af9bcf" transparent opacity={.28}/></mesh></group>
