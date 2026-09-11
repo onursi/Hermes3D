@@ -7,3 +7,5 @@
 .atelier-toolbar{width:max-content}.atelier-toolbar [data-cinema-control]{min-width:110px}
 
 .atelier-storage-notice{position:absolute;z-index:50;left:20px;right:20px;bottom:125px;padding:14px 18px;background:#101e2bf5;border:1px solid #a5dff255;border-radius:12px;color:#cadde9;font-size:13px}.atelier-storage-notice a{color:#b6e8ff;text-decoration:underline;margin:0 8px}
+
+.atelier-volume{display:flex;align-items:center;gap:8px;font-size:12px;color:#afd6e5;padding:0 8px}.atelier-volume input{width:90px;accent-color:#80d8ed}

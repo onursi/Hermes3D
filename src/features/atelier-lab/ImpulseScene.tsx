@@ -5,6 +5,7 @@ import {Suspense,useEffect,useMemo,useRef,useState} from 'react';
 import * as THREE from 'three';
 import {formOf,type Lab,type Impulse,type Link} from './model';
 import {CinematicTour} from '../v2/world/CinematicTour';
+import {LivingNeuralVolume} from './LivingNeuralVolume';
 type Pulse={id:string;at:number}|null;
 type Point=[number,number,number];
 function hash(s:string){let n=17;for(const c of s)n=(Math.imul(n,31)+c.charCodeAt(0))>>>0;n^=n>>>16;n=Math.imul(n,0x7feb352d)>>>0;n^=n>>>15;n=Math.imul(n,0x846ca68b)>>>0;n^=n>>>16;return (n>>>0)/4294967296;}
@@ -56,36 +57,5 @@ function MovableNeuron({point,onDrag,onDrop,children}:{point:Point;onDrag:(p:Poi
 
 /** Decorative tissue has no semantic edges: actual user links stay lilac above. */
 function NeuralVolume({quiet}:{quiet:boolean}){
- const material=useRef<THREE.ShaderMaterial>(null);
- const uniforms=useMemo(()=>({time:{value:0},motion:{value:1}}),[]);
- const tissue=useMemo(()=>{
-  const cells:number[]=[],fibers:number[]=[],starts:number[]=[],ends:number[]=[],seeds:number[]=[];
-  for(let i=0;i<240;i++){
-   const az=hash('az'+i)*Math.PI*2,el=Math.acos(2*hash('el'+i)-1),r=32+hash('rad'+i)*65;
-   const c=new THREE.Vector3(Math.sin(el)*Math.cos(az)*r,Math.cos(el)*r*.8,Math.sin(el)*Math.sin(az)*r);
-   cells.push(...c.toArray());
-   for(let k=0;k<6;k++){
-    const a=hash('arm'+i+':'+k)*Math.PI*2,z=hash('tilt'+i+':'+k)*2-1;
-    const length=5+hash('len'+i+':'+k)*9;
-    const dir=new THREE.Vector3(Math.cos(a),z,Math.sin(a)).normalize();
-    const mid=c.clone().addScaledVector(dir,length*.5);mid.y+=hash('bend'+i+k)*2-1;
-    const end=c.clone().addScaledVector(dir,length);
-    fibers.push(...c.toArray(),...mid.toArray(),...mid.toArray(),...end.toArray());
-    const fork=mid.clone().add(new THREE.Vector3(dir.z*3,2,-dir.x*3));
-    fibers.push(...mid.toArray(),...fork.toArray());
-    if(k<2){starts.push(...c.toArray());ends.push(...end.toArray());seeds.push(hash('spark'+i+k));}
-   }
-  }
-  return {cells:new Float32Array(cells),fibers:new Float32Array(fibers),starts:new Float32Array(starts),ends:new Float32Array(ends),seeds:new Float32Array(seeds)};
- },[]);
- useFrame(({clock})=>{if(material.current){material.current.uniforms.time.value=quiet?0:clock.elapsedTime;material.current.uniforms.motion.value=quiet?0:1;}});
- return <group>
-  <lineSegments raycast={()=>null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[tissue.fibers,3]}/></bufferGeometry><lineBasicMaterial color="#4c889a" transparent opacity={.17} depthWrite={false}/></lineSegments>
-  <points raycast={()=>null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[tissue.cells,3]}/></bufferGeometry><pointsMaterial color="#73b3c1" size={.30} transparent opacity={.42} depthWrite={false}/></points>
-  <points raycast={()=>null} frustumCulled={false}><bufferGeometry><bufferAttribute attach="attributes-position" args={[tissue.starts,3]}/><bufferAttribute attach="attributes-end" args={[tissue.ends,3]}/><bufferAttribute attach="attributes-seed" args={[tissue.seeds,1]}/></bufferGeometry>
-   <shaderMaterial ref={material} transparent depthWrite={false} blending={THREE.AdditiveBlending} uniforms={uniforms}
-    vertexShader={`attribute vec3 end;attribute float seed;uniform float time;uniform float motion;varying float alpha;void main(){float phase=fract(time*.10+seed);float travel=clamp(phase/.24,0.,1.);vec3 q=mix(position,end,travel);vec4 eye=modelViewMatrix*vec4(q,1.);alpha=motion*(1.-step(.24,phase))*smoothstep(2.,12.,-eye.z)*(1.-smoothstep(55.,145.,-eye.z));gl_PointSize=clamp(130./max(1.,-eye.z),1.5,7.);gl_Position=projectionMatrix*eye;}`}
-    fragmentShader={`varying float alpha;void main(){float r=length(gl_PointCoord-.5)*2.;gl_FragColor=vec4(.42,.84,1.,exp(-r*r*6.)*alpha*.65);}`}/>
-  </points>
- </group>;
+ return <LivingNeuralVolume quiet={quiet}/>;
 }
