@@ -347,8 +347,10 @@ export function V2Scene({
   useEffect(()=>{
     if(world!=='home')return;
     const overview=()=>{const distance=Math.max(160,130/Math.max(.3,window.innerWidth/window.innerHeight));handleWorldFocus([0,distance*.7,distance],[0,0,0],2);};
+    const deck=()=>{const d=Math.max(10,9/Math.max(.45,window.innerWidth/window.innerHeight));handleWorldFocus([0,d*.52,d],[0,1,0],.85);};
+    window.addEventListener('hermes:deck-focus',deck);
     window.addEventListener('hermes:portal-overview',overview);
-    return()=>window.removeEventListener('hermes:portal-overview',overview);
+    return()=>{window.removeEventListener('hermes:portal-overview',overview);window.removeEventListener('hermes:deck-focus',deck);};
   },[world,handleWorldFocus]);
   const handleFocusArea = useCallback(
     (focus: { center: [number, number, number]; radius: number }) => {

@@ -1,0 +1,10 @@
+import {afterEach,describe,it,expect,vi} from 'vitest';
+import {act,cleanup,renderHook} from '@testing-library/react';
+import {commandPresence,publishCommandActivity,useCommandPresence,openCommandArea} from '@/features/v2/world/commandPresence';
+afterEach(()=>{cleanup();publishCommandActivity('idle');});
+describe('Kommandozentrale zeigt belegte Zustände',()=>{
+ it('unterscheidet offline, bereit und wartende Freigaben',()=>{expect(commandPresence('idle',false,4)).toBe('offline');expect(commandPresence('idle',true,0)).toBe('idle');expect(commandPresence('idle',true,2)).toBe('waiting');});
+ it('zeigt aktive Aufnahme oder Wiedergabe vor dem ruhenden Verbindungsstatus',()=>{expect(commandPresence('listening',false,0)).toBe('listening');expect(commandPresence('speaking',true,2)).toBe('speaking');expect(commandPresence('working',true,0)).toBe('working');expect(commandPresence('error',true,0)).toBe('error');});
+ it('aktualisiert mehrere Ansichten und kehrt nach Beenden zum Wartestatus zurück',()=>{const a=renderHook(()=>useCommandPresence(true,2)),b=renderHook(()=>useCommandPresence(true,0));act(()=>publishCommandActivity('listening'));expect(a.result.current).toBe('listening');expect(b.result.current).toBe('listening');act(()=>publishCommandActivity('idle'));expect(a.result.current).toBe('waiting');expect(b.result.current).toBe('idle');});
+ it('öffnet nur den gewählten Arbeitsbereich und startet keinen Mikrofonzugriff',()=>{const work=vi.fn(),panel=vi.fn(),mic=vi.fn();window.addEventListener('hermes:work-tab',work);window.addEventListener('hermes:panel-open',panel);window.addEventListener('hermes:console-open',mic);try{openCommandArea('decisions');expect(work).toHaveBeenCalledTimes(1);expect(work.mock.calls[0][0].detail).toBe('decisions');expect(panel.mock.calls[0][0].detail).toBe('work');expect(mic).not.toHaveBeenCalled();}finally{window.removeEventListener('hermes:work-tab',work);window.removeEventListener('hermes:panel-open',panel);window.removeEventListener('hermes:console-open',mic);}});
+});

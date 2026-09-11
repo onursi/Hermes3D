@@ -29,6 +29,7 @@ import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
 import { reportJarvisHead, setBeamActive } from "./beamAnchors";
 import { jarvisAudio } from "./jarvisAudio";
 import Link from "next/link";
+import {publishCommandActivity} from "../world/commandPresence";
 import { useHermesOpenMic } from "./useHermesOpenMic";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 import { PersonalityStudioModal, PERSONAS, type PersonaConfig } from "./PersonalityStudioModal";
@@ -361,6 +362,10 @@ export function JarvisCompanion({
     : isPlayingAudio
     ? "speaking"
     : phase;
+
+  useEffect(()=>{publishCommandActivity(voice.listening?'listening':isPlayingAudio?'speaking':phase==='error'?'error':phase==='thinking'||phase==='searching'||phase==='speaking'?'working':'idle');},[voice.listening,isPlayingAudio,phase]);
+  useEffect(()=>()=>publishCommandActivity('idle'),[]);
+  useEffect(()=>{const open=()=>{setIsOpen(true);setIsMinimized(false);};window.addEventListener('hermes:console-open',open);return()=>window.removeEventListener('hermes:console-open',open);},[]);
 
   // Audio-Synthese Aktivitäten
   useEffect(() => {

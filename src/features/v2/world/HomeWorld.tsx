@@ -1,12 +1,12 @@
 "use client";
 
 import { Billboard, Text } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { Suspense, useMemo } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
-import { DECISION_COLOR } from "@/features/v2/palette";
+import {CommandCore,CommandPlatform,CommandStations} from "./CommandCore";
+import {useWorlds} from "../foundations/WorldsProvider";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import { AgentDeck } from "@/features/v2/world/AgentDeck";
 import { DeckDust } from "@/features/v2/world/DeckDust";
@@ -29,20 +29,6 @@ import { DeckDust } from "@/features/v2/world/DeckDust";
 const PLATFORM_RADIUS = 4.6;
 const DOCK_RADIUS = 3.15;
 
-/** Cyan = information, mint = confirmed, amber = a decision is waiting. */
-const COLOR_INFO = "#38bdf8";
-/**
- * Die Architektur des Decks — nicht die Signale darauf.
- *
- * Der Lichtkanal, die Hilfsringe und die Rückenspange waren alle in COLOR_INFO.
- * Damit war das größte Objekt im Bild in der Farbe, die eigentlich "hier wird
- * etwas abgerufen" bedeutet, und Onurs "zu blau" hatte hier seine größte
- * Fläche. Das Deck ist jetzt warmes Metall; Cyan bleibt dem Kern und den
- * Signalen.
- */
-const COLOR_STRUCTURE = "#c2b19a";
-const COLOR_AMBER = DECISION_COLOR;
-
 export function HomeWorld({
   agents,
   rosterReachable,
@@ -55,6 +41,7 @@ export function HomeWorld({
   onSelectAgent: (id: string) => void;
 }) {
   const { selection, focus, prefs } = useV2();
+  const {objects}=useWorlds();
 
   /**
    * Seats are derived from the real roster, never from a fixed five.
@@ -86,11 +73,10 @@ export function HomeWorld({
   return (
     <group>
       <DeckDust />
-      <StagePlatform />
-      <BackBrace />
-      <group onClick={event=>{event.stopPropagation();window.dispatchEvent(new CustomEvent('hermes:panel-open',{detail:'work'}));}}>
-        <HermesCore intensity={prefs.coreIntensity} approvalsWaiting={approvalsWaiting} />
-      </group>
+      <Suspense fallback={<StagePlatform/>}><CommandPlatform/></Suspense>
+      <CommandCore intensity={prefs.coreIntensity} reachable={rosterReachable} waiting={approvalsWaiting}/>
+      <CommandStations projects={objects.filter(o=>o.kind==='project'&&!['fertig','abgeschlossen'].includes(o.state)).length} waiting={approvalsWaiting} reachable={rosterReachable}/>
+      {seats.map(({agent,position})=><mesh key={agent.id} position={[position.x,-.08,position.z]}><cylinderGeometry args={[.48,.55,.15,6]}/><meshStandardMaterial color="#25323c" metalness={.65} roughness={.3}/></mesh>)}
 
       {/* Alle Agenten in einem Objekt statt einem pro Figur. Der Grund steht
           in AgentDeck.tsx und ist gemessen, nicht vermutet. */}
@@ -104,7 +90,7 @@ export function HomeWorld({
       {/* No roster is a real state and says so, rather than showing empty
           seats that look like a room nobody came to. */}
       {!rosterReachable ? (
-        <Billboard position={[0, 2.4, 0]}>
+        <Billboard position={[0, 3.8, 0]}>
           <Text
             fontSize={0.19}
             color="#f43f5e"
@@ -147,114 +133,6 @@ function StagePlatform() {
         <cylinderGeometry args={[1.18, 0.6, 0.36, 6]} />
         <meshStandardMaterial color="#26313c" roughness={0.3} metalness={0.7} />
       </mesh>
-    </group>
-  );
-}
-
-/**
- * The brace: a low arc behind the stage that gives the room a back without
- * giving it a wall. It also carries the key light's falloff, which is what
- * separates the figures from the void behind them.
- */
-function BackBrace() {
-  // A torus lies in its own XY plane, so an unrotated one stands upright like
-  // a gate — which is what the first version did: a stray arc in the sky
-  // rather than architecture. Laid flat and tipped back it becomes a low rail
-  // that follows the rear of the platform and carries the light along it.
-  return (
-    <group position={[0, 0.7, -0.4]} rotation={[-Math.PI / 2 + 0.3, 0, 0]}>
-      <mesh rotation={[0, 0, Math.PI * 0.57]} castShadow>
-        <torusGeometry args={[4.8, 0.075, 10, 64, Math.PI * 0.82]} />
-        <meshStandardMaterial color="#282420" roughness={0.4} metalness={0.65} />
-      </mesh>
-      <mesh rotation={[0, 0, Math.PI * 0.57]} position={[0, 0, 0.055]}>
-        <torusGeometry args={[4.8, 0.018, 8, 64, Math.PI * 0.82]} />
-        <meshBasicMaterial color={COLOR_STRUCTURE} transparent opacity={0.5} />
-      </mesh>
-    </group>
-  );
-}
-
-/**
- * Hermes, as a presence rather than a face.
- *
- * A face lands in the uncanny valley the moment it is not perfect, and perfect
- * is not available at this budget. A form that breathes when idle and brightens
- * when something waits reads as attention without claiming to be a person.
- *
- * The breathing is the one deliberate exception to "movement means an event".
- * Codex was right that the rule taken literally produces a dead room; what
- * matters is that ambient motion stays far below the intensity of a real
- * event. This breathes at eight per cent — an approval pulse is four times
- * that and changes hue.
- */
-function HermesCore({
-  intensity,
-  approvalsWaiting,
-}: {
-  intensity: number;
-  approvalsWaiting: number;
-}) {
-  const innerRef = useRef<THREE.Mesh>(null);
-  const shellRef = useRef<THREE.Mesh>(null);
-  const haloRef = useRef<THREE.Mesh>(null);
-  const waiting = approvalsWaiting > 0;
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    const breath = 1 + Math.sin(t * 0.9) * 0.08;
-    if (innerRef.current) innerRef.current.scale.setScalar(breath);
-    if (shellRef.current) {
-      shellRef.current.rotation.y = t * 0.12;
-      shellRef.current.rotation.x = Math.sin(t * 0.17) * 0.14;
-    }
-    if (haloRef.current) {
-      const material = haloRef.current.material as THREE.MeshBasicMaterial;
-      // A waiting decision pulses four times as hard as the idle breath, so
-      // the difference is visible from across the room without reading a word.
-      material.opacity = waiting
-        ? 0.28 + Math.abs(Math.sin(t * 1.6)) * 0.34
-        : 0.1 + Math.sin(t * 0.9) * 0.03;
-    }
-  });
-
-  const tone = waiting ? COLOR_AMBER : COLOR_INFO;
-
-  return (
-    <group position={[0, 1.35, 0]}>
-      <mesh ref={innerRef}>
-        <icosahedronGeometry args={[0.29, 2]} />
-        <meshStandardMaterial
-          color={tone}
-          emissive={tone}
-          emissiveIntensity={1.5 * intensity}
-          roughness={0.25}
-          metalness={0.1}
-        />
-      </mesh>
-
-      {/* Open shell: wireframe rather than glass, because transmission is the
-          single most expensive material choice available and buys nothing here. */}
-      <mesh ref={shellRef}>
-        <icosahedronGeometry args={[0.62, 1]} />
-        <meshBasicMaterial color={tone} wireframe transparent opacity={0.22 * intensity} />
-      </mesh>
-
-      {/* A ring of light in the floor beneath the core, not a disc. The first
-          version was a filled circle and read as a flat teal pancake lying on
-          the platform — an object, where this is meant to be light falling. */}
-      <mesh ref={haloRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.33, 0]}>
-        <ringGeometry args={[0.62, 1.05, 48]} />
-        <meshBasicMaterial
-          color={tone}
-          transparent
-          opacity={0.12}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      <pointLight color={tone} intensity={2.6 * intensity} distance={7} decay={2} />
     </group>
   );
 }
