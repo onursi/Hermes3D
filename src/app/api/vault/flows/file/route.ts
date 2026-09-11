@@ -1,0 +1,7 @@
+import {createReadStream} from 'node:fs';import {Readable} from 'node:stream';
+import path from 'node:path';import os from 'node:os';
+import {flowFile} from '@/lib/flowNotes';
+export const dynamic='force-dynamic';
+export async function GET(req:Request){try{const q=new URL(req.url).searchParams;const a=await flowFile(process.env.OBSIDIAN_VAULT_PATH?.trim()||path.join(os.homedir(),'Desktop','Life OS'),q.get('project')||'',q.get('stage')||'',q.get('file')||'');let start=0,end=a.size-1;const range=req.headers.get('range');if(range){const match=/^bytes=(\d*)-(\d*)$/.exec(range);if(!match||(!match[1]&&!match[2]))return new Response(null,{status:416,headers:{'Content-Range':`bytes */${a.size}`}});start=match[1]?Number(match[1]):Math.max(0,a.size-Number(match[2]));end=match[1]&&match[2]?Math.min(Number(match[2]),end):end;if(start>end||start>=a.size)return new Response(null,{status:416,headers:{'Content-Range':`bytes */${a.size}`}});}
+ const headers:Record<string,string>={'Content-Type':a.type+(a.type==='text/plain'?'; charset=utf-8':''),'Content-Length':String(Math.max(0,end-start+1)),'Accept-Ranges':'bytes','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox"};if(range)headers['Content-Range']=`bytes ${start}-${end}/${a.size}`;return new Response(a.size?Readable.toWeb(createReadStream(a.full,{start,end})) as ReadableStream:null,{status:range?206:200,headers});
+ }catch{return new Response('Datei nicht verfügbar oder nicht zugeordnet',{status:404});}}

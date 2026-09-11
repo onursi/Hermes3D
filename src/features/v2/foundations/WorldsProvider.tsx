@@ -1,5 +1,6 @@
 "use client";
 import {createContext,useContext,useEffect,useState,useRef,useCallback,type ReactNode,type MutableRefObject} from "react";
+import {FlowProvider} from "./FlowWorkspace";
 import type {WorldObject} from "./model";
 import {type V2World,useV2} from "../state";
 import {useHermesLive} from "../useHermesLive";
@@ -24,6 +25,6 @@ export function WorldsProvider({children}:{children:ReactNode}){
  useEffect(()=>{const abort=new AbortController();fetch('/api/vault/worlds',{signal:abort.signal}).then(r=>{if(!r.ok)throw Error('LifeOS nicht erreichbar');return r.json();}).then(result=>setData({...result,loading:false})).catch(e=>{if(!abort.signal.aborted)setData({objects:[],issues:[String(e.message)],loading:false});});return()=>abort.abort();},[]);
  useEffect(()=>{if(world!=='flow'||status!=='connected'||!methods.includes('cron.list'))return;let cancelled=false;const read=()=>{void call('cron.list',{includeDisabled:true}).then(result=>{if(cancelled)return;setJobs((result as {jobs?:CronJobSummary[]}).jobs||[]);setFlowError('');}).catch(()=>{if(!cancelled){setJobs([]);setFlowError('Laufdaten derzeit nicht abrufbar');}});};read();const timer=setInterval(read,10000);return()=>{cancelled=true;clearInterval(timer);};},[world,status,methods,call]);
  const flowStatus=flowError||(live.status==='connected'?(live.methods.includes('cron.list')?'Verbunden · Laufdaten alle 10 Sekunden':'Gateway bietet noch keine Laufdaten'):live.status==='connecting'?'Verbindung wird aufgebaut':'Keine Live-Verbindung · keine Arbeit simuliert');
- return <Context.Provider value={{refresh,supernova,replaySupernova,...routines,timeLayers,setTimeLayers,homeSignal,returnHome,horizonView,setHorizonView,milestone,setMilestone,quick,setQuick,...data,phase,setPhase,positions,trip,setTrip,travel,origin,selected,choose,jobs:world==='flow'&&live.status==='connected'?jobs:[],flowStatus}}>{children}</Context.Provider>;
+ return <Context.Provider value={{refresh,supernova,replaySupernova,...routines,timeLayers,setTimeLayers,homeSignal,returnHome,horizonView,setHorizonView,milestone,setMilestone,quick,setQuick,...data,phase,setPhase,positions,trip,setTrip,travel,origin,selected,choose,jobs:world==='flow'&&live.status==='connected'?jobs:[],flowStatus}}><FlowProvider world={world}>{children}</FlowProvider></Context.Provider>;
 }
 export function useWorlds(){const c=useContext(Context);if(!c)throw Error('WorldsProvider missing');return c;}
