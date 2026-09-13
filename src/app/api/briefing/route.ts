@@ -9,6 +9,7 @@ import {
   buildQuickStart,
   type BriefingInput,
   type BriefingProject,
+  type BriefingProjectState,
   type BriefingTask,
 } from "@/lib/briefing/synthesis";
 
@@ -30,10 +31,11 @@ export async function GET(req: Request) {
   const sinceDate = new Date(Date.now() - hours * 60 * 60 * 1_000);
   const today = new Date().toISOString().slice(0, 10);
 
-  const [tasksResult, approvalsResult, projectsResult, codexResult] = await Promise.allSettled([
+  const [tasksResult, approvalsResult, projectsResult, worldsResult, codexResult] = await Promise.allSettled([
     fetchJson(`${url.origin}/api/todoist/tasks`),
     fetchJson(`${url.origin}/api/approvals`),
     fetchJson(`${url.origin}/api/vault/projects`),
+    fetchJson(`${url.origin}/api/vault/worlds`),
     listRecentCodexThreads({ since: sinceDate, limit: 16 }),
   ]);
 
@@ -61,6 +63,21 @@ export async function GET(req: Request) {
       : { ok: false, value: [], reason: value?.error ?? "LifeOS-Projekte nicht erreichbar" };
   } else projects.reason = String(projectsResult.reason).slice(0, 180);
 
+  const projectStates: BriefingProjectState[] = worldsResult.status === "fulfilled" && Array.isArray(worldsResult.value?.objects)
+    ? worldsResult.value.objects
+        .filter((object: { kind?: string }) => object.kind === "project")
+        .map((object: BriefingProjectState) => ({
+          title: object.title,
+          path: object.path,
+          state: object.state,
+          workDate: object.workDate,
+          summary: object.summary,
+          current: object.current,
+          nextTodo: object.nextTodo,
+          blocker: object.blocker,
+        }))
+    : [];
+
   const codex: Source<CodexThreadSnapshot[]> = codexResult.status === "fulfilled"
     ? { ok: true, value: codexResult.value }
     : { ok: false, value: [], reason: String(codexResult.reason).slice(0, 180) };
@@ -71,6 +88,7 @@ export async function GET(req: Request) {
     tasks: tasks.value,
     approvals: approvals.value,
     projects: projects.value,
+    projectStates,
     codexThreads: codex.value,
     sourceStatus: {
       tasks: { ok: tasks.ok, reason: tasks.reason },
@@ -89,6 +107,7 @@ export async function GET(req: Request) {
       tasks: input.tasks.length,
       approvals: input.approvals,
       projects: input.projects.length,
+      projectStates: projectStates.length,
       codexThreads: input.codexThreads.length,
     },
   };

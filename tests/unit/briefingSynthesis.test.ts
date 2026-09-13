@@ -30,6 +30,7 @@ const input: BriefingInput = {
       recentNotes: [],
     },
   ],
+  projectStates: [],
   codexThreads: [
     {
       id: "thread-1",
@@ -77,5 +78,29 @@ describe("grounded briefing synthesis", () => {
     expect(quick).toContain("[ENTSCHEIDUNG] Freigabestand unbekannt");
     expect(quick).toContain("[FOKUS] Hermes3D · zuletzt Übergabe");
     expect(quick).toContain("[NÄCHSTER SCHRITT] Wichtige Schleife · Arbeit");
+  });
+
+  it("uses a documented project state for focus, next step and source evidence", () => {
+    const grounded: BriefingInput = {
+      ...input,
+      projectStates: [
+        {
+          title: "Hermes3D",
+          path: "05 Projekte/Hermes3D/Übergabe.md",
+          state: "in-arbeit",
+          workDate: "2026-09-13",
+          current: "Das echte Wiedereinstiegsbriefing läuft.",
+          nextTodo: "Den 60-Sekunden-Wiedereinstieg abnehmen.",
+          blocker: "Visuelle Abnahme fehlt.",
+        },
+      ],
+    };
+
+    const quick = buildQuickStart(grounded);
+    const source = briefingSources(grounded).find((entry) => entry.kind === "vault");
+    expect(quick).toContain("[FOKUS] Hermes3D · Das echte Wiedereinstiegsbriefing läuft.");
+    expect(quick).toContain("[NÄCHSTER SCHRITT] Den 60-Sekunden-Wiedereinstieg abnehmen.");
+    expect(source?.excerpt).toContain("Aktuell: Das echte Wiedereinstiegsbriefing läuft.");
+    expect(source?.excerpt).toContain("Blocker: Visuelle Abnahme fehlt.");
   });
 });

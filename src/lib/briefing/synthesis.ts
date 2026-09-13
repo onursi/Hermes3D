@@ -15,6 +15,17 @@ export type BriefingProject = {
   recentNotes: { title: string; path: string; modified: string }[];
 };
 
+export type BriefingProjectState = {
+  title: string;
+  path: string;
+  state?: string;
+  workDate?: string;
+  summary?: string;
+  current?: string;
+  nextTodo?: string;
+  blocker?: string;
+};
+
 export type BriefingSource = {
   id: string;
   title: string;
@@ -30,11 +41,32 @@ export type BriefingInput = {
   tasks: BriefingTask[];
   approvals: number;
   projects: BriefingProject[];
+  projectStates?: BriefingProjectState[];
   codexThreads: CodexThreadSnapshot[];
   sourceStatus: Record<"tasks" | "approvals" | "projects" | "codex", { ok: boolean; reason?: string }>;
 };
 
-const clip = (text: string, limit = 320) => text.replace(/\s+/g, " ").trim().slice(0, limit);
+const clip = (text: string, limit = 320) => {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= limit) return normalized;
+  const slice = normalized.slice(0, Math.max(1, limit - 1));
+  const wordBoundary = slice.lastIndexOf(" ");
+  return `${slice.slice(0, wordBoundary >= limit * 0.72 ? wordBoundary : slice.length).trimEnd()}…`;
+};
+
+function projectStateFor(input: BriefingInput, notePath: string) {
+  return (input.projectStates ?? []).find((state) => state.path === notePath);
+}
+
+export function recentProjectStates(input: BriefingInput) {
+  const changedPaths = new Set(
+    changedProjects(input).flatMap((project) => project.recentNotes.map((note) => note.path)),
+  );
+  const cutoffDay = input.since.slice(0, 10);
+  return (input.projectStates ?? [])
+    .filter((state) => changedPaths.has(state.path) || Boolean(state.workDate && state.workDate >= cutoffDay))
+    .sort((a, b) => (b.workDate ?? "").localeCompare(a.workDate ?? ""));
+}
 
 export function changedProjects(input: BriefingInput) {
   const cutoff = Date.parse(input.since);
@@ -60,6 +92,7 @@ function nextTask(input: BriefingInput) {
 
 export function buildQuickStart(input: BriefingInput) {
   const focus = changedProjects(input)[0];
+  const groundedFocus = recentProjectStates(input).find((state) => state.current || state.nextTodo || state.summary);
   const task = nextTask(input);
   const decision = !input.sourceStatus.approvals.ok
     ? "Freigabestand unbekannt"
@@ -68,12 +101,16 @@ export function buildQuickStart(input: BriefingInput) {
       : "Keine wartende Freigabe";
   const focusLine = !input.sourceStatus.projects.ok
     ? "Projektstand unbekannt"
-    : focus
+    : groundedFocus
+      ? `${groundedFocus.title} · ${clip(groundedFocus.current ?? groundedFocus.summary ?? groundedFocus.state ?? "dokumentierter Stand", 150)}`
+      : focus
       ? `${focus.name} · zuletzt ${focus.recentNotes[0]?.title ?? "Projektnotiz"}`
       : "Kein verändertes Projekt im Zeitfenster";
-  const nextLine = !input.sourceStatus.tasks.ok
-    ? "Aufgabenstand unbekannt"
-    : task
+  const nextLine = groundedFocus?.nextTodo
+    ? clip(groundedFocus.nextTodo, 180)
+    : !input.sourceStatus.tasks.ok
+      ? "Aufgabenstand unbekannt"
+      : task
       ? `${task.content}${task.projectName ? ` · ${task.projectName}` : ""}`
       : "Keine offene Todoist-Aufgabe";
 
@@ -87,14 +124,26 @@ export function buildQuickStart(input: BriefingInput) {
 
 export function briefingSources(input: BriefingInput): BriefingSource[] {
   const projectSources = changedProjects(input).flatMap((project) =>
-    project.recentNotes.slice(0, 3).map((note) => ({
-      id: note.path,
-      title: note.title,
-      folder: `LifeOS · ${project.name}`,
-      excerpt: `Geändert: ${note.modified}`,
-      kind: "vault" as const,
-      navigable: true,
-    })),
+    project.recentNotes.slice(0, 3).map((note) => {
+      const state = projectStateFor(input, note.path);
+      const details = state
+        ? [
+            state.state ? `Phase: ${state.state}` : "",
+            state.workDate ? `Arbeitsstand: ${state.workDate}` : "",
+            state.current ? `Aktuell: ${clip(state.current, 520)}` : "",
+            state.nextTodo ? `Nächster Schritt: ${clip(state.nextTodo, 320)}` : "",
+            state.blocker ? `Blocker: ${clip(state.blocker, 260)}` : "",
+          ].filter(Boolean).join(" · ")
+        : `Geändert: ${note.modified}; Inhalt dieses Dokuments wurde nicht als strukturierter Projektstand erkannt.`;
+      return {
+        id: note.path,
+        title: note.title,
+        folder: `LifeOS · ${project.name}`,
+        excerpt: details,
+        kind: "vault" as const,
+        navigable: true,
+      };
+    }),
   );
   const codexSources = input.codexThreads.slice(0, 8).map((thread) => ({
     id: `codex:${thread.id}`,
@@ -144,7 +193,7 @@ export function buildBriefingPrompt(input: BriefingInput) {
     "Regeln:",
     "- Nutze ausschließlich die Belege unten und zitiere sie als [Q1] oder [F1].",
     "- Codex-Vorschauen sind Arbeitsaufträge, keine abgeschlossenen Ergebnisse und keine Entscheidungen.",
-    "- Geänderte Notizen belegen eine Änderung, aber nicht automatisch deren Inhalt.",
+    "- Eine reine Änderungszeit belegt nur eine Änderung. Mit Aktuell/Nächster Schritt/Blocker ausgewiesene Projektstände dürfen in genau diesem Umfang inhaltlich verwendet werden.",
     "- Nenne eine Entscheidung nur, wenn sie im Beleg ausdrücklich als Entscheidung steht.",
     "- Erfinde keine Fertigstellungen, Prioritäten, Fristen oder Zusammenhänge.",
     "- Antworte kompakt auf Deutsch in genau diesen Abschnitten:",
