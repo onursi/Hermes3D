@@ -58,6 +58,33 @@ type JarvisAttachment = {
   name: string;
   url: string;
   contentType: string;
+  extractedText?: string;
+};
+
+type MemoryMatch = {
+  id: string;
+  title: string;
+  score: number;
+  reason: string;
+  duplicate: boolean;
+};
+
+type MemoryProposal = {
+  id: string;
+  title: string;
+  kind: "entscheidung" | "idee" | "aufgabe" | "projektstand" | "wissen";
+  status: "direkte-eingabe" | "ki-synthese";
+  sourceLabel: string;
+  summary: string;
+  links: string[];
+  attachments: JarvisAttachment[];
+  sources: { id: string; title: string }[];
+  matches: MemoryMatch[];
+  recommendation: "discard" | "inbox" | "append";
+  recommendationReason: string;
+  target?: string;
+  inboxFile: string;
+  preview: string;
 };
 
 const KNOWLEDGE_PULSE_EVENT = "hermes_knowledge_pulse";
@@ -160,7 +187,8 @@ export function JarvisCompanion({
   const [isScanning, setIsScanning] = useState(false);
 
   // Notiz-Vorschau & Aufgaben
-  const [preview, setPreview] = useState<{ title: string; file: string; sources: string[] } | null>(null);
+  const [preview, setPreview] = useState<MemoryProposal | null>(null);
+  const [memoryTarget, setMemoryTarget] = useState("");
   const [candidates, setCandidates] = useState<string[] | null>(null);
   const [candidatesBusy, setCandidatesBusy] = useState(false);
   const [accepted, setAccepted] = useState<Record<string, "saving" | "done" | "failed">>({});
@@ -471,7 +499,7 @@ export function JarvisCompanion({
     }
   }, [answer, phase]);
 
-  // Notiz vorschlagen
+  // Memory Gate: erst prüfen, noch nichts in Obsidian schreiben.
   const proposeNote = useCallback(async () => {
     if (!answer || saving) return;
     setSaving(true);
@@ -479,11 +507,13 @@ export function JarvisCompanion({
       const res = await fetch("/api/jarvis/remember", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: answer, question, sources, preview: true }),
+        body: JSON.stringify({ mode: "propose", answer, question, sources, attachments }),
       });
       const data = await res.json();
-      if (data.ok) {
-        setPreview({ title: data.title, file: data.file, sources: data.sources ?? [] });
+      if (data.ok && data.proposal) {
+        setReason(null);
+        setPreview(data.proposal as MemoryProposal);
+        setMemoryTarget(data.proposal.target ?? "");
       } else {
         setReason(data.reason ?? "Vorschau fehlgeschlagen.");
       }
@@ -492,22 +522,30 @@ export function JarvisCompanion({
     } finally {
       setSaving(false);
     }
-  }, [answer, question, sources, saving]);
+  }, [answer, question, sources, attachments, saving]);
 
-  // Notiz in Inbox speichern
-  const confirmNote = useCallback(async () => {
+  // Erst diese ausdrückliche Entscheidung darf den Vault verändern.
+  const confirmNote = useCallback(async (action: "inbox" | "defer" | "append" | "task-candidate") => {
     if (!preview || saving) return;
     setSaving(true);
     try {
       const res = await fetch("/api/jarvis/remember", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: answer, question, sources, title: preview.title }),
+        body: JSON.stringify({
+          mode: "commit",
+          proposalId: preview.id,
+          action,
+          targetId: action === "append" ? memoryTarget : undefined,
+          title: preview.title,
+        }),
       });
       const data = await res.json();
       setSavedAs(data.ok ? data.file : null);
       if (data.ok) {
         setPreview(null);
+        setMemoryTarget("");
+        setReason(Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(" ") : null);
         jarvisAudio.playChime(1.3);
       } else {
         setReason(data.reason ?? "Konnte nicht gespeichert werden.");
@@ -517,7 +555,15 @@ export function JarvisCompanion({
     } finally {
       setSaving(false);
     }
-  }, [preview, answer, question, sources, saving]);
+  }, [preview, memoryTarget, saving]);
+
+  const discardProposal = useCallback(async () => {
+    const id = preview?.id;
+    setPreview(null);
+    setMemoryTarget("");
+    if (!id) return;
+    await fetch(`/api/jarvis/remember?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => undefined);
+  }, [preview]);
 
   // Briefing abrufen ("Wie ist mein Stand?")
   const briefing = useCallback(async () => {
@@ -1167,10 +1213,10 @@ export function JarvisCompanion({
                     onClick={() => void proposeNote()}
                     disabled={saving || Boolean(savedAs)}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#0c1420]/80 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/85 transition hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-100 disabled:opacity-40"
-                    title="Legt diese Antwort mit Frage und Quellen als Notiz in der Inbox ab"
+                    title="Prüft Aussage, Synthese, Quellen, Dubletten und passenden LifeOS-Ort, ohne zu speichern"
                   >
                     <BookmarkPlus size={12} />
-                    <span>{savedAs ? "✓ Im Vault abgelegt" : saving ? "Speichert…" : "In Inbox merken"}</span>
+                    <span>{savedAs ? "✓ Bewusst abgelegt" : saving ? "Prüft…" : "Memory Gate"}</span>
                   </button>
 
                   <button
@@ -1192,12 +1238,28 @@ export function JarvisCompanion({
                 </div>
               ) : null}
 
-              {/* Notiz-Vorschau Dialog */}
+              {/* Memory Gate: Vorschlag, Fundstellen und exakte Änderung vor jeder Speicherung. */}
               {preview ? (
-                <div className="mt-3 rounded-xl border border-white/10 bg-[#0a1018]/90 p-3">
-                  <p className="pb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-300">
-                    Vorschau: Speicherung in Inbox
-                  </p>
+                <div className="mt-3 overflow-hidden rounded-2xl border border-cyan-400/20 bg-[#08111d]/95 shadow-[0_18px_60px_rgba(0,0,0,.35)]">
+                  <div className="border-b border-white/10 bg-[linear-gradient(110deg,rgba(34,211,238,.12),rgba(245,158,11,.08),transparent)] px-3.5 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Memory Gate · noch nicht gespeichert</p>
+                        <p className="mt-1 font-sans text-sm font-semibold text-white">{preview.summary}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-amber-100">
+                        {preview.kind}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-1 text-[11px] text-slate-300 sm:grid-cols-2">
+                      <p><span className="text-white/45">Quelle · </span>{preview.sourceLabel}</p>
+                      <p><span className="text-white/45">Prüfstatus · </span>{preview.status === "direkte-eingabe" ? "Onurs Eingabe; externe Tatsachen ungeprüft" : "KI-Synthese, ungeprüft"}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 p-3.5">
+                  <label className="block">
+                    <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/45">Titel der Inbox-Fassung</span>
                   <input
                     value={preview.title}
                     onChange={(e) =>
@@ -1206,30 +1268,87 @@ export function JarvisCompanion({
                     onKeyDown={(e) => e.stopPropagation()}
                     className="w-full rounded-lg border border-white/10 bg-black/60 px-2.5 py-1.5 font-sans text-xs text-white outline-none focus:border-cyan-400/50"
                   />
-                  <p className="mt-1.5 truncate font-mono text-[10px] text-cyan-200/50" title={preview.file}>
-                    {preview.file}
-                  </p>
-                  {preview.sources.length > 0 ? (
-                    <p className="mt-1 font-sans text-[11px] text-white/50">
-                      Verlinkt: {preview.sources.join(" · ")}
-                    </p>
+                  </label>
+
+                  <div className={`rounded-xl border px-3 py-2.5 ${preview.recommendation === "discard" ? "border-red-400/25 bg-red-400/8" : preview.recommendation === "append" ? "border-emerald-400/25 bg-emerald-400/8" : "border-amber-300/25 bg-amber-300/8"}`}>
+                    <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/50">Jarvis empfiehlt · {preview.recommendation === "discard" ? "nicht speichern" : preview.recommendation === "append" ? "bestehende Seite ergänzen" : "erst in die Inbox"}</p>
+                    <p className="mt-1 font-sans text-[11px] leading-relaxed text-slate-200">{preview.recommendationReason}</p>
+                  </div>
+
+                  {preview.matches.length ? (
+                    <label className="block">
+                      <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/45">Gefundene Zusammenhänge · Zielseite auswählen</span>
+                      <select
+                        value={memoryTarget}
+                        onChange={(event) => setMemoryTarget(event.target.value)}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className="w-full rounded-lg border border-white/10 bg-[#07101a] px-2.5 py-2 font-sans text-xs text-white outline-none focus:border-cyan-400/50"
+                      >
+                        <option value="">Keine Seite ausgewählt</option>
+                        {preview.matches.map((match) => (
+                          <option key={match.id} value={match.id}>{match.duplicate ? "DUBLETTE · " : ""}{match.title} · {match.reason}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="font-sans text-[11px] text-white/45">Keine vorhandene Wiki-Seite passt eindeutig. Es wird nichts automatisch einsortiert.</p>
+                  )}
+
+                  {(preview.attachments.length || preview.links.length || preview.sources.length) ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {preview.attachments.map((file) => <span key={file.id} className="rounded-full border border-violet-300/20 bg-violet-300/8 px-2 py-1 font-mono text-[9px] text-violet-100">Datei · {file.name}</span>)}
+                      {preview.links.map((link) => <span key={link} className="max-w-full truncate rounded-full border border-cyan-300/20 bg-cyan-300/8 px-2 py-1 font-mono text-[9px] text-cyan-100" title={link}>Link · {link}</span>)}
+                      {preview.sources.map((source) => <span key={source.id} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 font-mono text-[9px] text-white/60">Quelle · {source.title}</span>)}
+                    </div>
                   ) : null}
-                  <div className="mt-2.5 flex items-center gap-2">
+
+                  <details className="rounded-xl border border-white/10 bg-black/25 p-2.5">
+                    <summary className="cursor-pointer font-mono text-[9px] uppercase tracking-[0.15em] text-white/55">Geplanten Markdown-Inhalt ansehen</summary>
+                    <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-300">{preview.preview}</pre>
+                  </details>
+
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <button
                       type="button"
-                      onClick={() => void confirmNote()}
-                      disabled={saving || !preview.title.trim()}
+                      onClick={() => void confirmNote("append")}
+                      disabled={saving || !memoryTarget}
                       className="rounded-xl border border-emerald-400/40 bg-emerald-500/20 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] font-bold text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-40"
                     >
-                      {saving ? "Speichert…" : "Bestätigen & Ablegen"}
+                      {saving ? "Speichert…" : "Seite ergänzen"}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPreview(null)}
-                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-white/50 hover:text-white"
+                      onClick={() => void confirmNote("inbox")}
+                      disabled={saving || !preview.title.trim()}
+                      className="rounded-xl border border-cyan-400/35 bg-cyan-500/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-40"
                     >
-                      Abbrechen
+                      In Inbox
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void confirmNote("defer")}
+                      disabled={saving || !preview.title.trim()}
+                      className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-100 hover:bg-amber-300/20 disabled:opacity-40"
+                    >
+                      Später prüfen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void confirmNote("task-candidate")}
+                      disabled={saving || !preview.title.trim()}
+                      className="rounded-xl border border-violet-300/25 bg-violet-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-violet-100 hover:bg-violet-300/20 disabled:opacity-40"
+                      title="Legt nur einen Aufgabenkandidaten in der Inbox ab; sendet nichts an Todoist"
+                    >
+                      Aufgabe vormerken
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void discardProposal()}
+                      className="rounded-xl border border-white/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/50 hover:border-red-400/30 hover:text-red-200"
+                    >
+                      Verwerfen
+                    </button>
+                  </div>
                   </div>
                 </div>
               ) : null}

@@ -220,7 +220,7 @@ export function JarvisConsole({
    * be linked, and the title is editable before anything touches the disk.
    */
   const [preview, setPreview] = useState<
-    { title: string; file: string; sources: string[] } | null
+    { id: string; title: string; file: string; sources: string[] } | null
   >(null);
 
   const proposeNote = useCallback(async () => {
@@ -230,10 +230,15 @@ export function JarvisConsole({
       const res = await fetch("/api/jarvis/remember", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: answer, question, sources, preview: true }),
+        body: JSON.stringify({ mode: "propose", answer, question, sources }),
       });
       const data = await res.json();
-      if (data.ok) setPreview({ title: data.title, file: data.file, sources: data.sources ?? [] });
+      if (data.ok && data.proposal) setPreview({
+        id: data.proposal.id,
+        title: data.proposal.title,
+        file: data.proposal.inboxFile,
+        sources: (data.proposal.sources ?? []).map((source: { title: string }) => source.title),
+      });
       else setReason(data.reason ?? "Vorschau fehlgeschlagen.");
     } catch (error) {
       setReason(error instanceof Error ? error.message : String(error));
@@ -249,7 +254,7 @@ export function JarvisConsole({
       const res = await fetch("/api/jarvis/remember", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: answer, question, sources, title: preview.title }),
+        body: JSON.stringify({ mode: "commit", proposalId: preview.id, action: "inbox", title: preview.title }),
       });
       const data = await res.json();
       setSavedAs(data.ok ? data.file : null);
@@ -260,7 +265,7 @@ export function JarvisConsole({
     } finally {
       setSaving(false);
     }
-  }, [preview, answer, question, sources, saving]);
+  }, [preview, saving]);
 
   /**
    * The day, as advice rather than as a list.
