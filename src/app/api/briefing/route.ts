@@ -6,6 +6,7 @@ import {
   briefingSources,
   buildBriefingPrompt,
   buildLocalBriefing,
+  buildQuickStart,
   type BriefingInput,
   type BriefingProject,
   type BriefingTask,
@@ -103,7 +104,7 @@ export async function GET(req: Request) {
     };
     const answer = (await askHermes(buildBriefingPrompt(input))).trim();
     if (!answer || /^Error:/i.test(answer)) throw new Error(answer || "Hermes hat leer geantwortet.");
-    return NextResponse.json({ ok: true, mode: "hermes", briefing: answer, facts, sources });
+    return NextResponse.json({ ok: true, mode: "hermes", briefing: `${buildQuickStart(input)}\n\n${answer}`, facts, sources });
   } catch (error) {
     return NextResponse.json({
       ok: true,

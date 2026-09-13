@@ -40,10 +40,49 @@ export function changedProjects(input: BriefingInput) {
   const cutoff = Date.parse(input.since);
   return input.projects
     .filter((project) => project.lastTouched && Date.parse(project.lastTouched) >= cutoff)
+    .sort((a, b) => Date.parse(b.lastTouched ?? "") - Date.parse(a.lastTouched ?? ""))
     .map((project) => ({
       ...project,
       recentNotes: project.recentNotes.filter((note) => Date.parse(note.modified) >= cutoff),
     }));
+}
+
+function nextTask(input: BriefingInput) {
+  return input.tasks
+    .filter((task) => !task.isCompleted)
+    .sort((a, b) => {
+      const aDue = a.dueDate ?? "9999-12-31";
+      const bDue = b.dueDate ?? "9999-12-31";
+      if (aDue !== bDue) return aDue.localeCompare(bDue);
+      return Number(b.priority ?? 0) - Number(a.priority ?? 0);
+    })[0];
+}
+
+export function buildQuickStart(input: BriefingInput) {
+  const focus = changedProjects(input)[0];
+  const task = nextTask(input);
+  const decision = !input.sourceStatus.approvals.ok
+    ? "Freigabestand unbekannt"
+    : input.approvals > 0
+      ? `${input.approvals} Freigabe${input.approvals === 1 ? "" : "n"} wartet${input.approvals === 1 ? "" : "n"}`
+      : "Keine wartende Freigabe";
+  const focusLine = !input.sourceStatus.projects.ok
+    ? "Projektstand unbekannt"
+    : focus
+      ? `${focus.name} · zuletzt ${focus.recentNotes[0]?.title ?? "Projektnotiz"}`
+      : "Kein verändertes Projekt im Zeitfenster";
+  const nextLine = !input.sourceStatus.tasks.ok
+    ? "Aufgabenstand unbekannt"
+    : task
+      ? `${task.content}${task.projectName ? ` · ${task.projectName}` : ""}`
+      : "Keine offene Todoist-Aufgabe";
+
+  return [
+    "SCHNELLSTART · UNTER 60 SEKUNDEN",
+    `[ENTSCHEIDUNG] ${decision}`,
+    `[FOKUS] ${focusLine}`,
+    `[NÄCHSTER SCHRITT] ${nextLine}`,
+  ].join("\n");
 }
 
 export function briefingSources(input: BriefingInput): BriefingSource[] {
@@ -132,6 +171,8 @@ export function buildLocalBriefing(input: BriefingInput) {
   const failures = sourceFailures(input);
 
   return [
+    buildQuickStart(input),
+    "",
     "LAGE",
     `${input.sourceStatus.tasks.ok ? `${open.length} Aufgaben sind offen, ${overdue.length} davon überfällig und ${dueToday.length} heute fällig.` : "Der Aufgabenstand ist nicht erreichbar."} ${input.sourceStatus.approvals.ok ? `${input.approvals} Freigaben warten.` : "Der Freigabestand ist unbekannt."}`,
     "",

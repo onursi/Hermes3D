@@ -4,6 +4,7 @@ import {
   briefingSources,
   buildBriefingPrompt,
   buildLocalBriefing,
+  buildQuickStart,
   changedProjects,
   type BriefingInput,
 } from "../../src/lib/briefing/synthesis";
@@ -70,5 +71,11 @@ describe("grounded briefing synthesis", () => {
     expect(local).toContain("Freigabestand ist unbekannt");
     expect(local).not.toContain("0 Freigaben warten");
   });
-});
 
+  it("puts the decision, latest focus and one next task into a three-line quick start", () => {
+    const quick = buildQuickStart(input);
+    expect(quick).toContain("[ENTSCHEIDUNG] Freigabestand unbekannt");
+    expect(quick).toContain("[FOKUS] Hermes3D · zuletzt Übergabe");
+    expect(quick).toContain("[NÄCHSTER SCHRITT] Wichtige Schleife · Arbeit");
+  });
+});
