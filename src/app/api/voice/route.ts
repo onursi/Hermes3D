@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server";
 
+import { getElevenLabsConfig, resolveVoice } from "@/lib/elevenlabs/localConfig";
+
 // High-speed in-memory audio cache for instant replay (0ms latency, zero API cost on repeat)
 const voiceCache = new Map<string, ArrayBuffer>();
+
+export const runtime = "nodejs";
+
+export async function GET() {
+  const config = getElevenLabsConfig();
+  return NextResponse.json({
+    ok: Boolean(config.apiKey && config.voices.hermes.id),
+    provider: "ElevenLabs",
+    source: config.source,
+    voices: Object.fromEntries(
+      Object.entries(config.voices).map(([key, voice]) => [key, { configured: Boolean(voice.id), name: voice.name }]),
+    ),
+    fallback: false,
+  });
+}
 
 export async function POST(req: Request) {
   try {
@@ -15,139 +32,79 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Empty text" }, { status: 400 });
     }
 
-    const cacheKey = `${agentId}:${cleanText}`;
+    if (cleanText.length > 5_000) {
+      return NextResponse.json({ error: "Text ist länger als 5.000 Zeichen." }, { status: 413 });
+    }
+
+    const selected = resolveVoice(agentId);
+    const cacheKey = `${selected.key}:${cleanText}`;
     if (voiceCache.has(cacheKey)) {
       const cached = voiceCache.get(cacheKey)!;
       return new Response(cached, {
         headers: {
           "Content-Type": "audio/mpeg",
           "Cache-Control": "public, max-age=86400",
+          "X-Hermes-Voice-Provider": "ElevenLabs",
+          "X-Hermes-Voice-Name": encodeURIComponent(selected.name),
         },
       });
     }
-
-    const openAiKey = process.env.OPENAI_API_KEY;
-    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-
-    // 1. Studio-grade OpenAI TTS (tts-1 with custom personality voices)
-    if (openAiKey) {
-      let voice = "onyx";
-      const lower = (agentId || "").toLowerCase();
-      if (lower.includes("gemini")) voice = "nova"; // weiblich, energisch
-      else if (lower.includes("chatgpt")) voice = "shimmer"; // weiblich, warm
-      else if (lower.includes("hermes")) voice = "onyx"; // tief, maskulin
-      else if (lower.includes("claude")) voice = "echo"; // männlich, artikuliert
-
-      const res = await fetch("https://api.openai.com/v1/audio/speech", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openAiKey}`,
-          "Content-Type": "application/json",
+    if (!selected.apiKey || !selected.id) {
+      return NextResponse.json(
+        {
+          error: "ElevenLabs ist für Hermes3D nicht vollständig verbunden.",
+          code: "ELEVENLABS_NOT_CONFIGURED",
+          provider: "ElevenLabs",
+          fallback: false,
         },
-        body: JSON.stringify({
-          // `tts-1` is the latency-optimised model; `tts-1-hd` trades a little
-          // speed for noticeably cleaner audio, which matters more here since
-          // every clip is cached after the first request.
-          model: "tts-1-hd",
-          input: cleanText,
-          voice,
-          // Was 1.45. Anything much above 1.0 turns a natural voice into the
-          // chipmunk-adjacent rush that reads as "robot", which is the exact
-          // opposite of what these voices are for.
-          speed: 1.0,
-        }),
-      });
-
-      if (res.ok) {
-        const arrayBuffer = await res.arrayBuffer();
-        voiceCache.set(cacheKey, arrayBuffer);
-        return new Response(arrayBuffer, {
-          headers: {
-            "Content-Type": "audio/mpeg",
-            "Cache-Control": "public, max-age=86400",
-          },
-        });
-      }
+        { status: 503 },
+      );
     }
 
-    // 2. Studio-grade ElevenLabs Multilingual V2
-    if (elevenLabsKey) {
-      const elevenVoiceMap: Record<string, string> = {
-        hermes: "pNInz6obpgDQGcFmaJgB", // Adam (maskulin dunkel)
-        claude: "ErXwobaYiN019PkySvjV", // Antoni (männlich artikuliert)
-        chatgpt: "AZnzlk1XvdvUeBnXmlld", // Domi (weiblich warm)
-        gemini: "21m00Tcm4TlvDq8ikWAM", // Rachel (weiblich klar)
-      };
-      const lower = (agentId || "").toLowerCase();
-      const voiceId = lower.includes("claude")
-        ? elevenVoiceMap.claude
-        : lower.includes("chatgpt")
-        ? elevenVoiceMap.chatgpt
-        : lower.includes("gemini")
-        ? elevenVoiceMap.gemini
-        : elevenVoiceMap.hermes;
-
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${selected.id}?output_format=mp3_44100_128`,
+      {
         method: "POST",
         headers: {
-          "xi-api-key": elevenLabsKey,
+          "xi-api-key": selected.apiKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           text: cleanText,
           model_id: "eleven_multilingual_v2",
-        }),
-      });
-
-      if (res.ok) {
-        const arrayBuffer = await res.arrayBuffer();
-        voiceCache.set(cacheKey, arrayBuffer);
-        return new Response(arrayBuffer, {
-          headers: {
-            "Content-Type": "audio/mpeg",
-            "Cache-Control": "public, max-age=86400",
+          voice_settings: {
+            stability: 0.58,
+            similarity_boost: 0.78,
+            style: 0.12,
+            use_speaker_boost: true,
           },
-        });
-      }
-    }
+        }),
+      },
+    );
 
-    // 3. Free High-Definition Azure Neural Engine (ZERO API KEY REQUIRED!)
-    try {
-      const { MsEdgeTTS, OUTPUT_FORMAT } = await import("msedge-tts");
-      const tts = new MsEdgeTTS();
-      let edgeVoice = "de-DE-ConradNeural";
-      const lower = (agentId || "").toLowerCase();
-      if (lower.includes("astra") || lower.includes("gemini")) edgeVoice = "de-DE-KatjaNeural"; // hell, motivierend, weiblich (Astra)
-      else if (lower.includes("solana") || lower.includes("chatgpt") || lower.includes("oracle")) edgeVoice = "de-DE-AmalaNeural"; // warm, philosophisch, reflektiert (Solana)
-      else if (lower.includes("jarvis") || lower.includes("claude")) edgeVoice = "de-DE-KillianNeural"; // präzise, eloquent, artikulierter Tech-Ton (Jarvis)
-      else if (lower.includes("hermes")) edgeVoice = "de-DE-ConradNeural"; // souverän, maskulin, dunkel (Hermes)
-
-      await tts.setMetadata(edgeVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-      const { audioStream } = await tts.toStream(cleanText, { rate: "+25%" }); // genau 1.25x Speed!
-
-      const chunks: Buffer[] = [];
-      for await (const chunk of audioStream) {
-        chunks.push(chunk as Buffer);
-      }
-      tts.close();
-
-      const buffer = Buffer.concat(chunks);
-      voiceCache.set(cacheKey, buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
-
-      return new Response(buffer, {
-        headers: {
-          "Content-Type": "audio/mpeg",
-          "Cache-Control": "public, max-age=86400",
+    if (!res.ok) {
+      const providerMessage = (await res.text()).slice(0, 500);
+      return NextResponse.json(
+        {
+          error: "ElevenLabs konnte die ausgewählte Stimme nicht erzeugen.",
+          code: "ELEVENLABS_REQUEST_FAILED",
+          status: res.status,
+          detail: providerMessage,
+          fallback: false,
         },
-      });
-    } catch (edgeErr) {
-      console.warn("EdgeTTS error, falling back:", edgeErr);
+        { status: 502 },
+      );
     }
 
-    // Fallback indicator if network error occurs
-    return NextResponse.json({
-      fallback: true,
-      reason: "EDGE_TTS_UNAVAILABLE",
+    const arrayBuffer = await res.arrayBuffer();
+    voiceCache.set(cacheKey, arrayBuffer);
+    return new Response(arrayBuffer, {
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "public, max-age=86400",
+        "X-Hermes-Voice-Provider": "ElevenLabs",
+        "X-Hermes-Voice-Name": encodeURIComponent(selected.name),
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Voice synthesis failed";

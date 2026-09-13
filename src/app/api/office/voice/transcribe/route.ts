@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { getElevenLabsConfig } from "@/lib/elevenlabs/localConfig";
+
 export const runtime = "nodejs";
 
 export const MAX_VOICE_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -69,15 +71,53 @@ export async function POST(request: Request) {
       );
     }
 
-    // Hermes3D does not bundle a speech-to-text provider. The upload is validated
-    // here so callers get a useful error, but transcription itself is unimplemented.
-    return NextResponse.json(
-      {
-        error:
-          "Voice transcription is not configured. Connect an external transcription provider to enable voice notes.",
-      },
-      { status: 501 },
+    const config = getElevenLabsConfig();
+    if (!config.apiKey) {
+      return NextResponse.json(
+        {
+          error: "ElevenLabs Scribe ist nicht mit Hermes3D verbunden.",
+          code: "ELEVENLABS_NOT_CONFIGURED",
+        },
+        { status: 503 },
+      );
+    }
+
+    const payload = new FormData();
+    payload.set(
+      "file",
+      new Blob([arrayBuffer], { type: audioFile.type || "audio/webm" }),
+      audioFile.name || "hermes-diktat.webm",
     );
+    payload.set("model_id", "scribe_v2");
+    payload.set("language_code", "deu");
+    payload.set("tag_audio_events", "false");
+    payload.set("diarize", "false");
+    payload.set("no_verbatim", "true");
+
+    const providerResponse = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+      method: "POST",
+      headers: { "xi-api-key": config.apiKey },
+      body: payload,
+    });
+    const result = (await providerResponse.json()) as { text?: unknown; language_code?: unknown; detail?: unknown };
+    if (!providerResponse.ok || typeof result.text !== "string") {
+      return NextResponse.json(
+        {
+          error: "ElevenLabs Scribe konnte das Diktat nicht transkribieren.",
+          code: "ELEVENLABS_TRANSCRIPTION_FAILED",
+          status: providerResponse.status,
+        },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      text: result.text.trim(),
+      provider: "ElevenLabs Scribe v2",
+      language: typeof result.language_code === "string" ? result.language_code : "deu",
+      retainedByHermes3D: false,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to transcribe audio.";
     return NextResponse.json({ error: message }, { status: 500 });

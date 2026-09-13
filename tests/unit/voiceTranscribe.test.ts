@@ -12,6 +12,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 // Module mocks — must be hoisted before the route import.
 // ---------------------------------------------------------------------------
+vi.mock("@/lib/elevenlabs/localConfig", () => ({
+  getElevenLabsConfig: () => ({ apiKey: "" }),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -110,7 +113,7 @@ describe("POST /api/office/voice/transcribe — size limit enforcement (issue #7
     const request = mockRequest({ audioFile: makeAudioFile(1024) });
 
     const response = await POST(request);
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(503);
   });
 
   it("returns 413 after buffering when Content-Length is absent but body exceeds limit", async () => {
@@ -124,15 +127,15 @@ describe("POST /api/office/voice/transcribe — size limit enforcement (issue #7
     expect(body.error).toMatch(/exceeds/i);
   });
 
-  // ── No bundled transcription provider ─────────────────────────────────────
+  // ── Missing external transcription provider ───────────────────────────────
 
-  it("returns 501 for a valid upload because transcription is not configured", async () => {
+  it("returns 503 for a valid upload when ElevenLabs is not configured", async () => {
     const request = mockRequest({ audioFile: makeAudioFile(4096) });
 
     const response = await POST(request);
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(503);
     const body = await response.json();
-    expect(body.error).toMatch(/not configured/i);
+    expect(body.error).toMatch(/nicht.*verbunden/i);
   });
 
   // ── Edge cases ────────────────────────────────────────────────────────────
@@ -162,6 +165,6 @@ describe("POST /api/office/voice/transcribe — size limit enforcement (issue #7
     });
 
     const response = await POST(request);
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(503);
   });
 });

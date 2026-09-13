@@ -1,0 +1,54 @@
+{
+  "name": "Hermes · Onurs LifeOS",
+  "short_name": "Hermes",
+  "description": "Zentrale Sprach-, Wissens- und Entscheidungsoberfläche für Onurs LifeOS.",
+  "id": "/v2",
+  "start_url": "/v2",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#040910",
+  "theme_color": "#07131f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/hermes-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/hermes-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/hermes-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Hermes fragen",
+      "short_name": "Fragen",
+      "url": "/v2?open=hermes"
+    },
+    {
+      "name": "Konsil einberufen",
+      "short_name": "Konsil",
+      "url": "/council-lab"
+    }
+  ],
+  "share_target": {
+    "action": "/v2",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "share_title",
+      "text": "share_text",
+      "url": "share_url"
+    }
+  }
+}

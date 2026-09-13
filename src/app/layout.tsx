@@ -1,9 +1,23 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hermes3D",
-  description: "Focused operator studio for the Hermes gateway.",
+  title: "Hermes · LifeOS",
+  description: "Onurs zentrale Sprach-, Wissens- und Entscheidungsoberfläche.",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/hermes-icon.svg", apple: "/hermes-icon-192.png" },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Hermes",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#07131f",
 };
 
 export default function RootLayout({
@@ -22,7 +36,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <div className="h-screen w-screen overflow-hidden bg-background">{children}</div>
+        <div className="h-dvh w-screen overflow-hidden bg-background">{children}</div>
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Volume2, Play, Pause, Square, Check, Sparkles, UserCheck } from "lucide-react";
+import { X, Play, Square, Check, Sparkles } from "lucide-react";
 import { Interactive3DFace } from "./Interactive3DFace";
 
 export interface PersonaConfig {
@@ -20,51 +20,15 @@ export interface PersonaConfig {
 export const PERSONAS: PersonaConfig[] = [
   {
     id: "hermes",
-    name: "Hermes",
+    name: "Jarvis // Hermes",
     title: "Der stoische Architekt",
     badge: "LifeOS Architekt",
-    voiceLabel: "Conrad Neural (Souveräner Bariton)",
+    voiceLabel: "Jones · ElevenLabs (Deep, Dark, Authoritative)",
     agentId: "hermes",
     description: "Fokussiert, stoisch, lösungsorientiert. Behält den Überblick über alle Systeme, Prioritäten und Altlasten.",
     sampleText: "System bereit. Keine Hektik, Onur. Wir gehen die Altlasten Schritt für Schritt durch.",
     docPath: "05 🚀 Projekte/01 Hermes Agent OS/Personas/Hermes – Der stoische Architekt.md",
     accentColor: "#38bdf8",
-  },
-  {
-    id: "jarvis",
-    name: "Jarvis",
-    title: "Kybernetischer Tech-Stratege",
-    badge: "Stark Tech Executive",
-    voiceLabel: "Killian Neural (Präziser Tech-Ton)",
-    agentId: "jarvis",
-    description: "Eloquent, hocheffizient, kybernetisch. Spezialist für Code, Telemetrie und Projekt-Singularität.",
-    sampleText: "Jarvis-Protokoll aktiv. Alle Telemetrie-Werte im grünen Bereich. Reifegrad bei 98 Prozent.",
-    docPath: "05 🚀 Projekte/01 Hermes Agent OS/Personas/Jarvis – Der kybernetische Tech-Stratege.md",
-    accentColor: "#00f0ff",
-  },
-  {
-    id: "astra",
-    name: "Astra",
-    title: "Kosmische Navigatorin",
-    badge: "Orbital Navigator",
-    voiceLabel: "Katja Neural (Warme, motivierende Stimme)",
-    agentId: "astra",
-    description: "Inspirierend, empathisch, visionär. Achtet auf mentale Klarheit, Energie, Ausdauer und langfristige Ziele.",
-    sampleText: "Willkommen an Bord, Onur. Der Kosmos liegt vor uns. Halte deinen Fokus klar.",
-    docPath: "05 🚀 Projekte/01 Hermes Agent OS/Personas/Astra – Die kosmische Navigatorin.md",
-    accentColor: "#c084fc",
-  },
-  {
-    id: "solana",
-    name: "Solana",
-    title: "Sokratischer Denker & Orakel",
-    badge: "Deep Philosophy",
-    voiceLabel: "Amala Neural (Sanfte, reflektierte Stimme)",
-    agentId: "solana",
-    description: "Sokratisch, hinterfragend, deep thinking. Bringt Ruhe rein, deckt blinde Flecken auf und reflektiert Grundannahmen.",
-    sampleText: "Lass uns einen Schritt zurücktreten. Welche Annahme hinter dieser Entscheidung hast du noch nicht geprüft?",
-    docPath: "05 🚀 Projekte/01 Hermes Agent OS/Personas/Solana – Der sokratische Denker.md",
-    accentColor: "#fbbf24",
   },
 ];
 
@@ -163,10 +127,11 @@ export function PersonalityStudioModal({
             <div className="h-2.5 w-2.5 animate-ping rounded-full bg-cyan-400" />
             <div>
               <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] font-semibold text-white">
-                Jarvis // Persönlichkeits- & Avatar-Studio
+                Jarvis // Hermes · Stimme & Erscheinung
               </h2>
               <p className="font-sans text-xs text-white/50">
-                Wähle die Stimme, Haltung und Wesensart deines Begleiters
+
+                Eine beständige Identität. Spezialisten erscheinen nur im Konsil.
               </p>
             </div>
           </div>
@@ -187,7 +152,7 @@ export function PersonalityStudioModal({
           <div className="flex flex-col overflow-y-auto border-b border-white/10 p-5 md:col-span-7 md:border-r md:border-b-0">
             <div className="mb-3 flex items-center justify-between">
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-300">
-                Verfügbare Persönlichkeiten
+                Zentrale Identität
               </span>
               <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/40">
                 HD Neural-Stimmen
@@ -238,6 +203,7 @@ export function PersonalityStudioModal({
 
                       <button
                         type="button"
+                        disabled={isLoadingAudio}
                         onClick={(e) => {
                           e.stopPropagation();
                           handlePlaySample(persona);
@@ -257,7 +223,7 @@ export function PersonalityStudioModal({
                         ) : (
                           <>
                             <Play size={10} className="text-cyan-300 fill-current" />
-                            <span>Hörprobe</span>
+                            <span>{isLoadingAudio ? "Lädt …" : "Hörprobe"}</span>
                           </>
                         )}
                       </button>

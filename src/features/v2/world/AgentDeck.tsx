@@ -199,11 +199,14 @@ export function AgentDeck({
   selectedId,
   focus,
   onSelect,
+  gazeTargetById,
 }: {
   seats: Seat[];
   selectedId: string | null;
   focus: boolean;
   onSelect: (id: string) => void;
+  /** Optional local-space gaze targets, used by the Council for real turn-taking. */
+  gazeTargetById?: Record<string, THREE.Vector3>;
 }) {
   const { prefs } = useV2();
   const count = seats.length;
@@ -269,10 +272,10 @@ export function AgentDeck({
     [seats],
   );
 
-  const live = useRef({ seats, hovered, selectedId, roles, reduced: prefs.reducedMotion });
+  const live = useRef({ seats, hovered, selectedId, roles, reduced: prefs.reducedMotion, gazeTargetById });
   useEffect(() => {
-    live.current = { seats, hovered, selectedId, roles, reduced: prefs.reducedMotion };
-  }, [seats, hovered, selectedId, roles, prefs.reducedMotion]);
+    live.current = { seats, hovered, selectedId, roles, reduced: prefs.reducedMotion, gazeTargetById };
+  }, [seats, hovered, selectedId, roles, prefs.reducedMotion, gazeTargetById]);
 
   /**
    * Die Trefferkugel von Hand setzen — sonst ist keine Figur anklickbar.
@@ -456,8 +459,9 @@ export function AgentDeck({
        * um die Eigendrehung zurückgedreht, und was übrig bleibt, ist genau die
        * Kopfdrehung. Antigravitys Formel, seine Grenzen.
        */
+      const gazeTarget = state.gazeTargetById?.[seat.agent.id] ?? camera.position;
       scratch.delta
-        .copy(camera.position)
+        .copy(gazeTarget)
         .sub(seat.position)
         // Ueber eine Methode statt ueber `.y -=`: der Lint-Waechter verbietet
         // das direkte Schreiben in einen gemerkten Wert, und er hat recht.
