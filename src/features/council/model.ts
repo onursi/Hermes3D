@@ -1,8 +1,8 @@
 export type Phase='briefing'|'retrieving'|'positioning'|'debating'|'decision'|'paused'|'completed';
 export type CouncilEvent={id:string;sessionId:string;seq:number;revision:number;type:'phase'|'claim'|'challenge'|'synthesis'|'action';text:string;participant?:string;target?:string;source?:string};
-export type CouncilState={id:string;revision:number;phase:Phase;mode:'demo'|'replay';events:CouncilEvent[];mission:string;source:string;testTask?:{id:string;payload:string};applied:number;approval:string|null};
-export const ROLES=[{id:'moderator',name:'Hermes',role:'Moderation',color:'#82d8ed'},{id:'design',name:'Entwurf',role:'Lösung entwickeln',color:'#b6dba7'},{id:'review',name:'Prüfung',role:'Annahmen hinterfragen',color:'#edbb83'},{id:'sources',name:'Jarvis',role:'Quellen erklären',color:'#c3a8ee'},{id:'alternative',name:'Perspektive',role:'In dieser Demo nicht beteiligt',color:'#c9a4b4'}];
-export function initialCouncil(id:string,mission:string,source:string,revision=1):CouncilState{return {id,mission,source,revision,phase:'briefing',mode:'demo',events:[],applied:0,approval:null};}
+export type CouncilState={id:string;revision:number;phase:Phase;mode:'demo'|'live'|'replay';events:CouncilEvent[];mission:string;source:string;testTask?:{id:string;payload:string};applied:number;approval:string|null};
+export const ROLES=[{id:'moderator',name:'Hermes',role:'Moderation',color:'#82d8ed'},{id:'design',name:'Hermes · Hauptsicht',role:'Lösung entwickeln',color:'#b6dba7'},{id:'review',name:'Gemini · Gegenprüfung',role:'Annahmen unabhängig hinterfragen',color:'#edbb83'},{id:'sources',name:'Jarvis',role:'Quellen erklären',color:'#c3a8ee'},{id:'alternative',name:'Perspektive',role:'Weitere Sicht bei Bedarf',color:'#c9a4b4'}];
+export function initialCouncil(id:string,mission:string,source:string,revision=1,mode:'demo'|'live'='demo'):CouncilState{return {id,mission,source,revision,phase:'briefing',mode,events:[],applied:0,approval:null};}
 export function reduceCouncil(state:CouncilState,event:CouncilEvent):CouncilState{
  if(event.sessionId!==state.id||event.revision!==state.revision||event.seq!==state.events.length+1||state.events.some(e=>e.id===event.id))return state;
  if(event.type==='challenge'&&!state.events.some(e=>e.type==='claim'&&e.id===event.target))return state;

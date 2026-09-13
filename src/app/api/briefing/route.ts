@@ -1,142 +1,117 @@
 import { NextResponse } from "next/server";
-import path from "path";
+import path from "node:path";
 
-/**
- * "Hey Hermes, wie ist mein Stand?"
- *
- * Not a read-aloud task list — those exist and nobody listens to them twice.
- * The point is advice: what the day actually looks like, and *one* thing to
- * do about it. A briefing that ends in five equally weighted suggestions has
- * made no decision and handed the work back.
- *
- * Every number here is fetched, never estimated. Each source reports its own
- * reachability, because "no approvals waiting" and "could not reach Hermes"
- * are different facts and a briefing that blurs them is worse than none.
- */
+import { listRecentCodexThreads, type CodexThreadSnapshot } from "@/lib/codex/appServer";
+import {
+  briefingSources,
+  buildBriefingPrompt,
+  buildLocalBriefing,
+  type BriefingInput,
+  type BriefingProject,
+  type BriefingTask,
+} from "@/lib/briefing/synthesis";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-type Task = {
-  content: string;
-  isCompleted?: boolean;
-  dueDate?: string | null;
-  priority?: number;
-  projectName?: string | null;
-};
-
 type Source<T> = { ok: boolean; value: T; reason?: string };
 
 async function fetchJson(url: string) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
 }
 
 export async function GET(req: Request) {
-  const origin = new URL(req.url).origin;
+  const url = new URL(req.url);
+  const hoursRaw = Number(url.searchParams.get("hours") ?? 24);
+  const hours = Number.isFinite(hoursRaw) ? Math.max(4, Math.min(Math.round(hoursRaw), 168)) : 24;
+  const sinceDate = new Date(Date.now() - hours * 60 * 60 * 1_000);
   const today = new Date().toISOString().slice(0, 10);
 
-  // Gathered in parallel: three independent services, and one being slow
-  // should not decide how long the briefing takes.
-  const [tasksResult, approvalsResult] = await Promise.allSettled([
-    fetchJson(`${origin}/api/todoist/tasks`),
-    fetchJson(`${origin}/api/approvals`),
+  const [tasksResult, approvalsResult, projectsResult, codexResult] = await Promise.allSettled([
+    fetchJson(`${url.origin}/api/todoist/tasks`),
+    fetchJson(`${url.origin}/api/approvals`),
+    fetchJson(`${url.origin}/api/vault/projects`),
+    listRecentCodexThreads({ since: sinceDate, limit: 16 }),
   ]);
 
-  const tasks: Source<Task[]> =
-    tasksResult.status === "fulfilled" && tasksResult.value?.connected !== false
-      ? { ok: true, value: (tasksResult.value?.tasks ?? []) as Task[] }
-      : {
-          ok: false,
-          value: [],
-          reason:
-            tasksResult.status === "rejected"
-              ? String(tasksResult.reason).slice(0, 120)
-              : "Todoist nicht verbunden",
-        };
+  let tasks: Source<BriefingTask[]> = { ok: false, value: [], reason: "Todoist nicht erreichbar" };
+  if (tasksResult.status === "fulfilled") {
+    const value = tasksResult.value;
+    tasks = value?.connected === false
+      ? { ok: false, value: [], reason: "Todoist nicht verbunden" }
+      : { ok: true, value: Array.isArray(value?.tasks) ? value.tasks : [] };
+  } else tasks.reason = String(tasksResult.reason).slice(0, 180);
 
-  const approvals: Source<number> =
-    approvalsResult.status === "fulfilled" && approvalsResult.value?.ok
-      ? { ok: true, value: approvalsResult.value.count ?? 0 }
-      : { ok: false, value: 0, reason: "Freigaben nicht abrufbar" };
+  let approvals: Source<number> = { ok: false, value: 0, reason: "Freigaben nicht erreichbar" };
+  if (approvalsResult.status === "fulfilled") {
+    const value = approvalsResult.value;
+    approvals = value?.ok === true
+      ? { ok: true, value: Number(value?.count ?? 0) }
+      : { ok: false, value: 0, reason: value?.reason ?? "Freigaben nicht erreichbar" };
+  } else approvals.reason = String(approvalsResult.reason).slice(0, 180);
 
-  const open = tasks.value.filter((task) => !task.isCompleted);
-  const overdue = open.filter((task) => task.dueDate && task.dueDate < today);
-  const dueToday = open.filter((task) => task.dueDate === today);
+  let projects: Source<BriefingProject[]> = { ok: false, value: [], reason: "LifeOS-Projekte nicht erreichbar" };
+  if (projectsResult.status === "fulfilled") {
+    const value = projectsResult.value;
+    projects = value?.reachable === true
+      ? { ok: true, value: Array.isArray(value?.projects) ? value.projects : [] }
+      : { ok: false, value: [], reason: value?.error ?? "LifeOS-Projekte nicht erreichbar" };
+  } else projects.reason = String(projectsResult.reason).slice(0, 180);
 
-  const facts = {
-    date: today,
-    tasks: {
-      reachable: tasks.ok,
-      open: open.length,
-      overdue: overdue.length,
-      dueToday: dueToday.length,
-      reason: tasks.reason,
+  const codex: Source<CodexThreadSnapshot[]> = codexResult.status === "fulfilled"
+    ? { ok: true, value: codexResult.value }
+    : { ok: false, value: [], reason: String(codexResult.reason).slice(0, 180) };
+
+  const input: BriefingInput = {
+    today,
+    since: sinceDate.toISOString(),
+    tasks: tasks.value,
+    approvals: approvals.value,
+    projects: projects.value,
+    codexThreads: codex.value,
+    sourceStatus: {
+      tasks: { ok: tasks.ok, reason: tasks.reason },
+      approvals: { ok: approvals.ok, reason: approvals.reason },
+      projects: { ok: projects.ok, reason: projects.reason },
+      codex: { ok: codex.ok, reason: codex.reason },
     },
-    approvals: { reachable: approvals.ok, waiting: approvals.value, reason: approvals.reason },
+  };
+  const sources = briefingSources(input);
+  const facts = {
+    hours,
+    since: input.since,
+    until: new Date().toISOString(),
+    sourceStatus: input.sourceStatus,
+    counts: {
+      tasks: input.tasks.length,
+      approvals: input.approvals,
+      projects: input.projects.length,
+      codexThreads: input.codexThreads.length,
+    },
   };
 
-  // Nothing to advise on, and no model asked. A briefing that pays for a
-  // sentence about an empty day is theatre.
-  if (!tasks.ok && !approvals.ok) {
-    return NextResponse.json({
-      ok: false,
-      facts,
-      briefing: null,
-      reason: "Keine Datenquelle erreichbar — über den Stand lässt sich nichts sagen.",
-    });
+  if (!Object.values(input.sourceStatus).some((state) => state.ok)) {
+    return NextResponse.json({ ok: false, briefing: null, facts, sources: [], reason: "Keine Briefing-Quelle erreichbar." });
   }
-
-  const lines = [
-    `Datum: ${today}`,
-    tasks.ok
-      ? `Aufgaben offen: ${open.length}, davon ${overdue.length} überfällig und ${dueToday.length} heute fällig.`
-      : `Aufgaben: nicht abrufbar (${tasks.reason}).`,
-    approvals.ok
-      ? `Wartende Freigaben: ${approvals.value}.`
-      : `Freigaben: nicht abrufbar (${approvals.reason}).`,
-    "",
-    "Überfällig:",
-    ...(overdue.slice(0, 8).map((task) => `- ${task.content}${task.projectName ? ` (${task.projectName})` : ""}`)),
-    "",
-    "Heute fällig:",
-    ...(dueToday.slice(0, 8).map((task) => `- ${task.content}${task.projectName ? ` (${task.projectName})` : ""}`)),
-  ];
-
-  const prompt = [
-    "Du bist Hermes und gibst Onur eine kurze Lagebesprechung zum Tag.",
-    "",
-    "Regeln:",
-    "- Höchstens vier Sätze.",
-    "- Keine Aufzählung der Aufgaben — die sieht er selbst.",
-    "- Sage, was die Lage bedeutet, nicht was in der Liste steht.",
-    "- Ende mit genau EINER konkreten Empfehlung, womit er anfangen soll.",
-    "- Erfinde nichts. Steht eine Quelle als nicht abrufbar da, sage das.",
-    "",
-    "LAGE:",
-    lines.join("\n"),
-  ].join("\n");
 
   try {
     const nodeRequire = eval("require") as NodeJS.Require;
-    const { askHermes } = nodeRequire(
-      path.join(process.cwd(), "server", "hermes-ws-client.js"),
-    ) as { askHermes: (text: string) => Promise<string> };
-
-    const briefing = await askHermes(prompt);
-    if (/^Error:/i.test(briefing.trim())) {
-      return NextResponse.json({ ok: false, facts, briefing: null, reason: briefing.trim().slice(0, 400) });
-    }
-    return NextResponse.json({ ok: true, facts, briefing: briefing.trim() });
+    const { askHermes } = nodeRequire(path.join(process.cwd(), "server", "hermes-ws-client.js")) as {
+      askHermes: (text: string) => Promise<string>;
+    };
+    const answer = (await askHermes(buildBriefingPrompt(input))).trim();
+    if (!answer || /^Error:/i.test(answer)) throw new Error(answer || "Hermes hat leer geantwortet.");
+    return NextResponse.json({ ok: true, mode: "hermes", briefing: answer, facts, sources });
   } catch (error) {
-    // The numbers survive even when the model does not, and they are the part
-    // that was measured rather than written.
     return NextResponse.json({
-      ok: false,
+      ok: true,
+      mode: "local",
+      briefing: buildLocalBriefing(input),
       facts,
-      briefing: null,
-      reason: `Hermes hat nicht geantwortet: ${error instanceof Error ? error.message : String(error)}`,
+      sources,
+      warning: `Hermes-Synthese nicht erreichbar; belegter lokaler Stand wird gezeigt. ${error instanceof Error ? error.message : String(error)}`,
     });
   }
 }

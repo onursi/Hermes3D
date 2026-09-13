@@ -48,6 +48,8 @@ export type JarvisSource = {
   title: string;
   folder: string;
   excerpt: string;
+  kind?: "vault" | "codex" | "task" | "approval";
+  navigable?: boolean;
 };
 
 const KNOWLEDGE_PULSE_EVENT = "hermes_knowledge_pulse";
@@ -246,7 +248,9 @@ export function JarvisCompanion({
   }, [onSourcesChange]);
 
   useEffect(() => {
-    onSourcesChangeRef.current?.(sources.map((s) => s.id));
+    onSourcesChangeRef.current?.(
+      sources.filter((source) => source.navigable !== false).map((source) => source.id),
+    );
   }, [sources]);
 
   // Hauptabfrage an /api/jarvis/stream
@@ -473,6 +477,8 @@ export function JarvisCompanion({
       const data = await res.json();
       if (data.ok && data.briefing) {
         setAnswer(data.briefing);
+        setSources(Array.isArray(data.sources) ? data.sources : []);
+        setReason(data.warning ?? null);
         jarvisAudio.playChime(1.15);
         if (voiceReply) {
           void speakText(data.briefing);
@@ -766,10 +772,45 @@ export function JarvisCompanion({
               </div>
             </div>
 
-            <nav aria-label="Hermes Arbeitsmodi" className="flex flex-wrap gap-2 border-b border-white/10 px-3 py-2 text-xs text-cyan-100">
-              <button onClick={() => {voice.stopListening();sessionStorage.setItem("hermes:work-tab","tasks");onNavigateWorld?.("home");window.dispatchEvent(new CustomEvent("hermes:work-tab",{detail:"tasks"}));setIsOpen(false);}} className="rounded-lg border border-white/15 px-3 py-2">Meine Aufgaben</button>
-              <button onClick={() => {voice.stopListening();sessionStorage.setItem("hermes:work-tab","projects");onNavigateWorld?.("home");window.dispatchEvent(new CustomEvent("hermes:work-tab",{detail:"projects"}));setIsOpen(false);}} className="rounded-lg border border-white/15 px-3 py-2">Projektstand</button>
-              <Link onClick={()=>voice.stopListening()} href="/council-lab" className="rounded-lg border border-white/15 px-3 py-2">Diskussion · Testbühne ↗</Link>
+            <nav aria-label="Hermes Arbeitsmodi" className="grid grid-cols-2 gap-2 border-b border-white/10 px-3 py-2 text-xs text-cyan-100 sm:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => { voice.stopListening(); void briefing(); }}
+                className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-2 py-2 text-left transition hover:bg-amber-300/20"
+                title="Codex, LifeOS, Aufgaben und Freigaben der letzten 24 Stunden zusammenführen"
+              >
+                <span className="block font-mono text-[9px] uppercase tracking-[0.14em] text-amber-200">01 · Briefing</span>
+                <strong className="mt-1 block text-[11px] font-medium text-white">Auf den Stand</strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => { voice.stopListening(); setQuestion(""); setTimeout(() => inputRef.current?.focus(), 0); }}
+                className="rounded-xl border border-white/15 bg-white/[0.03] px-2 py-2 text-left transition hover:border-cyan-300/35 hover:bg-cyan-300/10"
+              >
+                <span className="block font-mono text-[9px] uppercase tracking-[0.14em] text-cyan-200">02 · Wissen</span>
+                <strong className="mt-1 block text-[11px] font-medium text-white">LifeOS fragen</strong>
+              </button>
+              <Link
+                onClick={() => voice.stopListening()}
+                href="/council-lab"
+                className="rounded-xl border border-white/15 bg-white/[0.03] px-2 py-2 text-left transition hover:border-violet-300/35 hover:bg-violet-300/10"
+              >
+                <span className="block font-mono text-[9px] uppercase tracking-[0.14em] text-violet-200">03 · Perspektiven</span>
+                <strong className="mt-1 block text-[11px] font-medium text-white">Rat einberufen ↗</strong>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  const prompt = "Welche neuen, nützlichen Verbindungen oder Impulse ergeben sich aus meinen aktuellen Projekten und dem jüngsten Wissensstand? Begründe jeden Vorschlag mit Quellen.";
+                  setQuestion(prompt);
+                  voice.stopListening();
+                  ask(prompt);
+                }}
+                className="rounded-xl border border-white/15 bg-white/[0.03] px-2 py-2 text-left transition hover:border-emerald-300/35 hover:bg-emerald-300/10"
+              >
+                <span className="block font-mono text-[9px] uppercase tracking-[0.14em] text-emerald-200">04 · Synthese</span>
+                <strong className="mt-1 block text-[11px] font-medium text-white">Neue Impulse</strong>
+              </button>
             </nav>
             <p role="status" className="px-3 pt-2 text-xs text-emerald-200">{voice.status}</p>
             <p className="px-3 py-2 text-[11px] text-white/50">Open Mic sammelt deinen Text. Erst SCAN sendet ihn. Die Spracherkennung kann einen Dienst deines Browsers nutzen.</p>
@@ -1143,20 +1184,21 @@ export function JarvisCompanion({
                 </div>
               ) : null}
 
-              {/* Zitierte Quellen mit Kameraflug */}
+              {/* Zitierte Quellen. Nur Vault-Notizen haben einen Kameraflug. */}
               {sources.length > 0 ? (
                 <div className="mt-4 border-t border-white/10 pt-2.5">
                   <p className="pb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-300">
-                    Gefundene Vault-Quellen (anklicken zum Erkunden):
+                    Belegte Quellen {sources.some((source) => source.navigable !== false) ? "· Vault-Notizen sind anklickbar" : ""}:
                   </p>
                   <ol className="space-y-1">
-                    {sources.map((source, index) => (
-                      <li key={source.id}>
+                    {sources.map((source, index) => {
+                      const navigable = source.navigable !== false && source.kind !== "codex" && source.kind !== "task" && source.kind !== "approval";
+                      return <li key={source.id}>
                         <button
                           type="button"
-                          onClick={() => onFlyToSource?.(source.id)}
-                          className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1.5 text-left transition hover:border-cyan-400/50 hover:bg-cyan-950/40"
-                          title={source.folder}
+                          onClick={() => { if (navigable) onFlyToSource?.(source.id); }}
+                          className={`flex w-full items-center gap-2 rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1.5 text-left transition ${navigable ? "hover:border-cyan-400/50 hover:bg-cyan-950/40" : "cursor-default"}`}
+                          title={navigable ? `${source.folder} · im Wissensraum zeigen` : `${source.folder} · Briefing-Beleg`}
                         >
                           <span className="shrink-0 font-mono text-[10px] font-bold text-cyan-200">
                             [{index + 1}]
@@ -1168,8 +1210,8 @@ export function JarvisCompanion({
                             {source.folder}
                           </span>
                         </button>
-                      </li>
-                    ))}
+                      </li>;
+                    })}
                   </ol>
                 </div>
               ) : null}
