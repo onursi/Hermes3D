@@ -128,6 +128,8 @@ export function JarvisCompanion({
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [mobileOptions, setMobileOptions] = useState(false);
+  useEffect(() => { window.dispatchEvent(new CustomEvent('hermes:console-visibility', {detail: isOpen && !isMinimized})); }, [isOpen, isMinimized]);
 
   // Persönlichkeit & Studio
   const [currentPersona, setCurrentPersona] = useState<PersonaConfig>(PERSONAS[0]);
@@ -463,7 +465,8 @@ export function JarvisCompanion({
 
   useEffect(()=>{publishCommandActivity(voice.listening?'listening':isPlayingAudio?'speaking':phase==='error'?'error':phase==='thinking'||phase==='searching'||phase==='speaking'?'working':'idle');},[voice.listening,isPlayingAudio,phase]);
   useEffect(()=>()=>publishCommandActivity('idle'),[]);
-  useEffect(()=>{const open=()=>{setIsOpen(true);setIsMinimized(false);};window.addEventListener('hermes:console-open',open);return()=>window.removeEventListener('hermes:console-open',open);},[]);
+  const stopListening = voice.stopListening;
+  useEffect(()=>{const open=()=>{setIsOpen(true);setIsMinimized(false);};const hide=()=>{stopListening();setIsMinimized(true);};window.addEventListener('hermes:console-open',open);window.addEventListener('hermes:console-hide',hide);return()=>{window.removeEventListener('hermes:console-open',open);window.removeEventListener('hermes:console-hide',hide);};},[stopListening]);
 
   // Audio-Synthese Aktivitäten
   useEffect(() => {
@@ -794,18 +797,18 @@ export function JarvisCompanion({
         {/* VOLLUMFÄNGLICHE JARVIS KONSOLE (WENN GEÖFFNET)              */}
         {/* ============================================================ */}
         {isOpen && !isMinimized && (
-          <section
-            className={`relative flex flex-col overflow-y-auto [&>*]:shrink-0 rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_35px_rgba(56,189,248,0.14)] backdrop-blur-xl transition-all duration-300 ${
+          <section data-options-open={mobileOptions} aria-label="Gespräch mit Hermes"
+            className={`jarvis-console relative flex flex-col overflow-y-auto [&>*]:shrink-0 rounded-2xl border border-white/10 bg-[#0a1018]/95 shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_35px_rgba(56,189,248,0.14)] backdrop-blur-xl transition-all duration-300 ${
               isExpanded
                 ? "h-[min(780px,calc(100dvh-6rem))] w-[min(760px,calc(100vw-2.5rem))] max-sm:fixed max-sm:inset-2 max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)]"
                 : "h-[min(640px,calc(100dvh-6rem))] w-[min(560px,calc(100vw-2.5rem))] max-sm:fixed max-sm:inset-2 max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)]"
             }`}
           >
             {/* Header: Cyber-Avatar + Telemetrie + Persönlichkeits-Studio + Fenster-Steuerung */}
-            <div className="relative flex flex-col border-b border-white/10 bg-gradient-to-b from-cyan-950/25 via-[#0a1018]/80 to-transparent p-3.5">
+            <div className="jarvis-header relative flex flex-col border-b border-white/10 bg-gradient-to-b from-cyan-950/25 via-[#0a1018]/80 to-transparent p-3.5">
               <div className="flex items-center justify-between gap-3">
                 {/* Links: Modus & Persönlichkeit */}
-                <div className="flex items-center gap-2">
+                <div className="jarvis-persona-controls flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleToggleMode}
@@ -852,7 +855,8 @@ export function JarvisCompanion({
                 </button>
 
                 {/* Fenster-Aktionen */}
-                <div className="flex items-center gap-1">
+                <div className="jarvis-window-actions flex items-center gap-1">
+                  <button type="button" className="mobile-console-options" aria-expanded={mobileOptions} aria-controls="jarvis-quick-actions" onClick={()=>setMobileOptions(open=>!open)}>Mehr</button>
                   <span className="mr-2 hidden sm:inline font-mono text-[10px] uppercase tracking-[0.14em] text-cyan-300/70">
                     {noteCount} NOTIZEN
                   </span>
@@ -876,7 +880,7 @@ export function JarvisCompanion({
                     type="button"
                     onClick={() => { voice.stopListening(); setIsOpen(false); }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/50 transition hover:bg-red-500/20 hover:text-red-200"
-                    title="Schließen"
+                    aria-label="Gespräch schließen" title="Schließen"
                   >
                     <X size={14} />
                   </button>
@@ -884,7 +888,7 @@ export function JarvisCompanion({
               </div>
             </div>
 
-            <nav aria-label="Jarvis und Hermes Arbeitsmodi" className="grid grid-cols-2 gap-2 border-b border-white/10 px-3 py-2 text-xs text-cyan-100 sm:grid-cols-4">
+            <nav aria-label="Jarvis und Hermes Arbeitsmodi" className="jarvis-modes grid grid-cols-2 gap-2 border-b border-white/10 px-3 py-2 text-xs text-cyan-100 sm:grid-cols-4">
               <button
                 type="button"
                 onClick={() => { voice.stopListening(); void briefing(); }}
@@ -896,7 +900,7 @@ export function JarvisCompanion({
               </button>
               <button
                 type="button"
-                onClick={() => { voice.stopListening(); setQuestion(""); setTimeout(() => inputRef.current?.focus(), 0); }}
+                onClick={() => { voice.stopListening(); setTimeout(() => inputRef.current?.focus(), 0); }}
                 className="rounded-xl border border-white/15 bg-white/[0.03] px-2 py-2 text-left transition hover:border-cyan-300/35 hover:bg-cyan-300/10"
               >
                 <span className="block font-mono text-[9px] uppercase tracking-[0.14em] text-cyan-200">02 · Wissen</span>
@@ -924,10 +928,10 @@ export function JarvisCompanion({
                 <strong className="mt-1 block text-[11px] font-medium text-white">Neue Impulse</strong>
               </button>
             </nav>
-            <p role="status" className="px-3 pt-2 text-xs text-emerald-200">{voice.status}</p>
-            <p className="px-3 py-2 text-[11px] text-white/50">Open Mic transkribiert hochwertig über ElevenLabs Scribe. Erst SCAN sendet den von dir geprüften Text an Jarvis // Hermes.</p>
+            <p role="status" className="jarvis-mic-status px-3 pt-2 text-xs text-emerald-200">{voice.status}</p>
+            <p className="jarvis-mic-explanation px-3 py-2 text-[11px] text-white/50">Open Mic transkribiert hochwertig über ElevenLabs Scribe. Erst SCAN sendet den von dir geprüften Text an Jarvis // Hermes.</p>
             {/* Quick-Scan Action Chips (V2 Grundton, V2 Blau & V2 Typografie) */}
-            <div className="flex flex-wrap gap-1.5 border-b border-white/10 bg-black/25 px-3.5 py-2">
+            <div id="jarvis-quick-actions" className="jarvis-quick-actions flex flex-wrap gap-1.5 border-b border-white/10 bg-black/25 px-3.5 py-2">
               <button
                 type="button"
                 onClick={() => {
@@ -971,7 +975,7 @@ export function JarvisCompanion({
             </div>
 
             {/* Eingabebereich + Audio-Toolbar */}
-            <div className="border-b border-white/10 bg-black/30 p-3">
+            <div className="jarvis-composer border-b border-white/10 bg-black/30 p-3">
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#060a10]/85 px-3 py-2 focus-within:border-cyan-400/50 focus-within:ring-1 focus-within:ring-cyan-400/30">
                 <textarea
                   rows={3}
@@ -981,16 +985,16 @@ export function JarvisCompanion({
                   onChange={(e) => { voice.stopListening(); setQuestion(e.target.value); }}
                   onKeyDown={(e) => {
                     e.stopPropagation();
-                    if (e.key === "Enter" && !e.shiftKey) {e.preventDefault();submitQuestion();}
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(max-width: 700px), (max-width: 1000px) and (max-height: 500px)").matches) {e.preventDefault();submitQuestion();}
                   }}
-                  placeholder="Was möchtest du aus deinem Second Brain wissen?..."
+                  placeholder="Was möchtest du klären?"
                   className="min-w-0 flex-1 bg-transparent font-sans text-xs text-white placeholder:text-white/30 outline-none"
                 />
                 <button
                   type="button"
                   onClick={submitQuestion}
                   disabled={busy || !question.trim()}
-                  className="flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-100 transition hover:bg-cyan-400/25 disabled:opacity-30"
+                  className="jarvis-submit flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] font-semibold text-cyan-100 transition hover:bg-cyan-400/25 disabled:opacity-30"
                   title="Abfrage starten (Scan & Analyse)"
                 >
                   {busy ? (
@@ -1005,7 +1009,7 @@ export function JarvisCompanion({
               </div>
 
               {/* Toolbar für Sprache & Klang */}
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <div className="jarvis-audio-tools mt-2.5 flex flex-wrap items-center gap-2">
                 {voice.supported ? (
                   <button
                     type="button"
@@ -1161,7 +1165,7 @@ export function JarvisCompanion({
             </div>
 
             {/* Antwort- & Quellen-Bereich */}
-            <div ref={answerRef} className="min-h-[180px] flex-1 overflow-y-auto px-4 py-3">
+            <div ref={answerRef} className="jarvis-answer min-h-[180px] flex-1 overflow-y-auto px-4 py-3">
               {answer ? (
                 <div className="rounded-xl border border-white/10 bg-[#0c1624]/60 p-3.5 shadow-inner">
                   <div className="mb-2 flex items-center justify-between border-b border-white/10 pb-1.5">
@@ -1419,7 +1423,7 @@ export function JarvisCompanion({
                       return <li key={source.id}>
                         <button
                           type="button"
-                          onClick={() => { if (navigable) onFlyToSource?.(source.id); }}
+                          onClick={() => { if (navigable) { if(window.matchMedia("(max-width: 700px), (max-width: 1000px) and (max-height: 500px)").matches) setIsMinimized(true); onFlyToSource?.(source.id); } }}
                           className={`flex w-full items-center gap-2 rounded-xl border border-white/10 bg-[#0c1420]/80 px-2.5 py-1.5 text-left transition ${navigable ? "hover:border-cyan-400/50 hover:bg-cyan-950/40" : "cursor-default"}`}
                           title={navigable ? `${source.folder} · im Wissensraum zeigen` : `${source.folder} · Briefing-Beleg`}
                         >
@@ -1455,7 +1459,7 @@ export function JarvisCompanion({
         {/* ============================================================ */}
         {/* SCHWEBENDER BEGLEITER-KNOPF UNTEN RECHTS                      */}
         {/* ============================================================ */}
-        <div className="flex items-center gap-2">
+        <div className="jarvis-launcher flex items-center gap-2">
           {/* Minimierte Badge / Pill im V2-Design */}
           {isMinimized ? (
             <button

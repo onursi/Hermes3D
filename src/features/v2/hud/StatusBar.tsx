@@ -76,7 +76,7 @@ export function StatusBar({
             learn to ignore. Unreachable is its own state and its own colour —
             "could not ask" must never render as "nothing waits". */}
         {!approvalsReachable ? (
-          <button type="button" onClick={onOpenApprovals} className="cursor-pointer">
+          <button type="button" onClick={onOpenApprovals} className="mobile-status-secondary cursor-pointer">
             <Pill tone="rose">Freigaben unbekannt</Pill>
           </button>
         ) : approvalsWaiting > 0 ? (
@@ -92,7 +92,7 @@ export function StatusBar({
         <Pill tone={rosterReachable ? "neutral" : "rose"}>
           {rosterReachable ? `${agentCount} Agenten` : "Hermes offline"}
         </Pill>
-        <Pill tone={vaultReachable ? "neutral" : "rose"}>
+        <Pill className="mobile-status-secondary" tone={vaultReachable ? "neutral" : "rose"}>
           {vaultReachable ? `${vaultCount} Notizen` : "Vault offline"}
         </Pill>
 
@@ -103,7 +103,7 @@ export function StatusBar({
           </svg>
         </IconButton>
 
-        <IconButton label="Entwicklerwerte" onClick={onToggleDev} active={devOpen}>
+        <IconButton className="mobile-status-secondary" label="Entwicklerwerte" onClick={onToggleDev} active={devOpen}>
           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M8 6l-5 6 5 6M16 6l5 6-5 6" />
           </svg>
@@ -113,7 +113,7 @@ export function StatusBar({
   );
 }
 
-function Pill({ children, tone }: { children: React.ReactNode; tone: "neutral" | "amber" | "rose" }) {
+function Pill({ children, tone, className = "" }: { children: React.ReactNode; className?: string; tone: "neutral" | "amber" | "rose" }) {
   const styles = {
     neutral: "border-white/10 bg-[#0a1018]/85 text-white/55",
     amber: "border-amber-400/35 bg-amber-400/12 text-amber-200",
@@ -121,7 +121,7 @@ function Pill({ children, tone }: { children: React.ReactNode; tone: "neutral" |
   }[tone];
   return (
     <span
-      className={`rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] backdrop-blur-md ${styles}`}
+      className={`rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] backdrop-blur-md ${styles} ${className}`}
     >
       {children}
     </span>
@@ -133,11 +133,13 @@ function IconButton({
   label,
   onClick,
   active = false,
+  className = "",
 }: {
   children: React.ReactNode;
   label: string;
   onClick: () => void;
   active?: boolean;
+  className?: string;
 }) {
   return (
     <button
@@ -145,7 +147,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`flex h-7 w-7 items-center justify-center rounded-full border backdrop-blur-md transition-colors ${
+      className={`${className} flex h-7 w-7 items-center justify-center rounded-full border backdrop-blur-md transition-colors ${
         active
           ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-100"
           : "border-white/10 bg-[#0a1018]/85 text-white/45 hover:text-white/80"
