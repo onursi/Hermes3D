@@ -12,6 +12,7 @@ import { useHermesLive } from "@/features/v2/useHermesLive";
 import { useVault, type VaultNode } from "@/features/v2/useVault";
 import { Approvals, type PendingApproval } from "@/features/v2/hud/Approvals";
 import { Dock } from "@/features/v2/hud/Dock";
+import { CouncilHud } from "@/features/v2/hud/CouncilHud";
 import { Inspector } from "@/features/v2/hud/Inspector";
 import { AreaPanel, type AreaEntry } from "@/features/v2/hud/AreaPanel";
 import { Cockpit } from "@/features/v2/hud/Cockpit";
@@ -248,7 +249,11 @@ export function V2Screen() {
     // bis die Ursache bekannt ist.
     setLiveMode(params.get("live") === "1");
     setCrashWorld(params.get("boom"));
-  }, []);
+    const requestedWorld = params.get("world");
+    if (requestedWorld === "council" || params.get("council") === "1") {
+      goTo("council");
+    }
+  }, [goTo]);
 
   const [saturnSubView, setSaturnSubView] = useState<"saturn" | "orbit">("saturn");
 
@@ -808,7 +813,7 @@ export function V2Screen() {
         </>
       ) : null}
 
-      <Dock showLibrary={labMode} />
+      {world === "council" ? <CouncilHud /> : <Dock showLibrary={labMode} />}
 
       {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}
 
@@ -885,7 +890,7 @@ export function V2Screen() {
         onNavigateWorld={(w) => goTo(w)}
       />
       <WormholeJourney/>
-      <WorldsHud onRead={id=>{setSourceQuery("");setReaderId(id);}} onDive={()=>{setDive(1);setCrossing(true);}}/>
+      {world !== "council" && <WorldsHud onRead={id=>{setSourceQuery("");setReaderId(id);}} onDive={()=>{setDive(1);setCrossing(true);}}/>}
       {crossing&&world==='projects'&&<HorizonCrossing onComplete={()=>{setCrossing(false);setDive(0);goTo('success');}}/>}
     </main></WorldsProvider>
   );

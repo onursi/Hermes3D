@@ -26,6 +26,7 @@ import { MemoryWorld, type MemoryMode } from "../spatial/MemoryWorld";
 import type { MemoryEntry, ProjectMeta } from "../spatial/model";
 import { ProjectWorld } from "@/features/v2/world/ProjectWorld";
 import { TesseractDimensionWorld } from "@/features/v2/world/tesseract/TesseractDimensionWorld";
+import { CouncilWorld } from "@/features/v2/world/CouncilWorld";
 import { WarpStreaks } from "@/features/v2/world/WarpStreaks";
 import { Silhouettes } from "@/features/v2/universe/Silhouettes";
 import { UniverseWorld } from "@/features/v2/universe/UniverseWorld";
@@ -514,8 +515,8 @@ export function V2Scene({
           enabled={!inputBlocked && !(world === "memory" && memoryMode === "carousel")}
           enablePan={world==='horizon'}
           minDistance={world === "horizon" ? 2 : world === "projects" && !openProject ? 2 : 3.2}
-          maxDistance={world === "horizon" ? 1600 : world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : ROOM_WORLDS.includes(world) ? 160 : 30}
-          maxPolarAngle={world === "projects" || world === "memory" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
+          maxDistance={world === "horizon" ? 1600 : world === "cosmos" ? Math.max(80, vault.radius * 3) : world === "home" ? 800 : world === "projects" ? 180 : world === "memory" ? 85 : world === "council" ? 50 : ROOM_WORLDS.includes(world) ? 160 : 30}
+          maxPolarAngle={world === "projects" || world === "memory" || world === "council" || ROOM_WORLDS.includes(world) ? Math.PI * 0.94 : Math.PI * 0.52}
           enableDamping
           dampingFactor={0.08}
           rotateSpeed={0.55}
@@ -631,6 +632,8 @@ export function V2Scene({
           <WorldsScene onFocus={handleWorldFocus} controlsRef={controlsRef} cameraBusy={goal!==null}/>
         ) : world === "tesseract" ? (
           <TesseractDimensionWorld onExit={() => goTo("home")} />
+        ) : world === "council" ? (
+          <CouncilWorld />
         ) : (
           <LibraryWorld
             items={libraryItems}

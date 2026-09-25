@@ -38,7 +38,7 @@ import * as THREE from "three";
  * the same way; making it a separate mode would mean two switches to keep in
  * step, and they would disagree within a week.
  */
-export type V2World = "home" | "universe" | "cosmos" | "projects" | "library" | "memory" | "saturn" | "tesseract" | "horizon" | "flow" | "atelier" | "sanctuary" | "success";
+export type V2World = "home" | "universe" | "cosmos" | "projects" | "library" | "memory" | "saturn" | "tesseract" | "horizon" | "flow" | "atelier" | "sanctuary" | "success" | "council";
 
 /**
  * *How* a world was entered — and it is not a detail.

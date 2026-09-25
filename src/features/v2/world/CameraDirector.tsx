@@ -112,6 +112,7 @@ export function viewFor(world: V2World): CameraGoal {
   if (world === "projects") return { ...cloneView(PROJECTS_VIEW), duration: 1.15 };
   if (world === "library") return { ...cloneView(LIBRARY_VIEW), duration: 1.15 };
   if (world === "tesseract") return { ...cloneView(TESSERACT_VIEW), duration: 1.15 };
+  if (world === "council") return { position: new THREE.Vector3(0, 11, 22), target: new THREE.Vector3(0, 1.8, 0), duration: 1.2 };
   return { ...cloneView(HOME_VIEW), duration: 1.15 };
 }
 

@@ -85,6 +85,21 @@ export function Dock({
         </svg>
       </DockButton>
 
+      <DockButton
+        active={world === "council"}
+        onClick={() => goTo("council")}
+        label="Konsil"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="3" />
+          <circle cx="12" cy="6" r="1.5" />
+          <circle cx="12" cy="18" r="1.5" />
+          <circle cx="6" cy="12" r="1.5" />
+          <circle cx="18" cy="12" r="1.5" />
+        </svg>
+      </DockButton>
+
       {showLibrary ? (
         <DockButton
           active={world === "library"}
