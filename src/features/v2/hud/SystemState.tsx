@@ -35,7 +35,7 @@ export function SystemState({ sources }: { sources: SourceState[] }) {
   if (loading.length === 0 && offline.length === 0 && empty.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-32 z-20 flex flex-col items-center gap-1.5 px-4">
+    <div className="system-state pointer-events-none absolute inset-x-0 bottom-32 z-20 flex flex-col items-center gap-1.5 px-4">
       {loading.length > 0 ? (
         <Line tone="neutral">
           {loading.map((source) => source.label).join(" · ")} wird geladen…

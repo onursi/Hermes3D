@@ -20,7 +20,8 @@ vi.mock("@/lib/elevenlabs/localConfig", () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-const { MAX_VOICE_UPLOAD_BYTES, POST } = await import(
+import { MAX_VOICE_UPLOAD_BYTES } from "@/lib/elevenlabs/limits";
+const { POST } = await import(
   "@/app/api/office/voice/transcribe/route"
 );
 

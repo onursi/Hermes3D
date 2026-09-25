@@ -38,6 +38,8 @@ import {WormholeJourney} from "./foundations/WormholeJourney";
 import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
 import "./foundations/worlds.css";
 import "./hud/interfaceFoundation.css";
+import {MobileNavigation, useMobileWorkspace} from "./hud/MobileWorkspace";
+import "./hud/mobileWorkspace.css";
 import {initialCatalog,recoverCatalog,type MemoryCatalog} from "./spatial/memoryCatalog";
 import {loadMemoryCatalog,saveMemoryCatalog,loadPhotos,storePhotos,type StoredPhoto} from "./spatial/photoStore";
 import {PhotoCarousel} from "./spatial/PhotoCarousel";
@@ -77,6 +79,8 @@ export function V2Screen() {
   const live = useHermesLive(liveMode);
   const { world, selection, select, goTo, prefs, clearSelection, setTravelling } = useV2();
 
+  const mobileRootRef = useRef<HTMLElement>(null);
+  const {view: mobileView, setExploring: setMobileExploring} = useMobileWorkspace(world, mobileRootRef);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
   const [meter, setMeter] = useState({ fps: 0, calls: 0, triangles: 0, geometries: 0, textures: 0, loops: 0 });
@@ -605,7 +609,7 @@ export function V2Screen() {
   }, [goTo, clearSelection]);
 
   return (
-    <WorldsProvider><main data-hud-layout="quiet" className="hermes-universe relative h-screen w-screen overflow-hidden bg-[#05080d]">
+    <WorldsProvider><main ref={mobileRootRef} data-mobile-view={mobileView} data-hud-layout="quiet" className="hermes-universe relative h-screen w-screen overflow-hidden bg-[#05080d]">
       {/* Only the canvas is inside the boundary. Everything below it — status
           bar, dock, inspector — stays mounted when a world dies, so the way
           home is still where it always is. */}
@@ -831,6 +835,7 @@ export function V2Screen() {
       ) : null}
 
       <Dock showLibrary={labMode} />
+      <MobileNavigation view={mobileView} onExplore={setMobileExploring} onHome={()=>{setReaderId(null);setSettingsOpen(false);setApprovalsOpen(false);clearSelection();}}/>
 
       {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}
 

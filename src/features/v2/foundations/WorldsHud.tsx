@@ -22,13 +22,14 @@ export function WorldsHud({onRead,onDive}:{onRead:(id:string)=>void;onDive:()=>v
  const {world,goTo,prefs}=useV2();const {objects,selected,choose,loading,issues,phase,setPhase,travel,trip}=useWorlds();
  const [roomQuery,setRoomQuery]=useState('');const menuRef=useRef<HTMLElement>(null);
  const [preview,setPreview]=useState<string|null>(null);const [menu,setMenu]=useState(false);const [drafts,setDrafts]=useState<Record<string,{decision:string;thought:string}>>({});const [reflection,setReflection]=useState('');
- useEffect(()=>{if(!menu)return;const close=(event:PointerEvent)=>{const target=event.target as Element;if(!menuRef.current?.contains(target)&&!target.closest('[aria-controls="room-navigation"]'))setMenu(false);};document.addEventListener('pointerdown',close);menuRef.current?.querySelector<HTMLInputElement>('input')?.focus();return()=>document.removeEventListener('pointerdown',close);},[menu]);
+ useEffect(()=>{if(!menu)return;const close=(event:PointerEvent)=>{const target=event.target as Element;if(!menuRef.current?.contains(target)&&!target.closest('[aria-controls="room-navigation"]'))setMenu(false);};document.addEventListener('pointerdown',close);if(!window.matchMedia('(max-width: 700px), (max-width: 1000px) and (max-height: 500px)').matches)menuRef.current?.querySelector<HTMLInputElement>('input')?.focus();return()=>document.removeEventListener('pointerdown',close);},[menu]);
+ useEffect(()=>{const open=()=>{setRoomQuery('');setMenu(true);};const close=()=>setMenu(false);window.addEventListener('hermes:rooms-open',open);window.addEventListener('hermes:rooms-close',close);return()=>{window.removeEventListener('hermes:rooms-open',open);window.removeEventListener('hermes:rooms-close',close);};},[]);
  const matchesRoom=(r:typeof ROOMS[number])=>(r.title+' '+r.description+' '+(ROOM_SEARCH_TERMS[r.id]??'')).toLocaleLowerCase('de').includes(roomQuery.trim().toLocaleLowerCase('de'));
  const room=ROOMS.find(r=>r.id===world);const active=objects.find(o=>o.id===selected);
  const {decision,thought}=drafts[active?.id??'']??{decision:'Experiment',thought:''};
  const updateDraft=(change:Partial<{decision:string;thought:string}>)=>{if(active)setDrafts(prev=>({...prev,[active.id]:{...(prev[active.id]??{decision:'Experiment',thought:''}),...change}}));};
  const list=objects.filter(o=>world==='projects'?o.kind==='project'&&o.state!=='abgeschlossen':world==='success'?isSuccess(o):world==='horizon'?o.kind==='goal':world==='atelier'?o.kind==='idea':false);
- const enter=(id:V2World)=>{choose(null);setMenu(false);if(world==='home'&&!prefs.reducedMotion){window.dispatchEvent(new CustomEvent('hermes:portal-enter',{detail:id}));return;}roomSound(prefs.sound);goTo(id);};
+ const enter=(id:V2World)=>{choose(null);setMenu(false);if(world==='home'&&!prefs.reducedMotion&&!window.matchMedia('(max-width: 700px), (max-width: 1000px) and (max-height: 500px)').matches){window.dispatchEvent(new CustomEvent('hermes:portal-enter',{detail:id}));return;}roomSound(prefs.sound);goTo(id);};
  const draft=()=>{if(!active)return;const text=`# Entscheidung zur Idee
 
 Quelle: [[${active.path.replace(/\.md$/,'')}]]

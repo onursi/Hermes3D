@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getElevenLabsConfig } from "@/lib/elevenlabs/localConfig";
+import { MAX_VOICE_UPLOAD_BYTES } from "@/lib/elevenlabs/limits";
 
 export const runtime = "nodejs";
-
-export const MAX_VOICE_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
