@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-09-05T13:03:26.568Z",
+  "baseline": {
+    "durationMs": 48713,
+    "tokens": 31
+  },
+  "parallel": {
+    "alpha": {
+      "durationMs": 49500,
+      "firstDeltaMs": 49455,
+      "events": 2
+    },
+    "beta": {
+      "durationMs": 50315,
+      "firstDeltaMs": 50238,
+      "events": 3
+    },
+    "overlapMs": 49096
+  },
+  "allEvents": [
+    {
+      "t": 99628,
+      "sessionId": "agent:router-opencode:test-1788613295722-kbza",
+      "runId": "e5cc7dd4-d8d4-4a3b-abc2-bcd01c1fbc33",
+      "state": "delta",
+      "text": ""
+    },
+    {
+      "t": 99673,
+      "sessionId": "agent:router-opencode:test-1788613295722-kbza",
+      "runId": "e5cc7dd4-d8d4-4a3b-abc2-bcd01c1fbc33",
+      "state": "final",
+      "text": "ALPHA"
+    },
+    {
+      "t": 100815,
+      "sessionId": "agent:router-opencode:test-1788613295722-qzip",
+      "runId": "1c9abee6-e3f5-4036-b3ab-f90ec9d4c69a",
+      "state": "delta",
+      "text": ""
+    },
+    {
+      "t": 100816,
+      "sessionId": "agent:router-opencode:test-1788613295722-qzip",
+      "runId": "1c9abee6-e3f5-4036-b3ab-f90ec9d4c69a",
+      "state": "delta",
+      "text": ""
+    },
+    {
+      "t": 100892,
+      "sessionId": "agent:router-opencode:test-1788613295722-qzip",
+      "runId": "1c9abee6-e3f5-4036-b3ab-f90ec9d4c69a",
+      "state": "final",
+      "text": "BETA"
+    }
+  ]
+}

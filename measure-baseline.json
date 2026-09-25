@@ -1,0 +1,22 @@
+{
+  "url": "http://localhost:3300/office",
+  "quality": "medium",
+  "viewport": {
+    "width": 1720,
+    "height": 1250
+  },
+  "takenAt": "2026-09-04T23:42:37.368Z",
+  "samples": 29,
+  "fps": {
+    "median": 23,
+    "min": 12,
+    "max": 38
+  },
+  "draws": 391,
+  "trianglesK": 73,
+  "jsMs": 10.6,
+  "renderMs": 9.6,
+  "frameMs": 43,
+  "renderer": "ANGLE (AMD, AMD Radeon(TM) Vega 11 Graphics (0x000015DD) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "consoleErrors": []
+}
