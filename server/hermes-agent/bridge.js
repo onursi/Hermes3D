@@ -22,6 +22,7 @@ const path = require("node:path");
 const { HermesAgentJsonRpcClient, redactUrl } = require("./jsonrpc-client");
 const { createOfficeSpeechSubscriber } = require("./office-speech");
 const { classifyMessage, isReroute } = require("./frontdoor-router");
+const { CouncilKernel } = require("./council-kernel");
 const { resolveStateDir } = require("../studio-settings");
 const {
   KANBAN_TASK_ID_PREFIX,
@@ -493,8 +494,10 @@ function createHermesAgentUpstream(options) {
   let agentRoster = [fallbackAgent()];
   let defaultAgentId = AGENT_ID;
   /** Optional feed of turns driven from other clients; see ./office-speech.js. */
-  let officeSpeech = null;
-  /** runId -> { sessionKey, runtimeId, buffer, aborted } */
+    let officeSpeech = null;
+    /** Council Kernel — orchestriert Multi-Agent-Runden. */
+    let councilKernel = null;
+    /** runId -> { sessionKey, runtimeId, buffer, aborted } */
   const activeRuns = new Map();
   /** sessionKey -> runId, so session-scoped events find their run. */
   const runBySessionKey = new Map();
@@ -977,14 +980,29 @@ function createHermesAgentUpstream(options) {
   };
 
   const handleConnect = async (id) => {
-    await loadAgentRoster();
-    // Only worth subscribing once the roster exists to map turns onto.
-    startOfficeSpeech();
-    const agents = agentRoster.map((a) => ({
-      agentId: a.id,
-      name: a.name,
-      isDefault: a.id === defaultAgentId,
-    }));
+      await loadAgentRoster();
+      // Only worth subscribing once the roster exists to map turns onto.
+      startOfficeSpeech();
+
+      // Council Kernel initialisieren (nach Roster, damit Profil-Liste da ist)
+      councilKernel = new CouncilKernel({
+        sessions,
+        sessionKeyByRuntimeId,
+        activeRuns,
+        runBySessionKey,
+        agentRoster,
+        defaultAgentId,
+        client,
+        log,
+        logError,
+        upstream,
+      });
+
+      const agents = agentRoster.map((a) => ({
+        agentId: a.id,
+        name: a.name,
+        isDefault: a.id === defaultAgentId,
+      }));
     return resOk(id, {
       type: "hello-ok",
       protocol: 3,
@@ -993,34 +1011,36 @@ function createHermesAgentUpstream(options) {
       // (native kanban, profile fleet) hang off this detection.
       adapterType: "hermes-agent",
       features: {
-        methods: [
-          "agents.list",
-          "agents.files.get",
-          "agents.files.set",
-          "sessions.list",
-          "sessions.preview",
-          "sessions.patch",
-          "sessions.reset",
-          "chat.send",
-          "chat.abort",
-          "chat.history",
-          "agent.wait",
-          "status",
-          "config.get",
-          "config.set",
-          "config.patch",
-          "exec.approvals.get",
-          "exec.approvals.set",
-          "exec.approval.resolve",
-          "wake",
-          "skills.status",
-          "models.list",
-          "tasks.list",
-          "tasks.update",
-          "cron.list",
-        ],
-        events: ["chat", "agent", "presence", "heartbeat", "cron"],
-      },
+              methods: [
+                "agents.list",
+                "agents.files.get",
+                "agents.files.set",
+                "sessions.list",
+                "sessions.preview",
+                "sessions.patch",
+                "sessions.reset",
+                "chat.send",
+                "chat.abort",
+                "chat.history",
+                "agent.wait",
+                "status",
+                "config.get",
+                "config.set",
+                "config.patch",
+                "exec.approvals.get",
+                "exec.approvals.set",
+                "exec.approval.resolve",
+                "wake",
+                "skills.status",
+                "models.list",
+                "tasks.list",
+                "tasks.update",
+                "cron.list",
+                "council.start",
+                "council.abort",
+              ],
+              events: ["chat", "agent", "presence", "heartbeat", "cron"],
+            },
       snapshot: {
         health: { agents, defaultAgentId },
         sessionDefaults: { mainKey: MAIN_KEY },
@@ -1569,10 +1589,56 @@ function createHermesAgentUpstream(options) {
       }
 
       default:
-        log(`[hermes-agent] unhandled method: ${method}`);
-        return resOk(id, {});
-    }
-  };
+              log(`[hermes-agent] unhandled method: ${method}`);
+              return resOk(id, {});
+          }
+        };
+
+        // --- Council methods (handleMethod cases) --------------------------------
+
+        const handleCouncilStart = async (p, id) => {
+          if (!councilKernel) {
+            return resErr(id, "council_not_ready", "Council kernel not initialized");
+          }
+          try {
+            const { sessionKey, topic, participantAgentIds, maxRounds } = p;
+            const result = await councilKernel.start({
+              sessionKey,
+              topic,
+              participantAgentIds,
+              maxRounds,
+            });
+            return resOk(id, result);
+          } catch (err) {
+            logError("[council] start failed", err);
+            return resErr(id, "council_start_failed", errorMessage(err));
+          }
+        };
+
+        const handleCouncilAbort = async (p, id) => {
+          if (!councilKernel) {
+            return resErr(id, "council_not_ready", "Council kernel not initialized");
+          }
+          const runId = asString(p.runId);
+          if (!runId) {
+            return resErr(id, "council_abort_missing_runid", "runId required");
+          }
+          councilKernel.abortRun(runId, asString(p.reason, "user aborted"));
+          return resOk(id, { ok: true });
+        };
+
+        // Inject council methods into handleMethod
+        const originalHandleMethod = handleMethod;
+        const handleMethodWithCouncil = async (method, params, id) => {
+          switch (method) {
+            case "council.start":
+              return handleCouncilStart(params, id);
+            case "council.abort":
+              return handleCouncilAbort(params, id);
+            default:
+              return originalHandleMethod(method, params, id);
+          }
+        };
 
   // --- virtual WebSocket surface -------------------------------------------
 
@@ -1589,36 +1655,48 @@ function createHermesAgentUpstream(options) {
     const respond = (result) => emitFrame(result);
 
     if (method === "connect") {
-      handleConnect(id).then(respond, (err) =>
-        respond(resErr(id, "hermes_agent.connect_failed", errorMessage(err)))
-      );
-      return;
-    }
+          handleConnect(id).then(respond, (err) =>
+            respond(resErr(id, "hermes_agent.connect_failed", errorMessage(err)))
+          );
+          return;
+        }
 
-    handleMethod(method, params, id).then(respond, (err) => {
-      logError(`[hermes-agent] method "${method}" failed.`, err);
-      respond(resErr(id, "hermes_agent.request_failed", errorMessage(err)));
-    });
-  };
+        handleMethodWithCouncil(method, params, id).then(respond, (err) => {
+          logError(`[hermes-agent] method "${method}" failed.`, err);
+          respond(resErr(id, "hermes_agent.request_failed", errorMessage(err)));
+        });
+      };
 
   const stopOfficeSpeech = () => {
-    officeSpeech?.close();
-    officeSpeech = null;
-  };
+      officeSpeech?.close();
+      officeSpeech = null;
+    };
 
-  upstream.close = (code, reason) => {
-    closed = true;
-    upstream.readyState = CLOSED;
-    stopOfficeSpeech();
-    client.close(code, reason);
-  };
+    const stopCouncilKernel = () => {
+      if (councilKernel) {
+        // Abort all running council runs
+        for (const runId of councilKernel.councilRuns.keys()) {
+          councilKernel.abortRun(runId, "bridge closing");
+        }
+        councilKernel = null;
+      }
+    };
 
-  upstream.terminate = () => {
-    closed = true;
-    upstream.readyState = CLOSED;
-    stopOfficeSpeech();
-    client.terminate();
-  };
+    upstream.close = (code, reason) => {
+      closed = true;
+      upstream.readyState = CLOSED;
+      stopOfficeSpeech();
+      stopCouncilKernel();
+      client.close(code, reason);
+    };
+
+    upstream.terminate = () => {
+      closed = true;
+      upstream.readyState = CLOSED;
+      stopOfficeSpeech();
+      stopCouncilKernel();
+      client.terminate();
+    };
 
   client.on("ready", () => {
     upstream.readyState = OPEN;
