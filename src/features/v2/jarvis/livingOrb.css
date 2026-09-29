@@ -1,0 +1,46 @@
+/* R47 living orb (phone console). --level 0..1 comes from the voice tap. */
+.living-orb { display: none; }
+
+@media (max-width: 700px), (max-width: 1000px) and (max-height: 500px) {
+  .hermes-universe .jarvis-header .living-orb {
+    --level: 0; --size: 58px;
+    display: grid; place-items: center; position: relative; flex: 0 0 auto;
+    width: 96px; height: 78px;
+  }
+  /* The orb replaces the face / arc-reactor avatar on the phone. */
+  .hermes-universe .jarvis-header .living-orb ~ button[title^="Klick: 3D"],
+  .hermes-universe .jarvis-header button[title^="Klick: 3D"] { display: none; }
+
+  .living-orb > span:not(.living-orb-label) {
+    position: absolute; left: 50%; top: 42%; width: var(--size); height: var(--size); border-radius: 50%;
+    transform: translate(-50%, -50%) scale(calc(1 + var(--level) * 0.28));
+    transition: transform 60ms linear;
+  }
+  .living-orb-halo {
+    box-shadow: 0 0 calc(18px + var(--level) * 40px) calc(4px + var(--level) * 14px) color-mix(in srgb, var(--tint) 45%, transparent);
+    opacity: calc(0.55 + var(--level) * 0.45);
+  }
+  .living-orb-core {
+    background:
+      radial-gradient(circle at 38% 34%, #eafffb 0%, color-mix(in srgb, var(--tint) 85%, #fff) 14%, transparent 34%),
+      radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--tint) 70%, #1a5a5e) 0%, #0f3438 58%, #06181b 100%);
+  }
+  .living-orb-flow {
+    background: conic-gradient(from 0deg, transparent 0 18%, color-mix(in srgb, var(--tint) 55%, transparent) 26%, transparent 38% 60%,
+      color-mix(in srgb, var(--tint) 40%, transparent) 70%, transparent 82%);
+    mix-blend-mode: screen; opacity: calc(0.35 + var(--level) * 0.6);
+    mask: radial-gradient(circle, #000 55%, transparent 72%); -webkit-mask: radial-gradient(circle, #000 55%, transparent 72%);
+    animation: living-orb-turn 9s linear infinite;
+  }
+  .living-orb[data-state="working"] .living-orb-flow { animation-duration: 2.4s; }
+  .living-orb[data-state="listening"] .living-orb-flow,
+  .living-orb[data-state="speaking"] .living-orb-flow { animation-duration: 4s; }
+  .living-orb[data-state="offline"] > span:not(.living-orb-label) { filter: grayscale(1) brightness(.6); }
+  .living-orb-label { position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+    font: 11px var(--font-sans), -apple-system, sans-serif; color: var(--tint); }
+  @keyframes living-orb-turn { to { transform: translate(-50%, -50%) scale(calc(1 + var(--level) * 0.28)) rotate(360deg); } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .living-orb-flow { animation: none !important; }
+}

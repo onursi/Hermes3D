@@ -1,5 +1,6 @@
 // High-end synthesized Web Audio sound generator for cyber UI interactions
 // Generates soft, pristine sci-fi sounds dynamically with zero asset download.
+import { watchSpeech } from "@/features/v2/world/voiceLevel";
 
 class CyberAudioController {
   private ctx: AudioContext | null = null;
@@ -254,6 +255,7 @@ class CyberAudioController {
             release();
             return;
           }
+          watchSpeech(audio);
           await audio.play();
           return;
         }

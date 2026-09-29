@@ -5,7 +5,9 @@ import {WormholeMouth} from "../foundations/WormholeJourney";
 
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, N8AO, Noise, Vignette } from "@react-three/postprocessing";
+import { BlendFunction } from "postprocessing";
+import { QUALITY, resolveQuality } from "./quality";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -437,9 +439,13 @@ export function V2Scene({
     return points;
   }, [vault.nodes, world]);
 
+  const quality = QUALITY[resolveQuality(prefs.quality)];
+
   return (
     <Canvas
-      dpr={[1, 1.35]}
+      // R45: resolution by quality tier. Cinema renders up to 2x on a
+      // discrete GPU; phones keep the light budget.
+      dpr={quality.dpr}
       // Explicit, because the default is PCFSoftShadowMap and this version of
       // three deprecates it: every frame logged a warning and silently fell
       // back to exactly this. Naming the fallback removes the noise without
@@ -480,8 +486,8 @@ export function V2Scene({
         // waren der Grund, dass alles blau wirkte.
         color="#ffeedd"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={quality.shadowMap}
+        shadow-mapSize-height={quality.shadowMap}
         shadow-camera-near={1}
         shadow-camera-far={26}
         shadow-camera-left={-8}
@@ -657,12 +663,28 @@ export function V2Scene({
       {travelling && !prefs.reducedMotion ? <WarpStreaks progress={warpProgress} /> : null}
 
       {prefs.bloom ? (
-        <EffectComposer multisampling={2}>
-          {/* Bloom only. Ambient occlusion samples the depth buffer many times
-              per pixel and was measured at 7 fps against 60 without it on this
-              machine — it is the one effect that cannot be afforded. */}
-          <Bloom intensity={0.62} luminanceThreshold={0.55} luminanceSmoothing={0.25} mipmapBlur />
-        </EffectComposer>
+        quality.ambientOcclusion ? (
+          /* R45 cinema tier. Ambient occlusion was measured at 7 fps on the
+             old integrated GPU and dropped; on a discrete GPU N8AO (half-res,
+             denoised) costs a few milliseconds and gives the stage its contact
+             shadows. Grain and vignette are kept faint: film, not filter. */
+          <EffectComposer multisampling={quality.multisampling}>
+            <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} halfRes quality="medium" color="#050708" />
+            <Bloom intensity={0.7} luminanceThreshold={0.6} luminanceSmoothing={0.3} mipmapBlur radius={0.72} />
+            <Vignette offset={0.28} darkness={0.55} />
+            <Noise opacity={0.035} blendFunction={BlendFunction.SOFT_LIGHT} />
+          </EffectComposer>
+        ) : quality.vignette ? (
+          <EffectComposer multisampling={quality.multisampling}>
+            <Bloom intensity={0.62} luminanceThreshold={0.55} luminanceSmoothing={0.25} mipmapBlur />
+            <Vignette offset={0.3} darkness={0.45} />
+          </EffectComposer>
+        ) : (
+          <EffectComposer multisampling={quality.multisampling}>
+            {/* Light tier (phones): bloom only, as before. */}
+            <Bloom intensity={0.62} luminanceThreshold={0.55} luminanceSmoothing={0.25} mipmapBlur />
+          </EffectComposer>
+        )
       ) : null}
 
       <CinemaFlight controlsRef={controlsRef} blocked={goal!==null||inputBlocked}/>

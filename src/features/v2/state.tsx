@@ -100,6 +100,13 @@ export type V2Prefs = {
    * umlegt, soll wissen, dass er nirgendwo ankommt.
    */
   hyperRide: boolean;
+  /**
+   * Render quality. "auto" picks per device: a desktop with a discrete GPU
+   * gets the cinematic pipeline, phones the light one (see world/quality.ts).
+   */
+  quality: "auto" | "cinema" | "balanced" | "lite";
+  /** Phone start view: design A (dark "Calm Studio") or B ("Hell & klar"). */
+  mobileTheme: "dark" | "light";
 };
 
 const DEFAULT_PREFS: V2Prefs = {
@@ -110,6 +117,8 @@ const DEFAULT_PREFS: V2Prefs = {
   // Silent until asked. U1.5 is explicit, and so is Onur: no autoplay.
   sound: 0,
   hyperRide: false,
+  quality: "auto",
+  mobileTheme: "dark",
 };
 
 const PREFS_KEY = "hermes3d-v2-prefs-v1";
@@ -220,6 +229,8 @@ export function V2Provider({ children }: { children: ReactNode }) {
       sound: typeof stored.sound === "number" ? stored.sound : DEFAULT_PREFS.sound,
       // Ein Ritt beginnt nie von selbst: der Schalter faellt beim Laden zurueck.
       hyperRide: false,
+      quality: stored.quality === "cinema" || stored.quality === "balanced" || stored.quality === "lite" ? stored.quality : "auto",
+      mobileTheme: stored.mobileTheme === "light" ? "light" : "dark",
     });
   }, []);
 

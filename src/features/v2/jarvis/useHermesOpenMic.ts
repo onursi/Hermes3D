@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createOpenMicSession, type Recognition } from "./openMicSession";
+import { watchMicrophone } from "../world/voiceLevel";
 
 function recognitionConstructor() {
   const browser = window as unknown as {
@@ -28,6 +29,7 @@ export function useHermesOpenMic(onText: (text: string) => void, onInterrupt: ()
   const session = useRef<ReturnType<typeof createOpenMicSession> | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
+  const unwatchMic = useRef<() => void>(() => {});
   const chunks = useRef<Blob[]>([]);
   const mounted = useRef(true);
   const callbacks = useRef({ onText, onInterrupt });
@@ -48,6 +50,8 @@ export function useHermesOpenMic(onText: (text: string) => void, onInterrupt: ()
   }, []);
 
   const stopTracks = useCallback(() => {
+    unwatchMic.current();
+    unwatchMic.current = () => {};
     stream.current?.getTracks().forEach((track) => track.stop());
     stream.current = null;
   }, []);
@@ -114,6 +118,7 @@ export function useHermesOpenMic(onText: (text: string) => void, onInterrupt: ()
         const mimeType = preferredMimeType();
         const activeRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
         stream.current = mediaStream;
+        unwatchMic.current = watchMicrophone(mediaStream);
         recorder.current = activeRecorder;
         chunks.current = [];
         setEngine("scribe");

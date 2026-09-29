@@ -39,6 +39,7 @@ import {WorldsHud,HorizonCrossing} from "./foundations/WorldsHud";
 import "./foundations/worlds.css";
 import "./hud/interfaceFoundation.css";
 import {MobileNavigation, useMobileWorkspace} from "./hud/MobileWorkspace";
+import {MobileToday} from "./hud/MobileToday";
 import "./hud/mobileWorkspace.css";
 import {initialCatalog,recoverCatalog,type MemoryCatalog} from "./spatial/memoryCatalog";
 import {loadMemoryCatalog,saveMemoryCatalog,loadPhotos,storePhotos,type StoredPhoto} from "./spatial/photoStore";
@@ -609,7 +610,7 @@ export function V2Screen() {
   }, [goTo, clearSelection]);
 
   return (
-    <WorldsProvider><main ref={mobileRootRef} data-mobile-view={mobileView} data-hud-layout="quiet" className="hermes-universe relative h-screen w-screen overflow-hidden bg-[#05080d]">
+    <WorldsProvider><main ref={mobileRootRef} data-mobile-view={mobileView} data-mobile-theme={prefs.mobileTheme} data-hud-layout="quiet" className="hermes-universe relative h-screen w-screen overflow-hidden bg-[#05080d]">
       {/* Only the canvas is inside the boundary. Everything below it — status
           bar, dock, inspector — stays mounted when a world dies, so the way
           home is still where it always is. */}
@@ -835,6 +836,9 @@ export function V2Screen() {
       ) : null}
 
       <Dock showLibrary={labMode} />
+      <MobileToday agentCount={roster.agents.length} rosterReachable={roster.reachable}
+        approvalsWaiting={approvals} approvalsReachable={approvalState.reachable}
+        onOpenApprovals={() => setApprovalsOpen(true)}/>
       <MobileNavigation view={mobileView} onExplore={setMobileExploring} onHome={()=>{setReaderId(null);setSettingsOpen(false);setApprovalsOpen(false);clearSelection();}}/>
 
       {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}

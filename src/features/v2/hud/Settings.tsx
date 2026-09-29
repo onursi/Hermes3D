@@ -3,6 +3,7 @@
 import {PanelWindow} from "./PanelWindow";
 import { unlockAtmosphere } from "@/features/v2/atmosphereAudio";
 import { useV2 } from "@/features/v2/state";
+import { QUALITY_LABELS, detectQuality } from "@/features/v2/world/quality";
 
 /**
  * Four sliders, and each one changes something you can see.
@@ -59,6 +60,22 @@ export function Settings({ onClose }: { onClose: () => void }) {
           format={(v) => `${v.toFixed(1)}×`}
           onChange={(value) => setPref("flightSpeed", value)}
         />
+
+        <label className="block text-[12px] text-white/70">
+          Grafikqualität
+          <select
+            className="mt-1.5 block w-full rounded-lg border border-white/10 bg-[#0b1018] px-3 py-2 text-[13px] text-white/85"
+            value={prefs.quality}
+            onChange={(event) => setPref("quality", event.target.value as typeof prefs.quality)}
+          >
+            {(Object.keys(QUALITY_LABELS) as (keyof typeof QUALITY_LABELS)[]).map((key) => (
+              <option key={key} value={key}>
+                {QUALITY_LABELS[key]}{key === "auto" ? ` · erkannt: ${QUALITY_LABELS[detectQuality()].split(" (")[0]}` : ""}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] text-white/45">Kino: Schatten, Tiefe und Filmlook für starke Grafikkarten. Leicht schont Handy-Akku.</span>
+        </label>
 
         <Toggle
           label="Leuchten"

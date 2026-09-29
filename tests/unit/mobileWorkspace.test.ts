@@ -24,7 +24,7 @@ it("switches presentation without replacing drafts or the existing navigation", 
   fireEvent.click(screen.getByRole("button", { name: "Räume" }));
   expect(rooms).toHaveBeenCalledOnce();
   expect(screen.getByTestId("workspace")).toHaveAttribute("data-view", "rooms");
-  fireEvent.click(screen.getByRole("button", { name: "Start" }));
+  fireEvent.click(screen.getByRole("button", { name: "Heute" }));
   expect(goTo).toHaveBeenCalledWith("home");
   expect(screen.getByTestId("workspace")).toHaveAttribute("data-view", "work");
   expect(screen.getByLabelText("Unfertiger Entwurf")).toBe(field);
@@ -37,7 +37,7 @@ it("uses actual console visibility, including opening from a project draft", () 
   act(() => window.dispatchEvent(new CustomEvent("hermes:console-visibility", { detail: true })));
   expect(screen.getByRole("button", { name: "Hermes" })).toHaveAttribute("aria-current", "page");
   act(() => window.dispatchEvent(new CustomEvent("hermes:console-visibility", { detail: false })));
-  expect(screen.getByRole("button", { name: "Start" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("button", { name: "Heute" })).toHaveAttribute("aria-current", "page");
 });
 
 it("shows rooms when existing controls navigate to another world", () => {

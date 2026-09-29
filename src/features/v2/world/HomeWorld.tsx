@@ -5,7 +5,8 @@ import { Suspense, useMemo } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
-import {CommandCore,CommandPlatform,CommandStations} from "./CommandCore";
+import {CommandPlatform,CommandStations} from "./CommandCore";
+import {HermesOrb} from "./HermesOrb";
 import {useWorlds} from "../foundations/WorldsProvider";
 import type { RosterAgent } from "@/features/v2/useRoster";
 import { AgentDeck } from "@/features/v2/world/AgentDeck";
@@ -74,7 +75,7 @@ export function HomeWorld({
     <group>
       <DeckDust />
       <Suspense fallback={<StagePlatform/>}><CommandPlatform/></Suspense>
-      <CommandCore intensity={prefs.coreIntensity} reachable={rosterReachable} waiting={approvalsWaiting}/>
+      <HermesOrb intensity={prefs.coreIntensity} reachable={rosterReachable} waiting={approvalsWaiting}/>
       <CommandStations projects={objects.filter(o=>o.kind==='project'&&!['fertig','abgeschlossen'].includes(o.state)).length} waiting={approvalsWaiting} reachable={rosterReachable}/>
       {seats.map(({agent,position})=><mesh key={agent.id} position={[position.x,-.08,position.z]}><cylinderGeometry args={[.48,.55,.15,6]}/><meshStandardMaterial color="#25323c" metalness={.65} roughness={.3}/></mesh>)}
 

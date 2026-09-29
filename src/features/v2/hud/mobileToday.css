@@ -1,0 +1,120 @@
+/* R44 "Calm Studio" (design A): graphite, glass, one petrol accent. Mobile start view only. */
+.mobile-today { display: none; }
+
+@media (max-width: 700px), (max-width: 1000px) and (max-height: 500px) {
+  main.hermes-universe[data-mobile-view="work"] {
+    --calm-ink: #e8ecef; --calm-muted: #9aa6ae; --calm-accent: #7fc4c0; --calm-wait: #efc57b;
+    background: radial-gradient(120% 70% at 50% 30%, #1d2a30 0%, #121619 55%, #0c0e10 100%) !important;
+  }
+  /* The game scene stays in "Räume"; here it would only compete with the work. */
+  main.hermes-universe[data-mobile-view="work"] canvas,
+  main.hermes-universe[data-mobile-view="work"] .hermes-status { visibility: hidden; }
+
+  main.hermes-universe[data-mobile-view="work"] .mobile-today {
+    display: block; position: absolute; z-index: 31; left: 0; right: 0; top: 0;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 22px 0;
+    color: var(--calm-ink); font-family: var(--font-sans), -apple-system, sans-serif;
+  }
+  .mobile-today h1 { margin: 2px 0 6px; max-width: 70%; font-size: 30px; line-height: 1.12; font-weight: 650; letter-spacing: -.03em; }
+  .mobile-today-date { margin: 0; font-size: 13px; color: var(--calm-muted); }
+  .mobile-today-summary { margin: 0; max-width: 70%; font-size: 15px; line-height: 1.45; color: #c3ccd2; }
+  .mobile-today-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .today-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 12px 5px 9px; border-radius: 999px;
+    background: #ffffff0d; border: 1px solid #ffffff14; color: #cfd6db; font-size: 12.5px; }
+  button.today-chip { cursor: pointer; font: inherit; font-size: 12.5px; }
+  .today-chip i { width: 8px; height: 8px; border-radius: 50%; background: #5b646c; }
+  .today-chip i[data-tone="on"] { background: #7fd3c9; box-shadow: 0 0 0 3px #7fd3c922; }
+  .today-chip i[data-tone="wait"] { background: var(--calm-wait); }
+  .today-chip i[data-tone="off"] { background: #d37f7f; }
+  .mobile-today-orb { position: absolute; right: -30px; top: calc(62px + env(safe-area-inset-top, 0px)); width: 140px; height: 140px; border-radius: 50%;
+    background: radial-gradient(circle at 42% 38%, #d8f4f1 0%, #7fc4c0 22%, #2d6f73 52%, #13353a00 72%);
+    box-shadow: 0 0 90px 20px #4aa3a526; animation: calm-breathe 6s ease-in-out infinite; pointer-events: none; }
+  .mobile-today-orb[data-state="offline"] { filter: grayscale(1) brightness(.6); animation: none; }
+  @keyframes calm-breathe { 0%, 100% { transform: scale(.94); opacity: .85; } 50% { transform: scale(1.04); opacity: 1; } }
+
+  /* Sheet in the calm style */
+  main.hermes-universe[data-mobile-view="work"] .work-central {
+    background: #161b1fcc; backdrop-filter: blur(24px) saturate(1.3); -webkit-backdrop-filter: blur(24px) saturate(1.3);
+    border: 1px solid #ffffff12; border-radius: 24px; box-shadow: 0 -10px 40px #0006; color: var(--calm-ink);
+    font-family: var(--font-sans), -apple-system, sans-serif;
+  }
+  main.hermes-universe[data-mobile-view="work"] .work-central .sheet-handle i { background: #ffffff33; }
+  main.hermes-universe[data-mobile-view="work"] .work-intro h2 { font-size: 19px; font-weight: 650; letter-spacing: -.02em; margin: 0; padding-top: 4px; }
+  main.hermes-universe[data-mobile-view="work"] .work-intro .title-long { display: none; }
+  main.hermes-universe[data-mobile-view="work"] .work-intro .title-short { display: inline; }
+  main.hermes-universe[data-mobile-view="work"] .command-presence,
+  main.hermes-universe[data-mobile-view="work"] .work-intro > p,
+  main.hermes-universe[data-mobile-view="work"] .work-source,
+  main.hermes-universe[data-mobile-view="work"] .work-central input[aria-label="Projekt in Arbeitszentrale suchen"] { display: none; }
+  main.hermes-universe[data-mobile-view="work"] .work-central .sheet-sizes { background: #ffffff0a; }
+  main.hermes-universe[data-mobile-view="work"] .work-central .sheet-sizes button[aria-pressed="true"] { background: #ffffff1c; }
+  main.hermes-universe[data-mobile-view="work"] .work-central nav { border: 0; padding: 4px 14px 12px; gap: 6px; }
+  main.hermes-universe[data-mobile-view="work"] .work-central nav button { border: 0; border-radius: 12px; background: #ffffff08; color: #aeb7be; font-size: 13.5px; font-weight: 550; }
+  main.hermes-universe[data-mobile-view="work"] .work-central nav button[aria-pressed="true"] { background: var(--calm-ink); color: #111417; }
+  main.hermes-universe[data-mobile-view="work"] .work-content { padding: 0 12px 14px; }
+  main.hermes-universe[data-mobile-view="work"] .work-central article { background: #ffffff09; border: 1px solid #ffffff0f; border-radius: 16px; }
+  main.hermes-universe[data-mobile-view="work"] .work-central article[data-open="true"] { border-color: #7fc4c040; }
+  main.hermes-universe[data-mobile-view="work"] .work-card-toggle small { color: var(--calm-accent); font-weight: 600; font-size: 12px; }
+  main.hermes-universe[data-mobile-view="work"] .work-card-toggle h3 { color: var(--calm-ink); font-weight: 600; }
+  main.hermes-universe[data-mobile-view="work"] .work-card-next, main.hermes-universe[data-mobile-view="work"] .work-central article p { color: var(--calm-muted); }
+  main.hermes-universe[data-mobile-view="work"] .work-next { border-left-color: var(--calm-accent); }
+  main.hermes-universe[data-mobile-view="work"] .work-next span { color: var(--calm-accent); }
+  main.hermes-universe[data-mobile-view="work"] .work-actions button,
+  main.hermes-universe[data-mobile-view="work"] .work-actions a { border: 0; border-radius: 11px; background: #ffffff10; color: var(--calm-ink); font-weight: 550; }
+  main.hermes-universe[data-mobile-view="work"] .work-actions button:first-child { background: var(--calm-accent); color: #0c1a1b; }
+
+  main.hermes-universe[data-mobile-view="work"] .work-central article details summary { font-size: 13px; color: #b7c3ca; padding: 8px 0; cursor: pointer; }
+  main.hermes-universe[data-mobile-view="work"] .work-central article > small { font-size: 12px; color: var(--calm-muted); }
+
+  /* Bottom navigation in the same language on every view */
+  main.hermes-universe .mobile-navigation { background: #0f1214ee; border-top: 1px solid #ffffff0d; }
+  main.hermes-universe .mobile-navigation button { color: #7d878f; font-weight: 550; }
+  main.hermes-universe .mobile-navigation button[aria-current="page"] { color: #e8ecef; background: #ffffff0a; }
+}
+
+/* Theme switch + design B "Hell & klar" (R47). Same layout, light surfaces. */
+.mobile-theme-toggle { display: none; }
+@media (max-width: 700px), (max-width: 1000px) and (max-height: 500px) {
+  main.hermes-universe[data-mobile-view="work"] .mobile-theme-toggle {
+    display: inline-flex; align-items: center; gap: 6px; position: absolute; z-index: 2;
+    right: 14px; top: calc(14px + env(safe-area-inset-top, 0px)); min-height: 36px; padding: 0 12px;
+    border-radius: 999px; border: 1px solid #ffffff1c; background: #0c1114b3; color: #dfe6ea;
+    font: 600 12.5px var(--font-sans), -apple-system, sans-serif; cursor: pointer; backdrop-filter: blur(12px);
+  }
+  main.hermes-universe[data-mobile-view="work"] .mobile-theme-toggle span { font-size: 14px; }
+
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] {
+    --calm-ink: #1f201d; --calm-muted: #62655d; --calm-accent: #3f7a6a; --calm-wait: #b4441b;
+    background: linear-gradient(180deg, #f5f5f1 0%, #ecede7 100%) !important;
+  }
+  main.hermes-universe[data-mobile-theme="light"] .mobile-theme-toggle { background: #ffffffcc !important; border-color: #e3e5dd !important; color: #1f201d !important; }
+  main.hermes-universe[data-mobile-theme="light"] .mobile-today-summary { color: #45493f; }
+  main.hermes-universe[data-mobile-theme="light"] .today-chip { background: #fff; border-color: #e3e5dd; color: #45493f; box-shadow: 0 1px 2px #0000000a; }
+  main.hermes-universe[data-mobile-theme="light"] .today-chip i[data-tone="on"] { background: #3f7a52; box-shadow: none; }
+  main.hermes-universe[data-mobile-theme="light"] .mobile-today-orb {
+    background: radial-gradient(circle at 42% 38%, #ffffff 0%, #d9e8e2 30%, #9cc0b3 58%, #9cc0b300 74%);
+    box-shadow: 0 30px 70px -10px #7ea99a55;
+  }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central {
+    background: #ffffffe8; border-color: #e3e5dd; box-shadow: 0 -8px 30px #1f201d14;
+  }
+  main.hermes-universe[data-mobile-theme="light"] .work-central .sheet-handle i { background: #1f201d22; }
+  main.hermes-universe[data-mobile-theme="light"] .work-central .sheet-sizes { background: #f1f2ed; }
+  main.hermes-universe[data-mobile-theme="light"] .work-central .sheet-sizes button[aria-pressed="true"] { background: #dfe2d8; }
+  main.hermes-universe[data-mobile-theme="light"] .sheet-icon { border-color: #45493f; }
+  main.hermes-universe[data-mobile-theme="light"] .sheet-icon::after { background: #45493f; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central nav button { background: #f1f2ed; color: #5d6157; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central nav button[aria-pressed="true"] { background: #1f201d; color: #fff; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central article { background: #f7f7f4; border-color: #ebece6; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central article[data-open="true"] { border-color: #b9cfc4; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central article details summary { color: #45493f; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-actions button,
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-actions a { background: #eceee7; color: #1f201d; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-actions button:first-child { background: #1f201d; color: #fff; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .work-central input { background: #fff; color: #1f201d; border-color: #e3e5dd; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .mobile-navigation { background: #fbfbf9ee; border-top-color: #e3e5dd; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .mobile-navigation button { color: #8a8e84; }
+  main.hermes-universe[data-mobile-view="work"][data-mobile-theme="light"] .mobile-navigation button[aria-current="page"] { color: #1f201d; background: #eceee7; }
+}
+
+@media (prefers-reduced-motion: reduce) { .mobile-today-orb { animation: none; } }

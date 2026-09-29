@@ -64,7 +64,7 @@ export function MobileNavigation({ view, onExplore, onHome }: {
   };
   return <nav className="mobile-navigation" aria-label="Mobile Hauptnavigation">
     <button type="button" aria-current={view === "work" ? "page" : undefined} onClick={home}>
-      <House size={21} aria-hidden="true"/><span>Start</span>
+      <House size={21} aria-hidden="true"/><span>Heute</span>
     </button>
     <button type="button" aria-current={view === "assistant" ? "page" : undefined}
       onClick={() => { window.dispatchEvent(new Event("hermes:rooms-close")); window.dispatchEvent(new Event("hermes:console-open")); }}>

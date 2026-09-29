@@ -31,6 +31,8 @@ import { reportJarvisHead, setBeamActive } from "./beamAnchors";
 import { jarvisAudio } from "./jarvisAudio";
 import Link from "next/link";
 import {publishCommandActivity} from "../world/commandPresence";
+import {watchSpeech} from "../world/voiceLevel";
+import {LivingOrb} from "./LivingOrb";
 import { useHermesOpenMic } from "./useHermesOpenMic";
 import { cyberAudio } from "@/lib/sound/cyberAudio";
 import { PersonalityStudioModal, PERSONAS, type PersonaConfig } from "./PersonalityStudioModal";
@@ -267,6 +269,8 @@ export function JarvisCompanion({
         setIsAudioPaused(false);
       };
 
+      // The orb breathes with the reply's real loudness (read-only tap).
+      watchSpeech(audio);
       await audio.play();
     } catch (err) {
       console.warn("Neural TTS Error:", err);
@@ -835,6 +839,9 @@ export function JarvisCompanion({
                     </span>
                   </button>
                 </div>
+
+                {/* Handy: lebendige Kugel statt Avatar (R47), am Desktop ausgeblendet. */}
+                <LivingOrb />
 
                 {/* Zentraler Avatar (Klickbar für 3D-Studio) */}
                 <button
