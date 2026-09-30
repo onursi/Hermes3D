@@ -5,9 +5,10 @@ import {WormholeMouth} from "../foundations/WormholeJourney";
 
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, N8AO, Noise, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, N8AO, Noise, SMAA, Vignette } from "@react-three/postprocessing";
+import { PerformanceMonitor } from "@react-three/drei";
 import { BlendFunction } from "postprocessing";
-import { QUALITY, resolveQuality } from "./quality";
+import { QUALITY, resolveQuality, stepDown } from "./quality";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -439,7 +440,12 @@ export function V2Scene({
     return points;
   }, [vault.nodes, world]);
 
-  const quality = QUALITY[resolveQuality(prefs.quality)];
+  // R48 fps guard: if the frame rate stays low, drop one tier for this session
+  // (never below "lite", never saved as a preference). Choosing a tier by hand
+  // resets the guard.
+  const [guardSteps, setGuardSteps] = useState(0);
+  useEffect(() => setGuardSteps(0), [prefs.quality]);
+  const quality = QUALITY[stepDown(resolveQuality(prefs.quality), guardSteps)];
 
   return (
     <Canvas
@@ -669,15 +675,17 @@ export function V2Scene({
              denoised) costs a few milliseconds and gives the stage its contact
              shadows. Grain and vignette are kept faint: film, not filter. */
           <EffectComposer multisampling={quality.multisampling}>
-            <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} halfRes quality="medium" color="#050708" />
+            <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} halfRes quality="performance" color="#050708" />
             <Bloom intensity={0.7} luminanceThreshold={0.6} luminanceSmoothing={0.3} mipmapBlur radius={0.72} />
             <Vignette offset={0.28} darkness={0.55} />
             <Noise opacity={0.035} blendFunction={BlendFunction.SOFT_LIGHT} />
+            <SMAA />
           </EffectComposer>
         ) : quality.vignette ? (
           <EffectComposer multisampling={quality.multisampling}>
             <Bloom intensity={0.62} luminanceThreshold={0.55} luminanceSmoothing={0.25} mipmapBlur />
             <Vignette offset={0.3} darkness={0.45} />
+            <SMAA />
           </EffectComposer>
         ) : (
           <EffectComposer multisampling={quality.multisampling}>
@@ -687,6 +695,10 @@ export function V2Scene({
         )
       ) : null}
 
+      {/* Declines when the average stays well under the display's refresh;
+          a few flip-flops, then it settles instead of oscillating. */}
+      <PerformanceMonitor bounds={(refresh) => [Math.min(50, refresh * 0.55), Math.min(90, refresh * 0.8)]} flipflops={3}
+        onDecline={() => setGuardSteps((n) => Math.min(2, n + 1))} />
       <CinemaFlight controlsRef={controlsRef} blocked={goal!==null||inputBlocked}/>
       {onFrame ? <FrameProbe onSample={onFrame} /> : null}
     </Canvas>

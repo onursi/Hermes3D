@@ -20,11 +20,26 @@ export type QualitySpec = {
   orbSegments: number;
 };
 
+/*
+ * R48 retune after Onur measured 120 → 50 fps on an RTX 3060 at 3440×1440/180 Hz.
+ * The expensive part was per-pixel work on ~5 MP: 4× MSAA on every composer
+ * buffer plus full-quality AO. MSAA is replaced by SMAA (one cheap pass), AO
+ * runs in its "performance" preset, and the render resolution never exceeds
+ * what the pre-R45 pipeline used (dpr ≤ 1.35), so cinema can only add effects,
+ * not pixels. A PerformanceMonitor in V2Scene steps down a tier on its own.
+ */
 export const QUALITY: Record<QualityTier, QualitySpec> = {
-  cinema: { dpr: [1, 2], shadowMap: 2048, multisampling: 4, ambientOcclusion: true, grain: true, vignette: true, orbSegments: 160 },
-  balanced: { dpr: [1, 1.5], shadowMap: 1024, multisampling: 2, ambientOcclusion: false, grain: false, vignette: true, orbSegments: 96 },
+  cinema: { dpr: [1, 1.35], shadowMap: 2048, multisampling: 0, ambientOcclusion: true, grain: true, vignette: true, orbSegments: 120 },
+  balanced: { dpr: [1, 1.35], shadowMap: 1024, multisampling: 0, ambientOcclusion: false, grain: false, vignette: true, orbSegments: 96 },
   lite: { dpr: [1, 1.25], shadowMap: 1024, multisampling: 0, ambientOcclusion: false, grain: false, vignette: false, orbSegments: 64 },
 };
+
+export const TIER_ORDER: QualityTier[] = ["cinema", "balanced", "lite"];
+
+/** One step cheaper, used by the automatic fps guard. */
+export function stepDown(tier: QualityTier, steps: number): QualityTier {
+  return TIER_ORDER[Math.min(TIER_ORDER.length - 1, TIER_ORDER.indexOf(tier) + steps)];
+}
 
 export const QUALITY_LABELS: Record<QualityPref, string> = {
   auto: "Automatisch",
