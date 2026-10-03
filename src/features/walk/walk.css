@@ -1,0 +1,84 @@
+.walk-root { position: fixed; inset: 0; background: #03060b; font-family: -apple-system, "Segoe UI", sans-serif; color: #e8f1f7; touch-action: none; user-select: none; }
+
+.walk-hud { position: fixed; left: 16px; top: 14px; pointer-events: none; }
+.walk-hud__title { font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
+.walk-hud__sub { font-size: 12px; color: #8aa0b0; margin-top: 2px; }
+
+.walk-actions { z-index: 100; position: fixed; right: 16px; top: 12px; display: flex; gap: 8px; }
+.walk-actions button, .walk-actions a { border: 1px solid #ffffff1f; background: #0a1018cc; backdrop-filter: blur(10px); border-radius: 999px; padding: 8px 14px; font: 600 13px inherit; color: #d8e6ef; cursor: pointer; text-decoration: none; }
+
+.walk-start { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 0; border-radius: 18px; padding: 18px 26px; background: #111417e6; color: #fff; font: 600 16px inherit; cursor: pointer; line-height: 1.5; }
+.walk-start small { font-weight: 400; color: #aeb7be; font-size: 12px; }
+.walk-crosshair { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #ffffffaa; pointer-events: none; }
+
+/* live window above each agent */
+.walk-window { width: 230px; padding: 9px 11px; border-radius: 12px; background: #0a1018e0; color: #e8f1f7; border: 1px solid #5fe3ff33; box-shadow: 0 8px 24px #00000066; font-size: 12px; line-height: 1.35; cursor: pointer; transition: box-shadow 0.3s; }
+.walk-window.is-busy { box-shadow: 0 0 0 2px #5fe3ff, 0 8px 28px #5fe3ff55; }
+.walk-window.phase-fehler { box-shadow: 0 0 0 2px #ef4444; }
+.walk-window__head { display: flex; align-items: center; gap: 6px; }
+.walk-window__dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.walk-window__phase { margin-left: auto; font-size: 11px; color: #8aa0b0; white-space: nowrap; }
+.is-busy .walk-window__phase { color: #5fe3ff; font-weight: 600; }
+.walk-window__meta { color: #7f95a5; font-size: 10.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.walk-window__step { margin-top: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; background: #0e1318; color: #9ff0ff; padding: 4px 6px; border-radius: 6px; }
+.walk-window__text { margin-top: 6px; color: #cfdde7; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.walk-window__idle { margin-top: 6px; color: #7f95a5; font-style: italic; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* side panel for the chosen agent */
+.walk-panel { z-index: 100; position: fixed; right: 16px; top: 60px; bottom: 16px; width: min(380px, calc(100vw - 32px)); background: #0a1018f0; color: #e8f1f7; backdrop-filter: blur(14px); border-radius: 18px; border: 1px solid #5fe3ff33; padding: 18px; overflow: auto; display: flex; flex-direction: column; gap: 8px; user-select: text; }
+.walk-panel h2 { margin: 0; font-size: 18px; }
+.walk-panel p { margin: 0; font-size: 13px; color: #b9cad6; }
+.walk-panel__meta { color: #7f95a5 !important; font-size: 12px !important; }
+.walk-panel__close { position: absolute; right: 12px; top: 8px; border: 0; background: none; font-size: 24px; cursor: pointer; color: #5b6670; }
+.walk-panel__text { white-space: pre-wrap; font: 12px/1.45 ui-monospace, Consolas, monospace; background: #050a10; color: #cfe7f2; border-radius: 10px; padding: 10px; max-height: 40vh; overflow: auto; margin: 0; }
+.walk-panel textarea { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #ffffff26; background: #050a10; color: #e8f1f7; padding: 10px; font: 14px inherit; resize: vertical; }
+.walk-panel button:not(.walk-panel__close) { border: 0; border-radius: 10px; padding: 10px; background: #5fe3ff; color: #03141c; font: 600 14px inherit; cursor: pointer; }
+.walk-panel button:disabled { opacity: 0.4; cursor: default; }
+.walk-panel__hint { font-size: 12px !important; color: #5fe3ff !important; }
+
+.walk-joystick { position: fixed; left: 24px; bottom: 28px; width: 120px; height: 120px; border-radius: 50%; background: #ffffff14; border: 1px solid #ffffff33; display: grid; place-items: center; touch-action: none; }
+.walk-joystick__knob { width: 52px; height: 52px; border-radius: 50%; background: #5fe3ffcc; }
+
+@media (max-width: 640px) {
+  .walk-panel { top: auto; height: 55vh; }
+  .walk-window { width: 190px; }
+}
+
+.walk-jump { position: fixed; right: 24px; bottom: 40px; width: 92px; height: 92px; border-radius: 50%; border: 1px solid #5fe3ff66; background: #0a1018cc; color: #d8f6ff; font: 600 13px -apple-system, "Segoe UI", sans-serif; touch-action: none; }
+
+/* 1 · floating work window */
+.walk-work { width: 420px; border-radius: 12px; overflow: hidden; background: #070d14f2; border: 1px solid #5fe3ff55; box-shadow: 0 0 40px #5fe3ff33; color: #d6f4ff; cursor: pointer; }
+.walk-work.is-done { border-color: #ffffff22; box-shadow: 0 10px 30px #00000088; opacity: 0.92; }
+.walk-work__bar { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: #0f1a24; font: 600 12px ui-monospace, Consolas, monospace; }
+.walk-work__lights i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: #ef4444; }
+.walk-work__lights i:nth-child(2) { background: #eab308; }
+.walk-work__lights i:nth-child(3) { background: #22c55e; }
+.walk-work__time { margin-left: auto; color: #5fe3ff; }
+.walk-work__body { margin: 0; padding: 10px 12px; height: 190px; overflow: hidden; white-space: pre-wrap; font: 12px/1.45 ui-monospace, Consolas, monospace; color: #bfe9f7; display: flex; flex-direction: column; justify-content: flex-end; }
+
+/* 2 · council topic hologram + dialog */
+.walk-topic { max-width: 420px; padding: 10px 16px; border-radius: 14px; background: #06121bdd; border: 1px solid #5fe3ff88; color: #e8fbff; font: 600 16px -apple-system, "Segoe UI", sans-serif; text-align: center; box-shadow: 0 0 30px #5fe3ff44; }
+.walk-topic small { display: block; font: 600 10px ui-monospace, Consolas, monospace; letter-spacing: 0.2em; text-transform: uppercase; color: #5fe3ff; margin-bottom: 4px; }
+.walk-dialog { z-index: 120; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100vw - 32px)); background: #0a1018f5; border: 1px solid #5fe3ff44; border-radius: 18px; padding: 20px; color: #e8f1f7; display: flex; flex-direction: column; gap: 10px; }
+.walk-dialog h2 { margin: 0; font-size: 18px; }
+.walk-dialog p { margin: 0; font-size: 13px; color: #b9cad6; }
+.walk-dialog textarea { border-radius: 10px; border: 1px solid #ffffff26; background: #050a10; color: #e8f1f7; padding: 10px; font: 14px -apple-system, "Segoe UI", sans-serif; resize: vertical; }
+.walk-dialog__row { display: flex; gap: 8px; justify-content: flex-end; }
+.walk-dialog__row button { border: 1px solid #ffffff26; background: transparent; color: #d8e6ef; border-radius: 10px; padding: 9px 14px; font: 600 13px -apple-system, "Segoe UI", sans-serif; cursor: pointer; }
+.walk-dialog__row .is-primary { background: #5fe3ff; color: #03141c; border: 0; }
+.walk-dialog__row button:disabled { opacity: 0.4; }
+
+/* 5 · agent list (left) and team chat feed */
+.walk-list { z-index: 90; position: fixed; left: 16px; top: 64px; display: flex; flex-direction: column; gap: 4px; width: 200px; }
+.walk-list__item { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 10px; border: 1px solid #ffffff14; background: #0a1018b3; color: #d8e6ef; font: 600 12px -apple-system, "Segoe UI", sans-serif; text-align: left; cursor: pointer; }
+.walk-list__item.is-on { border-color: #5fe3ff88; }
+.walk-list__item i { width: 9px; height: 9px; border-radius: 50%; }
+.walk-list__item i[data-busy] { box-shadow: 0 0 0 3px #5fe3ff55; animation: walk-pulse 1.2s ease-in-out infinite; }
+.walk-list__item small { color: #7f95a5; font-weight: 500; }
+@keyframes walk-pulse { 50% { box-shadow: 0 0 0 6px #5fe3ff22; } }
+.walk-feed { display: flex; flex-direction: column; gap: 10px; overflow: auto; flex: 1; min-height: 120px; }
+.walk-feed__msg { background: #050a10; border: 1px solid #ffffff12; border-radius: 10px; padding: 8px 10px; }
+.walk-feed__msg b { font-size: 13px; }
+.walk-feed__msg small { color: #7f95a5; }
+.walk-feed__msg p { margin: 4px 0 0; font-size: 12.5px; color: #cfdde7; white-space: pre-wrap; }
+@media (max-width: 640px) { .walk-list { display: none; } }

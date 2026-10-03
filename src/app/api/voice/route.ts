@@ -7,6 +7,19 @@ const voiceCache = new Map<string, ArrayBuffer>();
 
 export const runtime = "nodejs";
 
+const LOCAL_TTS_URL = process.env.LOCAL_TTS_URL || "http://127.0.0.1:8831";
+
+function localAudio(audio: ArrayBuffer) {
+  return new Response(audio, {
+    headers: {
+      "Content-Type": "audio/wav",
+      "Cache-Control": "public, max-age=86400",
+      "X-Hermes-Voice-Provider": "Lokal",
+      "X-Hermes-Voice-Name": "Jarvis",
+    },
+  });
+}
+
 export async function GET() {
   const config = getElevenLabsConfig();
   return NextResponse.json({
@@ -34,6 +47,26 @@ export async function POST(req: Request) {
 
     if (cleanText.length > 5_000) {
       return NextResponse.json({ error: "Text ist länger als 5.000 Zeichen." }, { status: 413 });
+    }
+
+    // Local voice first (Qwen3-TTS server on this PC, no credits); ElevenLabs stays as fallback.
+    const localKey = `local:${cleanText}`;
+    const cachedLocal = voiceCache.get(localKey);
+    if (cachedLocal) return localAudio(cachedLocal);
+    try {
+      const local = await fetch(`${LOCAL_TTS_URL}/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (local.ok) {
+        const audio = await local.arrayBuffer();
+        voiceCache.set(localKey, audio);
+        return localAudio(audio);
+      }
+    } catch {
+      // Local server not running: fall through to ElevenLabs.
     }
 
     const selected = resolveVoice(agentId);

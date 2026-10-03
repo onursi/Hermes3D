@@ -117,6 +117,23 @@ export interface JarvisCompanionProps {
  * - Echte Neural-Voice-Sprachsynthese (Azure / msedge-tts) mit Play/Pause/Stop
  * - Vollständige Typografie-Harmonie (font-sans) passend zum restlichen V2-UI
  */
+/** Split a reply into speakable pieces: the first one short, so the voice starts soon. */
+function splitForSpeech(text: string): string[] {
+  const sentences = text.match(/[^.!?…\n]+[.!?…]*\s*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
+  // The first piece decides how long Onur waits: cut a long first sentence at its first comma.
+  const first = sentences[0] ?? "";
+  const comma = first.indexOf(",", 12);
+  if (first.length > 50 && comma > 0 && comma < 60) sentences.splice(0, 1, first.slice(0, comma + 1), first.slice(comma + 1).trim());
+  const chunks: string[] = [];
+  for (const sentence of sentences) {
+    const last = chunks[chunks.length - 1];
+    const limit = chunks.length <= 1 ? 50 : 120;
+    if (last && last.length + sentence.length + 1 <= limit) chunks[chunks.length - 1] = `${last} ${sentence}`;
+    else chunks.push(sentence);
+  }
+  return chunks.length ? chunks : [text];
+}
+
 export function JarvisCompanion({
   noteCount = 0,
   onFlyToSource,
@@ -237,41 +254,43 @@ export function JarvisCompanion({
     setIsAudioPaused(false);
 
     try {
-      const res = await fetch("/api/voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: clean,
-          agentId: currentPersona.agentId,
-        }),
-      });
+      // The local voice is slower than realtime, so speak sentence by sentence:
+      // the first one starts as soon as it is ready, the next is generated meanwhile.
+      const chunks = splitForSpeech(clean);
+      const fetchChunk = async (text: string) => {
+        const res = await fetch("/api/voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, agentId: currentPersona.agentId }),
+        });
+        if (!res.ok) {
+          const result = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(result.error || "Stimme nicht verfügbar.");
+        }
+        return res.blob();
+      };
 
-      if (!res.ok) {
-        const result = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(result.error || "ElevenLabs-Stimme nicht verfügbar.");
+      let next = fetchChunk(chunks[0]);
+      for (let i = 0; i < chunks.length; i++) {
+        const blob = await next;
+        if (generation !== audioGeneration.current) return;
+        if (i + 1 < chunks.length) next = fetchChunk(chunks[i + 1]);
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        ttsAudioRef.current = audio;
+        if (i === 0) setAudioLoading(false);
+        // The orb breathes with the reply's real loudness (read-only tap).
+        watchSpeech(audio);
+        await new Promise<void>((resolve) => {
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve();
+          audio.play().catch(() => resolve());
+        });
+        URL.revokeObjectURL(url);
+        if (generation !== audioGeneration.current) return;
       }
-
-      const blob = await res.blob();
-      if (generation !== audioGeneration.current) return;
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        setIsPlayingAudio(false);
-        setIsAudioPaused(false);
-      };
-
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        setIsPlayingAudio(false);
-        setIsAudioPaused(false);
-      };
-
-      // The orb breathes with the reply's real loudness (read-only tap).
-      watchSpeech(audio);
-      await audio.play();
+      setIsPlayingAudio(false);
+      setIsAudioPaused(false);
     } catch (err) {
       console.warn("Neural TTS Error:", err);
       setReason(
@@ -303,6 +322,8 @@ export function JarvisCompanion({
     setAudioLoading(false);
     if (ttsAudioRef.current) {
       ttsAudioRef.current.pause();
+      // Release the sentence loop waiting for this clip to end.
+      ttsAudioRef.current.dispatchEvent(new Event("ended"));
       ttsAudioRef.current = null;
     }
     setIsPlayingAudio(false);

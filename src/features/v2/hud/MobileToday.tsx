@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useV2 } from "../state";
 import "./mobileToday.css";
 
@@ -50,7 +51,7 @@ export function MobileToday({ agentCount, rosterReachable, approvalsWaiting, app
       <p className="mobile-today-summary">{summary}</p>
       <div className="mobile-today-chips">
         <span className="today-chip"><i data-tone={rosterReachable ? "on" : "off"} />Hermes · {rosterReachable ? "bereit" : "offline"}</span>
-        {rosterReachable && <span className="today-chip"><i data-tone="idle" />{agentCount} {agentCount === 1 ? "Agent" : "Agenten"}</span>}
+        {rosterReachable && <Link className="today-chip" href="/walk"><i data-tone="idle" />{agentCount} {agentCount === 1 ? "Agent" : "Agenten"} · Walk-In</Link>}
         {approvalsReachable && approvalsWaiting > 0 && (
           <button type="button" className="today-chip" onClick={onOpenApprovals}><i data-tone="wait" />Freigabe ansehen</button>
         )}

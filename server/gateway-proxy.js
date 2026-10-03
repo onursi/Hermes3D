@@ -42,6 +42,25 @@ const safeJsonParse = (raw) => {
   }
 };
 
+/**
+ * Current session token of a hermes-agent dashboard on this machine, read from
+ * the page it serves. HERMES_DASHBOARD_SESSION_TOKEN wins when set. Returns ""
+ * for non-loopback URLs or when nothing can be read.
+ */
+const readLoopbackDashboardToken = async (baseUrl) => {
+  if (process.env.HERMES_DASHBOARD_SESSION_TOKEN) return process.env.HERMES_DASHBOARD_SESSION_TOKEN.trim();
+  try {
+    const parsed = new URL(baseUrl.replace(/^ws/, "http"));
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) return "";
+    const res = await fetch(`${parsed.protocol}//${parsed.host}/`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return "";
+    const match = (await res.text()).match(/__HERMES_SESSION_TOKEN__\s*=\s*["']([A-Za-z0-9_-]{20,})["']/);
+    return match ? match[1] : "";
+  } catch {
+    return "";
+  }
+};
+
 /** Per-connection token bucket rate limiter. */
 const createFrameRateLimiter = (
   maxPerSecond = MAX_FRAMES_PER_SECOND,
@@ -311,6 +330,14 @@ function createGatewayProxy(options) {
       );
 
       if (upstreamAdapterType === EMBEDDED_ADAPTER_TYPE) {
+        // The dashboard mints a new session token on every start, so a token
+        // saved in the settings goes stale after a reboot. On loopback, take the
+        // one the dashboard is serving right now.
+        const liveToken = await readLoopbackDashboardToken(upstreamUrl);
+        if (liveToken && liveToken !== upstreamToken) {
+          log("[gateway-proxy] using the dashboard's current session token");
+          upstreamToken = liveToken;
+        }
         log("[gateway-proxy] transport: embedded hermes-agent bridge (JSON-RPC translation)");
         upstreamWs = createHermesAgentUpstream({
           url: upstreamUrl,

@@ -85,6 +85,14 @@ export function Dock({
         </svg>
       </DockButton>
 
+      {/* Its own page, so the deck stays as it is; the walk room links back. */}
+      <DockButton active={false} onClick={() => { window.location.href = "/walk"; }} label="Walk-In">
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="13" cy="4.5" r="1.8" />
+          <path d="M10 21l2-6 3 3v3M8.5 11.5L11 8l3 1 2 3.5M11 8l1 7" />
+        </svg>
+      </DockButton>
+
       {showLibrary ? (
         <DockButton
           active={world === "library"}
