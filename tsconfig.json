@@ -36,7 +36,21 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next-r40/types/**/*.ts",
-    ".next-r40/dev/types/**/*.ts"
+    ".next-r40/dev/types/**/*.ts",
+    ".next-r48-release/types/**/*.ts",
+    ".next-r48-release/dev/types/**/*.ts",
+    ".next-r49-release/types/**/*.ts",
+    ".next-r49-release/dev/types/**/*.ts",
+    ".next-r50-release/types/**/*.ts",
+    ".next-r50-release/dev/types/**/*.ts",
+    ".next-r51-release/types/**/*.ts",
+    ".next-r51-release/dev/types/**/*.ts",
+    ".next-r52-release/types/**/*.ts",
+    ".next-r52-release/dev/types/**/*.ts",
+    ".next-r53-release/types/**/*.ts",
+    ".next-r53-release/dev/types/**/*.ts",
+    ".next-r54-release/types/**/*.ts",
+    ".next-r54-release/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
