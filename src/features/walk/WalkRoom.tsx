@@ -1,9 +1,9 @@
 "use client";
 
-import { Html, PointerLockControls, RoundedBox, useGLTF } from "@react-three/drei";
+import { Html, PointerLockControls, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
@@ -12,10 +12,13 @@ import { useRoster, type RosterAgent } from "@/features/v2/useRoster";
 import type { VaultNode } from "@/features/v2/useVault";
 import { GalaxyAtmosphere } from "@/features/v2/world/GalaxyAtmosphere";
 import { HermesOrb } from "@/features/v2/world/HermesOrb";
+import { AgentDeck, providerTone, type Seat as DeckSeat } from "@/features/v2/world/AgentDeck";
 
 import { useAgentActivity, type AgentActivity } from "./agentActivity";
 import { KnowledgeCloud } from "./KnowledgeCloud";
 import { PerspectivesPanel } from "@/features/perspectives/PerspectivesPanel";
+import { FirstPersonHands, type PlayerMotion } from "./FirstPersonHands";
+import { GESTURES, isWalkInputTarget, type Gesture, type GestureClip } from "./gestures";
 import "./walk.css";
 
 /**
@@ -93,14 +96,45 @@ function elapsed(since: number | null) {
 
 /* ------------------------------------------------------------------ figures */
 
-function Robot({
-  agent, seat, activity, goal, onSelect, selected,
+const ROBOT_SCALE = 1.45;
+
+/** Same instanced robots as the Council; only their walking destinations differ. */
+function WalkFigures({ agents, seats, goals, activity, selected, onSelect }: {
+  agents: RosterAgent[]; seats: Seat[]; goals: THREE.Vector3[];
+  activity: Record<string, AgentActivity>; selected: string | null; onSelect: (id: string) => void;
+}) {
+  const layout = useMemo<DeckSeat[]>(() => agents.map((agent, i) => ({ agent, position: seats[i].desk.clone().divideScalar(ROBOT_SCALE), angle: Math.PI / 2 - Math.atan2(-seats[i].desk.x, -seats[i].desk.z) })), [agents, seats]);
+  const liveLayout = useRef(layout);
+  useEffect(() => { liveLayout.current = layout; }, [layout]);
+  const gaze = useMemo(() => Object.fromEntries(agents.map(a => [a.id, new THREE.Vector3()])), [agents]);
+  const target = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }, rawDt) => {
+    const dt = Math.min(rawDt, .05);
+    liveLayout.current.forEach((seat, i) => {
+      target.copy(goals[i]).divideScalar(ROBOT_SCALE).sub(seat.position).setY(0);
+      const distance = target.length();
+      const walking = distance > .03;
+      const yaw = walking ? Math.atan2(target.x, target.z) : Math.atan2(-seat.position.x, -seat.position.z);
+      const desired = Math.PI / 2 - yaw;
+      const difference = Math.atan2(Math.sin(desired - seat.angle), Math.cos(desired - seat.angle));
+      seat.angle += difference * Math.min(1, dt * 6);
+      if (walking) seat.position.add(target.multiplyScalar(Math.min(1, dt * 1.6 / ROBOT_SCALE / distance)));
+      gaze[seat.agent.id].copy(camera.position).divideScalar(ROBOT_SCALE);
+    });
+  }, -1);
+  return <>
+    <group scale={ROBOT_SCALE}><AgentDeck seats={layout} selectedId={selected} focus={false} onSelect={onSelect} gazeTargetById={gaze} showLabels={false} followPositions /></group>
+    {layout.map((seat, i) => <AgentWindows key={seat.agent.id} agent={seat.agent} seat={seats[i]} deckSeat={seat} activity={activity[seat.agent.id] ?? { phase: "bereit", step: null, text: "", since: null }} onSelect={() => onSelect(seat.agent.id)} />)}
+  </>;
+}
+
+function AgentWindows({
+  agent, seat, activity, deckSeat, onSelect,
 }: {
-  agent: RosterAgent; seat: Seat; activity: AgentActivity; goal: THREE.Vector3;
-  onSelect: () => void; selected: boolean;
+  agent: RosterAgent; seat: Seat; activity: AgentActivity; deckSeat: DeckSeat;
+  onSelect: () => void;
 }) {
   const body = useRef<THREE.Group>(null);
-  const eyes = useRef<THREE.MeshStandardMaterial>(null);
   const busy = activity.phase === "denkt" || activity.phase === "arbeitet";
   const [, tick] = useState(0);
 
@@ -111,52 +145,10 @@ function Robot({
     return () => window.clearInterval(t);
   }, [busy]);
 
-  useFrame((state, dt) => {
-    const g = body.current;
-    if (!g) return;
-    const target = goal;
-    const toTarget = target.clone().sub(g.position);
-    const dist = toTarget.length();
-    const walking = dist > 0.05;
-    if (walking) g.position.add(toTarget.multiplyScalar(Math.min(1, (dt * 1.6) / Math.max(dist, 0.001))));
-    // Face where it walks; otherwise face the centre (over its desk, or across the table).
-    const look = walking ? target : new THREE.Vector3(0, 0, 0);
-    const yaw = Math.atan2(look.x - g.position.x, look.z - g.position.z);
-    g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, yaw, Math.min(1, dt * 6));
-    const t = state.clock.elapsedTime;
-    g.position.y = walking ? Math.abs(Math.sin(t * 9)) * 0.06 : Math.sin(t * 1.6 + seat.desk.x) * 0.02;
-    if (eyes.current) eyes.current.emissiveIntensity = busy ? 2.2 + Math.sin(t * 8) * 1.2 : 1.6;
-  });
+  useFrame(() => { body.current?.position.copy(deckSeat.position).multiplyScalar(ROBOT_SCALE); });
 
   return (
     <group ref={body} position={seat.desk.toArray()}>
-      <group onClick={(e) => { e.stopPropagation(); onSelect(); }}>
-        {/* body */}
-        <mesh position={[0, 0.62, 0]} castShadow>
-          <capsuleGeometry args={[0.32, 0.5, 8, 20]} />
-          <meshStandardMaterial color={seat.color} roughness={0.35} metalness={0.15} />
-        </mesh>
-        {/* head */}
-        <RoundedBox args={[0.78, 0.56, 0.62]} radius={0.2} smoothness={5} position={[0, 1.32, 0]} castShadow>
-          <meshStandardMaterial color={seat.color} roughness={0.3} metalness={0.15} />
-        </RoundedBox>
-        {/* visor */}
-        <RoundedBox args={[0.62, 0.34, 0.08]} radius={0.12} smoothness={4} position={[0, 1.32, 0.3]}>
-          <meshStandardMaterial color="#0b0f14" roughness={0.2} />
-        </RoundedBox>
-        {[-0.13, 0.13].map((x) => (
-          <mesh key={x} position={[x, 1.33, 0.35]}>
-            <capsuleGeometry args={[0.035, 0.06, 4, 8]} />
-            <meshStandardMaterial ref={x < 0 ? eyes : undefined} color="#bdf3ff" emissive="#5fe3ff" emissiveIntensity={1.6} />
-          </mesh>
-        ))}
-        {/* selection / status ring */}
-        <mesh rotation-x={-Math.PI / 2} position={[0, 0.01, 0]}>
-          <ringGeometry args={[0.5, 0.58, 40]} />
-          <meshBasicMaterial color={selected ? "#ffffff" : busy ? "#5fe3ff" : "#3a4652"} transparent opacity={selected || busy ? 0.9 : 0.5} />
-        </mesh>
-      </group>
-
       {/* 1 · work window: while the agent works, a larger hologram beside it shows the
           tool it is using and the text as it is written — like the floating app windows in SAMS. */}
       {busy || activity.phase === "fertig" ? (
@@ -261,33 +253,38 @@ const JUMP_SPEED = 4.6;
 const GRAVITY = 13;
 
 /** Shared with the hands, so they can bob while walking and lift on a jump. */
-type Motion = { moving: boolean; airborne: boolean; pointing: number };
+type Motion = PlayerMotion;
 
-function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview }: {
+function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview, enabled }: {
   moveRef: React.MutableRefObject<MoveInput>; lookRef: React.MutableRefObject<{ dx: number; dy: number }>;
-  jumpRef: React.MutableRefObject<boolean>; motionRef: React.MutableRefObject<Motion>; locked: boolean; overview: boolean;
+  jumpRef: React.MutableRefObject<boolean>; motionRef: React.MutableRefObject<Motion>; locked: boolean; overview: boolean; enabled: boolean;
 }) {
   const { camera } = useThree();
   const keys = useRef(new Set<string>());
   const eulerRef = useRef(new THREE.Euler(0, 0, 0, "YXZ"));
   const vertical = useRef({ y: 0, v: 0 });
+  const inputEnabled = useRef(enabled);
+  useEffect(() => { inputEnabled.current = enabled; if (!enabled) keys.current.clear(); }, [enabled]);
 
   useEffect(() => {
     // Start between two agents (not inside one), facing the orb.
     camera.position.set(Math.cos(Math.PI / 2 + Math.PI / 6) * 4.8, EYE, Math.sin(Math.PI / 2 + Math.PI / 6) * 4.8);
     camera.lookAt(0, 1.4, 0);
     const down = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+      if (!inputEnabled.current || isWalkInputTarget(e.target)) return;
+      if (e.code === "Space") {
         e.preventDefault();
         jumpRef.current = true;
       }
       keys.current.add(e.code);
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.code);
+    const blur = () => { keys.current.clear(); moveRef.current = { x: 0, y: 0 }; };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
-  }, [camera, jumpRef]);
+    window.addEventListener("blur", blur);
+    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); };
+  }, [camera, jumpRef, moveRef]);
 
   // Overview: lift the camera above the room; back down where it was when leaving.
   const saved = useRef<{ pos: THREE.Vector3; quat: THREE.Quaternion } | null>(null);
@@ -303,8 +300,15 @@ function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview }: {
     }
   }, [overview, camera]);
 
-  useFrame((_, dt) => {
-    if (overview) return;
+  useFrame((_, rawDt) => {
+    const dt = Math.min(rawDt, .05);
+    if (overview || !enabled) {
+      motionRef.current.moving = false;
+      jumpRef.current = false;
+      lookRef.current.dx = 0; lookRef.current.dy = 0;
+      moveRef.current = { x: 0, y: 0 };
+      return;
+    }
     const k = keys.current;
     let fx = moveRef.current.x, fz = moveRef.current.y;
     if (k.has("KeyW") || k.has("ArrowUp")) fz += 1;
@@ -353,93 +357,6 @@ function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview }: {
   return null;
 }
 
-/* ------------------------------------------------------------------ hands */
-
-const SKIN = "#c98d63";
-const SLEEVE = "#121a24";
-
-function Finger({ x, length, curl, thumb = false }: { x: number; length: number; curl: number; thumb?: boolean }) {
-  return (
-    <group position={[x, thumb ? -0.005 : 0.0, thumb ? 0.01 : -0.045]} rotation={thumb ? [0.2, 0, x > 0 ? -0.9 : 0.9] : [-curl, 0, 0]}>
-      <mesh position={[0, 0, -length / 2]} rotation-x={Math.PI / 2}>
-        <capsuleGeometry args={[0.0105, length, 4, 8]} />
-        <meshStandardMaterial color={SKIN} roughness={0.65} />
-      </mesh>
-    </group>
-  );
-}
-
-/** One stylised hand: palm, four fingers, thumb, dark cuff with a cyan seam. */
-function Hand({ side, pointing }: { side: 1 | -1; pointing: boolean }) {
-  // Right hand points with the index finger; the others curl in.
-  const curls = pointing && side === 1 ? [0.05, 1.3, 1.35, 1.4] : [0.35, 0.4, 0.45, 0.5];
-  return (
-    <group scale={[side, 1, 1]}>
-      <RoundedBox args={[0.085, 0.028, 0.1]} radius={0.012} smoothness={3}>
-        <meshStandardMaterial color={SKIN} roughness={0.65} />
-      </RoundedBox>
-      {[-0.03, -0.01, 0.01, 0.03].map((x, i) => (
-        <Finger key={x} x={x} length={[0.055, 0.06, 0.056, 0.045][i]} curl={curls[i]} />
-      ))}
-      <Finger x={-0.045} length={0.04} curl={0} thumb />
-      <mesh position={[0, 0, 0.085]} rotation-x={Math.PI / 2}>
-        <cylinderGeometry args={[0.042, 0.048, 0.08, 16]} />
-        <meshStandardMaterial color={SLEEVE} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0, 0.046]} rotation-x={Math.PI / 2}>
-        <torusGeometry args={[0.043, 0.004, 6, 24]} />
-        <meshBasicMaterial color="#5fe3ff" />
-      </mesh>
-    </group>
-  );
-}
-
-/** First-person hands that follow the camera, bob while walking and point on click. */
-function Hands({ motionRef, visible }: { motionRef: React.MutableRefObject<Motion>; visible: boolean }) {
-  const { camera } = useThree();
-  const rig = useRef<THREE.Group>(null);
-  const [pointing, setPointing] = useState(false);
-  const phase = useRef(0);
-  const lift = useRef(0);
-
-  useEffect(() => {
-    const point = () => { motionRef.current.pointing = performance.now(); setPointing(true); };
-    window.addEventListener("pointerdown", point);
-    const t = window.setInterval(() => {
-      if (performance.now() - motionRef.current.pointing > 450) setPointing(false);
-    }, 150);
-    return () => { window.removeEventListener("pointerdown", point); window.clearInterval(t); };
-  }, [motionRef]);
-
-  useFrame((_, dt) => {
-    const g = rig.current;
-    if (!g) return;
-    const m = motionRef.current;
-    phase.current += dt * (m.moving ? 9 : 1.6);
-    lift.current = THREE.MathUtils.lerp(lift.current, m.airborne ? 0.05 : 0, Math.min(1, dt * 10));
-    const bob = Math.sin(phase.current) * (m.moving ? 0.012 : 0.003);
-    const sway = Math.cos(phase.current * 0.5) * (m.moving ? 0.008 : 0.002);
-    g.position.copy(camera.position);
-    g.quaternion.copy(camera.quaternion);
-    g.translateX(sway);
-    g.translateY(bob + lift.current);
-  });
-
-  if (!visible) return null;
-  return (
-    <group ref={rig}>
-      <group scale={0.85}>
-      <group position={[-0.19, -0.21, -0.42]} rotation={[0.35, 0.25, 0.35]}>
-        <Hand side={-1} pointing={false} />
-      </group>
-      <group position={[0.19, -0.2, -0.42 - (pointing ? 0.06 : 0)]} rotation={[0.35 - (pointing ? 0.15 : 0), -0.25, -0.35]}>
-        <Hand side={1} pointing={pointing} />
-      </group>
-      </group>
-    </group>
-  );
-}
-
 function Joystick({ moveRef }: { moveRef: React.MutableRefObject<MoveInput> }) {
   const base = useRef<HTMLDivElement>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
@@ -482,15 +399,38 @@ export function WalkRoom() {
   const [sendState, setSendState] = useState<string | null>(null);
   const moveRef = useRef<MoveInput>({ x: 0, y: 0 });
   const jumpRef = useRef(false);
-  const motionRef = useRef<Motion>({ moving: false, airborne: false, pointing: 0 });
+  const motionRef = useRef<Motion>({ moving: false, airborne: false, pointing: 0, gesture: null });
   const lookRef = useRef({ dx: 0, dy: 0 });
   const lastTouch = useRef<{ x: number; y: number } | null>(null);
   const controls = useRef<{ lock: () => void; unlock: () => void } | null>(null);
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
-  const seats = useMemo(() => seatsFor(roster.agents.length), [roster.agents.length]);
+  const seats = useMemo(() => seatsFor(roster.agents.length).map((seat, i) => ({ ...seat, color: providerTone(roster.agents[i].provider) })), [roster.agents]);
   const chosen = roster.agents.find((a) => a.id === selected) ?? null;
   const chosenActivity = chosen ? activity[chosen.id] : undefined;
+  const controlsEnabled = !overview && !chosen && !note && !teamChat && !councilAsk && !perspectives;
+  const [gesture, setGesture] = useState<GestureClip | null>(null);
+  const triggerGesture = useCallback((kind: Gesture) => {
+    if (!controlsEnabled) return;
+    const clip = { kind, started: performance.now() };
+    motionRef.current.gesture = clip;
+    setGesture(clip);
+  }, [controlsEnabled]);
+  useEffect(() => {
+    if (!gesture) return;
+    const duration = GESTURES.find(g => g.id === gesture.kind)!.duration;
+    const timer = window.setTimeout(() => { motionRef.current.gesture = null; setGesture(null); }, duration * 1000);
+    return () => window.clearTimeout(timer);
+  }, [gesture]);
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || !controlsEnabled || isWalkInputTarget(event.target)) return;
+      const action = GESTURES.find(g => event.key === g.key || event.code === `Digit${g.key}` || event.code === `Numpad${g.key}`);
+      if (action) { event.preventDefault(); triggerGesture(action.id); }
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [controlsEnabled, triggerGesture]);
 
   const select = (id: string) => {
     setSelected(id);
@@ -575,8 +515,8 @@ export function WalkRoom() {
   };
 
   return (
-    <div className="walk-root"
-      onPointerDown={(e) => { if (touch && (e.target as HTMLElement).tagName === "CANVAS") lastTouch.current = { x: e.clientX, y: e.clientY }; }}
+    <div className="walk-root" data-walk-gesture={gesture?.kind ?? "idle"}
+      onPointerDown={(e) => { if (touch && controlsEnabled && (e.target as HTMLElement).tagName === "CANVAS") lastTouch.current = { x: e.clientX, y: e.clientY }; }}
       onPointerMove={(e) => {
         if (!lastTouch.current) return;
         lookRef.current.dx += e.clientX - lastTouch.current.x;
@@ -595,19 +535,15 @@ export function WalkRoom() {
         <Suspense fallback={null}><SpacePlatform /></Suspense>
         <CouncilRings />
         <Suspense fallback={null}><CouncilOrb reachable={roster.reachable} onSelect={() => { const hermes = roster.agents.find((a) => a.isDefault); if (hermes) select(hermes.id); }} /></Suspense>
-        {roster.agents.map((agent, i) => (
-          <Robot key={agent.id} agent={agent} seat={seats[i]} goal={goals[i] ?? seats[i].desk}
-            activity={activity[agent.id] ?? { phase: "bereit", step: null, text: "", since: null }}
-            selected={selected === agent.id} onSelect={() => select(agent.id)} />
-        ))}
+        <WalkFigures agents={roster.agents} seats={seats} goals={goals} activity={activity} selected={selected} onSelect={select} />
         <Suspense fallback={null}><KnowledgeCloud onSelect={(n) => { setNote(n); setSelected(null); setTeamChat(false); controls.current?.unlock(); }} /></Suspense>
         {councilTopic ? (
           <Html position={[0, 4.3, 0]} center distanceFactor={9} zIndexRange={[18, 0]}>
             <div className="walk-topic"><small>Rat tagt</small>{councilTopic}</div>
           </Html>
         ) : null}
-        <Player moveRef={moveRef} lookRef={lookRef} jumpRef={jumpRef} motionRef={motionRef} locked={locked} overview={overview} />
-        <Hands motionRef={motionRef} visible={!overview} />
+        <Player moveRef={moveRef} lookRef={lookRef} jumpRef={jumpRef} motionRef={motionRef} locked={locked} overview={overview} enabled={controlsEnabled} />
+        <FirstPersonHands motionRef={motionRef} visible={controlsEnabled} />
         {!touch ? (
           <PointerLockControls ref={controls as never} selector="#walk-start"
             onLock={() => setLocked(true)} onUnlock={() => setLocked(false)} />
@@ -631,15 +567,20 @@ export function WalkRoom() {
       </div>
 
       {!touch && !locked && !chosen && !overview && !note && !teamChat && !councilAsk && !perspectives ? (
-        <button id="walk-start" type="button" className="walk-start">
-          Klicken zum Laufen<br /><small>W A S D bewegen · Maus schauen · Shift schneller · Leertaste springen · Esc Maus frei · Agent anklicken (Esc, dann Klick)</small>
+        <button id="walk-start" type="button" className={`walk-start${gesture ? " is-hidden" : ""}`}>
+          Klicken zum Laufen<br /><small>W A S D bewegen · Maus schauen · Shift schneller · Leertaste springen · 1 Daumen · 2 Fäuste · 3 Boxen · Esc Maus frei</small>
         </button>
       ) : null}
       {!touch && locked ? <div className="walk-crosshair" /> : null}
-      {touch ? <Joystick moveRef={moveRef} /> : null}
-      {touch && !overview ? (
+      {touch && controlsEnabled ? <Joystick moveRef={moveRef} /> : null}
+      {touch && controlsEnabled ? (
         <button type="button" className="walk-jump" onPointerDown={(e) => { e.stopPropagation(); jumpRef.current = true; }}>Springen</button>
       ) : null}
+
+      {controlsEnabled && <div className="walk-gestures" role="group" aria-label="Handgesten">
+        {GESTURES.map(g => <button key={g.id} type="button" aria-label={g.label} aria-pressed={gesture?.kind === g.id} onClick={() => triggerGesture(g.id)}><span aria-hidden="true">{g.icon}</span><span>{g.label}</span>{!touch && <kbd>{g.key}</kbd>}</button>)}
+        <span className="walk-gesture-status" role="status">{gesture ? GESTURES.find(g => g.id === gesture.kind)?.label : ""}</span>
+      </div>}
 
       <nav className="walk-list" aria-label="Agenten">
         {roster.agents.map((agent, i) => {

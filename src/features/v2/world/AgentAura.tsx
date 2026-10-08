@@ -121,9 +121,12 @@ export function AgentAura({
   spots,
   /** Wie hoch über dem Boden die Aura sitzt. Brusthöhe der jeweiligen Figur. */
   height = 0.62,
+  followPositions = false,
 }: {
   spots: AuraSpot[];
   height?: number;
+  /** Moving seats reuse colours, updating only their transforms. */
+  followPositions?: boolean;
 }) {
   const { prefs } = useV2();
   const mesh = useRef<THREE.InstancedMesh>(null);
@@ -199,6 +202,14 @@ export function AgentAura({
   }, [spots, count, height, scratch]);
 
   useFrame(({ clock }) => {
+    if (followPositions && mesh.current) {
+      for (let i = 0; i < spots.length; i += 1) {
+        scratch.position.set(spots[i].position.x, spots[i].position.y + height, spots[i].position.z);
+        scratch.matrix.compose(scratch.position, scratch.quaternion, scratch.scale);
+        mesh.current.setMatrixAt(i, scratch.matrix);
+      }
+      mesh.current.instanceMatrix.needsUpdate = true;
+    }
     if (!material.current) return;
     // Bei "weniger Bewegung" steht die Aura still statt zu pulsen — die
     // Einstellung ist ein Versprechen und keine Empfehlung.

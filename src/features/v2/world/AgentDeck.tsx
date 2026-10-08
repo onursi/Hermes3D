@@ -200,6 +200,8 @@ export function AgentDeck({
   focus,
   onSelect,
   gazeTargetById,
+  showLabels = true,
+  followPositions = false,
 }: {
   seats: Seat[];
   selectedId: string | null;
@@ -207,6 +209,9 @@ export function AgentDeck({
   onSelect: (id: string) => void;
   /** Optional local-space gaze targets, used by the Council for real turn-taking. */
   gazeTargetById?: Record<string, THREE.Vector3>;
+  /** Walk-In supplies live windows and moving positions around the shared chassis. */
+  showLabels?: boolean;
+  followPositions?: boolean;
 }) {
   const { prefs } = useV2();
   const count = seats.length;
@@ -700,9 +705,10 @@ export function AgentDeck({
       {/* Das Oktaeder des Strategen — nur, wenn er gemeint ist. */}
       {advisorSeat >= 0 ? <StrategyOctahedron seat={seats[advisorSeat]} /> : null}
 
-      <AgentAura spots={auraSpots} />
+      <AgentAura spots={auraSpots} followPositions={followPositions} />
 
       {seats.map((seat, index) => {
+        if (!showLabels) return null;
         if (hovered !== index && seat.agent.id !== selectedId) return null;
         const assigned = agentRole(seat.agent.provider);
         const line = assigned ? assigned.motto : seat.agent.role;
