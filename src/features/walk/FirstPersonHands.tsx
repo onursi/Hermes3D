@@ -11,13 +11,20 @@ const SKIN = "#c98d63", SLEEVE = "#121a24";
 const LENGTHS = [.059, .064, .06, .049];
 
 function Hand({ side, motionRef, reduced }: { side: -1 | 1; motionRef: MutableRefObject<PlayerMotion>; reduced: boolean }) {
-  const root = useRef<THREE.Group>(null), thumb = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  const root = useRef<THREE.Group>(null), thumb = useRef<THREE.Group>(null), mirrored = useRef<THREE.Group>(null);
   // Finger joint angles are sampled from the same clip without per-frame React state.
   const joints = useRef({ curl: .32, point: 0 });
   useFrame(() => {
     const motion = motionRef.current, clip = motion.gesture;
     const pose = handPose(side, clip?.kind ?? null, clip ? (performance.now() - clip.started) / 1000 : 0, performance.now() - motion.pointing < 420, reduced);
-    if (root.current) { root.current.position.set(...pose.position); root.current.rotation.set(...pose.rotation, "ZYX"); }
+    const fit = Math.min(1, (camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1) / .9);
+    const size = Math.sqrt(fit);
+    if (root.current) {
+      root.current.position.set(pose.position[0] * (clip?.kind === "bump" ? size : fit), pose.position[1], pose.position[2]);
+      root.current.rotation.set(...pose.rotation, "ZYX");
+    }
+    if (mirrored.current) mirrored.current.scale.set(side * size, size, size);
     joints.current.curl = pose.curl; joints.current.point = pose.point;
     const closed = Math.max(0, (pose.curl - .32) / 1.13) * (1 - pose.thumb);
     if (thumb.current) {
@@ -25,7 +32,7 @@ function Hand({ side, motionRef, reduced }: { side: -1 | 1; motionRef: MutableRe
       thumb.current.position.z = -.006 - pose.thumb * .035;
     }
   }, -0.5);
-  return <group ref={root}><group scale={[side, 1, 1]}>
+  return <group ref={root}><group ref={mirrored} scale={[side, 1, 1]}>
     <RoundedBox args={[.098, .044, .115]} radius={.018} smoothness={3}><meshStandardMaterial color={SKIN} roughness={.65} /></RoundedBox>
     {[-.035, -.012, .012, .035].map((x, i) => <AnimatedFinger key={x} x={x} index={i} joints={joints} />)}
     <group ref={thumb} position={[-.05, -.009, -.006]}>
