@@ -82,3 +82,5 @@
 .walk-feed__msg small { color: #7f95a5; }
 .walk-feed__msg p { margin: 4px 0 0; font-size: 12.5px; color: #cfdde7; white-space: pre-wrap; }
 @media (max-width: 640px) { .walk-list { display: none; } }
+
+@media(max-width:900px){.walk-actions{max-width:calc(100vw - 32px);flex-wrap:wrap;justify-content:flex-end}.walk-actions button,.walk-actions a{font-size:11px;padding:8px 10px}}

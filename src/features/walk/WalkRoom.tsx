@@ -15,6 +15,7 @@ import { HermesOrb } from "@/features/v2/world/HermesOrb";
 
 import { useAgentActivity, type AgentActivity } from "./agentActivity";
 import { KnowledgeCloud } from "./KnowledgeCloud";
+import { PerspectivesPanel } from "@/features/perspectives/PerspectivesPanel";
 import "./walk.css";
 
 /**
@@ -471,6 +472,7 @@ export function WalkRoom() {
   const [councilTopic, setCouncilTopic] = useState("");
   const [councilDraft, setCouncilDraft] = useState("");
   const [councilAsk, setCouncilAsk] = useState(false);
+  const [perspectives, setPerspectives] = useState(false);
   const [teamChat, setTeamChat] = useState(false);
   const [note, setNote] = useState<VaultNode | null>(null);
   const [overview, setOverview] = useState(false);
@@ -624,10 +626,11 @@ export function WalkRoom() {
         <button type="button" onClick={() => setOverview((o) => !o)}>{overview ? "Hineingehen" : "Von oben"}</button>
         <button type="button" onClick={() => { setTeamChat((t) => !t); setSelected(null); setNote(null); controls.current?.unlock(); }}>Teamchat</button>
         <button type="button" onClick={() => { if (council) dismissCouncil(); else { setCouncilAsk(true); controls.current?.unlock(); } }}>{council ? "Rat auflösen" : "Rat einberufen"}</button>
+        <button type="button" onClick={() => { setPerspectives(true); controls.current?.unlock(); }}>Perspektivenrat</button>
         <Link href="/v2">Zurück zu Hermes</Link>
       </div>
 
-      {!touch && !locked && !chosen && !overview && !note && !teamChat && !councilAsk ? (
+      {!touch && !locked && !chosen && !overview && !note && !teamChat && !councilAsk && !perspectives ? (
         <button id="walk-start" type="button" className="walk-start">
           Klicken zum Laufen<br /><small>W A S D bewegen · Maus schauen · Shift schneller · Leertaste springen · Esc Maus frei · Agent anklicken (Esc, dann Klick)</small>
         </button>
@@ -650,6 +653,8 @@ export function WalkRoom() {
           );
         })}
       </nav>
+
+      {perspectives ? <div className="pr-overlay" role="dialog" aria-label="Perspektivenrat" aria-modal="true"><PerspectivesPanel onClose={() => setPerspectives(false)} /></div> : null}
 
       {councilAsk ? (
         <div className="walk-dialog" role="dialog" aria-label="Rat einberufen">
