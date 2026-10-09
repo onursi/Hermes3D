@@ -1,0 +1,73 @@
+import { createElement } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { JarvisDashboard } from "@/features/v2/jarvis/dashboard/JarvisDashboard";
+import { validateVisionImage } from "@/lib/jarvis/vision";
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ configured: true }), { headers: { "Content-Type": "application/json" } })));
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+});
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe("Jarvis dashboard camera lifecycle", () => {
+  it("starts neither camera nor media upload on mount and labels scenes", async () => {
+    const getUserMedia = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
+    render(createElement(JarvisDashboard));
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(screen.getByText("SZENENVORSCHAU")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sicht prüfen" })).toBeDisabled();
+    expect(document.querySelector("video")).toHaveAttribute("hidden");
+  });
+  it("releases camera permission granted after unmount", async () => {
+    let grant!: (value: MediaStream) => void;
+    const stop = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(() => new Promise<MediaStream>(resolve => { grant = resolve; })) } });
+    const view = render(createElement(JarvisDashboard));
+    fireEvent.click(screen.getByRole("button", { name: "Kamera freigeben" }));
+    view.unmount();
+    await act(async () => grant({ getTracks: () => [{ stop }] } as unknown as MediaStream));
+    expect(stop).toHaveBeenCalledOnce();
+  });
+  it("stops tracks and disables perception after explicit stop", async () => {
+    const stop = vi.fn(); const media = { getTracks: () => [{ stop }], getVideoTracks: () => [{ addEventListener: vi.fn() }] };
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => media) } });
+    render(createElement(JarvisDashboard));
+    fireEvent.click(screen.getByRole("button", { name: "Kamera freigeben" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Kamera stoppen" })).toBeEnabled());
+    expect(fetch).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Kamera stoppen" }));
+    expect(stop).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Sicht prüfen" })).toBeDisabled();
+  });
+  it("stops camera and discards an in-flight description on leaving the page", async () => {
+    let reply!: (value: Response) => void;
+    const stop = vi.fn(); const media = { getTracks: () => [{ stop }], getVideoTracks: () => [{ addEventListener: vi.fn() }] };
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => media) } });
+    const context = { drawImage: vi.fn() };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,/9j/AAAAAAAAAAAAAAAAAAAA");
+    const mock = vi.mocked(fetch); mock.mockImplementationOnce(async () => new Response(JSON.stringify({ configured: true })));
+    mock.mockImplementationOnce(() => new Promise<Response>(resolve => { reply = resolve; }));
+    render(createElement(JarvisDashboard));
+    const video = document.querySelector("video")!;
+    Object.defineProperties(video, { videoWidth: { value: 640 }, videoHeight: { value: 360 } });
+    fireEvent.click(screen.getByRole("button", { name: "Kamera freigeben" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Sicht prüfen" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Sicht prüfen" }));
+    await waitFor(() => expect(mock).toHaveBeenCalledTimes(2));
+    const options = mock.mock.calls[1][1]!;
+    fireEvent(window, new Event("pagehide"));
+    expect(stop).toHaveBeenCalledOnce(); expect(options.signal?.aborted).toBe(true);
+    await act(async () => reply(new Response(JSON.stringify({ description: "obsolete result" }))));
+    expect(screen.queryByText("obsolete result")).not.toBeInTheDocument();
+  });
+  it("blocks non-JPEG and oversized payloads before a provider call", () => {
+    expect(() => validateVisionImage(null)).toThrow();
+    expect(() => validateVisionImage("A".repeat(1_200_001))).toThrow();
+    expect(() => validateVisionImage(Buffer.from("not a jpeg image at all").toString("base64"))).toThrow();
+    expect(validateVisionImage(Buffer.from([255, 216, 255, ...new Array(25).fill(0)]).toString("base64"))).toMatch(/^\/9j/);
+  });
+});

@@ -1031,6 +1031,7 @@ export function JarvisCompanion({
             <p className="jarvis-mic-explanation px-3 py-2 text-[11px] text-white/50">Open Mic transkribiert hochwertig über ElevenLabs Scribe. Erst SCAN sendet den von dir geprüften Text an Jarvis // Hermes.</p></> : null}
             {/* Quick-Scan Action Chips (V2 Grundton, V2 Blau & V2 Typografie) */}
             <div id="jarvis-quick-actions" className="jarvis-quick-actions flex flex-wrap gap-1.5 border-b border-white/10 bg-black/25 px-3.5 py-2">
+              <a href="/jarvis" className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200/25 bg-sky-200/10 px-2.5 py-1 text-xs font-semibold text-sky-100">Hologramm-Studio</a>
               <button
                 type="button"
                 disabled={busy}
