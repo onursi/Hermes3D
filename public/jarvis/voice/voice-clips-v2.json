@@ -1,0 +1,35 @@
+{
+  "engine": "Qwen3-TTS-12Hz-1.7B-Base",
+  "language": "German",
+  "source": "Locally synthesized from an existing synthetic deep-bass voice reference",
+  "variants": {
+    "dark": "Bass emphasis and normalized loudness",
+    "synthetic": "Additional subtle pitch and chorus treatment"
+  },
+  "clips": [
+    {
+      "id": "focus",
+      "text": "Chef, du wolltest heute eigentlich lernen. Dein Daumen hat offenbar einen anderen Plan.",
+      "files": [
+        "focus-dark-v2.mp3",
+        "focus-synthetic-v2.mp3"
+      ]
+    },
+    {
+      "id": "shopping",
+      "text": "Proteine für dich, Käsekuchen für den Hausfrieden. So würde ich die Liste ergänzen, Chef.",
+      "files": [
+        "shopping-dark-v2.mp3",
+        "shopping-synthetic-v2.mp3"
+      ]
+    },
+    {
+      "id": "daily",
+      "text": "Ein guter Plan, Chef. Bis dahin ist das Paket noch kein Möbelstück.",
+      "files": [
+        "daily-dark-v2.mp3",
+        "daily-synthetic-v2.mp3"
+      ]
+    }
+  ]
+}

@@ -4,11 +4,51 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JarvisDashboard } from "@/features/v2/jarvis/dashboard/JarvisDashboard";
 import { validateVisionImage } from "@/lib/jarvis/vision";
 
+function mockAudio() {
+  const audio = {
+    play: vi.fn().mockResolvedValue(undefined), pause: vi.fn(), load: vi.fn(), removeAttribute: vi.fn(),
+    onplaying: null as (() => void) | null, onended: null as (() => void) | null, onerror: null as (() => void) | null,
+  };
+  const constructor = vi.fn(function () { return audio; });
+  vi.stubGlobal("Audio", constructor);
+  return { audio, constructor };
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ configured: true }), { headers: { "Content-Type": "application/json" } })));
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe("Jarvis recorded voice lifecycle", () => {
+  it("plays the selected local clip only on click and stops on scene change", async () => {
+    const { audio, constructor } = mockAudio();
+    render(createElement(JarvisDashboard));
+    expect(constructor).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Stimme testen" }));
+    expect(constructor).toHaveBeenCalledWith("/jarvis/voice/focus-dark-v2.mp3");
+    act(() => audio.onplaying?.());
+    expect(screen.getByText("JARVIS SPRICHT")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Einkauf/ }));
+    expect(audio.pause).toHaveBeenCalledOnce();
+    expect(audio.removeAttribute).toHaveBeenCalledWith("src");
+    expect(screen.getByRole("button", { name: "Stimme testen" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Jarvis-Stimme" }), { target: { value: "synthetic" } });
+    fireEvent.click(screen.getByRole("button", { name: "Stimme testen" }));
+    expect(constructor).toHaveBeenLastCalledWith("/jarvis/voice/shopping-synthetic-v2.mp3");
+  });
+  it("cancels pending playback on page leave and ignores a late playing event", async () => {
+    const { audio } = mockAudio();
+    render(createElement(JarvisDashboard));
+    fireEvent.click(screen.getByRole("button", { name: "Stimme testen" }));
+    const latePlaying = audio.onplaying;
+    act(() => window.dispatchEvent(new Event("pagehide")));
+    expect(audio.pause).toHaveBeenCalledOnce();
+    act(() => latePlaying?.());
+    expect(screen.getByText("BEREIT, CHEF.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stimme testen" })).toBeInTheDocument();
+  });
+});
 
 describe("Jarvis dashboard camera lifecycle", () => {
   it("starts neither camera nor media upload on mount and labels scenes", async () => {
