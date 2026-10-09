@@ -11,5 +11,6 @@ describe("Jarvis vocal expression",()=>{
   expect(liveSetup("Charon",false,true).tools![0].functionDeclarations.map(t=>t.name)).toEqual(["set_voice_expression"]);
   expect(liveSetup("Charon",true,true).tools![0].functionDeclarations.map(t=>t.name)).toEqual(["set_voice_expression","get_todoist_summary","prepare_todoist_completion"]);
   expect(liveSetup("Charon",false,false)).not.toHaveProperty("tools");
+  expect(liveSetup("Charon",false,false,true).tools![0].functionDeclarations.map(t=>t.name)).toEqual(["search_personal_knowledge"]);
  });
 });

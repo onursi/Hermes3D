@@ -173,6 +173,9 @@ export function KnowledgeAreas({
   query = "",
   queryHitIds,
   reducedMotion = false,
+  hideLabels = false,
+  autoRotate = true,
+  focusSelected = false,
   onSelect,
   onFocusRequest,
 }: KnowledgeAreasProps) {
@@ -312,6 +315,10 @@ export function KnowledgeAreas({
       selectedNode: selectedId ? nodeMap.get(selectedId) || null : null,
     };
   }, [selectedId, edges, nodeMap]);
+
+  useEffect(() => {
+    if (focusSelected && selectedNode) onFocusRequest?.({ center: selectedNode.position.toArray() as [number, number, number], radius: 4 });
+  }, [focusSelected, selectedNode, onFocusRequest]);
 
   /**
    * 3. Kanten als gebogene Bahnen statt gerader Sehnen.
@@ -494,7 +501,7 @@ export function KnowledgeAreas({
      * Auswahl oder Suche friert die Drehung ein, das Loslassen taut sie wieder
      * auf — und zwar weich, damit das Anhalten nicht wie ein Ruckler aussieht.
      */
-    if (groupRef.current) {
+    if (autoRotate && groupRef.current) {
       const wantsStill = Boolean(selectedId) || query.trim().length > 0;
       spin.current += ((wantsStill ? 0 : 1) - spin.current) * Math.min(1, delta * 3);
       groupRef.current.rotation.y += delta * 0.055 * spin.current;
@@ -549,7 +556,7 @@ export function KnowledgeAreas({
             </mesh>
 
             {/* Areal-Beschriftung (Cluster-Titel + Anzahl Notizen) */}
-            <Billboard
+            {!hideLabels && <Billboard
               position={[0, cluster.radius * 0.85 + 0.4, 0]}
               follow={true}
               lockX={false}
@@ -574,7 +581,7 @@ export function KnowledgeAreas({
               >
                 {`${cluster.label} (${cluster.nodeCount})`}
               </Text>
-            </Billboard>
+            </Billboard>}
           </group>
         );
       })}
@@ -648,7 +655,7 @@ export function KnowledgeAreas({
       )}
 
       {/* 6. LABELS FÜR AUSWAHL & DIREKTE NACHBARN (Selektives Labeling) */}
-      {selectedNode && (
+      {!hideLabels && selectedNode && (
         <Billboard
           position={[
             selectedNode.position.x,
@@ -672,7 +679,7 @@ export function KnowledgeAreas({
       )}
 
       {/* Labels der direkten Nachbarn */}
-      {Array.from(directNeighborIds).slice(0, 10).map((neighborId) => {
+      {!hideLabels && Array.from(directNeighborIds).slice(0, 10).map((neighborId) => {
         const neighbor = nodeMap.get(neighborId);
         if (!neighbor) return null;
 

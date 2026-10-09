@@ -2,7 +2,7 @@ import { LiveVoiceOutput } from "./voiceOutput";
 import { readExpression } from "@/lib/jarvis/expression";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string };
-type CallOptions = { camera: boolean; coach: boolean; voice: string; todoist?: boolean; audioDevice?: string; videoDevice?: string };
+type CallOptions = { camera: boolean; coach: boolean; voice: string; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
 type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void };
 
 export function bytesToBase64(bytes: Uint8Array) {
@@ -58,6 +58,7 @@ export class JarvisLiveSession {
   private coachSpoke = false;
   private messages = Promise.resolve();
   private todoist = false;
+  private knowledgeTicket = "";
   private toolRequests = new Map<string, AbortController>();
   private seenTools = new Set<string>();
   private pendingTask: PendingTask | null = null;
@@ -90,6 +91,14 @@ export class JarvisLiveSession {
         this.send({ toolResponse: { functionResponses: [{ id: tool.id, name: tool.name, response: { ok: true, nextAnswerExpression: "gesetzt", instructions: "Jetzt nur die kurze Antwort sprechen, keine Regieanweisungen." } }] } });
         this.toolRequests.delete(tool.id); return;
       }
+      if (tool.name === "search_personal_knowledge") {
+        if (!this.knowledgeTicket || this.seenTools.size > 80 || typeof tool.args?.query !== "string") throw new Error("Wissenssuche ist nicht freigegeben.");
+        const response = await fetch("/api/jarvis/knowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticket: this.knowledgeTicket, consent: true, question: tool.args.query }), signal: AbortSignal.any([abort.signal, this.abort.signal]) });
+        result = await response.json();
+        if (!response.ok) throw new Error("Freigegebene Notizen konnten nicht durchsucht werden.");
+        if (!abort.signal.aborted && !this.stopped) this.send({ toolResponse: { functionResponses: [{ id: tool.id, name: tool.name, response: result }] } });
+        this.toolRequests.delete(tool.id); return;
+      }
       if (!this.todoist || this.seenTools.size > 80) throw new Error("Todoist-Werkzeug ist nicht verfügbar. Gespräch neu starten.");
       const signal = AbortSignal.any([abort.signal, this.abort.signal]);
       if (tool.name === "get_todoist_summary" && ["today", "tomorrow"].includes(String(tool.args?.period))) {
@@ -100,7 +109,7 @@ export class JarvisLiveSession {
         this.pendingTask = data.pendingTask; this.events.pendingTask?.(this.pendingTask);
         result = { ok: true, requiresConfirmation: true, task: { id: data.pendingTask.id, title: data.pendingTask.title } };
       } else throw new Error("Unbekanntes Werkzeug oder ungültige Anfrage.");
-    } catch (error) { result = { ok: false, error: error instanceof Error ? error.message : "Todoist nicht erreichbar." }; }
+    } catch (error) { result = { ok: false, error: error instanceof Error ? error.message : "Werkzeug nicht erreichbar." }; }
     if (!abort.signal.aborted && !this.stopped) this.send({ toolResponse: { functionResponses: [{ id: tool.id, name: tool.name, response: result }] } });
     this.toolRequests.delete(tool.id);
   }
@@ -130,9 +139,10 @@ export class JarvisLiveSession {
       if (this.stopped) return;
       await context.audioWorklet.addModule("/jarvis/live-capture.js");
       if (this.stopped) return;
-      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, todoist: this.todoist }), signal: this.abort.signal });
+      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || "Live-Zugang konnte nicht vorbereitet werden.");
       if (this.stopped) return;
+      if (options.knowledge) { if (typeof data.knowledge?.ticket !== "string") throw new Error("Wissenssuche konnte nicht vorbereitet werden."); this.knowledgeTicket = data.knowledge.ticket; }
       if (data.endpoint !== "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained" || !data.token?.startsWith("auth_tokens/")) throw new Error("Ungültige Live-Verbindung.");
       const analyser = context.createAnalyser(); analyser.fftSize = 256; analyser.connect(context.destination);
       this.player = new LivePcmPlayer(context, analyser, playing => { if (!this.stopped) { this.events.phase(playing ? "speaking" : this.voiceOutput?.busy ? "thinking" : "listening"); this.lastActivity = Date.now(); } });
@@ -161,7 +171,7 @@ export class JarvisLiveSession {
           if (this.stopped) return;
           const message = JSON.parse(raw);
           if (message.error) { this.fail("Google konnte das Live-Gespräch nicht fortsetzen."); return; }
-          for (const id of message.toolCallCancellation?.ids || []) this.toolRequests.get(id)?.abort();
+          for (const id of message.toolCallCancellation?.ids || []) { this.toolRequests.get(id)?.abort(); this.resetScan(); }
           for (const tool of message.toolCall?.functionCalls || []) void this.handleTool(tool);
           if (message.setupComplete) {
             clearTimeout(deadline); this.ready = true; this.lastActivity = Date.now();
@@ -191,7 +201,7 @@ export class JarvisLiveSession {
             this.timers.push(setTimeout(() => this.fail("Die zehnminütige Sitzung ist beendet. Für den nächsten Take neu starten."), 10 * 60_000));
           }
           const content = message.serverContent;
-          if (content?.interrupted) { this.voiceOutput?.interrupt(); this.player?.stop(); }
+          if (content?.interrupted) { this.voiceOutput?.interrupt(); this.player?.stop(); this.resetScan(); }
           if (content?.inputTranscription?.text) { this.lastActivity = Date.now(); if (this.voiceOutput && (this.voiceOutput.busy || this.player?.playing)) { this.voiceOutput.interrupt(); this.player?.stop(); } if (!this.player?.playing) this.events.phase("thinking"); }
           if (!content?.interrupted && typeof content?.outputTranscription?.text === "string") this.voiceOutput?.append(content.outputTranscription.text);
           for (const part of content?.modelTurn?.parts || []) {
@@ -211,8 +221,10 @@ export class JarvisLiveSession {
       this.fail(error instanceof Error && error.name === "NotAllowedError" ? "Mikrofon-/Kamerafreigabe fehlt. Erlaube sie für diese Seite." : message);
     }
   }
+  private resetScan() { if (this.knowledgeTicket) void fetch("/api/jarvis/knowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset", ticket: this.knowledgeTicket }), keepalive: true }).catch(() => {}); }
   stop() {
     if (this.stopped) return; this.stopped = true; this.ready = false; this.abort.abort();
+    this.resetScan(); this.knowledgeTicket = "";
     for (const request of this.toolRequests.values()) request.abort(); this.toolRequests.clear(); this.dismissTask();
     this.timers.forEach(timer => { clearTimeout(timer); clearInterval(timer); }); this.timers = [];
     cancelAnimationFrame(this.frame); this.events.level.current = 0;

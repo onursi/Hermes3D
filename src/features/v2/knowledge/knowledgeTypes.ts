@@ -48,6 +48,10 @@ export interface KnowledgeAreasProps {
   /** Kennungen der Volltexttreffer — damit der Raum dasselbe zeigt wie die Liste. */
   queryHitIds?: Set<string>;
   reducedMotion?: boolean;
+  /** Filming view: omit all note/area labels without changing the normal room. */
+  hideLabels?: boolean;
+  autoRotate?: boolean;
+  focusSelected?: boolean;
   onSelect?: (id: string) => void;
   onFocusRequest?: (focus: FocusRequest) => void;
 }

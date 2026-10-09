@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { createLiveToken } from "@/lib/jarvis/live";
 import { visionConfig } from "@/lib/jarvis/vision";
 import { issueSpeechGrant, speechStatus } from "@/lib/jarvis/elevenVoice";
+import { issueKnowledgeGrant, knowledgeStatus } from "@/lib/jarvis/knowledge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
 let busy = false, last = 0;
-export async function GET(req?: Request) { return NextResponse.json({ configured: Boolean(visionConfig().key), mode: "live-audio-video", provider: "Google Gemini Live", elevenlabs: await speechStatus(req?.signal, Boolean(req && new URL(req.url).searchParams.get("refresh"))) }, { headers }); }
+export async function GET(req?: Request) { return NextResponse.json({ configured: Boolean(visionConfig().key), mode: "live-audio-video", provider: "Google Gemini Live", knowledge: knowledgeStatus(), elevenlabs: await speechStatus(req?.signal, Boolean(req && new URL(req.url).searchParams.get("refresh"))) }, { headers }); }
 export async function POST(req: Request) {
   try {
     const origin = req.headers.get("origin");
@@ -22,8 +23,10 @@ export async function POST(req: Request) {
     busy = true; last = Date.now();
     const external = voice === "ElevenLabs";
     if (external) { const status = await speechStatus(req.signal, true); if (!status.ready) return NextResponse.json({ error: status.error }, { status: 402, headers }); }
-    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external);
-    return NextResponse.json({ ...live, ...(external ? { speech: { provider: "ElevenLabs", session: issueSpeechGrant(), sampleRate: 24000 } } : {}) }, { headers });
+    const knowledge = data.knowledge === true;
+    if (knowledge && !knowledgeStatus().configured) return NextResponse.json({ error: "Drehquellen nicht eingerichtet." }, { status: 400, headers });
+    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external, knowledge);
+    return NextResponse.json({ ...live, ...(knowledge ? { knowledge: { ticket: issueKnowledgeGrant() } } : {}), ...(external ? { speech: { provider: "ElevenLabs", session: issueSpeechGrant(), sampleRate: 24000 } } : {}) }, { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     const expected = /^(Unbekannte Stimme|Google-Live|Kein gültiger)/.test(message);

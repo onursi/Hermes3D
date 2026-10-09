@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { addAndroidRelief } from "./reliefModel";
 import { currentGaze, damp, focusYaw, type GazeTarget } from "./tracking";
 
-export function TrackedHead({ level, gaze, onActivate, inspect = 0, active = false }: { level: MutableRefObject<number>; gaze: MutableRefObject<GazeTarget>; onActivate: () => void; inspect?: number; active?: boolean }) {
+export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, active = false }: { level: MutableRefObject<number>; gaze: MutableRefObject<GazeTarget>; attention?: MutableRefObject<number>; onActivate: () => void; inspect?: number; active?: boolean }) {
   const container = useRef<HTMLButtonElement>(null);
   const inspection = useRef(0), suppressClick = useRef(false);
   const resetVersion = useRef(0);
@@ -47,7 +47,7 @@ export function TrackedHead({ level, gaze, onActivate, inspect = 0, active = fal
       if(version!==resetVersion.current){version=resetVersion.current;manual=null;}
       const target=currentGaze(gaze.current,now);
       eyeX=damp(eyeX,target.x,16,dt);eyeY=damp(eyeY,target.y,16,dt);
-      headX=damp(headX,focusYaw(target),5,dt);headY=damp(headY,target.y,4,dt);
+      headX=damp(headX,attention?.current ? attention.current * .8 : focusYaw(target),5,dt);headY=damp(headY,target.y,4,dt);
       energy=damp(energy,Math.min(1,level.current),20,dt);
       const amount=reduced?.matches?.45:1;
       const progress=inspection.current?Math.min(1,(now-inspection.current)/8000):0;
@@ -75,6 +75,6 @@ export function TrackedHead({ level, gaze, onActivate, inspect = 0, active = fal
       scene.traverse(object=>{if(object instanceof THREE.Mesh||object instanceof THREE.LineSegments){geometries.add(object.geometry);(Array.isArray(object.material)?object.material:[object.material]).forEach(m=>materials.add(m));}});
       geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();
     };
-  },[level,gaze]);
+  },[level,gaze,attention]);
   return <button ref={container} className="jl-tracked-head" type="button" aria-label="Jarviskopf drehen oder Gesprächseinstellungen öffnen" title="Ziehen dreht den Kopf frei · ESC setzt ihn zurück" onClick={()=>{if(!suppressClick.current)onActivate();}}>{fallback&&<><img src="/jarvis/hologram-android-v3.png" alt="Mechanischer Jarviskopf" /><span className="jl-render-note">3D-Darstellung auf diesem Gerät nicht verfügbar</span></>}</button>;
 }

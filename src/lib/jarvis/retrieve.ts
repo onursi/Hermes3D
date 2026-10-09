@@ -125,7 +125,7 @@ export type RetrievalResult = {
  * rather than a second copy of it that drifts. The route is now a thin shell
  * over this.
  */
-export function retrieveFromVault(query: string, limit = 6): RetrievalResult {
+export function retrieveFromVault(query: string, limit = 6, scope?: { sources: { id: string; title: string; text: string }[] }): RetrievalResult {
 
   if (!query) {
     return { ok: false, query, terms: [], searched: 0, results: [], reason: "Keine Frage übergeben." };
@@ -144,7 +144,7 @@ export function retrieveFromVault(query: string, limit = 6): RetrievalResult {
   }
 
   try {
-    const files = collectNotes(VAULT_PATH, VAULT_PATH);
+    const files = scope ? scope.sources.map(source => path.join(VAULT_PATH, source.id)) : collectNotes(VAULT_PATH, VAULT_PATH);
 
     /**
      * How rare each query term is across the vault, and therefore how much a
@@ -159,10 +159,10 @@ export function retrieveFromVault(query: string, limit = 6): RetrievalResult {
      * stopword list only approximates.
      */
     const documentFrequency = new Map(terms.map((term) => [term, 0]));
-    const bodies = files.map((file) => {
-      const raw = fs.readFileSync(file, "utf8");
+    const bodies = files.map((file, index) => {
+      const raw = scope ? scope.sources[index].text : fs.readFileSync(file, "utf8");
       const text = (raw.length > MAX_NOTE_CHARS ? raw.slice(0, MAX_NOTE_CHARS) : raw).toLowerCase();
-      const name = path.basename(file, ".md").toLowerCase();
+      const name = (scope?.sources[index].title || path.basename(file, ".md")).toLowerCase();
       terms.forEach((term) => {
         if (text.includes(term) || name.includes(term)) {
           documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
@@ -180,7 +180,7 @@ export function retrieveFromVault(query: string, limit = 6): RetrievalResult {
 
     const scored = files.map((file, fileIndex) => {
       const relPath = path.relative(VAULT_PATH, file).split(path.sep).join("/");
-      const title = path.basename(file, ".md");
+      const title = scope?.sources[fileIndex].title || path.basename(file, ".md");
       const folder = relPath.includes("/") ? relPath.split("/")[0] : "(root)";
       const raw = bodies[fileIndex];
       const body = stripFrontmatter(raw.length > MAX_NOTE_CHARS ? raw.slice(0, MAX_NOTE_CHARS) : raw);
