@@ -125,7 +125,7 @@ export class JarvisLiveSession {
             this.timers.push(setInterval(() => {
               if (options.coach && !this.coachSpoke && !this.player?.playing && Date.now() - this.lastActivity >= 15000 && (!options.camera || Date.now() - this.lastFrame < 3000)) {
                 this.coachSpoke = true; this.events.phase("thinking");
-                this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: options.camera ? "Fokuscoach-Impuls: Schau auf das aktuelle Kamerabild. Melde dich jetzt einmal mit einem kurzen trockenen Chef-Kommentar und einem konkreten Anstoß, an den Projekten weiterzuarbeiten. Beschreibe nur wirklich Sichtbares. Keine Begrüßung." : "Fokuscoach-Impuls: Gib mir jetzt einmal einen kurzen trockenen Chef-Kommentar zum Weiterarbeiten an meinen Projekten. Du hast kein Kamerabild, also erfinde keine Beobachtung." }] }], turnComplete: true } });
+                this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: options.camera ? "Fokuscoach-Impuls: Schau auf das aktuelle Kamerabild. Melde dich jetzt einmal mit einem kurzen trockenen Boss-Kommentar und einem konkreten Anstoß, an den Projekten weiterzuarbeiten. Beschreibe nur wirklich Sichtbares. Keine Begrüßung." : "Fokuscoach-Impuls: Gib mir jetzt einmal einen kurzen trockenen Boss-Kommentar zum Weiterarbeiten an meinen Projekten. Du hast kein Kamerabild, also erfinde keine Beobachtung." }] }], turnComplete: true } });
               }
             }, 1000));
             this.timers.push(setTimeout(() => this.fail("Die zehnminütige Sitzung ist beendet. Für den nächsten Take neu starten."), 10 * 60_000));
