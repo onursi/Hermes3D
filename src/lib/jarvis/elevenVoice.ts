@@ -1,6 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { getElevenLabsConfig } from "@/lib/elevenlabs/localConfig";
+import { expressiveText, neutralExpression, type VoiceExpression } from "./expression";
+
+export const JARVIS_SPEECH_MODEL = "eleven_v4_turbo";
 
 export type SpeechStatus = { configured: boolean; ready: boolean; voiceName: string; voiceId: string; previewUrl: string; remainingCredits: number | null; error: string };
 type Grant = { expires: number; voiceId: string; account: string; remaining: number; requests: number; busy: boolean };
@@ -50,10 +53,10 @@ export function reserveSpeech(session: unknown, characters: number) {
   return { apiKey: c.apiKey, voiceId: grant.voiceId, release: () => { grant.busy = false; } };
 }
 
-export async function streamSelectedVoice(apiKey: string, voiceId: string, text: string, previousText: string, signal: AbortSignal) {
+export async function streamSelectedVoice(apiKey: string, voiceId: string, text: string, previousText: string, signal: AbortSignal, expression: VoiceExpression = neutralExpression()) {
   const client = new ElevenLabsClient({ apiKey });
   return client.textToSpeech.stream(voiceId, {
-    text, previousText: previousText || undefined, modelId: "eleven_flash_v2_5", languageCode: "de", outputFormat: "pcm_24000",
-    voiceSettings: { stability: .58, similarityBoost: .8, speed: 1, useSpeakerBoost: false },
+    text: expressiveText(text, expression), previousText: previousText || undefined, modelId: JARVIS_SPEECH_MODEL, languageCode: "de", outputFormat: "pcm_24000",
+    voiceSettings: { similarityBoost: .8 },
   }, { abortSignal: signal, timeoutInSeconds: 20, maxRetries: 0 });
 }

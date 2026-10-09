@@ -1,4 +1,5 @@
 import { LiveVoiceOutput } from "./voiceOutput";
+import { readExpression } from "@/lib/jarvis/expression";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string };
 type CallOptions = { camera: boolean; coach: boolean; voice: string; todoist?: boolean; audioDevice?: string; videoDevice?: string };
@@ -83,7 +84,13 @@ export class JarvisLiveSession {
     const abort = new AbortController(); this.toolRequests.set(tool.id, abort);
     let result: object;
     try {
-      if (!this.todoist || this.seenTools.size > 40) throw new Error("Todoist-Werkzeug ist nicht verfügbar. Gespräch neu starten.");
+      if (tool.name === "set_voice_expression") {
+        if (!this.voiceOutput || this.seenTools.size > 80) throw new Error("Sprachausdruck ist nicht verfügbar.");
+        this.voiceOutput.setExpression(readExpression(tool.args));
+        this.send({ toolResponse: { functionResponses: [{ id: tool.id, name: tool.name, response: { ok: true, nextAnswerExpression: "gesetzt", instructions: "Jetzt nur die kurze Antwort sprechen, keine Regieanweisungen." } }] } });
+        this.toolRequests.delete(tool.id); return;
+      }
+      if (!this.todoist || this.seenTools.size > 80) throw new Error("Todoist-Werkzeug ist nicht verfügbar. Gespräch neu starten.");
       const signal = AbortSignal.any([abort.signal, this.abort.signal]);
       if (tool.name === "get_todoist_summary" && ["today", "tomorrow"].includes(String(tool.args?.period))) {
         result = await this.taskRequest({ action: "summary", period: tool.args!.period, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }, signal);

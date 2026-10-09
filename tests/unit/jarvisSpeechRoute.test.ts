@@ -17,4 +17,10 @@ describe("live speech route",()=>{
     mocks.reserve.mockReturnValue({apiKey:"secret",voiceId:"chosen",release:mocks.release});mocks.status.mockResolvedValue({ready:true,remainingCredits:500});mocks.stream.mockResolvedValue(new ReadableStream({start(c){c.enqueue(new Uint8Array([1,2]));c.close();}}));
     const response=await POST(request({consent:true,text:"Boss.",session:"ticket",voiceId:"attacker-choice"}));expect(response.status).toBe(200);expect(mocks.stream.mock.calls[0][1]).toBe("chosen");expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual([1,2]);expect(mocks.release).toHaveBeenCalledOnce();expect(response.headers.get("cache-control")).toBe("no-store");
   });
+  it("validates expression before reserving quota and counts generated audio tags",async()=>{
+    const bad=await POST(request({consent:true,text:"Boss.",session:"ticket",expression:{delivery:"arbitrary",laugh:true}}));expect(bad.status).toBe(400);expect(mocks.reserve).not.toHaveBeenCalled();
+    mocks.reserve.mockReturnValue({apiKey:"secret",voiceId:"chosen",release:mocks.release});mocks.status.mockResolvedValue({ready:true,remainingCredits:500});mocks.stream.mockResolvedValue(new ReadableStream({start(c){c.close();}}));
+    const response=await POST(request({consent:true,text:"Boss.",session:"ticket",expression:{delivery:"dry",laugh:true}}));expect(response.status).toBe(200);await response.arrayBuffer();
+    expect(mocks.reserve).toHaveBeenCalledWith("ticket","[sarcastic] Boss. [laughs]".length);expect(mocks.stream.mock.calls[0][5]).toEqual({delivery:"dry",laugh:true});
+  });
 });

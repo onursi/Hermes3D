@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     busy = true; last = Date.now();
     const external = voice === "ElevenLabs";
     if (external) { const status = await speechStatus(req.signal, true); if (!status.ready) return NextResponse.json({ error: status.error }, { status: 402, headers }); }
-    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true);
+    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external);
     return NextResponse.json({ ...live, ...(external ? { speech: { provider: "ElevenLabs", session: issueSpeechGrant(), sampleRate: 24000 } } : {}) }, { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";

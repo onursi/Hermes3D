@@ -14,7 +14,7 @@ describe("selected live voice output",()=>{
   });
   it("cancels pending synthesis and rejects late audio after an interruption",async()=>{
     let finish!:(r:Response)=>void;vi.stubGlobal("fetch",vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;})));
-    const pcm=vi.fn(),error=vi.fn();const voice=new LiveVoiceOutput("session",pcm,error,vi.fn());voice.append("Alte Antwort.");
+    const pcm=vi.fn(),error=vi.fn();const voice=new LiveVoiceOutput("session",pcm,error,vi.fn());voice.append("Alte Antwort.");voice.flush();
     await vi.waitFor(()=>expect(finish).toBeTypeOf("function"));voice.interrupt();finish(pcmResponse([[1,2]]));
     await Promise.resolve();await Promise.resolve();expect(pcm).not.toHaveBeenCalled();expect(error).not.toHaveBeenCalled();expect(voice.busy).toBe(false);
   });
@@ -22,5 +22,21 @@ describe("selected live voice output",()=>{
     const fetcher=vi.fn(async()=>new Response(JSON.stringify({error:"Kontingent fehlt"}),{status:402}));vi.stubGlobal("fetch",fetcher);
     const pcm=vi.fn(),error=vi.fn();const voice=new LiveVoiceOutput("session",pcm,error,vi.fn());voice.append("Erster Satz. Zweiter Satz.");voice.flush();
     await vi.waitFor(()=>expect(error).toHaveBeenCalledWith("Kontingent fehlt"));expect(fetcher).toHaveBeenCalledOnce();expect(pcm).not.toHaveBeenCalled();expect(voice.busy).toBe(false);
+  });
+  it("keeps laughter with the final sentence, once, and resets expression for ordinary help",async()=>{
+    const fetcher=vi.fn(async()=>pcmResponse([[1,2]]));vi.stubGlobal("fetch",fetcher);
+    const voice=new LiveVoiceOutput("session",vi.fn(),vi.fn(),vi.fn());voice.setExpression({delivery:"dry",laugh:true});
+    voice.append("Boss, ich seh das Handy.");expect(fetcher).not.toHaveBeenCalled();
+    voice.append(" Schieben wir die Projekte auf morgen?");voice.flush();await vi.waitFor(()=>expect(voice.busy).toBe(false));
+    const first=JSON.parse(fetcher.mock.calls[0][1].body),last=JSON.parse(fetcher.mock.calls[1][1].body);
+    expect(first.expression).toEqual({delivery:"dry",laugh:false});expect(last.expression).toEqual({delivery:"dry",laugh:true});
+    voice.append("Morgen ist Samstag.");voice.flush();await vi.waitFor(()=>expect(voice.busy).toBe(false));
+    expect(JSON.parse(fetcher.mock.calls[2][1].body).expression).toEqual({delivery:"neutral",laugh:false});
+  });
+  it("discards held laughter on interruption without carrying it into the next reply",async()=>{
+    const fetcher=vi.fn(async()=>pcmResponse([[1,2]]));vi.stubGlobal("fetch",fetcher);
+    const voice=new LiveVoiceOutput("session",vi.fn(),vi.fn(),vi.fn());voice.setExpression({delivery:"dry",laugh:true});voice.append("Alter Witz.");voice.interrupt();
+    voice.append("Neue Antwort.");voice.flush();await vi.waitFor(()=>expect(voice.busy).toBe(false));expect(fetcher).toHaveBeenCalledOnce();
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({text:"Neue Antwort.",expression:{delivery:"neutral",laugh:false}});
   });
 });
