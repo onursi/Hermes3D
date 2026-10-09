@@ -6,6 +6,7 @@ import { validateVisionImage } from "@/lib/jarvis/vision";
 
 function mockAudio() {
   const audio = {
+    playbackRate: 1, preservesPitch: false,
     play: vi.fn().mockResolvedValue(undefined), pause: vi.fn(), load: vi.fn(), removeAttribute: vi.fn(),
     onplaying: null as (() => void) | null, onended: null as (() => void) | null, onerror: null as (() => void) | null,
   };
@@ -21,6 +22,31 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("Jarvis recorded voice lifecycle", () => {
+  it("keeps the bass pitch while changing tempo during playback", () => {
+    const { audio } = mockAudio();
+    render(createElement(JarvisDashboard));
+    fireEvent.click(screen.getByRole("button", { name: "Jarvis ansprechen oder Stimme stoppen" }));
+    expect(audio.playbackRate).toBe(1.16);
+    expect(audio.preservesPitch).toBe(true);
+    fireEvent.change(screen.getByRole("slider", { name: "Sprechtempo" }), { target: { value: "1.25" } });
+    expect(audio.playbackRate).toBe(1.25);
+    fireEvent.click(screen.getByRole("button", { name: "Jarvis ansprechen oder Stimme stoppen" }));
+    expect(audio.pause).toHaveBeenCalledOnce();
+  });
+  it("closes audio analysis on stop and creates a fresh graph for the next clip", () => {
+    const { audio } = mockAudio();
+    const close = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn(function () { return { close, resume: vi.fn().mockResolvedValue(undefined), destination: {}, createMediaElementSource: vi.fn(() => ({ connect: vi.fn() })), createAnalyser: vi.fn(() => ({ fftSize: 256, connect: vi.fn(), getByteTimeDomainData: vi.fn() })) }; });
+    vi.stubGlobal("AudioContext", create);
+    render(createElement(JarvisDashboard));
+    fireEvent.click(screen.getByRole("button", { name: "Stimme testen" }));
+    expect(create).toHaveBeenCalledOnce();
+    act(() => audio.onplaying?.());
+    fireEvent.click(screen.getByRole("button", { name: "Stimme stoppen" }));
+    expect(close).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Stimme testen" }));
+    expect(create).toHaveBeenCalledTimes(2);
+  });
   it("plays the selected local clip only on click and stops on scene change", async () => {
     const { audio, constructor } = mockAudio();
     render(createElement(JarvisDashboard));

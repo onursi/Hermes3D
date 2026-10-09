@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Camera, Eye, Focus, Pause, Play, ShoppingBag, Volume2, X } from "lucide-react";
 import "./dashboard.css";
+import { InteractiveHead } from "./InteractiveHead";
 
 const scenes = [
   { name: "Fokus", audio: "focus", icon: Focus, title: "Ein anderer Plan.", cue: "Jarvis, ich muss jetzt wirklich lernen.", reply: "Chef, du wolltest heute eigentlich lernen. Dein Daumen hat offenbar einen anderen Plan." },
@@ -24,6 +25,10 @@ export function JarvisDashboard() {
   const [remaining, setRemaining] = useState(15 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
   const [voiceName, setVoiceName] = useState("dark");
+  const [voiceSpeed, setVoiceSpeed] = useState(1.16);
+  const voiceLevel = useRef(0);
+  const voiceContext = useRef<AudioContext | null>(null);
+  const voiceFrame = useRef(0);
   const player = useRef<HTMLAudioElement | null>(null);
   const voiceGeneration = useRef(0);
   const video = useRef<HTMLVideoElement>(null);
@@ -35,6 +40,9 @@ export function JarvisDashboard() {
 
   const stopVoice = useCallback(() => {
     voiceGeneration.current++;
+    cancelAnimationFrame(voiceFrame.current); voiceFrame.current = 0; voiceLevel.current = 0;
+    const context = voiceContext.current; voiceContext.current = null;
+    if (context) void context.close().catch(() => {});
     const audio = player.current;
     player.current = null;
     if (audio) {
@@ -130,8 +138,30 @@ export function JarvisDashboard() {
     stopVoice();
     const run = voiceGeneration.current;
     const audio = new Audio(`/jarvis/voice/${scenes[scene].audio}-${voiceName}-v2.mp3`);
+    audio.playbackRate = voiceSpeed;
+    audio.preservesPitch = true;
     player.current = audio;
     setVoiceLoading(true); setNotice("");
+    // Analyse the actual playback, never a microphone or generated random waveform.
+    try {
+      if (window.AudioContext) {
+        const context = new AudioContext();
+        const analyser = context.createAnalyser(); analyser.fftSize = 256;
+        const source = context.createMediaElementSource(audio);
+        source.connect(analyser); analyser.connect(context.destination);
+        voiceContext.current = context;
+        void context.resume().catch(() => {});
+        const samples = new Uint8Array(analyser.fftSize);
+        const sample = () => {
+          if (run !== voiceGeneration.current) return;
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0; for (const value of samples) sum += ((value - 128) / 128) ** 2;
+          voiceLevel.current = Math.min(1, Math.sqrt(sum / samples.length) * 5);
+          voiceFrame.current = requestAnimationFrame(sample);
+        };
+        voiceFrame.current = requestAnimationFrame(sample);
+      }
+    } catch { /* Playback remains available if Web Audio is unsupported. */ }
     audio.onplaying = () => {
       if (mounted.current && run === voiceGeneration.current) { setVoiceLoading(false); setSpeaking(true); }
     };
@@ -145,20 +175,21 @@ export function JarvisDashboard() {
   }
 
   const current = scenes[scene];
+  function toggleVoice() { if (speaking || voiceLoading) stopVoice(); else speak(); }
   const clock = `${Math.floor(remaining / 60).toString().padStart(2, "0")}:${(remaining % 60).toString().padStart(2, "0")}`;
   return <main className={`jd ${speaking ? "jd-speaking" : ""} ${visionBusy ? "jd-observing" : ""}`}>
-    <header className="jd-top"><Link className="jd-brand" href="/v2"><span className="jd-emblem">J</span><span>JARVIS<small>PERSONAL ASSISTANT</small></span></Link><span className="jd-version">HOLOGRAM STUDIO <b>02</b></span><div className="jd-nav"><Link className="jd-back" href="/jarvis/brain">Wissenskonsole</Link><Link className="jd-back" href="/v2"><ArrowLeft size={15} /> Hermes</Link></div></header>
+    <header className="jd-top"><Link className="jd-brand" href="/v2"><span className="jd-emblem">J</span><span>JARVIS<small>PERSONAL ASSISTANT</small></span></Link><span className="jd-version">HOLOGRAM STUDIO <b>03</b></span><div className="jd-nav"><Link className="jd-back" href="/jarvis/brain">Wissenskonsole</Link><Link className="jd-back" href="/v2"><ArrowLeft size={15} /> Hermes</Link></div></header>
     <div className="jd-layout">
       <aside className="jd-left"><div className="jd-overline"><span className="jd-dot" /> DEIN RAUM. DEIN RHYTHMUS.</div><h1>Du machst.<br />Ich denke mit.</h1><p className="jd-intro">Ein klarer Kopf.<br />Und gelegentlich ein Kommentar.</p>
         <section className="jd-focus"><div className="jd-section-label"><Focus size={15} /> Zeit für Fokus</div><strong className="jd-clock">{clock}</strong><p>{remaining === 0 ? "Zeit für eine Pause, Chef." : timerRunning ? "Dein Timer läuft hier im Dashboard." : "Eine Sache. Fünfzehn Minuten."}</p><button onClick={() => { if (!timerRunning) { const seconds = remaining || 900; setRemaining(seconds); deadline.current = Date.now() + seconds * 1000; } setTimerRunning(value => !value); }}>{timerRunning ? <Pause size={14} /> : <Play size={14} />}{timerRunning ? "Pausieren" : "Fokus starten"}</button></section>
         <div className="jd-signature"><span>HERMES × JARVIS</span><small>Persönlich. Mit Haltung.</small></div>
       </aside>
-      <section className="jd-stage" aria-label="Jarvis Hologramm"><div className="jd-stage-grid" /><div className="jd-coordinate">J / 01<span>HOLOGRAPHIC PRESENCE</span></div><div className="jd-head"><img src="/jarvis/hologram-android-v2.png" alt="Markantes mechanisches Android-Gesicht mit blauen optischen Augen" /><div className="jd-scan" /></div><div className="jd-platform" /><div className="jd-face-status"><i /><span>{visionBusy ? "ICH SCHAUE GENAU HIN" : voiceLoading ? "STIMME WIRD GELADEN" : speaking ? "JARVIS SPRICHT" : "BEREIT, CHEF."}</span><i /></div><div className="jd-caption"><span className="jd-overline">{visionResult ? "SICHTPRÜFUNG · EIN KAMERABILD" : "SZENENVORSCHAU"}</span><p aria-live="polite">{visionResult || current.reply}</p></div></section>
+      <section className="jd-stage" aria-label="Jarvis Hologramm"><div className="jd-stage-grid" /><div className="jd-coordinate">J / 01<span>HOLOGRAPHIC PRESENCE</span></div><div className="jd-head"><InteractiveHead level={voiceLevel} onActivate={toggleVoice} /></div><div className="jd-platform" /><span className="jd-head-hint">Maus oder Finger bewegen · Kopf antippen</span><div className="jd-face-status"><i /><span>{visionBusy ? "ICH SCHAUE GENAU HIN" : voiceLoading ? "STIMME WIRD GELADEN" : speaking ? "JARVIS SPRICHT" : "BEREIT, CHEF."}</span><i /></div><div className="jd-caption"><span className="jd-overline">{visionResult ? "SICHTPRÜFUNG · EIN KAMERABILD" : "SZENENVORSCHAU"}</span><p aria-live="polite">{visionResult || current.reply}</p></div></section>
       <aside className="jd-right"><div className="jd-section-label">Womit fangen wir an?</div><nav className="jd-scenes" aria-label="Szenentext auswählen">{scenes.map((item, i) => <button key={item.name} aria-pressed={scene === i} onClick={() => { stopVoice(); setScene(i); setVisionResult(""); }}><item.icon size={18} /><span>{item.name}<small>{item.title}</small></span><ArrowUpRight size={15} /></button>)}</nav><div className="jd-cue"><span>DU</span><p>„{current.cue}“</p></div>
         <section className="jd-camera"><div className="jd-section-label"><Camera size={15} /> Wahrnehmung <span className={cameraOn ? "jd-tag jd-active" : "jd-tag"}>{cameraOn ? "Kamera an" : "Aus"}</span></div><h2>Im Hintergrund.<br />Mit deiner Freigabe.</h2><p>Dein Kamerabild bleibt verborgen. „Sicht prüfen“ sendet ein einzelnes Bild an Google. Keine automatische Aufnahme.</p><div className="jd-camera-controls"><button disabled={cameraPending} onClick={cameraOn ? stopCamera : startCamera}>{cameraOn ? <X size={15} /> : <Camera size={15} />}{cameraPending ? "Freigabe läuft…" : cameraOn ? "Kamera stoppen" : "Kamera freigeben"}</button><button disabled={!cameraOn || visionBusy || !visionReady} onClick={checkVision}><Eye size={15} />{visionBusy ? "Wird geprüft…" : "Sicht prüfen"}</button></div><small>{visionResult ? "Ein Bild geprüft. Kein laufender Videochat." : visionReady ? "Bildanalyse verfügbar · Prüfung auf Knopfdruck" : "Bildanalyse-Zugang wird geprüft oder fehlt."}</small></section>
       </aside>
     </div>
-    <footer className="jd-bottom"><div className="jd-wave" aria-hidden="true">{Array.from({ length: 31 }, (_, i) => <i key={i} style={{ "--bar": `${7 + (i * 13 % 31)}px`, animationDelay: `${i * .035}s` } as React.CSSProperties} />)}</div><div className="jd-voice"><span>Jarvis · lokal erzeugt mit Qwen3-TTS</span><select aria-label="Jarvis-Stimme" value={voiceName} onChange={e => { stopVoice(); setVoiceName(e.target.value); }}><option value="dark">Dunkel und ruhig</option><option value="synthetic">Dunkel mit Synth-Effekt</option></select></div><button className="jd-speak" onClick={() => { if (speaking || voiceLoading) stopVoice(); else speak(); }}><Volume2 size={17} />{speaking || voiceLoading ? "Stimme stoppen" : "Stimme testen"}</button><span className="jd-footnote">Designvorschau · Handyaktionen und Live-Sprachchat folgen</span></footer>
+    <footer className="jd-bottom"><div className="jd-wave" aria-hidden="true">{Array.from({ length: 31 }, (_, i) => <i key={i} style={{ "--bar": `${7 + (i * 13 % 31)}px`, animationDelay: `${i * .035}s` } as React.CSSProperties} />)}</div><div className="jd-voice"><span>Jarvis · lokal erzeugt mit Qwen3-TTS</span><select aria-label="Jarvis-Stimme" value={voiceName} onChange={e => { stopVoice(); setVoiceName(e.target.value); }}><option value="dark">Dunkel und ruhig</option><option value="synthetic">Dunkel mit Synth-Effekt</option></select></div><label className="jd-speed">Sprechtempo <output>{voiceSpeed.toFixed(2).replace(".", ",")}×</output><input aria-label="Sprechtempo" type="range" min="0.95" max="1.35" step="0.01" value={voiceSpeed} onChange={event => { const speed = Number(event.target.value); setVoiceSpeed(speed); if (player.current) player.current.playbackRate = speed; }} /></label><button className="jd-speak" onClick={toggleVoice}><Volume2 size={17} />{speaking || voiceLoading ? "Stimme stoppen" : "Stimme testen"}</button><span className="jd-footnote">Designvorschau · Handyaktionen und Live-Sprachchat folgen</span></footer>
     {notice && <div className="jd-notice" role="alert">{notice}<button aria-label="Hinweis schließen" onClick={() => setNotice("")}><X size={15} /></button></div>}
     <video ref={video} muted playsInline hidden aria-hidden="true" />
   </main>;
