@@ -214,6 +214,9 @@ export function AgentDeck({
   followPositions?: boolean;
 }) {
   const { prefs } = useV2();
+  // Walk-In moves instances after mount. Cached bounds of separate body parts
+  // can then hide faces/limbs while body and head still pass their larger bounds.
+  // Keep the small shared batches visible for moving seats; static scenes retain culling.
   const count = seats.length;
 
   const body = useRef<THREE.InstancedMesh>(null);
@@ -605,7 +608,7 @@ export function AgentDeck({
     <group>
       {/* Nur Körper und Kopf nehmen Zeiger an. Ein Auge als Trefferfläche macht
           das Anklicken zur Geschicklichkeitsübung. */}
-      <instancedMesh
+      <instancedMesh frustumCulled={!followPositions}
         ref={body}
         args={[undefined, undefined, count]}
         castShadow
@@ -617,7 +620,7 @@ export function AgentDeck({
         <meshStandardMaterial roughness={0.22} metalness={0.18} />
       </instancedMesh>
 
-      <instancedMesh
+      <instancedMesh frustumCulled={!followPositions}
         ref={head}
         args={[undefined, undefined, count]}
         castShadow
@@ -629,66 +632,66 @@ export function AgentDeck({
         <meshStandardMaterial roughness={0.16} metalness={0.14} />
       </instancedMesh>
 
-      <instancedMesh ref={visor} args={[undefined, undefined, count]}>
+      <instancedMesh frustumCulled={!followPositions} ref={visor} args={[undefined, undefined, count]}>
         <sphereGeometry args={[0.165, 18, 12]} />
         <meshStandardMaterial roughness={0.06} metalness={0.92} />
       </instancedMesh>
 
-      <instancedMesh ref={eye} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={eye} args={[undefined, undefined, count * PAIRED]}>
         <sphereGeometry args={[0.028, 12, 10]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
-      <instancedMesh ref={pupil} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={pupil} args={[undefined, undefined, count * PAIRED]}>
         <sphereGeometry args={[0.018, 10, 8]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
-      <instancedMesh ref={mouth} args={[undefined, undefined, count]}>
+      <instancedMesh frustumCulled={!followPositions} ref={mouth} args={[undefined, undefined, count]}>
         <torusGeometry args={[0.024, 0.0045, 6, 16, Math.PI * 0.72]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
-      <instancedMesh ref={blush} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={blush} args={[undefined, undefined, count * PAIRED]}>
         <circleGeometry args={[0.007, 10]} />
         <meshBasicMaterial transparent opacity={0.75} toneMapped={false} />
       </instancedMesh>
 
-      <instancedMesh ref={earRing} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={earRing} args={[undefined, undefined, count * PAIRED]}>
         <torusGeometry args={[0.055, 0.014, 8, 20]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
 
-      <instancedMesh ref={shoulder} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={shoulder} args={[undefined, undefined, count * PAIRED]}>
         <sphereGeometry args={[0.065, 12, 10]} />
         <meshStandardMaterial roughness={0.4} metalness={0.5} />
       </instancedMesh>
 
-      <instancedMesh ref={arm} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={arm} args={[undefined, undefined, count * PAIRED]}>
         <capsuleGeometry args={[0.058, 0.16, 4, 10]} />
         <meshStandardMaterial roughness={0.24} metalness={0.18} />
       </instancedMesh>
 
-      <instancedMesh ref={hand} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={hand} args={[undefined, undefined, count * PAIRED]}>
         <sphereGeometry args={[0.068, 12, 10]} />
         <meshStandardMaterial roughness={0.4} metalness={0.5} />
       </instancedMesh>
 
-      <instancedMesh ref={foot} args={[undefined, undefined, count * PAIRED]}>
+      <instancedMesh frustumCulled={!followPositions} ref={foot} args={[undefined, undefined, count * PAIRED]}>
         <sphereGeometry args={[0.098, 12, 10]} />
         <meshStandardMaterial roughness={0.4} metalness={0.4} />
       </instancedMesh>
 
-      <instancedMesh ref={dockRing} args={[undefined, undefined, count]} geometry={ringGeometry}>
+      <instancedMesh frustumCulled={!followPositions} ref={dockRing} args={[undefined, undefined, count]} geometry={ringGeometry}>
         <meshBasicMaterial transparent opacity={0.55} side={THREE.DoubleSide} toneMapped={false} />
       </instancedMesh>
 
-      <instancedMesh ref={logoRim} args={[undefined, undefined, count]} geometry={logoRimGeometry}>
+      <instancedMesh frustumCulled={!followPositions} ref={logoRim} args={[undefined, undefined, count]} geometry={logoRimGeometry}>
         <meshStandardMaterial roughness={0.3} metalness={0.8} side={THREE.DoubleSide} />
       </instancedMesh>
 
       {atlas ? (
-        <instancedMesh
+        <instancedMesh frustumCulled={!followPositions}
           ref={logoFace}
           args={[undefined, undefined, count]}
           geometry={logoFaceGeometry}
