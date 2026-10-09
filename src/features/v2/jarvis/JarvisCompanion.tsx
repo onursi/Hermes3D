@@ -23,7 +23,9 @@ import {
   Settings2,
   Check,
   Paperclip,
+  Clapperboard,
 } from "lucide-react";
+import { JarvisVideoScene } from "./JarvisVideoScene";
 import { JarvisHologramFace } from "./JarvisHologramFace";
 import { JarvisArcReactor } from "./JarvisArcReactor";
 import { JarvisNeuralBeam } from "./JarvisNeuralBeam";
@@ -153,6 +155,9 @@ export function JarvisCompanion({
   // Persönlichkeit & Studio
   const [currentPersona, setCurrentPersona] = useState<PersonaConfig>(PERSONAS[0]);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [videoSceneOpen, setVideoSceneOpen] = useState(false);
+  const videoSceneRun = useRef(0);
+  const speechCache = useRef(new Map<string, Blob>());
 
   // Jarvis Workflow Zustände
   const [question, setQuestion] = useState("");
@@ -168,6 +173,7 @@ export function JarvisCompanion({
       params.get("share_url"),
     ].filter((value): value is string => Boolean(value?.trim()));
     const shouldOpen = params.get("open") === "hermes";
+    if (params.get("scene") === "video") setVideoSceneOpen(true);
     if (!shared.length && !shouldOpen) return;
     if (shared.length) setQuestion(shared.join("\n"));
     setIsOpen(true);
@@ -229,23 +235,59 @@ export function JarvisCompanion({
 
   // Aufräumen bei Unmount
   useEffect(() => {
+    const audioVersion = audioGeneration;
+    const sceneVersion = videoSceneRun;
     return () => {
+      audioVersion.current++;
+      sceneVersion.current++;
       streamRef.current?.close();
       if (ttsAudioRef.current) {
         ttsAudioRef.current.pause();
+        ttsAudioRef.current.dispatchEvent(new Event("ended"));
         ttsAudioRef.current = null;
       }
     };
   }, []);
 
+  const fetchSpeechChunk = useCallback(async (text: string) => {
+    const key = `${currentPersona.agentId}:${text}`;
+    const cached = speechCache.current.get(key);
+    if (cached) return cached;
+    const res = await fetch("/api/voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, agentId: currentPersona.agentId }),
+    });
+    if (!res.ok) {
+      const result = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(result.error || "Stimme nicht verfügbar.");
+    }
+    const blob = await res.blob();
+    // Keep only a small number of clips when rehearsing different scripts.
+    if (speechCache.current.size >= 80) speechCache.current.delete(speechCache.current.keys().next().value!);
+    speechCache.current.set(key, blob);
+    return blob;
+  }, [currentPersona.agentId]);
+
+  const prepareVideoVoice = useCallback(async (replies: string[]) => {
+    const run = videoSceneRun.current;
+    for (const reply of replies) {
+      for (const chunk of splitForSpeech(reply)) {
+        if (run !== videoSceneRun.current) throw new Error("Vorbereitung beendet.");
+        await fetchSpeechChunk(chunk);
+      }
+    }
+  }, [fetchSpeechChunk]);
+
   // Neural Voice Vorlesefunktion
   const speakText = useCallback(async (textToSpeak: string) => {
     const generation = ++audioGeneration.current;
     const clean = textToSpeak.replace(/[*#_`[\]()]/g, "").trim();
-    if (!clean) return;
+    if (!clean) return false;
 
     if (ttsAudioRef.current) {
       ttsAudioRef.current.pause();
+      ttsAudioRef.current.dispatchEvent(new Event("ended"));
       ttsAudioRef.current = null;
     }
 
@@ -257,51 +299,46 @@ export function JarvisCompanion({
       // The local voice is slower than realtime, so speak sentence by sentence:
       // the first one starts as soon as it is ready, the next is generated meanwhile.
       const chunks = splitForSpeech(clean);
-      const fetchChunk = async (text: string) => {
-        const res = await fetch("/api/voice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, agentId: currentPersona.agentId }),
-        });
-        if (!res.ok) {
-          const result = await res.json().catch(() => ({})) as { error?: string };
-          throw new Error(result.error || "Stimme nicht verfügbar.");
-        }
-        return res.blob();
-      };
-
-      let next = fetchChunk(chunks[0]);
+      let next = fetchSpeechChunk(chunks[0]);
       for (let i = 0; i < chunks.length; i++) {
         const blob = await next;
-        if (generation !== audioGeneration.current) return;
-        if (i + 1 < chunks.length) next = fetchChunk(chunks[i + 1]);
+        if (generation !== audioGeneration.current) return false;
+        if (i + 1 < chunks.length) {
+          next = fetchSpeechChunk(chunks[i + 1]);
+          // Prefetch errors are awaited next; attach a handler immediately.
+          void next.catch(() => undefined);
+        }
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         ttsAudioRef.current = audio;
         if (i === 0) setAudioLoading(false);
         // The orb breathes with the reply's real loudness (read-only tap).
         watchSpeech(audio);
-        await new Promise<void>((resolve) => {
-          audio.onended = () => resolve();
-          audio.onerror = () => resolve();
-          audio.play().catch(() => resolve());
-        });
-        URL.revokeObjectURL(url);
-        if (generation !== audioGeneration.current) return;
+        try {
+          await new Promise<void>((resolve, reject) => {
+            audio.onended = () => resolve();
+            audio.onerror = () => reject(new Error("Audio konnte nicht wiedergegeben werden."));
+            audio.play().catch(reject);
+          });
+        } finally { URL.revokeObjectURL(url); }
+        if (generation !== audioGeneration.current) return false;
       }
       setIsPlayingAudio(false);
       setIsAudioPaused(false);
+      return true;
     } catch (err) {
+      if (generation !== audioGeneration.current) return false;
       console.warn("Neural TTS Error:", err);
       setReason(
         `${err instanceof Error ? err.message : "ElevenLabs-Stimme nicht verfügbar."} Keine Computerstimme wurde eingesetzt.`,
       );
       setIsPlayingAudio(false);
       setIsAudioPaused(false);
+      return false;
     } finally {
-      setAudioLoading(false);
+      if (generation === audioGeneration.current) setAudioLoading(false);
     }
-  }, [currentPersona]);
+  }, [fetchSpeechChunk]);
 
   const pauseAudio = () => {
     if (ttsAudioRef.current && !ttsAudioRef.current.paused) {
@@ -317,7 +354,7 @@ export function JarvisCompanion({
     }
   };
 
-  const stopAudio = () => {
+  const stopAudio = useCallback(() => {
     audioGeneration.current++;
     setAudioLoading(false);
     if (ttsAudioRef.current) {
@@ -328,7 +365,7 @@ export function JarvisCompanion({
     }
     setIsPlayingAudio(false);
     setIsAudioPaused(false);
-  };
+  }, []);
 
   // Quellen an übergeordneten Graphen melden
   const onSourcesChangeRef = useRef(onSourcesChange);
@@ -444,7 +481,7 @@ export function JarvisCompanion({
         source.close();
       });
     },
-    [question, attachments, phase, voiceReply, speakText, onNavigateWorld, onSearchQuery]
+    [question, attachments, phase, voiceReply, speakText, stopAudio, onNavigateWorld, onSearchQuery]
   );
 
   const uploadAttachment = useCallback(async (file: File) => {
@@ -481,6 +518,39 @@ export function JarvisCompanion({
   const submitQuestion = () => { voice.stopListening(); ask(); };
   const stopMic = voice.stopListening;
   useEffect(() => { stopMic(); }, [currentWorld, stopMic]);
+
+  const stopVideoScene = useCallback(() => {
+    videoSceneRun.current++;
+    stopAudio();
+    jarvisAudio.stopBeamSound();
+    setIsScanning(false);
+    setBeamLive(false);
+    setPhase("idle");
+  }, [stopAudio]);
+
+  const playVideoReply = useCallback(async (cue: string, reply: string) => {
+    const run = ++videoSceneRun.current;
+    stopMic();
+    stopAudio();
+    streamRef.current?.close();
+    setQuestion(cue);
+    setAnswer(reply);
+    setSources([]);
+    setReason(null);
+    setSavedAs(null);
+    setPreview(null);
+    setCandidates(null);
+    setPhase("idle");
+    setIsScanning(true);
+    setBeamLive(true);
+    setBeamSession(value => value + 1);
+    jarvisAudio.playScanSweep();
+    // This is deliberately a staged scan, without vault or model requests.
+    await new Promise(resolve => setTimeout(resolve, 850));
+    if (run !== videoSceneRun.current) return false;
+    setIsScanning(false);
+    return speakText(reply);
+  }, [stopMic, stopAudio, speakText]);
 
   const displayPhase: JarvisPhase = voice.listening
     ? "listening"
@@ -633,7 +703,7 @@ export function JarvisCompanion({
       setIsScanning(false);
       jarvisAudio.stopBeamSound();
     }
-  }, [voiceReply, speakText]);
+  }, [voiceReply, speakText, stopAudio]);
 
   // Aufgaben aus Antwort suchen
   const findTasks = useCallback(async () => {
@@ -717,6 +787,7 @@ export function JarvisCompanion({
 
   const statusLabel =
     voice.listening ? "Hört zu"
+    : videoSceneOpen ? isScanning ? "Video-Szene läuft" : isPlayingAudio ? "Jarvis spricht" : "Video-Szene bereit"
     : phase === "error" ? "Verbindung prüfen"
     : busy ? "Denkt nach"
     : isScanning ? "Scannt Vault"
@@ -956,10 +1027,24 @@ export function JarvisCompanion({
                 <strong className="mt-1 block text-[11px] font-medium text-white">Neue Impulse</strong>
               </button>
             </nav>
-            <p role="status" className="jarvis-mic-status px-3 pt-2 text-xs text-emerald-200">{voice.status}</p>
-            <p className="jarvis-mic-explanation px-3 py-2 text-[11px] text-white/50">Open Mic transkribiert hochwertig über ElevenLabs Scribe. Erst SCAN sendet den von dir geprüften Text an Jarvis // Hermes.</p>
+            {!videoSceneOpen ? <><p role="status" className="jarvis-mic-status px-3 pt-2 text-xs text-emerald-200">{voice.status}</p>
+            <p className="jarvis-mic-explanation px-3 py-2 text-[11px] text-white/50">Open Mic transkribiert hochwertig über ElevenLabs Scribe. Erst SCAN sendet den von dir geprüften Text an Jarvis // Hermes.</p></> : null}
             {/* Quick-Scan Action Chips (V2 Grundton, V2 Blau & V2 Typografie) */}
             <div id="jarvis-quick-actions" className="jarvis-quick-actions flex flex-wrap gap-1.5 border-b border-white/10 bg-black/25 px-3.5 py-2">
+              <button
+                type="button"
+                disabled={busy}
+                aria-pressed={videoSceneOpen}
+                onClick={() => {
+                  stopMic();
+                  streamRef.current?.close();
+                  stopVideoScene();
+                  setQuestion(""); setAnswer(""); setSources([]); setReason(null); setPreview(null); setCandidates(null);
+                  setVideoSceneOpen(value => !value);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200/25 bg-amber-200/10 px-2.5 py-1 text-xs font-semibold text-amber-100 disabled:opacity-30"
+              ><Clapperboard size={13} />{videoSceneOpen ? "Normaler Jarvis" : "Video-Szene"}</button>
+              {!videoSceneOpen ? <>
               <button
                 type="button"
                 onClick={() => {
@@ -1000,8 +1085,10 @@ export function JarvisCompanion({
               >
                 🌅 MEIN STAND
               </button>
+              </> : null}
             </div>
 
+            {videoSceneOpen ? <JarvisVideoScene voiceKey={currentPersona.agentId} onPrepare={prepareVideoVoice} onPlay={playVideoReply} onStop={stopVideoScene} /> : <>
             {/* Eingabebereich + Audio-Toolbar */}
             <div className="jarvis-composer border-b border-white/10 bg-black/30 p-3">
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#060a10]/85 px-3 py-2 focus-within:border-cyan-400/50 focus-within:ring-1 focus-within:ring-cyan-400/30">
@@ -1481,6 +1568,7 @@ export function JarvisCompanion({
                 </div>
               ) : null}
             </div>
+            </>}
           </section>
         )}
 
