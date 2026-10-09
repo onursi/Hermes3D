@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import Link from "next/link";
 import { ROLES, defaultSettings, plannedCalls, type CatalogProvider, type Choice, type Contribution, type CouncilRun, type CouncilSettings, type ProviderId } from "./model";
 import "./perspectives.css";
+import { DRAFT_KEY, readDraft } from "./draft";
 
 const STORAGE = "hermes-perspectives-settings-v1";
 const PRESETS = "hermes-perspectives-presets-v1";
@@ -59,6 +60,7 @@ export function PerspectivesPanel({ onClose }: { onClose?: () => void }) {
   const [loading, setLoading] = useState(true);
   const [mission, setMission] = useState("");
   const [context, setContext] = useState("");
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [run, setRun] = useState<CouncilRun | null>(null);
@@ -98,10 +100,15 @@ export function PerspectivesPanel({ onClose }: { onClose?: () => void }) {
     mounted.current = true;
     void loadCatalog();
     try {
+      const saved = readDraft(sessionStorage);
+      if (saved) { setMission(saved.mission); setContext(saved.context); }
+    } catch { /* storage unavailable */ }
+    setDraftLoaded(true);
+    try {
       const id = localStorage.getItem(RUN);
       if (id) void fetch(`/api/perspectives/runs/${encodeURIComponent(id)}`, { cache: "no-store" }).then(async (response) => {
         if (!response.ok) { localStorage.removeItem(RUN); return; }
-        const data = await response.json(); if (mounted.current) { setRun(data.run); setMission(data.run.mission); }
+        const data = await response.json(); if (mounted.current) { setRun(data.run); setMission((current) => current || data.run.mission); }
       }).catch(() => {});
     } catch { /* private mode */ }
     return () => { mounted.current = false; };
@@ -109,6 +116,9 @@ export function PerspectivesPanel({ onClose }: { onClose?: () => void }) {
   }, []);
 
   useEffect(() => { if (loaded) { try { localStorage.setItem(STORAGE, JSON.stringify(settings)); } catch { /* storage unavailable */ } } }, [settings, loaded]);
+  useEffect(() => {
+    if (draftLoaded) { try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ mission, context })); } catch { /* storage unavailable */ } }
+  }, [mission, context, draftLoaded]);
   useEffect(() => {
     if (!runId || runState !== "running") return;
     let stopped = false;

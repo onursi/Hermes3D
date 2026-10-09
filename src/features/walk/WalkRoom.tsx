@@ -20,6 +20,7 @@ import { KnowledgeCloud } from "./KnowledgeCloud";
 import { PerspectivesPanel } from "@/features/perspectives/PerspectivesPanel";
 import { FirstPersonHands, type PlayerMotion } from "./FirstPersonHands";
 import { GESTURES, isWalkInputTarget, type Gesture, type GestureClip } from "./gestures";
+import { OwnedPointerDrag, walkKey, isWalkMovementKey } from "./input";
 import "./walk.css";
 
 /**
@@ -256,9 +257,10 @@ const GRAVITY = 13;
 /** Shared with the hands, so they can bob while walking and lift on a jump. */
 type Motion = PlayerMotion;
 
-function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview, enabled }: {
+function Player({ moveRef, lookRef, jumpRef, resetLookRef, motionRef, locked, overview, enabled }: {
   moveRef: React.MutableRefObject<MoveInput>; lookRef: React.MutableRefObject<{ dx: number; dy: number }>;
   jumpRef: React.MutableRefObject<boolean>; motionRef: React.MutableRefObject<Motion>; locked: boolean; overview: boolean; enabled: boolean;
+  resetLookRef: React.MutableRefObject<boolean>;
 }) {
   const { camera } = useThree();
   const keys = useRef(new Set<string>());
@@ -272,19 +274,25 @@ function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview, enable
     camera.position.set(Math.cos(Math.PI / 2 + Math.PI / 6) * 4.8, EYE, Math.sin(Math.PI / 2 + Math.PI / 6) * 4.8);
     camera.lookAt(0, 1.4, 0);
     const down = (e: KeyboardEvent) => {
-      if (!inputEnabled.current || isWalkInputTarget(e.target)) return;
-      if (e.code === "Space") {
+      if (!inputEnabled.current || e.ctrlKey || e.altKey || e.metaKey || isWalkInputTarget(e.target)) return;
+      const key = walkKey(e.code, e.key);
+      if (isWalkMovementKey(key)) e.preventDefault();
+      if (key === "Space") {
         e.preventDefault();
         jumpRef.current = true;
       }
-      keys.current.add(e.code);
+      keys.current.add(key);
     };
-    const up = (e: KeyboardEvent) => keys.current.delete(e.code);
-    const blur = () => { keys.current.clear(); moveRef.current = { x: 0, y: 0 }; };
+    const up = (e: KeyboardEvent) => keys.current.delete(walkKey(e.code, e.key));
+    const blur = () => { keys.current.clear(); moveRef.current = { x: 0, y: 0 }; jumpRef.current = false; };
+    const visibility = () => { if (document.hidden) blur(); };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); };
+    window.addEventListener("resize", blur);
+    window.visualViewport?.addEventListener("resize", blur);
+    document.addEventListener("visibilitychange", visibility);
+    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); window.removeEventListener("resize", blur); window.visualViewport?.removeEventListener("resize", blur); document.removeEventListener("visibilitychange", visibility); };
   }, [camera, jumpRef, moveRef]);
 
   // Overview: lift the camera above the room; back down where it was when leaving.
@@ -311,6 +319,13 @@ function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview, enable
       return;
     }
     const k = keys.current;
+    if (resetLookRef.current) {
+      const euler = eulerRef.current;
+      euler.setFromQuaternion(camera.quaternion); euler.x = 0; euler.z = 0;
+      camera.quaternion.setFromEuler(euler);
+      resetLookRef.current = false;
+      lookRef.current.dx = 0; lookRef.current.dy = 0;
+    }
     let fx = moveRef.current.x, fz = moveRef.current.y;
     if (k.has("KeyW") || k.has("ArrowUp")) fz += 1;
     if (k.has("KeyS") || k.has("ArrowDown")) fz -= 1;
@@ -360,6 +375,7 @@ function Player({ moveRef, lookRef, jumpRef, motionRef, locked, overview, enable
 
 function Joystick({ moveRef }: { moveRef: React.MutableRefObject<MoveInput> }) {
   const base = useRef<HTMLDivElement>(null);
+  const drag = useRef(new OwnedPointerDrag());
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const handle = (e: React.PointerEvent) => {
     const r = base.current!.getBoundingClientRect();
@@ -369,12 +385,19 @@ function Joystick({ moveRef }: { moveRef: React.MutableRefObject<MoveInput> }) {
     setKnob({ x: x * len, y: y * len });
     moveRef.current = { x: x * len, y: -y * len };
   };
-  const reset = () => { setKnob({ x: 0, y: 0 }); moveRef.current = { x: 0, y: 0 }; };
+  const reset = useCallback(() => { drag.current.reset(); setKnob({ x: 0, y: 0 }); moveRef.current = { x: 0, y: 0 }; }, [moveRef]);
+  useEffect(() => {
+    const visibility = () => { if (document.hidden) reset(); };
+    window.addEventListener("blur", reset); window.addEventListener("resize", reset);
+    document.addEventListener("visibilitychange", visibility);
+    return () => { window.removeEventListener("blur", reset); window.removeEventListener("resize", reset); document.removeEventListener("visibilitychange", visibility); moveRef.current = { x: 0, y: 0 }; };
+  }, [reset, moveRef]);
+  const finish = (e: React.PointerEvent) => { e.stopPropagation(); if (drag.current.end(e.pointerId)) reset(); };
   return (
-    <div ref={base} className="walk-joystick"
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handle(e); }}
-      onPointerMove={(e) => { if (e.buttons || e.pointerType === "touch") handle(e); }}
-      onPointerUp={reset} onPointerCancel={reset}>
+    <div ref={base} className="walk-joystick" aria-label="Bewegungsstick"
+      onPointerDown={(e) => { e.stopPropagation(); if (!drag.current.begin(e)) return; e.currentTarget.setPointerCapture(e.pointerId); handle(e); }}
+      onPointerMove={(e) => { e.stopPropagation(); if (e.pointerId === drag.current.activeId) handle(e); }}
+      onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
       <div className="walk-joystick__knob" style={{ transform: `translate(${knob.x * 34}px, ${knob.y * 34}px)` }} />
     </div>
   );
@@ -402,7 +425,8 @@ export function WalkRoom() {
   const jumpRef = useRef(false);
   const motionRef = useRef<Motion>({ moving: false, airborne: false, pointing: 0, gesture: null });
   const lookRef = useRef({ dx: 0, dy: 0 });
-  const lastTouch = useRef<{ x: number; y: number } | null>(null);
+  const lookDrag = useRef(new OwnedPointerDrag());
+  const resetLookRef = useRef(false);
   const controls = useRef<{ lock: () => void; unlock: () => void } | null>(null);
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
@@ -410,6 +434,22 @@ export function WalkRoom() {
   const chosen = roster.agents.find((a) => a.id === selected) ?? null;
   const chosenActivity = chosen ? activity[chosen.id] : undefined;
   const controlsEnabled = !overview && !chosen && !note && !teamChat && !councilAsk && !perspectives;
+  const clearInput = useCallback(() => {
+    lookDrag.current.reset(); lookRef.current.dx = 0; lookRef.current.dy = 0;
+    moveRef.current = { x: 0, y: 0 }; jumpRef.current = false;
+  }, []);
+  useEffect(() => { if (!controlsEnabled) { clearInput(); controls.current?.unlock(); } }, [controlsEnabled, clearInput]);
+  useEffect(() => {
+    const visibility = () => { if (document.hidden) clearInput(); };
+    window.addEventListener("blur", clearInput); window.addEventListener("resize", clearInput);
+    document.addEventListener("visibilitychange", visibility);
+    window.visualViewport?.addEventListener("resize", clearInput);
+    return () => {
+      window.removeEventListener("blur", clearInput); window.removeEventListener("resize", clearInput);
+      document.removeEventListener("visibilitychange", visibility);
+      window.visualViewport?.removeEventListener("resize", clearInput);
+    };
+  }, [clearInput]);
   const [gesture, setGesture] = useState<GestureClip | null>(null);
   const triggerGesture = useCallback((kind: Gesture) => {
     if (!controlsEnabled) return;
@@ -517,14 +557,23 @@ export function WalkRoom() {
 
   return (
     <div className="walk-root" data-walk-gesture={gesture?.kind ?? "idle"}
-      onPointerDown={(e) => { if (touch && controlsEnabled && (e.target as HTMLElement).tagName === "CANVAS") lastTouch.current = { x: e.clientX, y: e.clientY }; }}
-      onPointerMove={(e) => {
-        if (!lastTouch.current) return;
-        lookRef.current.dx += e.clientX - lastTouch.current.x;
-        lookRef.current.dy += e.clientY - lastTouch.current.y;
-        lastTouch.current = { x: e.clientX, y: e.clientY };
+      onPointerDown={(e) => {
+        if (!controlsEnabled || !["touch", "pen"].includes(e.pointerType) || (e.target as HTMLElement).tagName !== "CANVAS") return;
+        if (lookDrag.current.begin(e)) (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }}
-      onPointerUp={() => { lastTouch.current = null; }}>
+      onPointerMove={(e) => {
+        if (!controlsEnabled) return;
+        const delta = lookDrag.current.move(e);
+        if (delta) { lookRef.current.dx += delta.dx; lookRef.current.dy += delta.dy; }
+      }}
+      onPointerUp={(e) => lookDrag.current.end(e.pointerId)}
+      onPointerCancel={(e) => { if (lookDrag.current.end(e.pointerId)) clearInput(); }}
+      onLostPointerCapture={(e) => { if (lookDrag.current.end(e.pointerId)) clearInput(); }}
+      onClickCapture={(e) => {
+        if ((e.target as HTMLElement).tagName === "CANVAS" && lookDrag.current.wasDragged) {
+          e.preventDefault(); e.stopPropagation(); lookDrag.current.reset();
+        }
+      }}>
       <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 70, near: 0.05, far: 80 }}>
         <color attach="background" args={["#03060b"]} />
         <GalaxyAtmosphere reducedMotion={false} />
@@ -543,7 +592,7 @@ export function WalkRoom() {
             <div className="walk-topic"><small>Rat tagt</small>{councilTopic}</div>
           </Html>
         ) : null}
-        <Player moveRef={moveRef} lookRef={lookRef} jumpRef={jumpRef} motionRef={motionRef} locked={locked} overview={overview} enabled={controlsEnabled} />
+        <Player moveRef={moveRef} lookRef={lookRef} jumpRef={jumpRef} resetLookRef={resetLookRef} motionRef={motionRef} locked={locked} overview={overview} enabled={controlsEnabled} />
         <FirstPersonHands motionRef={motionRef} visible={controlsEnabled} />
         {!touch ? (
           <PointerLockControls ref={controls as never} selector="#walk-start"
@@ -561,6 +610,7 @@ export function WalkRoom() {
 
       <div className="walk-actions">
         <button type="button" onClick={() => setOverview((o) => !o)}>{overview ? "Hineingehen" : "Von oben"}</button>
+        {!overview && <button type="button" onClick={() => { clearInput(); resetLookRef.current = true; }}>Blick gerade</button>}
         <button type="button" onClick={() => { setTeamChat((t) => !t); setSelected(null); setNote(null); controls.current?.unlock(); }}>Teamchat</button>
         <button type="button" onClick={() => { if (council) dismissCouncil(); else { setCouncilAsk(true); controls.current?.unlock(); } }}>{council ? "Rat auflösen" : "Rat einberufen"}</button>
         <button type="button" onClick={() => { setPerspectives(true); controls.current?.unlock(); }}>Perspektivenrat</button>
@@ -598,11 +648,12 @@ export function WalkRoom() {
 
       {perspectives ? createPortal(<div className="pr-overlay" role="dialog" aria-label="Perspektivenrat" aria-modal="true"><PerspectivesPanel onClose={() => setPerspectives(false)} /></div>, document.body) : null}
 
+      {councilAsk || note || teamChat || chosen ? createPortal(<div className="walk-overlays">
       {councilAsk ? (
-        <div className="walk-dialog" role="dialog" aria-label="Rat einberufen">
+        <div className="walk-dialog" role="dialog" aria-label="Rat einberufen" aria-modal="true">
           <h2>Rat einberufen</h2>
           <p>Worüber soll der Rat beraten? Alle {roster.agents.length} Agenten bekommen die Frage und antworten in ihren Fenstern.</p>
-          <textarea autoFocus value={councilDraft} onChange={(e) => setCouncilDraft(e.target.value)} rows={3} placeholder="z. B. Soll ich diese Woche zuerst das Portfolio oder die Bewerbungen machen?"
+          <textarea autoFocus={!touch} value={councilDraft} onChange={(e) => setCouncilDraft(e.target.value)} rows={3} placeholder="z. B. Soll ich diese Woche zuerst das Portfolio oder die Bewerbungen machen?"
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void convene(); } }} />
           <div className="walk-dialog__row">
             <button type="button" onClick={() => setCouncilAsk(false)}>Abbrechen</button>
@@ -612,7 +663,7 @@ export function WalkRoom() {
       ) : null}
 
       {note && !chosen ? (
-        <aside className="walk-panel">
+        <aside className="walk-panel" role="dialog" aria-label="Notiz" aria-modal="true">
           <button type="button" className="walk-panel__close" onClick={() => setNote(null)} aria-label="Schließen">×</button>
           <p className="walk-panel__meta">Notiz · {note.folder || "Vault"} · {note.degree} Verbindungen</p>
           <h2>{note.name}</h2>
@@ -621,7 +672,7 @@ export function WalkRoom() {
       ) : null}
 
       {teamChat && !chosen && !note ? (
-        <aside className="walk-panel">
+        <aside className="walk-panel" role="dialog" aria-label="Teamchat" aria-modal="true">
           <button type="button" className="walk-panel__close" onClick={() => setTeamChat(false)} aria-label="Schließen">×</button>
           <h2>Teamchat</h2>
           <div className="walk-feed">
@@ -639,7 +690,7 @@ export function WalkRoom() {
       ) : null}
 
       {chosen ? (
-        <aside className="walk-panel">
+        <aside className="walk-panel" role="dialog" aria-label="Agent" aria-modal="true">
           <button type="button" className="walk-panel__close" onClick={() => setSelected(null)} aria-label="Schließen">×</button>
           <h2>{displayName(chosen)}</h2>
           <p className="walk-panel__meta">{chosen.model} · {providerLabel(chosen.provider)}{chosen.skillCount ? ` · ${chosen.skillCount} Fähigkeiten` : ""}</p>
@@ -652,6 +703,7 @@ export function WalkRoom() {
           {sendState ? <p className="walk-panel__hint">{sendState}</p> : null}
         </aside>
       ) : null}
+      </div>, document.body) : null}
     </div>
   );
 }

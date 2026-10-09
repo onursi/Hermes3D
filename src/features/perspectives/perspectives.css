@@ -18,3 +18,4 @@
 
 .pr-model-price{grid-column:1/-1;margin:0}
 @media(max-width:900px){.pr-header{padding-top:calc(25px + env(safe-area-inset-top,0px))}.pr-body{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}}
+@media(pointer:coarse),(max-width:900px){.pr-shell input:not([type=checkbox]),.pr-shell select,.pr-shell textarea{font-size:16px}}
