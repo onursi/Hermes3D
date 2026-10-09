@@ -11,7 +11,7 @@ export function TrackedHead({ level, gaze, onActivate }: { level: MutableRefObje
     const host=container.current;
     if(!host) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:"high-performance"}); }
+    try { renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,stencil:true,powerPreference:"high-performance"}); }
     catch { const fallbackFrame=requestAnimationFrame(()=>setFallback(true));return ()=>cancelAnimationFrame(fallbackFrame); }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
     renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -39,8 +39,8 @@ export function TrackedHead({ level, gaze, onActivate }: { level: MutableRefObje
       headX=damp(headX,target.x,4,dt);headY=damp(headY,target.y,4,dt);
       energy=damp(energy,Math.min(1,level.current),20,dt);
       const amount=reduced?.matches?.45:1;
-      head.rotation.set(headY*.19*amount,headX*.48*amount,damp(head.rotation.z,-target.roll*.25,3,dt));
-      android?.eyes.forEach((eye,i)=>{eye.position.x=android!.eyeOrigins[i].x+(eyeX-headX*.55)*.11;eye.position.y=android!.eyeOrigins[i].y-(eyeY-headY*.55)*.045;});
+      head.rotation.set(headY*.25*amount,headX*.46*amount,damp(head.rotation.z,-target.roll*.25,3,dt));
+      android?.eyes.forEach((eye,i)=>{eye.position.x=android!.eyeOrigins[i].x+(eyeX-headX*.25)*.145;eye.position.y=android!.eyeOrigins[i].y-(eyeY-headY*.25)*.026;});
       if(android?.face.morphTargetInfluences)android.face.morphTargetInfluences[0]=energy*amount;
       host.dataset.yaw=head.rotation.y.toFixed(3);host.dataset.eye=eyeX.toFixed(3);
       host.dataset.meshes=String(renderer.info.render.calls);

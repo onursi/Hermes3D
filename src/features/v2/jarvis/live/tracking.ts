@@ -14,7 +14,7 @@ export function gazeFromFace(points: FacePoint[], mirror: boolean, now: number):
   // Position directs the gaze; a small nose offset adds attention to a turned face.
   const offset = clamp((nose.x - centerX) / eyeWidth, .35);
   return {
-    x: clamp(((centerX - .5) * 3.2 + offset * .15) * (mirror ? -1 : 1)),
+    x: clamp(((centerX - .5) * 4.2 + offset * .15) * (mirror ? -1 : 1)),
     y: clamp((centerY - .48) * 2.6),
     roll: clamp(Math.atan2(right.y - left.y, right.x - left.x), .15) * (mirror ? -1 : 1),
     seen: now,

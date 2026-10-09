@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     if (data.consent !== true) return NextResponse.json({ error: "Mikrofon-/Kameraübertragung zuerst freigeben." }, { status: 400, headers });
     const voice = typeof data.voice === "string" ? data.voice : "Charon";
     busy = true; last = Date.now();
-    return NextResponse.json(await createLiveToken(voice, req.signal), { headers });
+    return NextResponse.json(await createLiveToken(voice, req.signal, data.todoist === true), { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     const expected = /^(Unbekannte Stimme|Google-Live|Kein gültiger)/.test(message);
