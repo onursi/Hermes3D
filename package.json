@@ -24,6 +24,7 @@
     "v2:shots": "node scripts/shots-v2.mjs ./v2-shots"
   },
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.71.0",
     "@mediapipe/tasks-vision": "1.1.0",
     "@noble/ed25519": "^3.0.0",
     "@react-three/drei": "^10.7.8",

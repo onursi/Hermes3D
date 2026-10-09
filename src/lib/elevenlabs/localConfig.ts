@@ -53,7 +53,7 @@ export function getElevenLabsConfig() {
       voice,
       {
         id: value(VARIABLE_BY_VOICE[voice]),
-        name: DISPLAY_NAME[voice],
+        name: value(`${VARIABLE_BY_VOICE[voice]}_NAME`) || DISPLAY_NAME[voice],
       },
     ]),
   ) as Record<VoiceKey, { id: string; name: string }>;

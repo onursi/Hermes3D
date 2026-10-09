@@ -1,3 +1,4 @@
+import { LiveVoiceOutput } from "./voiceOutput";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string };
 type CallOptions = { camera: boolean; coach: boolean; voice: string; todoist?: boolean; audioDevice?: string; videoDevice?: string };
@@ -48,6 +49,7 @@ export class JarvisLiveSession {
   private microphone: MediaStreamAudioSourceNode | null = null;
   private mute: GainNode | null = null;
   private player: LivePcmPlayer | null = null;
+  private voiceOutput: LiveVoiceOutput | null = null;
   private frame = 0;
   private timers: ReturnType<typeof setTimeout>[] = [];
   private lastActivity = Date.now();
@@ -126,7 +128,11 @@ export class JarvisLiveSession {
       if (this.stopped) return;
       if (data.endpoint !== "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained" || !data.token?.startsWith("auth_tokens/")) throw new Error("Ungültige Live-Verbindung.");
       const analyser = context.createAnalyser(); analyser.fftSize = 256; analyser.connect(context.destination);
-      this.player = new LivePcmPlayer(context, analyser, playing => { if (!this.stopped) { this.events.phase(playing ? "speaking" : "listening"); this.lastActivity = Date.now(); } });
+      this.player = new LivePcmPlayer(context, analyser, playing => { if (!this.stopped) { this.events.phase(playing ? "speaking" : this.voiceOutput?.busy ? "thinking" : "listening"); this.lastActivity = Date.now(); } });
+      if (options.voice === "ElevenLabs") {
+        if (data.speech?.provider !== "ElevenLabs" || typeof data.speech.session !== "string" || data.speech.sampleRate !== 24000) throw new Error("Die ausgewählte Stimme konnte nicht vorbereitet werden.");
+        this.voiceOutput = new LiveVoiceOutput(data.speech.session, bytes => { if (!this.stopped) { this.lastActivity = Date.now(); this.player?.play(bytesToBase64(bytes), 24000); } }, message => this.fail(message), busy => { if (!this.stopped && !this.player?.playing) this.events.phase(busy ? "thinking" : "listening"); });
+      }
       const samples = new Uint8Array(analyser.fftSize);
       const tick = () => {
         if (this.stopped) return;
@@ -170,7 +176,7 @@ export class JarvisLiveSession {
             capture();
             this.timers.push(setInterval(capture, 1000));
             this.timers.push(setInterval(() => {
-              if (options.coach && !this.coachSpoke && !this.player?.playing && Date.now() - this.lastActivity >= 15000 && (!options.camera || Date.now() - this.lastFrame < 3000)) {
+              if (options.coach && !this.coachSpoke && !this.player?.playing && !this.voiceOutput?.busy && Date.now() - this.lastActivity >= 15000 && (!options.camera || Date.now() - this.lastFrame < 3000)) {
                 this.coachSpoke = true; this.events.phase("thinking");
                 this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: options.camera ? "Fokuscoach-Impuls: Schau auf das aktuelle Kamerabild. Melde dich jetzt einmal mit einem kurzen trockenen Boss-Kommentar und einem konkreten Anstoß, an den Projekten weiterzuarbeiten. Beschreibe nur wirklich Sichtbares. Keine Begrüßung." : "Fokuscoach-Impuls: Gib mir jetzt einmal einen kurzen trockenen Boss-Kommentar zum Weiterarbeiten an meinen Projekten. Du hast kein Kamerabild, also erfinde keine Beobachtung." }] }], turnComplete: true } });
               }
@@ -178,16 +184,17 @@ export class JarvisLiveSession {
             this.timers.push(setTimeout(() => this.fail("Die zehnminütige Sitzung ist beendet. Für den nächsten Take neu starten."), 10 * 60_000));
           }
           const content = message.serverContent;
-          if (content?.interrupted) this.player?.stop();
-          if (content?.inputTranscription?.text) { this.lastActivity = Date.now(); if (!this.player?.playing) this.events.phase("thinking"); }
+          if (content?.interrupted) { this.voiceOutput?.interrupt(); this.player?.stop(); }
+          if (content?.inputTranscription?.text) { this.lastActivity = Date.now(); if (this.voiceOutput && (this.voiceOutput.busy || this.player?.playing)) { this.voiceOutput.interrupt(); this.player?.stop(); } if (!this.player?.playing) this.events.phase("thinking"); }
+          if (!content?.interrupted && typeof content?.outputTranscription?.text === "string") this.voiceOutput?.append(content.outputTranscription.text);
           for (const part of content?.modelTurn?.parts || []) {
             if (part.inlineData?.mimeType?.startsWith("audio/pcm")) {
               this.lastActivity = Date.now(); const rate = Number(part.inlineData.mimeType.match(/rate=(\d+)/)?.[1] || 24000);
               if (rate < 8000 || rate > 48000) throw new Error("Unbekanntes Audioformat.");
-              this.player?.play(part.inlineData.data, rate);
+              if (!this.voiceOutput) this.player?.play(part.inlineData.data, rate);
             }
           }
-          if (content?.turnComplete && !this.player?.playing) this.events.phase("listening");
+          if (content?.turnComplete) { this.voiceOutput?.flush(); if (!this.player?.playing && !this.voiceOutput?.busy) this.events.phase("listening"); }
           if (message.goAway) this.fail("Die Live-Sitzung läuft aus. Für den nächsten Take neu starten.");
         }).catch(() => this.fail("Audio oder Live-Nachricht konnte nicht verarbeitet werden. Gespräch beendet."));
       };
@@ -204,6 +211,7 @@ export class JarvisLiveSession {
     cancelAnimationFrame(this.frame); this.events.level.current = 0;
     if (this.capture) { this.capture.port.onmessage = null; this.capture.disconnect(); this.capture.port.close(); }
     this.microphone?.disconnect(); this.mute?.disconnect();
+    this.voiceOutput?.interrupt(); this.voiceOutput = null;
     this.player?.stop();
     if (this.socket) { this.socket.onmessage = this.socket.onopen = this.socket.onclose = this.socket.onerror = null; this.socket.close(); }
     this.media?.getTracks().forEach(track => { track.onended = null; track.stop(); }); this.media = null;
