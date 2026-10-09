@@ -4,6 +4,7 @@ import { Html, PointerLockControls, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as THREE from "three";
 
 import { useV2 } from "@/features/v2/state";
@@ -595,7 +596,7 @@ export function WalkRoom() {
         })}
       </nav>
 
-      {perspectives ? <div className="pr-overlay" role="dialog" aria-label="Perspektivenrat" aria-modal="true"><PerspectivesPanel onClose={() => setPerspectives(false)} /></div> : null}
+      {perspectives ? createPortal(<div className="pr-overlay" role="dialog" aria-label="Perspektivenrat" aria-modal="true"><PerspectivesPanel onClose={() => setPerspectives(false)} /></div>, document.body) : null}
 
       {councilAsk ? (
         <div className="walk-dialog" role="dialog" aria-label="Rat einberufen">
