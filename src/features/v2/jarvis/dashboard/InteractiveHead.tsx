@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 
-export function InteractiveHead({ level, onActivate }: { level: MutableRefObject<number>; onActivate: () => void }) {
+export function InteractiveHead({ level, onActivate, label = "Jarvis ansprechen oder Stimme stoppen" }: { level: MutableRefObject<number>; onActivate: () => void; label?: string }) {
   const head = useRef<HTMLButtonElement>(null);
   const target = useRef({ x: 0, y: 0 });
   useEffect(() => {
@@ -27,7 +27,7 @@ export function InteractiveHead({ level, onActivate }: { level: MutableRefObject
     document.addEventListener("visibilitychange", visibility);
     return () => { cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", visibility); };
   }, [level]);
-  return <button ref={head} type="button" className="jd-avatar" aria-label="Jarvis ansprechen oder Stimme stoppen" onClick={onActivate}
+  return <button ref={head} type="button" className="jd-avatar" aria-label={label} onClick={onActivate}
     onPointerMove={event => {
       const rect = event.currentTarget.getBoundingClientRect();
       target.current = { x: Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1)), y: Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1)) };
