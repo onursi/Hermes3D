@@ -1,8 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { currentGaze, damp, gazeFromFace, neutralGaze } from "../../src/features/v2/jarvis/live/tracking";
+import { currentGaze, damp, focusYaw, gazeFromFace, neutralGaze } from "../../src/features/v2/jarvis/live/tracking";
 
 const face=(x=.5,y=.48)=>[{x,y:y+.01},{x:x-.12,y:y-.06},{x:x+.12,y:y-.06},{x,y:y-.2},{x,y:y+.2}];
 describe("local Jarvis focus",()=>{
+  it("turns the skull when a centred person rotates in place",()=>{
+    const points=face().map(p=>({...p,z:0}));points[1].z=.1;points[2].z=-.1;
+    const turn=gazeFromFace(points,false,1000)!;
+    expect(turn.x).toBeCloseTo(0);
+    expect(focusYaw(turn)).toBeGreaterThan(.4);
+    expect(focusYaw(gazeFromFace(points,true,1000)!)).toBeCloseTo(-focusYaw(turn));
+    points[1].z=-.1;points[2].z=.1;
+    expect(focusYaw(gazeFromFace(points,false,1000)!)).toBeLessThan(-.4);
+  });
+  it("relaxes pose as well as gaze after face loss, and bounds automatic turns",()=>{
+    const target={x:1,y:0,roll:0,yaw:.9,seen:1000};
+    expect(currentGaze(target,2800).yaw).toBeLessThan(.9);
+    expect(focusYaw(currentGaze(target,3700))).toBe(0);
+    expect(focusYaw(target)).toBe(1.15);
+  });
   it("follows actual position and supports camera direction calibration",()=>{
     expect(gazeFromFace(face(.7),false,1000)?.x).toBeGreaterThan(.5);
     expect(gazeFromFace(face(.7),true,1000)?.x).toBeLessThan(-.5);

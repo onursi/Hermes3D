@@ -1,8 +1,7 @@
 import * as THREE from "three";
 
-/** Limited-angle solid relief, textured with the established android artwork.
- * Front depth, opaque side walls and separate eye patches are genuine geometry.
- * This is deliberately not a reconstructed all-angle anatomical character rig.
+/** Sculpted front with the established artwork, closed rounded armour behind it.
+ * Sockets, rear panels and mechanical ear assemblies rotate with the entire skull.
  */
 export function addAndroidRelief(parent: THREE.Group, texture: THREE.Texture) {
   const image=texture.image as HTMLImageElement;
@@ -59,15 +58,39 @@ export function addAndroidRelief(parent: THREE.Group, texture: THREE.Texture) {
     const slit=new THREE.Mesh(new THREE.PlaneGeometry(.008,.079),new THREE.MeshBasicMaterial({color:"#53bded",toneMapped:false}));slit.position.z=.008;eye.add(slit);
     eye.children.forEach(child=>{const mesh=child as THREE.Mesh;mesh.renderOrder=2;const m=mesh.material as THREE.MeshBasicMaterial;m.stencilWrite=true;m.stencilRef=stencilRef;m.stencilFunc=THREE.EqualStencilFunc;});
   }
-  // Close the silhouette with opaque sides; their depth is visible in a turn.
-  const bounds:{u:number;v:number}[]=[];
-  const left:{u:number;v:number}[]=[],right:{u:number;v:number}[]=[];
-  for(let j=1;j<189;j+=2){let l=-1,r=-1;for(let i=0;i<160;i++)if(pixels[(j*160+i)*4+3]>130){if(l<0)l=i;r=i;}if(l>=0){left.push({u:(l+.5)/160,v:j/190});right.push({u:(r+.5)/160,v:j/190});}}
-  bounds.push(...left,...right.reverse());
-  const sides:number[]=[],sideIndices:number[]=[];
-  bounds.forEach(({u,v})=>{const p=point(u,v);sides.push(...p,p[0]*.94,p[1],-.50);});
-  for(let i=0;i<bounds.length;i++){const a=i*2,b=((i+1)%bounds.length)*2;sideIndices.push(a,b,a+1,b,b+1,a+1);}
+  const rows:{l:number;r:number;v:number}[]=[];
+  for(let j=1;j<189;j+=2){let l=-1,r=-1;for(let i=0;i<160;i++)if(pixels[(j*160+i)*4+3]>130){if(l<0)l=i;r=i;}if(l>=0)rows.push({l:(l+.5)/160,r:(r+.5)/160,v:j/190});}
+  // Ignore small particle/plate bumps when shaping the rounded rear armour.
+  for(let pass=0;pass<3;pass++){const source=rows.map(row=>({...row}));rows.forEach((row,j)=>{if(j<2||j>rows.length-3)return;const neighbours=source.slice(Math.max(0,j-4),Math.min(source.length,j+5));row.l=neighbours.reduce((sum,r)=>sum+r.l,0)/neighbours.length;row.r=neighbours.reduce((sum,r)=>sum+r.r,0)/neighbours.length;});}
+  const backPoint=(row:typeof rows[number],angle:number)=>{
+    const centre=(row.l+row.r)/2,half=(row.r-row.l)/2;
+    const u=centre+half*Math.cos(angle);
+    const edgeDepth=surface(row.l,row.v)*(1-Math.cos(angle))/2+surface(row.r,row.v)*(1+Math.cos(angle))/2;
+    const depth=row.v<.78?1.9*Math.sqrt(Math.max(.002,1-((row.v-.4)/.405)**2)):.65*Math.max(.06,(.99-row.v)/.21);
+    return new THREE.Vector3((u-.5)*3.8,(.5-row.v)*4.53-.1,edgeDepth-Math.sin(angle)*depth);
+  };
+  const segments=48,sides:number[]=[],sideIndices:number[]=[];
+  rows.forEach(row=>{for(let i=0;i<=segments;i++)sides.push(...backPoint(row,i/segments*Math.PI).toArray());});
+  for(let j=0;j<rows.length-1;j++)for(let i=0;i<segments;i++){const a=j*(segments+1)+i,b=a+segments+1;sideIndices.push(a,a+1,b,a+1,b+1,b);}
+  // Cap both ends; the rear is a volume, never an open billboard.
+  for(const j of [0,rows.length-1]){const first=j*(segments+1);const centre=sides.length/3;const p=backPoint(rows[j],Math.PI/2);p.z=(p.z+surface(.5,rows[j].v))/2;sides.push(...p.toArray());for(let i=0;i<segments;i++)sideIndices.push(centre,first+i,first+i+1);sideIndices.push(centre,first+segments,first);}
   const shell=new THREE.BufferGeometry();shell.setAttribute("position",new THREE.Float32BufferAttribute(sides,3));shell.setIndex(sideIndices);shell.computeVertexNormals();
-  parent.add(new THREE.Mesh(shell,new THREE.MeshStandardMaterial({color:"#213b4b",metalness:.8,roughness:.35,side:THREE.DoubleSide})));
+  const armour=new THREE.MeshStandardMaterial({color:"#293a46",metalness:.7,roughness:.55,side:THREE.DoubleSide});
+  parent.add(new THREE.Mesh(shell,armour));
+  const seam=new THREE.MeshStandardMaterial({color:"#02090d",roughness:.8});
+  const glow=new THREE.MeshBasicMaterial({color:"#35bdff",toneMapped:false});
+  const pipe=(points:THREE.Vector3[],radius:number,material:THREE.Material)=>{if(points.length<2)return;parent.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),points.length*2,radius,5,false),material));};
+  for(const angle of [.32,.76,Math.PI/2,Math.PI-.76,Math.PI-.32]){
+    const line=rows.filter(row=>row.v>.045&&row.v<.82).map(row=>{const p=backPoint(row,angle);p.z-=.014;return p;});pipe(line,.023,seam);
+    if(angle!==Math.PI/2)pipe(line.filter(p=>p.y<1.55&&p.y>-.55).map(p=>p.clone().add(new THREE.Vector3(Math.cos(angle)*.04,0,-Math.sin(angle)*.04))),.012,glow);
+  }
+  for(const v of [.24,.59,.75]){const row=rows.reduce((best,r)=>Math.abs(r.v-v)<Math.abs(best.v-v)?r:best);pipe(Array.from({length:33},(_,i)=>{const p=backPoint(row,.22+i/32*(Math.PI-.44));p.z-=.016;return p;}),.023,seam);}
+  for(const side of [-1,1]){
+    const ear=new THREE.Group();ear.position.set(side*1.59,.02,-.05);ear.rotation.y=side*Math.PI/2;parent.add(ear);
+    const housing=new THREE.Mesh(new THREE.CylinderGeometry(.35,.39,.17,48),armour);housing.rotation.x=Math.PI/2;ear.add(housing);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.265,.018,8,48),glow);ring.position.z=.1;ear.add(ring);
+    const core=new THREE.Mesh(new THREE.CylinderGeometry(.21,.21,.025,32),seam);core.rotation.x=Math.PI/2;core.position.z=.11;ear.add(core);
+    for(let i=0;i<4;i++){const vent=new THREE.Mesh(new THREE.BoxGeometry(.036,.36,.04),seam);vent.position.set(side*1.25,.55+i*.1,-.79);vent.rotation.y=side*.65;parent.add(vent);}
+  }
   return {face,eyes,eyeOrigins:eyes.map(eye=>eye.position.clone())};
 }

@@ -29,6 +29,7 @@ export function JarvisLive() {
   const [notice, setNotice] = useState("");
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [inspect, setInspect] = useState(0);
   const [mirror, setMirror] = useState(false);
   const [tracking, setTracking] = useState<TrackingState>("off");
   const gaze = useRef(neutralGaze());
@@ -56,7 +57,7 @@ export function JarvisLive() {
   useEffect(() => { if (panel && !dialog.current?.open) dialog.current?.showModal(); if (!panel && dialog.current?.open) dialog.current?.close(); }, [panel]);
   function start() {
     if (!consent || active || !video.current) return;
-    setNotice(""); setPhase("connecting"); setPanel(false);
+    setNotice(""); setInspect(0); setPhase("connecting"); setPanel(false);
     const session = new JarvisLiveSession(video.current, {
       level,
       pendingTask: value => { if (mounted.current && call.current === session) { setPendingTask(value); setTaskError(""); } },
@@ -77,7 +78,7 @@ export function JarvisLive() {
   async function testGaze() {
     if (active || !video.current) return;
     const generation = ++previewGeneration.current;
-    setNotice(""); setPreview(true); setPanel(false);
+    setNotice(""); setInspect(0); setPreview(true); setPanel(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 640 }, height: { ideal: 480 }, ...(videoDevice ? { deviceId: { exact: videoDevice } } : { facingMode: "user" }) } });
       if (!mounted.current || generation !== previewGeneration.current) { stream.getTracks().forEach(track => track.stop()); return; }
@@ -92,7 +93,7 @@ export function JarvisLive() {
   return <main className={`jl jl-${phase}`}>
     <div className="jl-space" aria-hidden="true"><div className="jl-orbit jl-orbit-a" /><div className="jl-orbit jl-orbit-b" /><div className="jl-grid" /></div>
     <header className="jl-top"><Link href="/v2" className="jl-wordmark">JARVIS<span>HERMES PERSONAL ASSISTANT</span></Link><div className="jl-signal" role="status"><i />{preview ? "BLICKTEST" : status[phase]}{active && <small>{preview ? "CAM · LOKAL" : camera ? "MIC + CAM" : "MIC"}</small>}</div><div className="jl-tools"><button aria-label="Vollbild" onClick={() => { void document.documentElement.requestFullscreen?.().catch(() => {}); }}><Maximize size={17} /></button><button aria-label="Gesprächseinstellungen" onClick={() => setPanel(true)}><Settings2 size={18} /></button>{active && <button aria-label="Gespräch beenden" onClick={stop}><PhoneOff size={18} /></button>}</div></header>
-    <section className="jl-presence" aria-label="Jarvis Live-Gespräch"><div className="jl-head"><TrackedHead level={level} gaze={gaze} onActivate={() => setPanel(true)} /></div><div className="jl-platform" aria-hidden="true" /><div className="jl-presence-label">{phase === "speaking" ? "ICH DENKE MIT." : phase === "listening" ? "BIN BEI DIR, BOSS." : "DEIN RAUM. DEIN JARVIS."}</div></section>
+    <section className="jl-presence" aria-label="Jarvis Live-Gespräch"><div className="jl-head"><TrackedHead level={level} gaze={gaze} inspect={inspect} active={active} onActivate={() => setPanel(true)} /></div><div className="jl-platform" aria-hidden="true" /><div className="jl-presence-label">{phase === "speaking" ? "ICH DENKE MIT." : phase === "listening" ? "BIN BEI DIR, BOSS." : "DEIN RAUM. DEIN JARVIS."}</div></section>
     <span className="jl-session-mark">LIVE PRESENCE / 02{tracking !== "off" && <span className="jl-tracking" data-state={tracking}>{({ loading: "BLICK WIRD GELADEN", searching: "SUCHE DEINEN BLICK", following: "BLICK FOLGT DIR", unavailable: "BLICKVERFOLGUNG NICHT VERFÜGBAR" } as Record<string, string>)[tracking]}</span>}</span>
     {pendingTask && <aside className="jl-task-confirm" aria-label="Todoist-Aufgabe bestätigen"><small>IN TODOIST ERLEDIGEN</small><p>{pendingTask.title}</p>{taskError && <p role="alert">{taskError}</p>}<div><button disabled={taskBusy} onClick={() => { void confirmTask(); }}>{taskBusy ? "Wird erledigt" : "Erledigen"}</button><button disabled={taskBusy} onClick={() => call.current?.dismissTask()}>Nicht jetzt</button></div></aside>}
     <dialog ref={dialog} className="jl-dialog" aria-labelledby="jl-title" onCancel={event => { event.preventDefault(); setPanel(false); }}>
@@ -109,7 +110,8 @@ export function JarvisLive() {
       {notice && <p className="jl-error" role="alert">{notice}</p>}
       {active ? <div className="jl-actions"><button className="jl-start" onClick={() => setPanel(false)}>Zurück zum Drehmodus <ArrowUpRight size={18} /></button><button className="jl-end" onClick={stop}>Gespräch beenden</button></div> : <button className="jl-start" disabled={!consent || !ready} onClick={start}><Mic size={17} />{ready ? "Gespräch starten" : "Live-Zugang wird geprüft"}<ArrowUpRight size={18} /></button>}
       {!active && <button className="jl-preview" disabled={!camera} onClick={() => { void testGaze(); }}>Nur Blick testen<span>Nur deine Kamera · lokal · ohne Mikrofon oder Google-Verbindung</span></button>}
-      <div className="jl-foot"><span>ESC beendet das Gespräch · max. 10 Minuten</span><Link href="/jarvis/studio">Stimmstudio</Link></div>
+      {!active && <button className="jl-preview" onClick={()=>{setInspect(value=>value+1);setPanel(false);}}>Kopf 360° ansehen<span>Ohne Kamera · danach frei mit Maus oder Finger drehen</span></button>}
+      <div className="jl-foot"><span>ESC beendet das Gespräch · max. 10 Minuten</span><Link href="/jarvis/stimmen.html">5 dunkle Stimmen</Link><Link href="/jarvis/studio">Stimmstudio</Link></div>
     </dialog>
     <video ref={video} hidden muted playsInline aria-hidden="true" />
   </main>;
