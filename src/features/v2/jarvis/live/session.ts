@@ -1,8 +1,9 @@
 import { LiveVoiceOutput } from "./voiceOutput";
 import { readExpression } from "@/lib/jarvis/expression";
+import { SnapDetector } from "./snap";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string };
-type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
+type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
 type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void };
 
 export function bytesToBase64(bytes: Uint8Array) {
@@ -63,6 +64,7 @@ export class JarvisLiveSession {
   private seenTools = new Set<string>();
   private pendingTask: PendingTask | null = null;
   private confirming = false;
+  private snap = new SnapDetector();
   constructor(private video: HTMLVideoElement, private events: CallEvents) {}
 
   private fail(message: string) { if (this.stopped) return; this.stop(); this.events.error(message); }
@@ -179,7 +181,14 @@ export class JarvisLiveSession {
             this.capture = new AudioWorkletNode(context, "jarvis-capture");
             this.mute = context.createGain(); this.mute.gain.value = 0;
             this.microphone.connect(this.capture); this.capture.connect(this.mute); this.mute.connect(context.destination);
-            this.capture.port.onmessage = packet => this.send({ realtimeInput: { audio: { mimeType: "audio/pcm;rate=16000", data: bytesToBase64(new Uint8Array(packet.data)) } } });
+            this.capture.port.onmessage = packet => {
+              this.send({ realtimeInput: { audio: { mimeType: "audio/pcm;rate=16000", data: bytesToBase64(new Uint8Array(packet.data)) } } });
+              // A snap is the agreed cue for Jarvis to speak first; ignored while he is already talking.
+              if (options.snap && this.snap.push(new Int16Array(packet.data)) && !this.player?.playing && !this.voiceOutput?.busy) {
+                this.lastActivity = Date.now(); this.events.phase("thinking");
+                this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: options.camera ? "Signal: Boss hat gerade mit den Fingern geschnipst. Das ist sein vereinbartes Zeichen, dass du jetzt dran bist. Melde dich sofort mit einem kurzen Satz in deiner Art und greif dabei eine Sache auf, die du im aktuellen Kamerabild wirklich siehst. Erkläre das Signal nicht." : "Signal: Boss hat gerade mit den Fingern geschnipst. Das ist sein vereinbartes Zeichen, dass du jetzt dran bist. Melde dich sofort mit einem kurzen Satz in deiner Art. Du hast kein Kamerabild, also erfinde keine Beobachtung. Erkläre das Signal nicht." }] }], turnComplete: true } });
+              }
+            };
             this.events.phase("listening");
             const camera = document.createElement("canvas"); camera.width = 640;
             const capture = () => {

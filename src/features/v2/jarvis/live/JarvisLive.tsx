@@ -21,6 +21,7 @@ export function JarvisLive() {
   const [consent, setConsent] = useState(false);
   const [camera, setCamera] = useState(true);
   const [coach, setCoach] = useState(true);
+  const [snap, setSnap] = useState(true);
   const [todoist, setTodoist] = useState(true);
   const [todoistConnected, setTodoistConnected] = useState(false);
   const [knowledge, setKnowledge] = useState(true);
@@ -84,7 +85,7 @@ export function JarvisLive() {
       error: message => { if (mounted.current && call.current === session) { call.current = null; setNotice(message); setPanel(true); } },
     });
     call.current = session;
-    void session.start({ camera, coach, voice, persona, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
+    void session.start({ camera, coach, snap, voice, persona, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
   }
   async function confirmTask() {
     const session = call.current, task = pendingTask;
@@ -128,6 +129,7 @@ export function JarvisLive() {
       <label className="jl-check"><input type="checkbox" checked={camera} disabled={active} onChange={event => setCamera(event.target.checked)} /><span>Kamera dabei<span>Jarvis sieht dich. Die Erfassungsansicht wird nur lokal gezeichnet.</span></span></label>
       <label className="jl-brain-side">Erfassungsansicht im Bild<select aria-label="Erfassungsansicht" disabled={!camera} value={hud} onChange={event => setHud(event.target.value as HudMode)}><option value="mesh">Nur Körperumriss, Gesichtsnetz und Augen, kein Kamerabild</option><option value="camera">Kamerabild mit Körperscan (Raum ist sichtbar)</option><option value="off">Aus</option></select></label>
       <label className="jl-check"><input type="checkbox" checked={coach} disabled={active} onChange={event => setCoach(event.target.checked)} /><span>Fokuscoach<span>Meldet sich einmal nach 15 Sekunden Gesprächspause.</span></span></label>
+      <label className="jl-check"><input type="checkbox" checked={snap} disabled={active} onChange={event => setSnap(event.target.checked)} /><span>Schnipsen als Zeichen<span>Ein Schnipsen oder Klatschen in einer Sprechpause, und Jarvis meldet sich von selbst. Wird lokal erkannt.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={todoist} disabled={active || !todoistConnected} onChange={event => setTodoist(event.target.checked)} /><span>Todoist {todoistConnected ? "verbunden" : "nicht verbunden"}<span>Frag nach heute oder morgen. Erledigungen bestätigst du an der konkreten Aufgabe.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={knowledge} disabled={active || !knowledgeReady} onChange={event => setKnowledge(event.target.checked)} /><span>Mein Wissen {knowledgeReady ? "verbunden" : "nicht eingerichtet"}<span>Durchsucht nur die freigegebenen Projektabschnitte. Treffer leuchten auf Monitor 2.</span></span></label>
       <button className="jl-preview" onClick={() => { window.open("/jarvis/scan", "jarvis-wissen", "popup,width=1280,height=900"); }}>Gehirn auf Monitor 2 öffnen<span>Das neue Fenster auf deinen zweiten Bildschirm ziehen.</span></button>
