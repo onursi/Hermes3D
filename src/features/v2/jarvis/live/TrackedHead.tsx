@@ -34,6 +34,7 @@ export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, a
     const observer=new ResizeObserver(resize);observer.observe(host);resize();
     const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let frame=0,last=0,eyeX=0,eyeY=0,energy=0,headX=0,headY=0;
+    let blinkAt=performance.now()+2400,blink=0,saccadeAt=0,saccadeX=0,saccadeY=0;
     let manual: number | null=null, pointer: {id:number;x:number;yaw:number} | null=null, version=0;
     const down=(event:PointerEvent)=>{pointer={id:event.pointerId,x:event.clientX,yaw:head.rotation.y};host.setPointerCapture(event.pointerId);suppressClick.current=false;};
     const move=(event:PointerEvent)=>{if(!pointer||event.pointerId!==pointer.id)return;const dx=event.clientX-pointer.x;if(Math.abs(dx)>5){suppressClick.current=true;inspection.current=0;manual=pointer.yaw+dx/Math.max(180,host.clientWidth)*Math.PI*2;}};
@@ -48,7 +49,14 @@ export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, a
       const target=currentGaze(gaze.current,now);
       eyeX=damp(eyeX,target.x,16,dt);eyeY=damp(eyeY,target.y,16,dt);
       headX=damp(headX,attention?.current ? attention.current * .8 : focusYaw(target),5,dt);headY=damp(headY,target.y,4,dt);
-      energy=damp(energy,Math.min(1,level.current),20,dt);
+      // Speech opens fast and closes slower, so single syllables stay readable on camera.
+      // data-mouth-probe lets a browser check open the jaw without starting an audio session.
+      const voice=Math.min(1,Math.max(Number(host.dataset.mouthProbe)||0,Math.pow(Math.min(1,level.current),.6)*1.45));
+      energy=damp(energy,voice,voice>energy?34:13,dt);
+      if(now>=blinkAt){blink=1;blinkAt=now+2200+Math.random()*3600+(Math.random()<.18?-1900:0);}
+      blink=Math.max(0,blink-dt/.16);
+      const lid=1-Math.sin(Math.min(1,blink)*Math.PI)*.94;
+      if(now>=saccadeAt){saccadeAt=now+700+Math.random()*1900;saccadeX=(Math.random()-.5)*.09;saccadeY=(Math.random()-.5)*.05;}
       const amount=reduced?.matches?.45:1;
       const progress=inspection.current?Math.min(1,(now-inspection.current)/8000):0;
       const spinning=inspection.current>0&&progress<1;
@@ -56,9 +64,11 @@ export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, a
       // One complete revolution returns to the same orientation without reversing.
       const turn=spinning?Math.PI*2*(progress*progress*(3-2*progress)):manual??headX*amount;
       head.rotation.set(headY*.36*amount,turn,damp(head.rotation.z,-target.roll*.5,3,dt));
-      android?.eyes.forEach((eye,i)=>{eye.position.x=android!.eyeOrigins[i].x+(eyeX-target.x*.35)*.145;eye.position.y=android!.eyeOrigins[i].y-(eyeY-headY*.25)*.026;});
+      const still=reduced?.matches?0:1;
+      android?.eyes.forEach((eye,i)=>{eye.position.x=android!.eyeOrigins[i].x+(eyeX-target.x*.3+saccadeX*still)*.17;eye.position.y=android!.eyeOrigins[i].y-(eyeY-headY*.25+saccadeY*still)*.034;eye.scale.y=reduced?.matches?1:lid;android!.sockets[i].scale.y=reduced?.matches?1:lid;});
+      if(android)android.mouth.value=energy*amount;
       if(android?.face.morphTargetInfluences)android.face.morphTargetInfluences[0]=energy*amount;
-      host.dataset.yaw=head.rotation.y.toFixed(3);host.dataset.eye=eyeX.toFixed(3);
+      host.dataset.yaw=head.rotation.y.toFixed(3);host.dataset.mouth=energy.toFixed(3);host.dataset.eye=eyeX.toFixed(3);
       host.dataset.rotationMode=spinning?"360":manual!==null?"manual":"tracking";
       host.dataset.meshes=String(renderer.info.render.calls);
       renderer.render(scene,camera);frame=requestAnimationFrame(draw);

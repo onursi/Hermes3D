@@ -25,7 +25,7 @@ export function addAndroidRelief(parent: THREE.Group, texture: THREE.Texture) {
     const centre=Math.max(0,Math.min(1,(.235-Math.abs(u-.5))/.05));
     const chin=Math.max(0,Math.min(1,(.85-v)/.025));
     const weight=lower*centre*chin;
-    jawPositions.push(p[0],p[1]-.15*weight,p[2]+.025*weight);
+    jawPositions.push(p[0],p[1]-.27*weight,p[2]+.04*weight);
   }
   for(let j=0;j<height;j++)for(let i=0;i<width;i++){
     if(alpha((i+.5)/width,(j+.5)/height)<.05)continue;
@@ -35,8 +35,19 @@ export function addAndroidRelief(parent: THREE.Group, texture: THREE.Texture) {
   geometry.morphAttributes.position=[new THREE.Float32BufferAttribute(jawPositions,3)];
   const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,alphaTest:.03,toneMapped:false});
   // Recessed black eye aperture replaces the fixed pupils in the artwork.
+  // The jaw morph stretches the lip seam; that band becomes a dark, lit mouth interior while speaking.
+  const mouth={value:0};
   material.onBeforeCompile=shader=>{
-    shader.fragmentShader=shader.fragmentShader.replace("#include <map_fragment>",`#include <map_fragment>
+    shader.uniforms.uMouth=mouth;
+    shader.fragmentShader="uniform float uMouth;\n"+shader.fragmentShader.replace("#include <map_fragment>",`#include <map_fragment>
+      float lipT=(vMapUv.y-.316)/.032;
+      float lipU=abs(vMapUv.x-.5)/.15;
+      float lens=sqrt(max(0.,1.-lipU*lipU));
+      float inside=(1.-smoothstep(lens*.5-.12,lens*.5,abs(lipT-.5)))*step(lipU,1.);
+      float openness=smoothstep(.05,.3,uMouth);
+      float rim=smoothstep(lens*.5-.3,lens*.5,abs(lipT-.5));
+      vec3 interior=mix(vec3(.0,.002,.004),vec3(.03,.3,.6),rim*rim*.7);
+      diffuseColor.rgb=mix(diffuseColor.rgb,interior,inside*openness);
       vec2 eyeA=(vMapUv-vec2(.333,.576))/vec2(.069,.035);
       vec2 eyeB=(vMapUv-vec2(.664,.576))/vec2(.069,.035);
       float cavity=1.0-smoothstep(.80,1.03,min(length(eyeA),length(eyeB)));
@@ -44,10 +55,10 @@ export function addAndroidRelief(parent: THREE.Group, texture: THREE.Texture) {
     `);
   };
   const face=new THREE.Mesh(geometry,material);parent.add(face);
-  const eyes:THREE.Group[]=[];
+  const eyes:THREE.Group[]=[],sockets:THREE.Group[]=[];
   for(const u of [.333,.664]){
     const v=.424,p=point(u,v);
-    const socket=new THREE.Group();socket.position.set(p[0],p[1],p[2]+.045);parent.add(socket);
+    const socket=new THREE.Group();socket.position.set(p[0],p[1],p[2]+.045);parent.add(socket);sockets.push(socket);
     const aperture=new THREE.Shape();const direction=u<.5?1:-1;
     [[-.245,.058],[.235,-.015],[.194,-.079],[-.19,-.066]].forEach(([x,y],i)=>{if(i===0)aperture.moveTo(x*direction,y);else aperture.lineTo(x*direction,y);});aperture.closePath();
     const stencilRef=u<.5?1:2;
@@ -92,5 +103,5 @@ export function addAndroidRelief(parent: THREE.Group, texture: THREE.Texture) {
     const core=new THREE.Mesh(new THREE.CylinderGeometry(.21,.21,.025,32),seam);core.rotation.x=Math.PI/2;core.position.z=.11;ear.add(core);
     for(let i=0;i<4;i++){const vent=new THREE.Mesh(new THREE.BoxGeometry(.036,.36,.04),seam);vent.position.set(side*1.25,.55+i*.1,-.79);vent.rotation.y=side*.65;parent.add(vent);}
   }
-  return {face,eyes,eyeOrigins:eyes.map(eye=>eye.position.clone())};
+  return {face,eyes,sockets,mouth,eyeOrigins:eyes.map(eye=>eye.position.clone())};
 }

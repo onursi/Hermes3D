@@ -3,7 +3,8 @@ import { useEffect, type RefObject, type MutableRefObject } from "react";
 import { gazeFromFace, neutralGaze, type GazeTarget } from "./tracking";
 
 export type TrackingState = "off" | "loading" | "searching" | "following" | "unavailable";
-export function useFaceTracking(video: RefObject<HTMLVideoElement | null>, enabled: boolean, mirror: boolean, targetRef: MutableRefObject<GazeTarget>, onState: (state: TrackingState) => void) {
+export type FaceMesh = { points: Float32Array | null; seen: number };
+export function useFaceTracking(video: RefObject<HTMLVideoElement | null>, enabled: boolean, mirror: boolean, targetRef: MutableRefObject<GazeTarget>, onState: (state: TrackingState) => void, meshRef?: MutableRefObject<FaceMesh>) {
   useEffect(() => {
     targetRef.current = neutralGaze();
     if (!enabled) { onState("off"); return; }
@@ -22,6 +23,7 @@ export function useFaceTracking(video: RefObject<HTMLVideoElement | null>, enabl
         clearTimeout(timeout); busy = false;
         if (event.data.type === "ready") { ready = true; status("searching"); }
         else if (event.data.type === "face") {
+          if (meshRef && event.data.mesh instanceof Float32Array) meshRef.current = { points: event.data.mesh, seen: performance.now() };
           const gaze = event.data.points && gazeFromFace(event.data.points, mirror, event.data.time);
           if (gaze) { targetRef.current = gaze; status("following"); }
           else status("searching");
@@ -45,6 +47,6 @@ export function useFaceTracking(video: RefObject<HTMLVideoElement | null>, enabl
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    return () => { stopped = true; clearTimeout(timeout); cancelAnimationFrame(frame); worker.terminate(); targetRef.current = neutralGaze(); };
-  }, [video, enabled, mirror, targetRef, onState]);
+    return () => { stopped = true; clearTimeout(timeout); cancelAnimationFrame(frame); worker.terminate(); targetRef.current = neutralGaze(); if (meshRef) meshRef.current = { points: null, seen: 0 }; };
+  }, [video, enabled, mirror, targetRef, onState, meshRef]);
 }
