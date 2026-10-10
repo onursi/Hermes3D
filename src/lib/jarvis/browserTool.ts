@@ -21,7 +21,8 @@ export function browserUrl(kind: unknown, query: unknown) {
 export function browserEmbedUrl(kind: unknown, query: unknown) {
   if (kind === "close" || !browserUrl(kind, query)) return null;
   const q = encodeURIComponent((query as string).replace(/\s+/g, " ").trim().slice(0, 160));
-  return kind === "maps" ? `https://www.google.com/maps?q=${q}&output=embed` : `https://www.google.com/search?igu=1${kind === "youtube" ? "&tbm=vid" : ""}&q=${q}`;
+  // Google's plain map frame only knows addresses; its search page shows places with map, ratings and opening hours.
+  return `https://www.google.com/search?igu=1${kind === "youtube" ? "&tbm=vid" : ""}&q=${q}`;
 }
 
 /** A place name typed by the user, reduced to plain characters before it enters the prompt. */

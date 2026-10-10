@@ -21,7 +21,7 @@ describe("Jarvis browser tool", () => {
     expect(browserInstruction("Dortmund")).toContain("bestellen, kaufen, bezahlen");
   });
   it("builds frame-friendly addresses and nothing for close or bad input", () => {
-    expect(browserEmbedUrl("maps", "Pizza Musterstadt")).toBe("https://www.google.com/maps?q=Pizza%20Musterstadt&output=embed");
+    expect(browserEmbedUrl("maps", "Pizza Musterstadt")).toBe("https://www.google.com/search?igu=1&q=Pizza%20Musterstadt");
     expect(browserEmbedUrl("youtube", "lokale KI")).toBe("https://www.google.com/search?igu=1&tbm=vid&q=lokale%20KI");
     expect(browserEmbedUrl("search", "Wetter")).toBe("https://www.google.com/search?igu=1&q=Wetter");
     expect(browserEmbedUrl("close", "")).toBeNull();
