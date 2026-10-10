@@ -13,7 +13,7 @@ export class LiveVoiceOutput {
   private queue = Promise.resolve();
   private abort = new AbortController();
   private idle: ReturnType<typeof setTimeout> | undefined;
-  constructor(private session: string, private pcm: (bytes: Uint8Array) => void, private error: (message: string) => void, private activity: (busy: boolean) => void) {}
+  constructor(private session: string, private pcm: (bytes: Uint8Array) => void, private error: (message: string) => void, private activity: (busy: boolean) => void, private laughAlways = false) {}
   get busy() { return this.jobs > 0 || this.text.trim().length > 0 || Boolean(this.lastSentence); }
   setExpression(expression: VoiceExpression) { this.expression = { ...expression }; }
   append(fragment: string) {
@@ -45,7 +45,7 @@ export class LiveVoiceOutput {
     // The spoken cue word and any stage direction are removed and turned into a real laugh of the voice.
     const cue = /\*?\[[^\]]{0,40}\]\*?|\b(?:he){2,}\b[.!]?|\bha(?:ha)+\b[.!]?/gi;
     let text = raw.replace(cue, " ").replace(/\s+([.!?,])/g, "$1").replace(/\s+/g, " ").trim();
-    if (text !== raw.replace(/\s+/g, " ").trim()) laugh = true;
+    if (this.laughAlways || text !== raw.replace(/\s+/g, " ").trim()) laugh = true;
     if (!/[\p{L}\p{N}]/u.test(text)) { if (!laugh) return; text = "Heh."; }
     if (text.length > 500) { let cut = text.lastIndexOf(" ", 500); if (cut < 100) cut = 500; this.enqueue(text.slice(0, cut)); this.enqueue(text.slice(cut), laugh); return; }
     const expression = { delivery: laugh ? "dry" as const : this.expression.delivery, laugh };

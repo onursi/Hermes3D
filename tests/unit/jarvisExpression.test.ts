@@ -4,7 +4,7 @@ import { expressiveText, readExpression } from "@/lib/jarvis/expression";
 import { liveSetup } from "@/lib/jarvis/live";
 describe("Jarvis vocal expression",()=>{
  it("uses actual nonverbal audio tags without spelling a laugh",()=>{
-  expect(expressiveText("Boss, pack es an.",{delivery:"dry",laugh:true})).toBe("[sarcastic] Boss, pack es an. [laughs]");
+  expect(expressiveText("Boss, pack es an.",{delivery:"dry",laugh:true})).toBe("[laughs] [sarcastic] Boss, pack es an.");
   expect(expressiveText("Heute ist Freitag.",readExpression(null))).toBe("Heute ist Freitag.");
   expect(()=>readExpression({delivery:"singing",laugh:true})).toThrow();expect(()=>readExpression({delivery:"dry",laugh:"yes"})).toThrow();
  });

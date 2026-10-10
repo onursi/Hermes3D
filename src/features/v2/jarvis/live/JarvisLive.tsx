@@ -24,6 +24,7 @@ export function JarvisLive() {
   const [coach, setCoach] = useState(true);
   const [snap, setSnap] = useState(true);
   const [assist, setAssist] = useState(true);
+  const [laughAlways, setLaughAlways] = useState(true);
   const [browser, setBrowser] = useState(true);
   const [place, setPlace] = useState("");
   const [brainOpen, setBrainOpen] = useState(true);
@@ -71,7 +72,7 @@ export function JarvisLive() {
       if (saved && typeof saved === "object") {
         const bool = (key: string, set: (value: boolean) => void) => { if (typeof saved[key] === "boolean") set(saved[key]); };
         bool("camera", setCamera); bool("coach", setCoach); bool("snap", setSnap); bool("assist", setAssist); bool("browser", setBrowser); bool("brainOpen", setBrainOpen); bool("torso", setTorso);
-        bool("todoist", setTodoist); bool("knowledge", setKnowledge); bool("mirror", setMirror); bool("consent", setConsent); bool("hudTop", setHudTop);
+        bool("todoist", setTodoist); bool("knowledge", setKnowledge); bool("mirror", setMirror); bool("consent", setConsent); bool("hudTop", setHudTop); bool("laughAlways", setLaughAlways);
         if (["off", "mesh", "camera"].includes(saved.hud)) setHud(saved.hud);
         if (saved.persona === "kumpel" || saved.persona === "stratege") setPersona(saved.persona);
         if (saved.brainSide === 1 || saved.brainSide === -1) setBrainSide(saved.brainSide);
@@ -84,8 +85,8 @@ export function JarvisLive() {
   useEffect(() => {
     // Waits for the render that carries the restored values, so defaults never overwrite them.
     if (!restored) return;
-    try { localStorage.setItem("jarvis_live_settings", JSON.stringify({ camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place })); } catch { /* storage may be blocked */ }
-  }, [camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place, restored]);
+    try { localStorage.setItem("jarvis_live_settings", JSON.stringify({ laughAlways, camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place })); } catch { /* storage may be blocked */ }
+  }, [camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place, restored, laughAlways]);
   const stop = useCallback(() => { previewGeneration.current++; previewStream.current?.getTracks().forEach(track => { track.onended = null; track.stop(); }); previewStream.current = null; if (video.current) { video.current.pause(); video.current.srcObject = null; } if (mounted.current) setPreview(false); call.current?.stop(); call.current = null; if (mounted.current) { setPhase("idle"); setPanel(true); } }, []);
   useFaceTracking(video, camera && active, mirror, gaze, setTracking, mesh);
   useEffect(() => {
@@ -116,7 +117,7 @@ export function JarvisLive() {
       error: message => { if (mounted.current && call.current === session) { call.current = null; setNotice(message); setPanel(true); } },
     });
     call.current = session;
-    void session.start({ camera, coach, snap, assist, voice, persona, browser, place, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
+    void session.start({ camera, coach, snap, assist, laughAlways: laughAlways && persona === "kumpel", voice, persona, browser, place, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
   }
   async function confirmTask() {
     const session = call.current, task = pendingTask;
@@ -157,6 +158,7 @@ export function JarvisLive() {
       <span className="jl-eyebrow">VOR DEM TAKE</span><h1 id="jl-title">Jarvis ist da.</h1><p className="jl-lead">Ein Gespräch. Ein Blick.<br />Danach gehört der Bildschirm ihm.</p>
       <div className="jl-fields"><label>Stimme<select aria-label="Live-Stimme" disabled={active} value={voice} onChange={event => setVoice(event.target.value)}>{eleven?.configured && <option value="ElevenLabs">{eleven.voiceName} · ElevenLabs</option>}<option value="Charon">Charon · ruhig und souverän</option><option value="Algenib">Algenib · rauer Klang</option><option value="Orus">Orus · bestimmt</option></select></label>
       <label>Persönlichkeit<select aria-label="Persönlichkeit" disabled={active} value={persona} onChange={event => setPersona(event.target.value as PersonaId)}>{(Object.keys(PERSONAS) as PersonaId[]).map(id => <option key={id} value={id}>{PERSONAS[id].label}</option>)}</select></label>
+      {voice === "ElevenLabs" && <label className="jl-check"><input type="checkbox" checked={laughAlways} disabled={active} onChange={event => setLaughAlways(event.target.checked)} /><span>Jeder Satz beginnt mit dem dreckigen Lachen<span>Nur mit der ElevenLabs-Stimme und der Persönlichkeit Kumpel. Ohne Haken lacht er nach Gefühl.</span></span></label>}
       <label>Mikrofon<select aria-label="Live-Mikrofon" disabled={active} value={audioDevice} onChange={event => setAudioDevice(event.target.value)}><option value="">Systemstandard</option>{inputs.map((device, i) => <option key={device.deviceId || i} value={device.deviceId}>{device.label || `Mikrofon ${i + 1}`}</option>)}</select></label>
       <label>Kamera<select aria-label="Live-Kamera" disabled={active || !camera} value={videoDevice} onChange={event => setVideoDevice(event.target.value)}><option value="">Systemstandard</option>{cameras.map((device, i) => <option key={device.deviceId || i} value={device.deviceId}>{device.label || `Kamera ${i + 1}`}</option>)}</select></label></div>
       {voice === "ElevenLabs" && eleven && <div className="jl-voice-info">{eleven.previewUrl && <audio controls preload="none" src={eleven.previewUrl} aria-label={`Hörprobe ${eleven.voiceName}`} />}{!eleven.ready && <p className="jl-error" role="status">{eleven.error}</p>}{!active && <button className="jl-end" disabled={checkingVoice} onClick={()=>{void refreshVoice();}}>{checkingVoice ? "Wird geprüft" : "Kontingent erneut prüfen"}</button>}</div>}
@@ -171,11 +173,11 @@ export function JarvisLive() {
       <label className="jl-brain-side">Darstellung<select aria-label="Darstellung" value={torso ? "show" : "classic"} onChange={event => setTorso(event.target.value === "show")}><option value="show">Show · Schultern und Datenregen</option><option value="classic">Klassisch · nur der Kopf auf der Plattform</option></select></label>
       <label className="jl-check"><input type="checkbox" checked={brainOpen} onChange={event => setBrainOpen(event.target.checked)} /><span>Gehirn im selben Bild<span>Jarvis rückt zur Seite, das Wissensnetz füllt die andere Hälfte. Taste G schaltet um.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={todoist} disabled={active || !todoistConnected} onChange={event => setTodoist(event.target.checked)} /><span>Todoist {todoistConnected ? "verbunden" : "nicht verbunden"}<span>Frag nach heute, morgen oder dieser Woche. Erledigungen bestätigst du an der konkreten Aufgabe.</span></span></label>
-      <label className="jl-check"><input type="checkbox" checked={knowledge} disabled={active || !knowledgeReady} onChange={event => setKnowledge(event.target.checked)} /><span>Mein Wissen {knowledgeReady ? "verbunden" : "nicht eingerichtet"}<span>Durchsucht nur die freigegebenen Projektabschnitte. Treffer leuchten auf Monitor 2.</span></span></label>
+      <label className="jl-check"><input type="checkbox" checked={knowledge} disabled={active || !knowledgeReady} onChange={event => setKnowledge(event.target.checked)} /><span>Mein Wissen {knowledgeReady ? "verbunden" : "nicht eingerichtet"}<span>Durchsucht dein Notizarchiv, ohne als sensibel markierte Seiten. Treffer leuchten im Gehirn.</span></span></label>
       <button className="jl-preview" onClick={() => { window.open("/jarvis/scan", "jarvis-wissen", "popup,width=1280,height=900"); }}>Gehirn auf Monitor 2 öffnen<span>Das neue Fenster auf deinen zweiten Bildschirm ziehen.</span></button>
       {knowledge && <label className="jl-brain-side">Gehirn steht<select aria-label="Position des zweiten Monitors" value={brainSide} onChange={event => setBrainSide(Number(event.target.value))}><option value={1}>Rechts von Jarvis</option><option value={-1}>Links von Jarvis</option></select></label>}
       <label className="jl-check"><input type="checkbox" checked={mirror} disabled={active} onChange={event => setMirror(event.target.checked)} /><span>Blickrichtung spiegeln<span>Falls der Kopf bei deiner Kameraposition in die falsche Richtung folgt.</span></span></label>
-      <label className="jl-check jl-consent"><input type="checkbox" checked={consent} disabled={active} onChange={event => setConsent(event.target.checked)} /><span>Live-Übertragung freigeben<span>Während des Gesprächs gehen Mikrofonton und bei aktivierter Kamera etwa ein Bild pro Sekunde an Google Gemini. Bei einer Todoist-Abfrage auch Aufgabentitel und Fälligkeiten. {assist && "Beim Lesen geht eine scharfe Einzelaufnahme des gezeigten Schriftstücks an Gemini, bei Notizen und neuen Aufgaben dein diktierter Text. "}{browser && "Mit Browser kennt Gemini den angegebenen Ort; geöffnete Suchen laufen in deinem Browser bei Google. "}{knowledge && "Bei Wissensfragen gehen nur passende Auszüge der freigegebenen Projektabschnitte an Gemini. "}{voice === "ElevenLabs" && "Die Antworttexte gehen zur Sprachausgabe an ElevenLabs und verbrauchen dessen Kontingent. "}Keine Aufnahme durch Hermes. Google-Kontingent wird genutzt.</span></span></label>
+      <label className="jl-check jl-consent"><input type="checkbox" checked={consent} disabled={active} onChange={event => setConsent(event.target.checked)} /><span>Live-Übertragung freigeben<span>Während des Gesprächs gehen Mikrofonton und bei aktivierter Kamera etwa ein Bild pro Sekunde an Google Gemini. Bei einer Todoist-Abfrage auch Aufgabentitel und Fälligkeiten. {assist && "Beim Lesen geht eine scharfe Einzelaufnahme des gezeigten Schriftstücks an Gemini, bei Notizen und neuen Aufgaben dein diktierter Text. "}{browser && "Mit Browser kennt Gemini den angegebenen Ort; geöffnete Suchen laufen in deinem Browser bei Google. "}{knowledge && "Bei Wissensfragen gehen passende Auszüge aus deinem Notizarchiv an Gemini und werden vorgelesen. "}{voice === "ElevenLabs" && "Die Antworttexte gehen zur Sprachausgabe an ElevenLabs und verbrauchen dessen Kontingent. "}Keine Aufnahme durch Hermes. Google-Kontingent wird genutzt.</span></span></label>
       {notice && <p className="jl-error" role="alert">{notice}</p>}
       {active ? <div className="jl-actions"><button className="jl-start" onClick={() => setPanel(false)}>Zurück zum Drehmodus <ArrowUpRight size={18} /></button><button className="jl-end" onClick={stop}>Gespräch beenden</button></div> : <button className="jl-start" disabled={!consent || !ready || (voice === "ElevenLabs" && !eleven?.ready)} onClick={start}><Mic size={17} />{ready ? "Gespräch starten" : "Live-Zugang wird geprüft"}<ArrowUpRight size={18} /></button>}
       {!active && <button className="jl-preview" disabled={!camera} onClick={() => { void testGaze(); }}>Nur Blick testen<span>Nur deine Kamera · lokal · ohne Mikrofon oder Google-Verbindung</span></button>}

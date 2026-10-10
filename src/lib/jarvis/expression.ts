@@ -9,5 +9,6 @@ export function readExpression(value: unknown): VoiceExpression {
   return { delivery: v.delivery as VoiceExpression["delivery"], laugh: v.laugh };
 }
 export function expressiveText(text: string, expression: VoiceExpression) {
-  return `${expression.delivery === "dry" ? "[sarcastic] " : ""}${text.trim()}${expression.laugh ? " [laughs]" : ""}`;
+  // The laugh opens the line; that is the character's signature.
+  return `${expression.laugh ? "[laughs] " : ""}${expression.delivery === "dry" ? "[sarcastic] " : ""}${text.trim()}`;
 }

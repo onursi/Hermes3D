@@ -20,8 +20,32 @@ export function extractSection(text: string, heading: string) {
   while (end < lines.length && !(new RegExp(`^#{1,${depth}} `).test(lines[end]))) end++;
   return lines.slice(start + 1, end).join("\n").trim().slice(0, 5000);
 }
+const SKIP = new Set([".obsidian", ".git", ".trash", ".claude", "node_modules", "graphify-out", "Code", "_Assets", "_Anhänge"]);
+let vaultCache: { until: number; sensitive: boolean; sources: { id: string; title: string; text: string }[] } | undefined;
+/** Every note of the vault as a search source. Pages whose properties mark them as sensibel or streng vertraulich
+ * stay out unless the configuration includes them on purpose. */
+function vaultSources(includeSensitive: boolean) {
+  if (vaultCache && vaultCache.until > Date.now() && vaultCache.sensitive === includeSensitive) return vaultCache.sources;
+  const root = fs.realpathSync(VAULT_ROOT), sources: { id: string; title: string; text: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || SKIP.has(entry.name) || entry.isSymbolicLink()) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!entry.name.endsWith(".md") || sources.length >= 4000) continue;
+      let text: string; try { text = fs.readFileSync(full, "utf8").slice(0, 200_000); } catch { continue; }
+      const head = text.startsWith("---") ? text.slice(0, Math.max(0, text.indexOf("\n---", 3))) : "";
+      if (!includeSensitive && /^sensibilit[äa]t:\s*["']?(sensibel|streng vertraulich)/im.test(head)) continue;
+      sources.push({ id: path.relative(root, full).split(path.sep).join("/"), title: entry.name.replace(/\.md$/, ""), text: head ? text.slice(head.length + 4) : text });
+    }
+  };
+  walk(root);
+  vaultCache = { until: Date.now() + 60_000, sensitive: includeSensitive, sources };
+  return sources;
+}
 function readSources() {
   const data = JSON.parse(fs.readFileSync(configPath(), "utf8").replace(/^\uFEFF/, ""));
+  if (data.scope === "vault") return vaultSources(data.includeSensitive === true);
   if (!Array.isArray(data.sources) || data.sources.length > 12) throw new Error("Drehquellen nicht eingerichtet.");
   const root = fs.realpathSync(VAULT_ROOT);
   return data.sources.map((entry: { note: string; heading: string; title: string }) => {
@@ -65,7 +89,7 @@ export function searchKnowledge(ticket: unknown, question: unknown) {
   if (item.remaining-- <= 0) throw new Error("Wissenslimit erreicht. Gespräch neu starten.");
   const at = Date.now(); state.owner = String(ticket); publish("searching", [], at);
   try {
-    const retrieval = retrieveFromVault(question.trim(), 3, { sources: readSources() });
+    const retrieval = retrieveFromVault(question.trim(), 4, { sources: readSources() });
     const sources = retrieval.results.map((hit, index) => ({ ref: `Q${index + 1}`, title: hit.title, excerpt: hit.excerpt }));
     const ids = [...new Set(retrieval.results.map(hit => knowledgeNodeId(hit.id)))];
     publish(sources.length ? "found" : "missing", ids, at, sources.length);

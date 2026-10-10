@@ -4,7 +4,7 @@ import { SnapDetector } from "./snap";
 import { browserEmbedUrl } from "@/lib/jarvis/browserTool";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string; kind?: "complete" | "task" | "note"; detail?: string };
-type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; browser?: boolean; place?: string; assist?: boolean; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
+type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; browser?: boolean; place?: string; assist?: boolean; laughAlways?: boolean; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
 type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void; browser?: (url: string | null) => void };
 
 export function bytesToBase64(bytes: Uint8Array) {
@@ -201,7 +201,7 @@ export class JarvisLiveSession {
       this.player = new LivePcmPlayer(context, analyser, playing => { if (!this.stopped) { this.events.phase(playing ? "speaking" : this.voiceOutput?.busy ? "thinking" : "listening"); this.lastActivity = Date.now(); } });
       if (options.voice === "ElevenLabs") {
         if (data.speech?.provider !== "ElevenLabs" || typeof data.speech.session !== "string" || data.speech.sampleRate !== 24000) throw new Error("Die ausgewählte Stimme konnte nicht vorbereitet werden.");
-        this.voiceOutput = new LiveVoiceOutput(data.speech.session, bytes => { if (!this.stopped) { this.lastActivity = Date.now(); this.player?.play(bytesToBase64(bytes), 24000); } }, message => this.fail(message), busy => { if (!this.stopped && !this.player?.playing) this.events.phase(busy ? "thinking" : "listening"); });
+        this.voiceOutput = new LiveVoiceOutput(data.speech.session, bytes => { if (!this.stopped) { this.lastActivity = Date.now(); this.player?.play(bytesToBase64(bytes), 24000); } }, message => this.fail(message), busy => { if (!this.stopped && !this.player?.playing) this.events.phase(busy ? "thinking" : "listening"); }, options.laughAlways === true);
       }
       const samples = new Uint8Array(analyser.fftSize);
       const tick = () => {
