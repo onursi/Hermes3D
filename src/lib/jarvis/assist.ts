@@ -88,7 +88,7 @@ export async function createTask(token: string, proof: unknown, signal?: AbortSi
   creates.delete(proof as string); // Single use, also after an uncertain network result.
   const response = await fetch("https://api.todoist.com/api/v1/tasks", {
     method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ content: task.content, ...(task.due ? { due_string: task.due, due_lang: /(tomorrow|today|next|at \d|am|pm|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(task.due) ? "en" : "de" } : {}) }),
+    body: JSON.stringify({ content: task.content, ...(task.due ? { due_string: task.due, due_lang: /\b(tomorrow|today|next|at \d|\d ?(am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(task.due) ? "en" : "de" } : {}) }),
     cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
   });
   if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "Todoist-Zugang oder Berechtigung fehlt." : `Todoist hat die Aufgabe nicht angelegt (${response.status}).`);
