@@ -40,3 +40,18 @@ describe("selected live voice output",()=>{
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({text:"Neue Antwort.",expression:{delivery:"neutral",laugh:false}});
   });
 });
+
+describe("Jarvis laugh cue", () => {
+  it("turns the spoken cue word and stage directions into a laugh and removes them from the text", async () => {
+    const fetcher = vi.fn(async (_input: unknown, _init?: RequestInit) => new Response(new Uint8Array([0, 0]), { headers: { "X-Audio-Sample-Rate": "24000" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const voice = new LiveVoiceOutput("session", vi.fn(), vi.fn(), vi.fn());
+    voice.append("Klar, Boss. Die Liste nenn ich dann Vorsätze. Hehe."); voice.flush();
+    await vi.waitFor(() => expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(2));
+    const bodies = fetcher.mock.calls.map(call => JSON.parse(String(call[1]!.body)));
+    expect(bodies.map(body => body.text).join(" ")).not.toMatch(/hehe/i);
+    expect(bodies.at(-1).expression).toEqual({ delivery: "dry", laugh: true });
+    expect(bodies[0].expression.laugh).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});

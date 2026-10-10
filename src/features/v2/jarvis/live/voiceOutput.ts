@@ -30,7 +30,7 @@ export class LiveVoiceOutput {
     if (this.lastSentence && this.text.trim()) { this.enqueue(this.lastSentence); this.lastSentence = ""; }
     while (this.text.length > 500) { let cut = this.text.lastIndexOf(" ", 500); if (cut < 100) cut = 500; this.enqueue(this.text.slice(0, cut)); this.text = this.text.slice(cut); }
     // A finished sentence with nothing following starts speaking after a short pause, not only at the end of the turn.
-    if (this.lastSentence && !this.text.trim()) this.idle = setTimeout(() => this.flush(), 320);
+    if (this.lastSentence && !this.text.trim()) this.idle = setTimeout(() => this.flush(), 220);
   }
   flush() {
     clearTimeout(this.idle);
@@ -42,9 +42,13 @@ export class LiveVoiceOutput {
     clearTimeout(this.idle); this.abort.abort(); this.abort = new AbortController(); this.epoch++; this.jobs = 0; this.text = ""; this.lastSentence = ""; this.expression = neutralExpression(); this.previous = ""; this.queue = Promise.resolve(); this.activity(false);
   }
   private enqueue(raw: string, laugh = false) {
-    const text = raw.trim(); if (!text) return;
+    // The spoken cue word and any stage direction are removed and turned into a real laugh of the voice.
+    const cue = /\*?\[[^\]]{0,40}\]\*?|\b(?:he){2,}\b[.!]?|\bha(?:ha)+\b[.!]?/gi;
+    let text = raw.replace(cue, " ").replace(/\s+([.!?,])/g, "$1").replace(/\s+/g, " ").trim();
+    if (text !== raw.replace(/\s+/g, " ").trim()) laugh = true;
+    if (!/[\p{L}\p{N}]/u.test(text)) { if (!laugh) return; text = "Heh."; }
     if (text.length > 500) { let cut = text.lastIndexOf(" ", 500); if (cut < 100) cut = 500; this.enqueue(text.slice(0, cut)); this.enqueue(text.slice(cut), laugh); return; }
-    const expression = { delivery: this.expression.delivery, laugh };
+    const expression = { delivery: laugh ? "dry" as const : this.expression.delivery, laugh };
     const epoch = this.epoch, signal = this.abort.signal; this.jobs++; this.activity(true);
     this.queue = this.queue.then(async () => {
       if (signal.aborted || epoch !== this.epoch) return;
