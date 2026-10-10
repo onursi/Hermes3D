@@ -107,6 +107,7 @@ export class JarvisLiveSession {
       }
       if (tool.name === "read_document" || tool.name === "prepare_note" || tool.name === "prepare_todoist_task") {
         if (!this.assist || this.seenTools.size > 80) throw new Error("Dieses Werkzeug ist nicht freigegeben.");
+        if (tool.name !== "read_document" && this.pendingTask) throw new Error("Es liegt schon eine Bestätigung auf dem Schirm. Erst diese klären, dann die nächste vorbereiten.");
         const signal = AbortSignal.any([abort.signal, this.abort.signal]);
         let data: { ok?: boolean; error?: string; pending?: PendingTask; read?: string; instructions?: string };
         if (tool.name === "read_document") data = await this.assistRequest({ action: "document", image: this.sharpFrame(), question: tool.args?.question }, signal);
