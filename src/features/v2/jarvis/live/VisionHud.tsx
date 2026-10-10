@@ -7,7 +7,7 @@ export type HudMode = "off" | "mesh" | "camera";
 const CYAN = "120,211,255";
 
 /** Local operator view: shows what Jarvis locks onto. Nothing drawn here leaves the browser. */
-export function VisionHud({ video, mesh, mode }: { video: RefObject<HTMLVideoElement | null>; mesh: MutableRefObject<FaceMesh>; mode: HudMode }) {
+export function VisionHud({ video, mesh, mode, top = false }: { video: RefObject<HTMLVideoElement | null>; mesh: MutableRefObject<FaceMesh>; mode: HudMode; top?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const frameBox = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -60,7 +60,7 @@ export function VisionHud({ video, mesh, mode }: { video: RefObject<HTMLVideoEle
         ctx.fillStyle = line; ctx.fillRect(0, y - 22, w, 24);
       }
       ctx.fillStyle = "rgba(2,7,11,.12)"; for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
-      ctx.font = "600 9px Arial"; ctx.textBaseline = "top";
+      const unit = Math.max(1, w / 340); ctx.font = `600 ${Math.round(9 * unit)}px Arial`; ctx.textBaseline = "top";
       if (!points) {
         acquired = 0; closed = false;
         if (!body) {
@@ -101,13 +101,13 @@ export function VisionHud({ video, mesh, mode }: { video: RefObject<HTMLVideoEle
       ctx.stroke();
       const cm = distanceCm(points); if (cm) smoothCm = smoothCm ? smoothCm + (cm - smoothCm) * .12 : cm;
       ctx.fillStyle = `rgba(${CYAN},.95)`; ctx.fillText(lock < 1 ? "ERFASSE SUBJEKT" : "SUBJEKT ERFASST", 12, 12);
-      ctx.fillStyle = "rgba(228,243,252,.8)"; ctx.font = "8px Arial";
+      ctx.fillStyle = "rgba(228,243,252,.85)"; ctx.font = `${Math.round(8 * unit)}px Arial`;
       const lines = [`KÖRPERSCAN ${body ? `${Math.round(sweep * 100)} %` : "–"}`, `AUGEN ${hasIris(points) ? (closed ? "GESCHLOSSEN" : "ERFASST") : "–"}`, `LIDSCHLAG ${blinks}`, cm ? `ABSTAND CA. ${Math.round(smoothCm / 5) * 5} CM` : "ABSTAND –", `PUNKTE ${count + (body ? body.points.length / 3 : 0)}`];
-      lines.forEach((line, i) => ctx.fillText(line, 12, h - 14 - (lines.length - 1 - i) * 12));
+      lines.forEach((line, i) => ctx.fillText(line, 12, h - 14 * unit - (lines.length - 1 - i) * 12 * unit));
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
   }, [video, mesh, mode]);
   if (mode === "off") return null;
-  return <aside ref={frameBox} className="jl-hud" aria-label="Lokale Erfassungsansicht"><canvas ref={canvas} /><span>JARVIS SIEHT · LOKAL</span></aside>;
+  return <aside ref={frameBox} className="jl-hud" data-top={top ? "" : undefined} aria-label="Lokale Erfassungsansicht"><canvas ref={canvas} /><span>JARVIS SIEHT · LOKAL</span></aside>;
 }

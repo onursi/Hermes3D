@@ -24,9 +24,9 @@ export function JarvisLive() {
   const [coach, setCoach] = useState(true);
   const [snap, setSnap] = useState(true);
   const [assist, setAssist] = useState(true);
-  const [browser, setBrowser] = useState(false);
+  const [browser, setBrowser] = useState(true);
   const [place, setPlace] = useState("");
-  const [brainOpen, setBrainOpen] = useState(false);
+  const [brainOpen, setBrainOpen] = useState(true);
   const [torso, setTorso] = useState(true);
   const browserWindow = useRef<Window | null>(null);
   const [todoist, setTodoist] = useState(true);
@@ -50,11 +50,12 @@ export function JarvisLive() {
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
   const [inspect, setInspect] = useState(0);
-  const [mirror, setMirror] = useState(false);
+  const [mirror, setMirror] = useState(true);
   const [tracking, setTracking] = useState<TrackingState>("off");
   const gaze = useRef(neutralGaze());
   const mesh = useRef<FaceMesh>({ points: null, seen: 0 });
-  const [hud, setHud] = useState<HudMode>("mesh");
+  const [hud, setHud] = useState<HudMode>("camera");
+  const [hudTop, setHudTop] = useState(true);
   const previewStream = useRef<MediaStream | null>(null);
   const previewGeneration = useRef(0);
   const video = useRef<HTMLVideoElement>(null);
@@ -63,6 +64,27 @@ export function JarvisLive() {
   const dialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(false);
   const active = phase !== "idle" || preview;
+  const restored = useRef(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("jarvis_live_settings") || "null");
+      if (saved && typeof saved === "object") {
+        const bool = (key: string, set: (value: boolean) => void) => { if (typeof saved[key] === "boolean") set(saved[key]); };
+        bool("camera", setCamera); bool("coach", setCoach); bool("snap", setSnap); bool("assist", setAssist); bool("browser", setBrowser); bool("brainOpen", setBrainOpen); bool("torso", setTorso);
+        bool("todoist", setTodoist); bool("knowledge", setKnowledge); bool("mirror", setMirror); bool("consent", setConsent); bool("hudTop", setHudTop);
+        if (["off", "mesh", "camera"].includes(saved.hud)) setHud(saved.hud);
+        if (saved.persona === "kumpel" || saved.persona === "stratege") setPersona(saved.persona);
+        if (saved.brainSide === 1 || saved.brainSide === -1) setBrainSide(saved.brainSide);
+        if (typeof saved.voice === "string" && saved.voice.length < 40) setVoice(saved.voice);
+        if (typeof saved.place === "string") setPlace(saved.place.slice(0, 60));
+      }
+    } catch { /* unreadable settings fall back to the defaults */ }
+    restored.current = true;
+  }, []);
+  useEffect(() => {
+    if (!restored.current) return;
+    try { localStorage.setItem("jarvis_live_settings", JSON.stringify({ camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place })); } catch { /* storage may be blocked */ }
+  }, [camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place]);
   const stop = useCallback(() => { previewGeneration.current++; previewStream.current?.getTracks().forEach(track => { track.onended = null; track.stop(); }); previewStream.current = null; if (video.current) { video.current.pause(); video.current.srcObject = null; } if (mounted.current) setPreview(false); call.current?.stop(); call.current = null; if (mounted.current) { setPhase("idle"); setPanel(true); } }, []);
   useFaceTracking(video, camera && active, mirror, gaze, setTracking, mesh);
   useEffect(() => {
@@ -127,7 +149,7 @@ export function JarvisLive() {
     <section className="jl-presence" aria-label="Jarvis Live-Gespräch"><div className="jl-head"><TrackedHead level={level} gaze={gaze} attention={attention} inspect={inspect} active={active} torso={torso} onActivate={() => setPanel(true)} /></div><div className="jl-platform" aria-hidden="true" /><div className="jl-presence-label">{active && knowledge && scan.phase === "found" ? "IN DEINEN NOTIZEN GEFUNDEN." : phase === "speaking" ? "ICH DENKE MIT." : phase === "listening" ? "BIN BEI DIR, BOSS." : "DEIN RAUM. DEIN JARVIS."}</div></section>
     <span className="jl-session-mark">LIVE PRESENCE / 02{tracking !== "off" && <span className="jl-tracking" data-state={tracking}>{({ loading: "BLICK WIRD GELADEN", searching: "SUCHE DEINEN BLICK", following: "BLICK FOLGT DIR", unavailable: "BLICKVERFOLGUNG NICHT VERFÜGBAR" } as Record<string, string>)[tracking]}</span>}</span>
     {brainOpen && <iframe className="jl-brain" src="/jarvis/scan" title="Wissensnetz" />}
-    {camera && active && <VisionHud video={video} mesh={mesh} mode={hud} />}
+    {camera && active && <VisionHud video={video} mesh={mesh} mode={hud} top={hudTop} />}
     {pendingTask && <aside className="jl-task-confirm" aria-label="Bestätigung"><small>{pendingTask.kind === "note" ? "NOTIZ IN DEN EINGANG SPEICHERN" : pendingTask.kind === "task" ? "NEUE AUFGABE IN TODOIST" : "IN TODOIST ERLEDIGEN"}</small><p>{pendingTask.title}</p>{pendingTask.detail && <p className="jl-task-detail">{pendingTask.detail}</p>}{taskError && <p role="alert">{taskError}</p>}<div><button disabled={taskBusy} onClick={() => { void confirmTask(); }}>{taskBusy ? "Moment" : pendingTask.kind === "note" ? "Speichern" : pendingTask.kind === "task" ? "Anlegen" : "Erledigen"}</button><button disabled={taskBusy} onClick={() => call.current?.dismissTask()}>Nicht jetzt</button></div></aside>}
     <dialog ref={dialog} className="jl-dialog" aria-labelledby="jl-title" onCancel={event => { event.preventDefault(); setPanel(false); }}>
       <button className="jl-close" aria-label="Einstellungen schließen" onClick={() => setPanel(false)}><X size={20} /></button>
@@ -139,6 +161,7 @@ export function JarvisLive() {
       {voice === "ElevenLabs" && eleven && <div className="jl-voice-info">{eleven.previewUrl && <audio controls preload="none" src={eleven.previewUrl} aria-label={`Hörprobe ${eleven.voiceName}`} />}{!eleven.ready && <p className="jl-error" role="status">{eleven.error}</p>}{!active && <button className="jl-end" disabled={checkingVoice} onClick={()=>{void refreshVoice();}}>{checkingVoice ? "Wird geprüft" : "Kontingent erneut prüfen"}</button>}</div>}
       <label className="jl-check"><input type="checkbox" checked={camera} disabled={active} onChange={event => setCamera(event.target.checked)} /><span>Kamera dabei<span>Jarvis sieht dich. Die Erfassungsansicht wird nur lokal gezeichnet.</span></span></label>
       <label className="jl-brain-side">Erfassungsansicht im Bild<select aria-label="Erfassungsansicht" disabled={!camera} value={hud} onChange={event => setHud(event.target.value as HudMode)}><option value="mesh">Nur Körperumriss, Gesichtsnetz und Augen, kein Kamerabild</option><option value="camera">Kamerabild mit Körperscan (Raum ist sichtbar)</option><option value="off">Aus</option></select></label>
+      <label className="jl-check"><input type="checkbox" checked={hudTop} disabled={!camera || hud === "off"} onChange={event => setHudTop(event.target.checked)} /><span>Erfassungsansicht groß oben in der Mitte<span>Gut sichtbar für Hochkant-Videos. Ohne Haken klein unten links.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={coach} disabled={active} onChange={event => setCoach(event.target.checked)} /><span>Fokuscoach<span>Meldet sich einmal nach 15 Sekunden Gesprächspause.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={snap} disabled={active} onChange={event => setSnap(event.target.checked)} /><span>Schnipsen als Zeichen<span>Ein Schnipsen oder Klatschen in einer Sprechpause, und Jarvis meldet sich von selbst. Wird lokal erkannt.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={assist} disabled={active} onChange={event => setAssist(event.target.checked)} /><span>Lesen, Notizen, neue Aufgaben<span>Jarvis liest ein Schriftstück, das du in die Kamera hältst, notiert auf Zuruf in deinen Notizeingang und legt mit Todoist neue Aufgaben an. Speichern und Anlegen bestätigst du am Bildschirm.</span></span></label>
@@ -146,7 +169,7 @@ export function JarvisLive() {
       {browser && <label className="jl-brain-side">Ort für Suchen in der Nähe (freiwillig, wird im Gespräch genannt)<input className="jl-place" aria-label="Ort für Suchen" disabled={active} maxLength={60} value={place} onChange={event => setPlace(event.target.value)} placeholder="z. B. Stadtname" /></label>}
       <label className="jl-brain-side">Darstellung<select aria-label="Darstellung" value={torso ? "show" : "classic"} onChange={event => setTorso(event.target.value === "show")}><option value="show">Show · Schultern und Datenregen</option><option value="classic">Klassisch · nur der Kopf auf der Plattform</option></select></label>
       <label className="jl-check"><input type="checkbox" checked={brainOpen} onChange={event => setBrainOpen(event.target.checked)} /><span>Gehirn im selben Bild<span>Jarvis rückt zur Seite, das Wissensnetz füllt die andere Hälfte. Taste G schaltet um.</span></span></label>
-      <label className="jl-check"><input type="checkbox" checked={todoist} disabled={active || !todoistConnected} onChange={event => setTodoist(event.target.checked)} /><span>Todoist {todoistConnected ? "verbunden" : "nicht verbunden"}<span>Frag nach heute oder morgen. Erledigungen bestätigst du an der konkreten Aufgabe.</span></span></label>
+      <label className="jl-check"><input type="checkbox" checked={todoist} disabled={active || !todoistConnected} onChange={event => setTodoist(event.target.checked)} /><span>Todoist {todoistConnected ? "verbunden" : "nicht verbunden"}<span>Frag nach heute, morgen oder dieser Woche. Erledigungen bestätigst du an der konkreten Aufgabe.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={knowledge} disabled={active || !knowledgeReady} onChange={event => setKnowledge(event.target.checked)} /><span>Mein Wissen {knowledgeReady ? "verbunden" : "nicht eingerichtet"}<span>Durchsucht nur die freigegebenen Projektabschnitte. Treffer leuchten auf Monitor 2.</span></span></label>
       <button className="jl-preview" onClick={() => { window.open("/jarvis/scan", "jarvis-wissen", "popup,width=1280,height=900"); }}>Gehirn auf Monitor 2 öffnen<span>Das neue Fenster auf deinen zweiten Bildschirm ziehen.</span></button>
       {knowledge && <label className="jl-brain-side">Gehirn steht<select aria-label="Position des zweiten Monitors" value={brainSide} onChange={event => setBrainSide(Number(event.target.value))}><option value={1}>Rechts von Jarvis</option><option value={-1}>Links von Jarvis</option></select></label>}
