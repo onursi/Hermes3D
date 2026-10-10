@@ -9,6 +9,7 @@ import { useFaceTracking, type FaceMesh, type TrackingState } from "./useFaceTra
 import { VisionHud, type HudMode } from "./VisionHud";
 import { JarvisLiveSession, type LivePhase, type PendingTask } from "./session";
 import type { SpeechStatus } from "@/lib/jarvis/elevenVoice";
+import { PERSONAS, type PersonaId } from "@/lib/jarvis/personas";
 import { useKnowledgeScan } from "./useKnowledgeScan";
 import "../dashboard/dashboard.css";
 import "./live.css";
@@ -31,6 +32,7 @@ export function JarvisLive() {
   const [taskBusy, setTaskBusy] = useState(false);
   const [taskError, setTaskError] = useState("");
   const [voice, setVoice] = useState("ElevenLabs");
+  const [persona, setPersona] = useState<PersonaId>("kumpel");
   const [eleven, setEleven] = useState<SpeechStatus | null>(null);
   const [checkingVoice, setCheckingVoice] = useState(false);
   const [audioDevice, setAudioDevice] = useState("");
@@ -82,7 +84,7 @@ export function JarvisLive() {
       error: message => { if (mounted.current && call.current === session) { call.current = null; setNotice(message); setPanel(true); } },
     });
     call.current = session;
-    void session.start({ camera, coach, voice, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
+    void session.start({ camera, coach, voice, persona, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
   }
   async function confirmTask() {
     const session = call.current, task = pendingTask;
@@ -119,6 +121,7 @@ export function JarvisLive() {
       <button className="jl-close" aria-label="Einstellungen schließen" onClick={() => setPanel(false)}><X size={20} /></button>
       <span className="jl-eyebrow">VOR DEM TAKE</span><h1 id="jl-title">Jarvis ist da.</h1><p className="jl-lead">Ein Gespräch. Ein Blick.<br />Danach gehört der Bildschirm ihm.</p>
       <div className="jl-fields"><label>Stimme<select aria-label="Live-Stimme" disabled={active} value={voice} onChange={event => setVoice(event.target.value)}>{eleven?.configured && <option value="ElevenLabs">{eleven.voiceName} · ElevenLabs</option>}<option value="Charon">Charon · ruhig und souverän</option><option value="Algenib">Algenib · rauer Klang</option><option value="Orus">Orus · bestimmt</option></select></label>
+      <label>Persönlichkeit<select aria-label="Persönlichkeit" disabled={active} value={persona} onChange={event => setPersona(event.target.value as PersonaId)}>{(Object.keys(PERSONAS) as PersonaId[]).map(id => <option key={id} value={id}>{PERSONAS[id].label}</option>)}</select></label>
       <label>Mikrofon<select aria-label="Live-Mikrofon" disabled={active} value={audioDevice} onChange={event => setAudioDevice(event.target.value)}><option value="">Systemstandard</option>{inputs.map((device, i) => <option key={device.deviceId || i} value={device.deviceId}>{device.label || `Mikrofon ${i + 1}`}</option>)}</select></label>
       <label>Kamera<select aria-label="Live-Kamera" disabled={active || !camera} value={videoDevice} onChange={event => setVideoDevice(event.target.value)}><option value="">Systemstandard</option>{cameras.map((device, i) => <option key={device.deviceId || i} value={device.deviceId}>{device.label || `Kamera ${i + 1}`}</option>)}</select></label></div>
       {voice === "ElevenLabs" && eleven && <div className="jl-voice-info">{eleven.previewUrl && <audio controls preload="none" src={eleven.previewUrl} aria-label={`Hörprobe ${eleven.voiceName}`} />}{!eleven.ready && <p className="jl-error" role="status">{eleven.error}</p>}{!active && <button className="jl-end" disabled={checkingVoice} onClick={()=>{void refreshVoice();}}>{checkingVoice ? "Wird geprüft" : "Kontingent erneut prüfen"}</button>}</div>}

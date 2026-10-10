@@ -2,7 +2,7 @@ import { LiveVoiceOutput } from "./voiceOutput";
 import { readExpression } from "@/lib/jarvis/expression";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string };
-type CallOptions = { camera: boolean; coach: boolean; voice: string; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
+type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
 type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void };
 
 export function bytesToBase64(bytes: Uint8Array) {
@@ -139,7 +139,7 @@ export class JarvisLiveSession {
       if (this.stopped) return;
       await context.audioWorklet.addModule("/jarvis/live-capture.js");
       if (this.stopped) return;
-      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
+      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, persona: options.persona, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || "Live-Zugang konnte nicht vorbereitet werden.");
       if (this.stopped) return;
       if (options.knowledge) { if (typeof data.knowledge?.ticket !== "string") throw new Error("Wissenssuche konnte nicht vorbereitet werden."); this.knowledgeTicket = data.knowledge.ticket; }

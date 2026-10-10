@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createLiveToken } from "@/lib/jarvis/live";
+import { readPersona } from "@/lib/jarvis/personas";
 import { visionConfig } from "@/lib/jarvis/vision";
 import { issueSpeechGrant, speechStatus } from "@/lib/jarvis/elevenVoice";
 import { issueKnowledgeGrant, knowledgeStatus } from "@/lib/jarvis/knowledge";
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
     if (external) { const status = await speechStatus(req.signal, true); if (!status.ready) return NextResponse.json({ error: status.error }, { status: 402, headers }); }
     const knowledge = data.knowledge === true;
     if (knowledge && !knowledgeStatus().configured) return NextResponse.json({ error: "Drehquellen nicht eingerichtet." }, { status: 400, headers });
-    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external, knowledge);
+    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external, knowledge, readPersona(data.persona));
     return NextResponse.json({ ...live, ...(knowledge ? { knowledge: { ticket: issueKnowledgeGrant() } } : {}), ...(external ? { speech: { provider: "ElevenLabs", session: issueSpeechGrant(), sampleRate: 24000 } } : {}) }, { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
