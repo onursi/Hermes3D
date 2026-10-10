@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Maximize, Settings2, X, PhoneOff, Mic, ArrowUpRight } from "lucide-react";
+import { Maximize, Settings2, X, PhoneOff, Mic, ArrowUpRight, Brain } from "lucide-react";
 import { TrackedHead } from "./TrackedHead";
 import { neutralGaze } from "./tracking";
 import { useFaceTracking, type FaceMesh, type TrackingState } from "./useFaceTracking";
 import { VisionHud, type HudMode } from "./VisionHud";
+import { DataRain } from "./DataRain";
 import { JarvisLiveSession, type LivePhase, type PendingTask } from "./session";
 import type { SpeechStatus } from "@/lib/jarvis/elevenVoice";
 import { PERSONAS, type PersonaId } from "@/lib/jarvis/personas";
@@ -22,6 +23,10 @@ export function JarvisLive() {
   const [camera, setCamera] = useState(true);
   const [coach, setCoach] = useState(true);
   const [snap, setSnap] = useState(true);
+  const [browser, setBrowser] = useState(false);
+  const [place, setPlace] = useState("");
+  const [brainOpen, setBrainOpen] = useState(false);
+  const browserWindow = useRef<Window | null>(null);
   const [todoist, setTodoist] = useState(true);
   const [todoistConnected, setTodoistConnected] = useState(false);
   const [knowledge, setKnowledge] = useState(true);
@@ -65,7 +70,7 @@ export function JarvisLive() {
     const refresh = () => { void navigator.mediaDevices?.enumerateDevices().then(list => { if (mounted.current) setDevices(list); }).catch(() => {}); };
     refresh(); navigator.mediaDevices?.addEventListener("devicechange", refresh);
     const hidden = () => { if (document.hidden) stop(); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") stop(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") stop(); else if ((event.key === "g" || event.key === "G") && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) && !dialog.current?.open) setBrainOpen(value => !value); };
     document.addEventListener("visibilitychange", hidden); window.addEventListener("pagehide", stop); window.addEventListener("keydown", escape);
     return () => { mounted.current = false; abort.abort(); previewGeneration.current++; previewStream.current?.getTracks().forEach(track => track.stop()); previewStream.current = null; call.current?.stop(); navigator.mediaDevices?.removeEventListener("devicechange", refresh); document.removeEventListener("visibilitychange", hidden); window.removeEventListener("pagehide", stop); window.removeEventListener("keydown", escape); };
   }, [stop]);
@@ -78,6 +83,8 @@ export function JarvisLive() {
   function start() {
     if (!consent || active || !video.current || (voice === "ElevenLabs" && !eleven?.ready)) return;
     setNotice(""); setInspect(0); setPhase("connecting"); setPanel(false);
+    // Opened inside the click, otherwise the popup blocker stops Jarvis from showing anything later.
+    if (browser && (!browserWindow.current || browserWindow.current.closed)) browserWindow.current = window.open("/jarvis/browser.html", "jarvis-browser", "popup,width=1180,height=860");
     const session = new JarvisLiveSession(video.current, {
       level,
       pendingTask: value => { if (mounted.current && call.current === session) { setPendingTask(value); setTaskError(""); } },
@@ -85,7 +92,7 @@ export function JarvisLive() {
       error: message => { if (mounted.current && call.current === session) { call.current = null; setNotice(message); setPanel(true); } },
     });
     call.current = session;
-    void session.start({ camera, coach, snap, voice, persona, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
+    void session.start({ camera, coach, snap, voice, persona, browser: browser ? browserWindow.current : null, place, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
   }
   async function confirmTask() {
     const session = call.current, task = pendingTask;
@@ -111,11 +118,13 @@ export function JarvisLive() {
   const inputs = devices.filter(device => device.kind === "audioinput");
   const cameras = devices.filter(device => device.kind === "videoinput");
   async function refreshVoice() { setCheckingVoice(true); try { const response = await fetch("/api/jarvis/live?refresh=1"); const data = await response.json(); if (mounted.current) setEleven(data.elevenlabs || null); } catch { if (mounted.current) setNotice("Stimmzugang konnte nicht geprüft werden."); } finally { if (mounted.current) setCheckingVoice(false); } }
-  return <main className={`jl jl-${phase}`}>
+  return <main className={`jl jl-${phase}`} data-brain={brainOpen ? (brainSide === 1 ? "right" : "left") : undefined}>
+    <DataRain />
     <div className="jl-space" aria-hidden="true"><div className="jl-orbit jl-orbit-a" /><div className="jl-orbit jl-orbit-b" /><div className="jl-grid" /></div>
-    <header className="jl-top"><Link href="/v2" className="jl-wordmark">JARVIS<span>HERMES PERSONAL ASSISTANT</span></Link><div className="jl-signal" role="status"><i />{preview ? "BLICKTEST" : status[phase]}{active && <small>{preview ? "CAM · LOKAL" : camera ? "MIC + CAM" : "MIC"}</small>}</div><div className="jl-tools"><button aria-label="Vollbild" onClick={() => { void document.documentElement.requestFullscreen?.().catch(() => {}); }}><Maximize size={17} /></button><button aria-label="Gesprächseinstellungen" onClick={() => setPanel(true)}><Settings2 size={18} /></button>{active && <button aria-label="Gespräch beenden" onClick={stop}><PhoneOff size={18} /></button>}</div></header>
+    <header className="jl-top"><Link href="/v2" className="jl-wordmark">JARVIS<span>HERMES PERSONAL ASSISTANT</span></Link><div className="jl-signal" role="status"><i />{preview ? "BLICKTEST" : status[phase]}{active && <small>{preview ? "CAM · LOKAL" : camera ? "MIC + CAM" : "MIC"}</small>}</div><div className="jl-tools"><button aria-label="Gehirn ein- oder ausblenden" aria-pressed={brainOpen} onClick={() => setBrainOpen(value => !value)}><Brain size={18} /></button><button aria-label="Vollbild" onClick={() => { void document.documentElement.requestFullscreen?.().catch(() => {}); }}><Maximize size={17} /></button><button aria-label="Gesprächseinstellungen" onClick={() => setPanel(true)}><Settings2 size={18} /></button>{active && <button aria-label="Gespräch beenden" onClick={stop}><PhoneOff size={18} /></button>}</div></header>
     <section className="jl-presence" aria-label="Jarvis Live-Gespräch"><div className="jl-head"><TrackedHead level={level} gaze={gaze} attention={attention} inspect={inspect} active={active} onActivate={() => setPanel(true)} /></div><div className="jl-platform" aria-hidden="true" /><div className="jl-presence-label">{active && knowledge && scan.phase === "found" ? "IN DEINEN NOTIZEN GEFUNDEN." : phase === "speaking" ? "ICH DENKE MIT." : phase === "listening" ? "BIN BEI DIR, BOSS." : "DEIN RAUM. DEIN JARVIS."}</div></section>
     <span className="jl-session-mark">LIVE PRESENCE / 02{tracking !== "off" && <span className="jl-tracking" data-state={tracking}>{({ loading: "BLICK WIRD GELADEN", searching: "SUCHE DEINEN BLICK", following: "BLICK FOLGT DIR", unavailable: "BLICKVERFOLGUNG NICHT VERFÜGBAR" } as Record<string, string>)[tracking]}</span>}</span>
+    {brainOpen && <iframe className="jl-brain" src="/jarvis/scan" title="Wissensnetz" />}
     {camera && active && <VisionHud video={video} mesh={mesh} mode={hud} />}
     {pendingTask && <aside className="jl-task-confirm" aria-label="Todoist-Aufgabe bestätigen"><small>IN TODOIST ERLEDIGEN</small><p>{pendingTask.title}</p>{taskError && <p role="alert">{taskError}</p>}<div><button disabled={taskBusy} onClick={() => { void confirmTask(); }}>{taskBusy ? "Wird erledigt" : "Erledigen"}</button><button disabled={taskBusy} onClick={() => call.current?.dismissTask()}>Nicht jetzt</button></div></aside>}
     <dialog ref={dialog} className="jl-dialog" aria-labelledby="jl-title" onCancel={event => { event.preventDefault(); setPanel(false); }}>
@@ -130,12 +139,15 @@ export function JarvisLive() {
       <label className="jl-brain-side">Erfassungsansicht im Bild<select aria-label="Erfassungsansicht" disabled={!camera} value={hud} onChange={event => setHud(event.target.value as HudMode)}><option value="mesh">Nur Körperumriss, Gesichtsnetz und Augen, kein Kamerabild</option><option value="camera">Kamerabild mit Körperscan (Raum ist sichtbar)</option><option value="off">Aus</option></select></label>
       <label className="jl-check"><input type="checkbox" checked={coach} disabled={active} onChange={event => setCoach(event.target.checked)} /><span>Fokuscoach<span>Meldet sich einmal nach 15 Sekunden Gesprächspause.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={snap} disabled={active} onChange={event => setSnap(event.target.checked)} /><span>Schnipsen als Zeichen<span>Ein Schnipsen oder Klatschen in einer Sprechpause, und Jarvis meldet sich von selbst. Wird lokal erkannt.</span></span></label>
+      <label className="jl-check"><input type="checkbox" checked={browser} disabled={active} onChange={event => setBrowser(event.target.checked)} /><span>Browser auf Zuruf<span>Jarvis öffnet Google-, Karten- oder YouTube-Suchen in einem eigenen Fenster. Er liest die Treffer nicht und bestellt oder kauft nichts.</span></span></label>
+      {browser && <label className="jl-brain-side">Ort für Suchen in der Nähe (freiwillig, wird im Gespräch genannt)<input className="jl-place" aria-label="Ort für Suchen" disabled={active} maxLength={60} value={place} onChange={event => setPlace(event.target.value)} placeholder="z. B. Stadtname" /></label>}
+      <label className="jl-check"><input type="checkbox" checked={brainOpen} onChange={event => setBrainOpen(event.target.checked)} /><span>Gehirn im selben Bild<span>Jarvis rückt zur Seite, das Wissensnetz füllt die andere Hälfte. Taste G schaltet um.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={todoist} disabled={active || !todoistConnected} onChange={event => setTodoist(event.target.checked)} /><span>Todoist {todoistConnected ? "verbunden" : "nicht verbunden"}<span>Frag nach heute oder morgen. Erledigungen bestätigst du an der konkreten Aufgabe.</span></span></label>
       <label className="jl-check"><input type="checkbox" checked={knowledge} disabled={active || !knowledgeReady} onChange={event => setKnowledge(event.target.checked)} /><span>Mein Wissen {knowledgeReady ? "verbunden" : "nicht eingerichtet"}<span>Durchsucht nur die freigegebenen Projektabschnitte. Treffer leuchten auf Monitor 2.</span></span></label>
       <button className="jl-preview" onClick={() => { window.open("/jarvis/scan", "jarvis-wissen", "popup,width=1280,height=900"); }}>Gehirn auf Monitor 2 öffnen<span>Das neue Fenster auf deinen zweiten Bildschirm ziehen.</span></button>
       {knowledge && <label className="jl-brain-side">Gehirn steht<select aria-label="Position des zweiten Monitors" value={brainSide} onChange={event => setBrainSide(Number(event.target.value))}><option value={1}>Rechts von Jarvis</option><option value={-1}>Links von Jarvis</option></select></label>}
       <label className="jl-check"><input type="checkbox" checked={mirror} disabled={active} onChange={event => setMirror(event.target.checked)} /><span>Blickrichtung spiegeln<span>Falls der Kopf bei deiner Kameraposition in die falsche Richtung folgt.</span></span></label>
-      <label className="jl-check jl-consent"><input type="checkbox" checked={consent} disabled={active} onChange={event => setConsent(event.target.checked)} /><span>Live-Übertragung freigeben<span>Während des Gesprächs gehen Mikrofonton und bei aktivierter Kamera etwa ein Bild pro Sekunde an Google Gemini. Bei einer Todoist-Abfrage auch Aufgabentitel und Fälligkeiten. {knowledge && "Bei Wissensfragen gehen nur passende Auszüge der freigegebenen Projektabschnitte an Gemini. "}{voice === "ElevenLabs" && "Die Antworttexte gehen zur Sprachausgabe an ElevenLabs und verbrauchen dessen Kontingent. "}Keine Aufnahme durch Hermes. Google-Kontingent wird genutzt.</span></span></label>
+      <label className="jl-check jl-consent"><input type="checkbox" checked={consent} disabled={active} onChange={event => setConsent(event.target.checked)} /><span>Live-Übertragung freigeben<span>Während des Gesprächs gehen Mikrofonton und bei aktivierter Kamera etwa ein Bild pro Sekunde an Google Gemini. Bei einer Todoist-Abfrage auch Aufgabentitel und Fälligkeiten. {browser && "Mit Browser kennt Gemini den angegebenen Ort; geöffnete Suchen laufen in deinem Browser bei Google. "}{knowledge && "Bei Wissensfragen gehen nur passende Auszüge der freigegebenen Projektabschnitte an Gemini. "}{voice === "ElevenLabs" && "Die Antworttexte gehen zur Sprachausgabe an ElevenLabs und verbrauchen dessen Kontingent. "}Keine Aufnahme durch Hermes. Google-Kontingent wird genutzt.</span></span></label>
       {notice && <p className="jl-error" role="alert">{notice}</p>}
       {active ? <div className="jl-actions"><button className="jl-start" onClick={() => setPanel(false)}>Zurück zum Drehmodus <ArrowUpRight size={18} /></button><button className="jl-end" onClick={stop}>Gespräch beenden</button></div> : <button className="jl-start" disabled={!consent || !ready || (voice === "ElevenLabs" && !eleven?.ready)} onClick={start}><Mic size={17} />{ready ? "Gespräch starten" : "Live-Zugang wird geprüft"}<ArrowUpRight size={18} /></button>}
       {!active && <button className="jl-preview" disabled={!camera} onClick={() => { void testGaze(); }}>Nur Blick testen<span>Nur deine Kamera · lokal · ohne Mikrofon oder Google-Verbindung</span></button>}

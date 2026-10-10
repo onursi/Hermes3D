@@ -1,9 +1,10 @@
 import { LiveVoiceOutput } from "./voiceOutput";
 import { readExpression } from "@/lib/jarvis/expression";
 import { SnapDetector } from "./snap";
+import { browserUrl } from "@/lib/jarvis/browserTool";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string };
-type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
+type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; browser?: Window | null; place?: string; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
 type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void };
 
 export function bytesToBase64(bytes: Uint8Array) {
@@ -65,6 +66,7 @@ export class JarvisLiveSession {
   private pendingTask: PendingTask | null = null;
   private confirming = false;
   private snap = new SnapDetector();
+  private browser: Window | null = null;
   constructor(private video: HTMLVideoElement, private events: CallEvents) {}
 
   private fail(message: string) { if (this.stopped) return; this.stop(); this.events.error(message); }
@@ -91,6 +93,14 @@ export class JarvisLiveSession {
         if (!this.voiceOutput || this.seenTools.size > 80) throw new Error("Sprachausdruck ist nicht verfügbar.");
         this.voiceOutput.setExpression(readExpression(tool.args));
         this.send({ toolResponse: { functionResponses: [{ id: tool.id, name: tool.name, response: { ok: true, nextAnswerExpression: "gesetzt", instructions: "Jetzt nur die kurze Antwort sprechen, keine Regieanweisungen." } }] } });
+        this.toolRequests.delete(tool.id); return;
+      }
+      if (tool.name === "show_in_browser") {
+        const url = browserUrl(tool.args?.kind, tool.args?.query);
+        if (!url || this.seenTools.size > 80) throw new Error("Ungültige Browseranfrage.");
+        if (!this.browser || this.browser.closed) throw new Error("Das Browserfenster ist geschlossen. Boss muss das Gespräch mit Browser neu starten.");
+        this.browser.location.href = url;
+        this.send({ toolResponse: { functionResponses: [{ id: tool.id, name: tool.name, response: { ok: true, opened: tool.args!.kind, note: "Die Suchseite ist jetzt für Boss sichtbar. Du siehst ihren Inhalt nicht; nenne keine Ergebnisse, die du nicht aus einer eigenen Suche kennst." } }] } });
         this.toolRequests.delete(tool.id); return;
       }
       if (tool.name === "search_personal_knowledge") {
@@ -127,7 +137,7 @@ export class JarvisLiveSession {
   }
   dismissTask() { this.pendingTask = null; this.events.pendingTask?.(null); }
   async start(options: CallOptions) {
-    this.todoist = options.todoist === true;
+    this.todoist = options.todoist === true; this.browser = options.browser || null;
     this.events.phase("connecting");
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) throw new Error("Mikrofon und Kamera brauchen localhost oder HTTPS und einen aktuellen Browser.");
@@ -141,7 +151,7 @@ export class JarvisLiveSession {
       if (this.stopped) return;
       await context.audioWorklet.addModule("/jarvis/live-capture.js");
       if (this.stopped) return;
-      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, persona: options.persona, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
+      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, persona: options.persona, browser: Boolean(options.browser), place: options.place, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || "Live-Zugang konnte nicht vorbereitet werden.");
       if (this.stopped) return;
       if (options.knowledge) { if (typeof data.knowledge?.ticket !== "string") throw new Error("Wissenssuche konnte nicht vorbereitet werden."); this.knowledgeTicket = data.knowledge.ticket; }
