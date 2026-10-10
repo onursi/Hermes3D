@@ -12,10 +12,12 @@ export class LiveVoiceOutput {
   private jobs = 0;
   private queue = Promise.resolve();
   private abort = new AbortController();
+  private idle: ReturnType<typeof setTimeout> | undefined;
   constructor(private session: string, private pcm: (bytes: Uint8Array) => void, private error: (message: string) => void, private activity: (busy: boolean) => void) {}
   get busy() { return this.jobs > 0 || this.text.trim().length > 0 || Boolean(this.lastSentence); }
   setExpression(expression: VoiceExpression) { this.expression = { ...expression }; }
   append(fragment: string) {
+    clearTimeout(this.idle);
     this.text += fragment;
     if (this.text.length > 4000) { this.interrupt(); this.error("Sprachantwort zu lang. Bitte kürzer fragen."); return; }
     let match: RegExpMatchArray | null;
@@ -27,14 +29,17 @@ export class LiveVoiceOutput {
     // actual last sentence so laughter can share its context at turn completion.
     if (this.lastSentence && this.text.trim()) { this.enqueue(this.lastSentence); this.lastSentence = ""; }
     while (this.text.length > 500) { let cut = this.text.lastIndexOf(" ", 500); if (cut < 100) cut = 500; this.enqueue(this.text.slice(0, cut)); this.text = this.text.slice(cut); }
+    // A finished sentence with nothing following starts speaking after a short pause, not only at the end of the turn.
+    if (this.lastSentence && !this.text.trim()) this.idle = setTimeout(() => this.flush(), 320);
   }
   flush() {
+    clearTimeout(this.idle);
     const last = `${this.lastSentence}${this.text}`.trim();
     if (!last) return;
     this.enqueue(last, this.expression.laugh); this.text = ""; this.lastSentence = ""; this.expression = neutralExpression();
   }
   interrupt() {
-    this.abort.abort(); this.abort = new AbortController(); this.epoch++; this.jobs = 0; this.text = ""; this.lastSentence = ""; this.expression = neutralExpression(); this.previous = ""; this.queue = Promise.resolve(); this.activity(false);
+    clearTimeout(this.idle); this.abort.abort(); this.abort = new AbortController(); this.epoch++; this.jobs = 0; this.text = ""; this.lastSentence = ""; this.expression = neutralExpression(); this.previous = ""; this.queue = Promise.resolve(); this.activity(false);
   }
   private enqueue(raw: string, laugh = false) {
     const text = raw.trim(); if (!text) return;

@@ -8,9 +8,9 @@ describe("Jarvis personas", () => {
     expect(readPersona(undefined)).toBe("kumpel");
   });
   it("lets the buddy react to the camera and laugh in his own voice only without an external voice", () => {
-    expect(personaInstruction("kumpel", false)).toContain("dreckig auflachen");
+    expect(personaInstruction("kumpel", false)).toContain("dreckiges Lachen");
     expect(personaInstruction("kumpel", false)).toContain("Nur wirklich Sichtbares");
-    expect(personaInstruction("kumpel", true)).not.toContain("auflachen");
+    expect(personaInstruction("kumpel", true)).not.toContain("dreckiges Lachen");
     expect(personaInstruction("kumpel", true)).toContain("Nur wirklich Sichtbares");
   });
   it("keeps the strategist free of roasts and laughter", () => {

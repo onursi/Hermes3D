@@ -9,6 +9,8 @@ const securityHeaders = [
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'self'",
+      // Jarvis shows map and search results beside the head; only these two hosts may be framed.
+      "frame-src 'self' https://www.google.com https://www.youtube.com",
       "img-src 'self' data: blob: http: https:",
       "font-src 'self' data: https:",
       "style-src 'self' 'unsafe-inline' https:",
