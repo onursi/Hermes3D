@@ -131,7 +131,7 @@ export class JarvisLiveSession {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) throw new Error("Mikrofon und Kamera brauchen localhost oder HTTPS und einen aktuellen Browser.");
       const context = new AudioContext({ latencyHint: "interactive" }); this.context = context;
       await context.resume(); if (this.stopped) return;
-      const media = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(options.audioDevice ? { deviceId: { exact: options.audioDevice } } : {}) }, video: options.camera ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user", ...(options.videoDevice ? { deviceId: { exact: options.videoDevice } } : {}) } : false });
+      const media = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(options.audioDevice ? { deviceId: { exact: options.audioDevice } } : {}) }, video: options.camera ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user", ...(options.videoDevice ? { deviceId: { exact: options.videoDevice } } : {}) } : false });
       if (this.stopped) { media.getTracks().forEach(track => track.stop()); return; }
       this.media = media;
       media.getTracks().forEach(track => { track.onended = () => this.fail("Mikrofon oder Kamera wurde getrennt. Gespräch beendet."); });

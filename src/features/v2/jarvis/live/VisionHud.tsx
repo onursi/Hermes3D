@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, type MutableRefObject, type RefObject } from "react";
 import type { FaceMesh } from "./useFaceTracking";
-import { EYE_A, EYE_B, FACE_OVAL, IRIS_A, IRIS_B, LIPS, bounds, distanceCm, eyeOpenness, hasIris } from "./vision";
+import { EYE_A, EYE_B, FACE_OVAL, IRIS_A, IRIS_B, LIPS, SKELETON, bounds, distanceCm, eyeOpenness, hasIris, shadeSilhouette } from "./vision";
 
 export type HudMode = "off" | "mesh" | "camera";
 const CYAN = "120,211,255";
@@ -9,35 +9,66 @@ const CYAN = "120,211,255";
 /** Local operator view: shows what Jarvis locks onto. Nothing drawn here leaves the browser. */
 export function VisionHud({ video, mesh, mode }: { video: RefObject<HTMLVideoElement | null>; mesh: MutableRefObject<FaceMesh>; mode: HudMode }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const frameBox = useRef<HTMLElement>(null);
   useEffect(() => {
     const element = canvas.current; if (!element || mode === "off") return;
     const ctx = element.getContext("2d"); if (!ctx) return;
-    let frame = 0, acquired = 0, blinks = 0, closed = false, smoothCm = 0;
+    const small = document.createElement("canvas"), work = document.createElement("canvas");
+    const smallCtx = small.getContext("2d"), workCtx = work.getContext("2d", { willReadFrequently: true });
+    let frame = 0, acquired = 0, blinks = 0, closed = false, smoothCm = 0, shape = "";
     const draw = (now: number) => {
       frame = requestAnimationFrame(draw);
       if (document.hidden) return;
       const source = video.current, ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const aspect = source?.videoWidth ? source.videoWidth / source.videoHeight : 4 / 3;
+      const nextShape = aspect.toFixed(3);
+      if (nextShape !== shape && frameBox.current) { shape = nextShape; frameBox.current.style.aspectRatio = nextShape; }
       const w = element.clientWidth, h = element.clientHeight; if (!w || !h) return;
-      if (element.width !== Math.round(w * ratio)) { element.width = Math.round(w * ratio); element.height = Math.round(h * ratio); }
+      if (element.width !== Math.round(w * ratio) || element.height !== Math.round(h * ratio)) { element.width = Math.round(w * ratio); element.height = Math.round(h * ratio); }
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = "#02070b"; ctx.fillRect(0, 0, w, h);
-      const aspect = source?.videoWidth ? source.videoWidth / source.videoHeight : 4 / 3;
       // Selfie view: mirrored like a mirror, so left on screen is the operator's left.
       const px = (x: number) => (1 - x) * w, py = (y: number) => y * h;
       if (mode === "camera" && source?.videoWidth) {
-        ctx.save(); ctx.translate(w, 0); ctx.scale(-1, 1); ctx.filter = "grayscale(1) contrast(1.2) brightness(.62)";
+        ctx.save(); ctx.translate(w, 0); ctx.scale(-1, 1); ctx.imageSmoothingQuality = "high"; ctx.filter = "grayscale(1) contrast(1.25) brightness(.8)";
         ctx.drawImage(source, 0, 0, w, h); ctx.restore();
-        ctx.fillStyle = "rgba(8,60,95,.38)"; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "rgba(8,60,95,.3)"; ctx.fillRect(0, 0, w, h);
       }
-      ctx.fillStyle = "rgba(2,7,11,.22)"; for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
       const data = mesh.current, points = now - data.seen < 700 ? data.points : null;
+      const body = data.body && now - data.body.seen < 900 ? data.body : null;
+      const sweep = now / 2600 % 1;
+      if (body && smallCtx && workCtx) {
+        // Silhouette: the coarse mask is smoothed by scaling, then shaded into outline, grid and scan band.
+        if (small.width !== body.width || small.height !== body.height) { small.width = body.width; small.height = body.height; }
+        const pixels = smallCtx.createImageData(body.width, body.height);
+        for (let i = 0; i < body.mask.length; i++) { pixels.data[i * 4] = 255; pixels.data[i * 4 + 3] = body.mask[i]; }
+        smallCtx.putImageData(pixels, 0, 0);
+        const ww = 320, wh = Math.max(2, Math.round(320 / aspect));
+        if (work.width !== ww || work.height !== wh) { work.width = ww; work.height = wh; }
+        workCtx.clearRect(0, 0, ww, wh); workCtx.imageSmoothingEnabled = true; workCtx.drawImage(small, 0, 0, ww, wh);
+        const image = workCtx.getImageData(0, 0, ww, wh);
+        shadeSilhouette(image.data, ww, wh, sweep);
+        workCtx.putImageData(image, 0, 0);
+        ctx.save(); ctx.translate(w, 0); ctx.scale(-1, 1); ctx.shadowColor = `rgb(${CYAN})`; ctx.shadowBlur = 10; ctx.drawImage(work, 0, 0, w, h); ctx.restore();
+        ctx.strokeStyle = `rgba(${CYAN},.5)`; ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.lineWidth = 1;
+        const seen = (i: number) => body.points[i * 3 + 2] > .5;
+        ctx.beginPath(); for (const [a, b] of SKELETON) if (seen(a) && seen(b)) { ctx.moveTo(px(body.points[a * 3]), py(body.points[a * 3 + 1])); ctx.lineTo(px(body.points[b * 3]), py(body.points[b * 3 + 1])); } ctx.stroke();
+        for (const i of new Set(SKELETON.flat())) if (seen(i)) ctx.fillRect(px(body.points[i * 3]) - 2, py(body.points[i * 3 + 1]) - 2, 4, 4);
+        // The bright line that travels with the scan band across the whole frame.
+        const y = sweep * h, line = ctx.createLinearGradient(0, y - 22, 0, y + 2);
+        line.addColorStop(0, `rgba(${CYAN},0)`); line.addColorStop(.9, `rgba(${CYAN},.16)`); line.addColorStop(1, `rgba(${CYAN},.75)`);
+        ctx.fillStyle = line; ctx.fillRect(0, y - 22, w, 24);
+      }
+      ctx.fillStyle = "rgba(2,7,11,.12)"; for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
       ctx.font = "600 9px Arial"; ctx.textBaseline = "top";
       if (!points) {
         acquired = 0; closed = false;
-        const sweep = (now / 1600 % 1) * h;
-        const gradient = ctx.createLinearGradient(0, sweep - 30, 0, sweep); gradient.addColorStop(0, `rgba(${CYAN},0)`); gradient.addColorStop(1, `rgba(${CYAN},.5)`);
-        ctx.fillStyle = gradient; ctx.fillRect(0, sweep - 30, w, 30);
-        ctx.fillStyle = `rgba(${CYAN},.85)`; ctx.fillText("SUCHE SUBJEKT", 12, 12);
+        if (!body) {
+          const search = (now / 1600 % 1) * h;
+          const gradient = ctx.createLinearGradient(0, search - 30, 0, search); gradient.addColorStop(0, `rgba(${CYAN},0)`); gradient.addColorStop(1, `rgba(${CYAN},.5)`);
+          ctx.fillStyle = gradient; ctx.fillRect(0, search - 30, w, 30);
+        }
+        ctx.fillStyle = `rgba(${CYAN},.85)`; ctx.fillText(body ? "KÖRPER ERFASST · SUCHE GESICHT" : "SUCHE SUBJEKT", 12, 12);
         return;
       }
       if (!acquired) acquired = now;
@@ -71,12 +102,12 @@ export function VisionHud({ video, mesh, mode }: { video: RefObject<HTMLVideoEle
       const cm = distanceCm(points); if (cm) smoothCm = smoothCm ? smoothCm + (cm - smoothCm) * .12 : cm;
       ctx.fillStyle = `rgba(${CYAN},.95)`; ctx.fillText(lock < 1 ? "ERFASSE SUBJEKT" : "SUBJEKT ERFASST", 12, 12);
       ctx.fillStyle = "rgba(228,243,252,.8)"; ctx.font = "8px Arial";
-      const lines = [`AUGEN ${hasIris(points) ? (closed ? "GESCHLOSSEN" : "ERFASST") : "–"}`, `LIDSCHLAG ${blinks}`, cm ? `ABSTAND CA. ${Math.round(smoothCm / 5) * 5} CM` : "ABSTAND –", `PUNKTE ${count}`];
+      const lines = [`KÖRPERSCAN ${body ? `${Math.round(sweep * 100)} %` : "–"}`, `AUGEN ${hasIris(points) ? (closed ? "GESCHLOSSEN" : "ERFASST") : "–"}`, `LIDSCHLAG ${blinks}`, cm ? `ABSTAND CA. ${Math.round(smoothCm / 5) * 5} CM` : "ABSTAND –", `PUNKTE ${count + (body ? body.points.length / 3 : 0)}`];
       lines.forEach((line, i) => ctx.fillText(line, 12, h - 14 - (lines.length - 1 - i) * 12));
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
   }, [video, mesh, mode]);
   if (mode === "off") return null;
-  return <aside className="jl-hud" aria-label="Lokale Erfassungsansicht"><canvas ref={canvas} /><span>JARVIS SIEHT · LOKAL</span></aside>;
+  return <aside ref={frameBox} className="jl-hud" aria-label="Lokale Erfassungsansicht"><canvas ref={canvas} /><span>JARVIS SIEHT · LOKAL</span></aside>;
 }

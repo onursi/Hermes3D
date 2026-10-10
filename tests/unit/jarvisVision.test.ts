@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bounds, distanceCm, eyeOpenness, hasIris } from "@/features/v2/jarvis/live/vision";
+import { bounds, distanceCm, eyeOpenness, hasIris, shadeSilhouette } from "@/features/v2/jarvis/live/vision";
 
 function mesh(points: Record<number, [number, number]>, size = 478) {
   const data = new Float32Array(size * 2).fill(.5);
@@ -24,5 +24,14 @@ describe("Jarvis vision measurements", () => {
   });
   it("bounds the given landmarks", () => {
     expect(bounds(mesh({ 1: [.2, .3], 2: [.7, .9] }), [1, 2])).toEqual({ l: expect.closeTo(.2), r: expect.closeTo(.7), t: expect.closeTo(.3), b: expect.closeTo(.9) });
+  });
+  it("outlines the body edge, keeps the outside clear and lights the scan band inside", () => {
+    const width = 4, height = 20, data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) { data[(y * width) * 4 + 3] = 0; data[(y * width + 1) * 4 + 3] = 128; data[(y * width + 2) * 4 + 3] = 255; data[(y * width + 3) * 4 + 3] = 255; }
+    shadeSilhouette(data, width, height, .5);
+    const alpha = (x: number, y: number) => data[(y * width + x) * 4 + 3];
+    expect(alpha(0, 3)).toBe(0);
+    expect(alpha(1, 3)).toBeGreaterThan(200);
+    expect(alpha(3, 10)).toBeGreaterThan(alpha(3, 3));
   });
 });

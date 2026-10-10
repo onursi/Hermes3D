@@ -32,3 +32,21 @@ export function bounds(mesh: Float32Array, indices = FACE_OVAL) {
   for (const i of indices) { const [x, y] = at(mesh, i); l = Math.min(l, x); r = Math.max(r, x); t = Math.min(t, y); b = Math.max(b, y); }
   return { l, r, t, b };
 }
+
+/** MediaPipe pose joints drawn as the body frame: shoulders, arms, torso, legs. */
+export const SKELETON: [number, number][] = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+
+/** Turns a soft person mask (alpha channel) into outline, faint grid fill and a travelling scan band, in place. */
+export function shadeSilhouette(data: Uint8ClampedArray, width: number, height: number, sweep: number) {
+  for (let y = 0; y < height; y++) {
+    const band = Math.max(0, 1 - Math.abs(y / height - sweep) / .06);
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4, a = data[i + 3] / 255;
+      const edge = Math.max(0, 1 - Math.abs(a - .5) / .2);
+      const fill = a > .5 ? .05 + (y % 6 === 0 || x % 10 === 0 ? .1 : 0) + band * .5 : 0;
+      const light = Math.min(1, edge + band * (a > .5 ? .6 : 0));
+      data[i] = 120 + 135 * light * .6; data[i + 1] = 211 + 44 * light * .6; data[i + 2] = 255;
+      data[i + 3] = Math.min(1, edge * .95 + fill) * 255;
+    }
+  }
+}
