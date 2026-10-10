@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { addAndroidRelief } from "./reliefModel";
+import { addTorso } from "./torsoModel";
 import { currentGaze, damp, focusYaw, type GazeTarget } from "./tracking";
 
-export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, active = false }: { level: MutableRefObject<number>; gaze: MutableRefObject<GazeTarget>; attention?: MutableRefObject<number>; onActivate: () => void; inspect?: number; active?: boolean }) {
+export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, active = false, torso = false }: { level: MutableRefObject<number>; gaze: MutableRefObject<GazeTarget>; attention?: MutableRefObject<number>; onActivate: () => void; inspect?: number; active?: boolean; torso?: boolean }) {
   const container = useRef<HTMLButtonElement>(null);
   const inspection = useRef(0), suppressClick = useRef(false);
   const resetVersion = useRef(0);
@@ -27,10 +28,14 @@ export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, a
       const lamp=new THREE.DirectionalLight(color,intensity);lamp.position.set(x,y,z);scene.add(lamp);
     }
     const head=new THREE.Group();scene.add(head);
+    const body=torso?addTorso(scene):undefined;
     let android: ReturnType<typeof addAndroidRelief> | undefined;
     let disposed=false;
     const texture=new THREE.TextureLoader().load("/jarvis/hologram-android-v3.png",loaded=>{if(disposed){loaded.dispose();return;}loaded.colorSpace=THREE.SRGBColorSpace;android=addAndroidRelief(head,loaded);},undefined,()=>{if(!disposed)setFallback(true);});
-    const resize=()=>{const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();};
+    const resize=()=>{const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;renderer.setSize(w,h);camera.aspect=w/h;
+      // With shoulders the frame is wide and reaches below the neck; narrow screens pull back so the head still fits.
+      if(torso){const distance=Math.max(12,2.5/(Math.tan(THREE.MathUtils.degToRad(17.5))*camera.aspect));camera.position.set(0,-.7,distance);camera.lookAt(0,-.82,0);}
+      camera.updateProjectionMatrix();};
     const observer=new ResizeObserver(resize);observer.observe(host);resize();
     const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let frame=0,last=0,eyeX=0,eyeY=0,energy=0,headX=0,headY=0;
@@ -64,6 +69,7 @@ export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, a
       // One complete revolution returns to the same orientation without reversing.
       const turn=spinning?Math.PI*2*(progress*progress*(3-2*progress)):manual??headX*amount;
       head.rotation.set(headY*.36*amount,turn,damp(head.rotation.z,-target.roll*.5,3,dt));
+      if(body)body.rotation.y=spinning||manual!==null?0:headX*amount*.12;
       const still=reduced?.matches?0:1;
       android?.eyes.forEach((eye,i)=>{eye.position.x=android!.eyeOrigins[i].x+(eyeX-target.x*.3+saccadeX*still)*.17;eye.position.y=android!.eyeOrigins[i].y-(eyeY-headY*.25+saccadeY*still)*.034;eye.scale.y=reduced?.matches?1:lid;android!.sockets[i].scale.y=reduced?.matches?1:lid;});
       if(android)android.mouth.value=energy*amount;
@@ -85,6 +91,6 @@ export function TrackedHead({ level, gaze, attention, onActivate, inspect = 0, a
       scene.traverse(object=>{if(object instanceof THREE.Mesh||object instanceof THREE.LineSegments){geometries.add(object.geometry);(Array.isArray(object.material)?object.material:[object.material]).forEach(m=>materials.add(m));}});
       geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();
     };
-  },[level,gaze,attention]);
+  },[level,gaze,attention,torso]);
   return <button ref={container} className="jl-tracked-head" type="button" aria-label="Jarviskopf drehen oder Gesprächseinstellungen öffnen" title="Ziehen dreht den Kopf frei · ESC setzt ihn zurück" onClick={()=>{if(!suppressClick.current)onActivate();}}>{fallback&&<><img src="/jarvis/hologram-android-v3.png" alt="Mechanischer Jarviskopf" /><span className="jl-render-note">3D-Darstellung auf diesem Gerät nicht verfügbar</span></>}</button>;
 }
