@@ -4,7 +4,7 @@ export const PERSONAS = {
   stratege: { label: "Stratege · höflich, präzise, technisch" },
 } as const;
 export type PersonaId = keyof typeof PERSONAS;
-export const readPersona = (value: unknown): PersonaId => typeof value === "string" && value in PERSONAS ? value as PersonaId : "kumpel";
+export const readPersona = (value: unknown): PersonaId => typeof value === "string" && Object.hasOwn(PERSONAS, value) ? value as PersonaId : "kumpel";
 
 const SEEING = " Du siehst Boss durch die Kamera und zeigst das auch. Bring von dir aus regelmäßig eine kurze Beobachtung aus dem aktuellen Bild ein, wenn sie zur Situation passt: was er in der Hand hält, was er gerade tut, wohin er schaut, was sich seit eben geändert hat. Ein Halbsatz reicht, dann weiter im Gespräch. Nur wirklich Sichtbares. Kein Urteil über Aussehen, Körper, Kleidung oder andere Personen im Bild, keine Personen benennen. Ohne aktuelles Bild keine Beobachtung.";
 
