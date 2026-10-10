@@ -64,7 +64,7 @@ export function JarvisLive() {
   const dialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(false);
   const active = phase !== "idle" || preview;
-  const restored = useRef(false);
+  const [restored, setRestored] = useState(false);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("jarvis_live_settings") || "null");
@@ -79,12 +79,13 @@ export function JarvisLive() {
         if (typeof saved.place === "string") setPlace(saved.place.slice(0, 60));
       }
     } catch { /* unreadable settings fall back to the defaults */ }
-    restored.current = true;
+    setRestored(true);
   }, []);
   useEffect(() => {
-    if (!restored.current) return;
+    // Waits for the render that carries the restored values, so defaults never overwrite them.
+    if (!restored) return;
     try { localStorage.setItem("jarvis_live_settings", JSON.stringify({ camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place })); } catch { /* storage may be blocked */ }
-  }, [camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place]);
+  }, [camera, coach, snap, assist, browser, brainOpen, torso, todoist, knowledge, mirror, consent, hudTop, hud, persona, brainSide, voice, place, restored]);
   const stop = useCallback(() => { previewGeneration.current++; previewStream.current?.getTracks().forEach(track => { track.onended = null; track.stop(); }); previewStream.current = null; if (video.current) { video.current.pause(); video.current.srcObject = null; } if (mounted.current) setPreview(false); call.current?.stop(); call.current = null; if (mounted.current) { setPhase("idle"); setPanel(true); } }, []);
   useFaceTracking(video, camera && active, mirror, gaze, setTracking, mesh);
   useEffect(() => {
