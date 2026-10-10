@@ -216,7 +216,12 @@ export class JarvisLiveSession {
       const deadline = setTimeout(() => this.fail("Live-Verbindung braucht zu lange. Bitte erneut starten."), 15000); this.timers.push(deadline);
       socket.onopen = () => { if (!this.stopped) socket.send(JSON.stringify({ setup: data.setup })); };
       socket.onerror = () => this.fail("Google-Live-Verbindung unterbrochen. Bitte erneut starten.");
-      socket.onclose = event => { if (!this.stopped) this.fail(event.code === 1000 ? "Gespräch beendet. Du kannst neu starten." : "Live-Verbindung geschlossen. Kontingent oder Netzwerk prüfen und neu starten."); };
+      socket.onclose = event => {
+        if (this.stopped) return;
+        // Google's own reason is shown, so a quota limit is not confused with any other drop.
+        const reason = String(event.reason || "").replace(/\s+/g, " ").trim().slice(0, 180);
+        this.fail(event.code === 1000 ? "Gespräch beendet. Du kannst neu starten." : /quota|exceeded|billing/i.test(reason) ? `Google meldet: Kontingent erreicht. (${reason})` : `Live-Verbindung von Google geschlossen (Code ${event.code}${reason ? `: ${reason}` : ", ohne Angabe"}). Bitte neu starten.`);
+      };
       socket.onmessage = event => {
         this.messages = this.messages.then(async () => {
           if (this.stopped) return;
