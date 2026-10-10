@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const raw = await req.text(); if (raw.length > 2048) throw new Error("Anfrage zu groß.");
     const body = JSON.parse(raw); const token = todoistToken(req);
     if (!token) throw new Error("Todoist ist nicht verbunden. Zugang in Hermes hinterlegen.");
-    if (body.action === "summary" && ["today", "tomorrow"].includes(body.period)) {
+    if (body.action === "summary" && ["today", "tomorrow", "week"].includes(body.period)) {
       const zone = typeof body.timeZone === "string" && body.timeZone.length < 100 ? body.timeZone : "UTC";
       return NextResponse.json(await taskSummary(token, body.period, zone, new Date(), req.signal), { headers });
     }

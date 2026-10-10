@@ -129,7 +129,7 @@ export class JarvisLiveSession {
       }
       if (!this.todoist || this.seenTools.size > 80) throw new Error("Todoist-Werkzeug ist nicht verfügbar. Gespräch neu starten.");
       const signal = AbortSignal.any([abort.signal, this.abort.signal]);
-      if (tool.name === "get_todoist_summary" && ["today", "tomorrow"].includes(String(tool.args?.period))) {
+      if (tool.name === "get_todoist_summary" && ["today", "tomorrow", "week"].includes(String(tool.args?.period))) {
         result = await this.taskRequest({ action: "summary", period: tool.args!.period, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }, signal);
       } else if (tool.name === "prepare_todoist_completion" && typeof tool.args?.taskId === "string") {
         const data = await this.taskRequest({ action: "prepare", taskId: tool.args.taskId }, signal);

@@ -38,21 +38,25 @@ async function pages(path: string, token: string, signal?: AbortSignal) {
   throw new Error("Todoist-Liste unvollständig. Keine vollständige Zusammenfassung möglich.");
 }
 const minimal = (task: Task) => ({ id: task.task_id || task.id, title: task.content.slice(0, 300) });
-export async function taskSummary(token: string, period: "today" | "tomorrow", zone: string, now = new Date(), signal?: AbortSignal) {
+/** Monday of the week that contains the given local day. */
+export function weekStart(day: string) { const date = new Date(Date.parse(day + "T12:00:00Z")); return new Date(date.getTime() - ((date.getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10); }
+export async function taskSummary(token: string, period: "today" | "tomorrow" | "week", zone: string, now = new Date(), signal?: AbortSignal) {
   const today = localDay(now, zone), day = period === "tomorrow" ? nextDay(today) : today;
   const open = (await pages("/tasks", token, signal)).filter(t => !t.checked && !t.is_completed && !t.is_deleted);
   const due = (task: Task) => {
     const value = task.due?.datetime || task.due?.date;
     return value ? (/T.*(?:Z|[+-]\d\d:\d\d)$/.test(value) ? localDay(new Date(value), zone) : value.slice(0, 10)) : null;
   };
-  const selected = open.filter(t => due(t) === day);
-  const overdue = period === "today" ? open.filter(t => due(t) && due(t)! < today) : [];
+  // The week runs Monday to Sunday: done so far, plus what is still due before it ends.
+  const monday = weekStart(today), sunday = new Date(Date.parse(monday + "T12:00:00Z") + 6 * 86400000).toISOString().slice(0, 10);
+  const selected = period === "week" ? open.filter(t => due(t) && due(t)! >= today && due(t)! <= sunday) : open.filter(t => due(t) === day);
+  const overdue = period !== "tomorrow" ? open.filter(t => due(t) && due(t)! < today) : [];
   let completed: Task[] = [], completedError: string | null = null;
-  if (period === "today") {
-    try { completed = await pages(`/tasks/completed/by_completion_date?since=${encodeURIComponent(midnight(today, zone))}&until=${encodeURIComponent(midnight(nextDay(today), zone))}`, token, signal); }
+  if (period !== "tomorrow") {
+    try { completed = await pages(`/tasks/completed/by_completion_date?since=${encodeURIComponent(midnight(period === "week" ? monday : today, zone))}&until=${encodeURIComponent(midnight(nextDay(today), zone))}`, token, signal); }
     catch (error) { if (signal?.aborted) throw error; completedError = error instanceof Error ? error.message : "Erledigungen nicht abrufbar."; }
   }
-  return { ok: true, date: day, timeZone: zone, due: selected.slice(0, 40).map(minimal), dueCount: selected.length, overdue: overdue.slice(0, 20).map(minimal), overdueCount: overdue.length, completed: completed.slice(0, 40).map(minimal), completedCount: completedError ? null : completed.length, completedError, truncated: selected.length > 40 || completed.length > 40 || overdue.length > 20 };
+  return { ok: true, period, date: day, ...(period === "week" ? { weekFrom: monday, weekTo: sunday } : {}), timeZone: zone, due: selected.slice(0, 40).map(minimal), dueCount: selected.length, overdue: overdue.slice(0, 20).map(minimal), overdueCount: overdue.length, completed: completed.slice(0, 40).map(minimal), completedCount: completedError ? null : completed.length, completedError, truncated: selected.length > 40 || completed.length > 40 || overdue.length > 20 };
 }
 const owner = (token: string) => createHash("sha256").update(token).digest("hex");
 export async function prepareCompletion(token: string, taskId: string, signal?: AbortSignal) {
