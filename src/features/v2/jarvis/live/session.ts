@@ -4,8 +4,8 @@ import { SnapDetector } from "./snap";
 import { browserEmbedUrl } from "@/lib/jarvis/browserTool";
 export type LivePhase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 export type PendingTask = { id: string; title: string; proof: string; kind?: "complete" | "task" | "note"; detail?: string };
-type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; browser?: boolean; place?: string; assist?: boolean; laughAlways?: boolean; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
-type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void; browser?: (url: string | null) => void };
+type CallOptions = { camera: boolean; coach: boolean; voice: string; persona?: string; snap?: boolean; browser?: boolean; place?: string; assist?: boolean; laughAlways?: boolean; paid?: boolean; todoist?: boolean; knowledge?: boolean; audioDevice?: string; videoDevice?: string };
+type CallEvents = { phase: (value: LivePhase) => void; error: (value: string) => void; level: { current: number }; pendingTask?: (value: PendingTask | null) => void; browser?: (url: string | null) => void; usePaid?: () => void };
 
 export function bytesToBase64(bytes: Uint8Array) {
   let result = ""; for (const value of bytes) result += String.fromCharCode(value);
@@ -68,6 +68,7 @@ export class JarvisLiveSession {
   private snap = new SnapDetector();
   private browser = false;
   private assist = false;
+  private tier = "paid";
   private camera = false;
   constructor(private video: HTMLVideoElement, private events: CallEvents) {}
 
@@ -192,9 +193,10 @@ export class JarvisLiveSession {
       if (this.stopped) return;
       await context.audioWorklet.addModule("/jarvis/live-capture.js");
       if (this.stopped) return;
-      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, persona: options.persona, browser: this.browser, place: options.place, assist: this.assist, camera: options.camera, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
+      const response = await fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true, voice: options.voice, persona: options.persona, tier: options.paid ? "paid" : "auto", browser: this.browser, place: options.place, assist: this.assist, camera: options.camera, todoist: this.todoist, knowledge: options.knowledge === true }), signal: this.abort.signal });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || "Live-Zugang konnte nicht vorbereitet werden.");
       if (this.stopped) return;
+      this.tier = data.tier === "free" ? "free" : "paid";
       if (options.knowledge) { if (typeof data.knowledge?.ticket !== "string") throw new Error("Wissenssuche konnte nicht vorbereitet werden."); this.knowledgeTicket = data.knowledge.ticket; }
       if (data.endpoint !== "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained" || !data.token?.startsWith("auth_tokens/")) throw new Error("Ungültige Live-Verbindung.");
       const analyser = context.createAnalyser(); analyser.fftSize = 256; analyser.connect(context.destination);
@@ -220,6 +222,11 @@ export class JarvisLiveSession {
         if (this.stopped) return;
         // Google's own reason is shown, so a quota limit is not confused with any other drop.
         const reason = String(event.reason || "").replace(/\s+/g, " ").trim().slice(0, 180);
+        if (event.code !== 1000 && this.tier === "free" && /quota|exceeded|resource|billing|limit/i.test(reason)) {
+          // The free day is used up: continue with the paid key, once, without showing an error.
+          void fetch("/api/jarvis/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "free-used" }), keepalive: true }).catch(() => {});
+          this.stop(); this.events.usePaid?.(); return;
+        }
         this.fail(event.code === 1000 ? "Gespräch beendet. Du kannst neu starten." : /quota|exceeded|billing/i.test(reason) ? `Google meldet: Kontingent erreicht. (${reason})` : `Live-Verbindung von Google geschlossen (Code ${event.code}${reason ? `: ${reason}` : ", ohne Angabe"}). Bitte neu starten.`);
       };
       socket.onmessage = event => {

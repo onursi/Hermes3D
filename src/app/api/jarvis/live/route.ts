@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createLiveToken } from "@/lib/jarvis/live";
 import { readPersona } from "@/lib/jarvis/personas";
 import { readPlace } from "@/lib/jarvis/browserTool";
+import { blockFreeTier } from "@/lib/jarvis/vision";
 import { visionConfig } from "@/lib/jarvis/vision";
 import { issueSpeechGrant, speechStatus } from "@/lib/jarvis/elevenVoice";
 import { issueKnowledgeGrant, knowledgeStatus } from "@/lib/jarvis/knowledge";
@@ -20,6 +21,8 @@ export async function POST(req: Request) {
   try {
     const raw = await req.text(); if (raw.length > 1024) return NextResponse.json({ error: "Anfrage zu groß." }, { status: 413, headers });
     const data = JSON.parse(raw);
+    // The browser reports that Google refused the free key; it stays off until the daily reset.
+    if (data.action === "free-used") { blockFreeTier(); return NextResponse.json({ ok: true }, { headers }); }
     if (data.consent !== true) return NextResponse.json({ error: "Mikrofon-/Kameraübertragung zuerst freigeben." }, { status: 400, headers });
     const voice = typeof data.voice === "string" ? data.voice : "Charon";
     busy = true; last = Date.now();
@@ -27,7 +30,7 @@ export async function POST(req: Request) {
     if (external) { const status = await speechStatus(req.signal, true); if (!status.ready) return NextResponse.json({ error: status.error }, { status: 402, headers }); }
     const knowledge = data.knowledge === true;
     if (knowledge && !knowledgeStatus().configured) return NextResponse.json({ error: "Drehquellen nicht eingerichtet." }, { status: 400, headers });
-    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external, knowledge, readPersona(data.persona), data.browser === true ? { place: readPlace(data.place) } : undefined, data.assist === true ? { documents: data.camera === true, notes: true } : undefined);
+    const live = await createLiveToken(external ? "Charon" : voice, req.signal, data.todoist === true, external, knowledge, readPersona(data.persona), data.browser === true ? { place: readPlace(data.place) } : undefined, data.assist === true ? { documents: data.camera === true, notes: true } : undefined, data.tier === "paid");
     return NextResponse.json({ ...live, ...(knowledge ? { knowledge: { ticket: issueKnowledgeGrant() } } : {}), ...(external ? { speech: { provider: "ElevenLabs", session: issueSpeechGrant(), sampleRate: 24000 } } : {}) }, { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";

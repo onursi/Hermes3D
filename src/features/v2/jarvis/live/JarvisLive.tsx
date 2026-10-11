@@ -106,18 +106,19 @@ export function JarvisLive() {
     return () => { clearTimeout(timer); attention.current = 0; };
   }, [scan, brainSide, active, knowledge]);
   useEffect(() => { if (panel && !dialog.current?.open) dialog.current?.showModal(); if (!panel) { dialog.current?.querySelectorAll("audio").forEach(audio => audio.pause()); if (dialog.current?.open) dialog.current.close(); } }, [panel]);
-  function start() {
+  function start(paid = false) {
     if (!consent || active || !video.current || (voice === "ElevenLabs" && !eleven?.ready)) return;
     setNotice(""); setInspect(0); setPhase("connecting"); setPanel(false);
     const session = new JarvisLiveSession(video.current, {
       level,
+      usePaid: () => { if (mounted.current && call.current === session) { call.current = null; setPhase("idle"); setNotice("Kostenloses Tageslimit erreicht, wechsle auf den bezahlten Zugang."); setTimeout(() => { if (mounted.current) start(true); }, 3300); } },
       browser: url => { if (mounted.current && call.current === session) setBrowserUrl(url); },
       pendingTask: value => { if (mounted.current && call.current === session) { setPendingTask(value); setTaskError(""); } },
       phase: value => { if (mounted.current && call.current === session) setPhase(value); },
       error: message => { if (mounted.current && call.current === session) { call.current = null; setNotice(message); setPanel(true); } },
     });
     call.current = session;
-    void session.start({ camera, coach, snap, assist, laughAlways: laughAlways && persona === "kumpel", voice, persona, browser, place, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
+    void session.start({ paid, camera, coach, snap, assist, laughAlways: laughAlways && persona === "kumpel", voice, persona, browser, place, todoist: todoist && todoistConnected, knowledge: knowledge && knowledgeReady, audioDevice, videoDevice });
   }
   async function confirmTask() {
     const session = call.current, task = pendingTask;
@@ -179,7 +180,7 @@ export function JarvisLive() {
       <label className="jl-check"><input type="checkbox" checked={mirror} disabled={active} onChange={event => setMirror(event.target.checked)} /><span>Blickrichtung spiegeln<span>Falls der Kopf bei deiner Kameraposition in die falsche Richtung folgt.</span></span></label>
       <label className="jl-check jl-consent"><input type="checkbox" checked={consent} disabled={active} onChange={event => setConsent(event.target.checked)} /><span>Live-Übertragung freigeben<span>Während des Gesprächs gehen Mikrofonton und bei aktivierter Kamera etwa ein Bild pro Sekunde an Google Gemini. Bei einer Todoist-Abfrage auch Aufgabentitel und Fälligkeiten. {assist && "Beim Lesen geht eine scharfe Einzelaufnahme des gezeigten Schriftstücks an Gemini, bei Notizen und neuen Aufgaben dein diktierter Text. "}{browser && "Mit Browser kennt Gemini den angegebenen Ort; geöffnete Suchen laufen in deinem Browser bei Google. "}{knowledge && "Bei Wissensfragen gehen passende Auszüge aus deinem Notizarchiv an Gemini und werden vorgelesen. "}{voice === "ElevenLabs" && "Die Antworttexte gehen zur Sprachausgabe an ElevenLabs und verbrauchen dessen Kontingent. "}Keine Aufnahme durch Hermes. Google-Kontingent wird genutzt.</span></span></label>
       {notice && <p className="jl-error" role="alert">{notice}</p>}
-      {active ? <div className="jl-actions"><button className="jl-start" onClick={() => setPanel(false)}>Zurück zum Drehmodus <ArrowUpRight size={18} /></button><button className="jl-end" onClick={stop}>Gespräch beenden</button></div> : <button className="jl-start" disabled={!consent || !ready || (voice === "ElevenLabs" && !eleven?.ready)} onClick={start}><Mic size={17} />{ready ? "Gespräch starten" : "Live-Zugang wird geprüft"}<ArrowUpRight size={18} /></button>}
+      {active ? <div className="jl-actions"><button className="jl-start" onClick={() => setPanel(false)}>Zurück zum Drehmodus <ArrowUpRight size={18} /></button><button className="jl-end" onClick={stop}>Gespräch beenden</button></div> : <button className="jl-start" disabled={!consent || !ready || (voice === "ElevenLabs" && !eleven?.ready)} onClick={() => start()}><Mic size={17} />{ready ? "Gespräch starten" : "Live-Zugang wird geprüft"}<ArrowUpRight size={18} /></button>}
       {!active && <button className="jl-preview" disabled={!camera} onClick={() => { void testGaze(); }}>Nur Blick testen<span>Nur deine Kamera · lokal · ohne Mikrofon oder Google-Verbindung</span></button>}
       {!active && <button className="jl-preview" onClick={()=>{setInspect(value=>value+1);setPanel(false);}}>Kopf 360° ansehen<span>Ohne Kamera · danach frei mit Maus oder Finger drehen</span></button>}
       <div className="jl-foot"><span>ESC beendet das Gespräch · max. 10 Minuten</span><Link href="/jarvis/stimmen.html">Stimmvergleich</Link><Link href="/jarvis/studio">Stimmstudio</Link></div>

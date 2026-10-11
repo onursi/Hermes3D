@@ -3,6 +3,21 @@ import os from "node:os";
 import path from "node:path";
 import { parseEnv } from "@/lib/perspectives/providers";
 
+/** Jarvis Live tries the free key first and switches to the paid one for the rest of the day once Google refuses it. */
+const tierKey = Symbol.for("hermes.jarvis.tier");
+const tierState = ((globalThis as unknown as Record<symbol, { blockedUntil: number }>)[tierKey] ||= { blockedUntil: 0 });
+const nextReset = (now = Date.now()) => { const d = new Date(now); d.setUTCHours(8, 5, 0, 0); return d.getTime() <= now ? d.getTime() + 86_400_000 : d.getTime(); };
+export function blockFreeTier(now = Date.now()) { tierState.blockedUntil = nextReset(now); }
+export function liveKey(forcePaid = false, now = Date.now()) {
+  const paid = visionConfig().key, free = process.env.JARVIS_GEMINI_KEY_FREE?.trim() || readEnvKey("JARVIS_GEMINI_KEY_FREE");
+  const useFree = Boolean(free) && free !== paid && !forcePaid && now >= tierState.blockedUntil;
+  return { key: useFree ? free : paid, tier: (useFree ? "free" : "paid") as "free" | "paid", hasFree: Boolean(free) && free !== paid };
+}
+function readEnvKey(name: string) {
+  const home = process.env.HERMES_HOME || (process.platform === "win32" ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "hermes") : path.join(os.homedir(), ".hermes"));
+  try { return parseEnv(fs.readFileSync(path.join(home, ".env"), "utf8"))[name] || ""; } catch { return ""; }
+}
+
 export function visionConfig() {
   const home = process.env.HERMES_HOME || (process.platform === "win32" ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "hermes") : path.join(os.homedir(), ".hermes"));
   let saved: Record<string, string> = {};
