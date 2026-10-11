@@ -93,6 +93,14 @@ export function Dock({
         </svg>
       </DockButton>
 
+      {/* The live conversation with head, camera and voice has its own page. */}
+      <DockButton active={false} onClick={() => { window.location.href = "/jarvis"; }} label="Jarvis Live">
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3.5c-3.6 0-6 2.5-6 6v3.2l1.6 4.3 2.4 2.5h4l2.4-2.5 1.6-4.3V9.5c0-3.5-2.4-6-6-6z" />
+          <path d="M8.6 10.6h2.2M13.2 10.6h2.2M10.4 15.2h3.2" />
+        </svg>
+      </DockButton>
+
       {showLibrary ? (
         <DockButton
           active={world === "library"}

@@ -52,6 +52,7 @@ export function MobileToday({ agentCount, rosterReachable, approvalsWaiting, app
       <div className="mobile-today-chips">
         <span className="today-chip"><i data-tone={rosterReachable ? "on" : "off"} />Hermes · {rosterReachable ? "bereit" : "offline"}</span>
         {rosterReachable && <Link className="today-chip" href="/walk"><i data-tone="idle" />{agentCount} {agentCount === 1 ? "Agent" : "Agenten"} · Walk-In</Link>}
+        <Link className="today-chip" href="/jarvis"><i data-tone="idle" />Jarvis Live · sprechen und zeigen</Link>
         <Link className="today-chip" href="/perspectives"><i data-tone="idle" />Perspektivenrat · Modelle wählen</Link>
         {approvalsReachable && approvalsWaiting > 0 && (
           <button type="button" className="today-chip" onClick={onOpenApprovals}><i data-tone="wait" />Freigabe ansehen</button>
